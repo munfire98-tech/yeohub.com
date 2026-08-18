@@ -13,6 +13,8 @@
      [2] act=cancel     → PG 정기결제 해지 호출
 
    요금: 월 1,900원 / 연 19,000원 (2개월 무료)
+
+   화면은 _header.php / _footer.php 를 그대로 씁니다 (blog.php·service.php 와 동일 구조).
    ============================================================= */
 declare(strict_types=1);
 
@@ -175,115 +177,77 @@ $STATUS_LABEL = [
 $monthly = PLANS['monthly']; $yearly = PLANS['yearly'];
 $yearCompare = $monthly['price'] * 12;          // 22,800
 $yearSave    = $yearCompare - $yearly['price']; // 3,800
+
+$PAGE_TITLE = '구독';
+require __DIR__ . '/_header.php';
 ?>
-<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>구독 — YeoHub</title>
 <style>
-  :root{
-    --bg:#eef1f6; --card:#fff; --card2:#f7f9fc; --bd:#e3e8f0; --bd2:#d6dce6;
-    --fg:#1a2436; --mut:#64748b; --sub:#8a97ad;
-    --accent:#2563eb; --accent-dim:#eef4ff;
-    --ok:#15803d; --ok-bg:#eefaf1; --ok-bd:#bfe6cb;
-    --warn:#b45309; --warn-bg:#fffbeb; --warn-bd:#f6d8a8;
-    --err:#b91c1c; --err-bg:#fdf1ef; --err-bd:#eebfb8;
-    --r:12px; --r-sm:9px;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Pretendard','Malgun Gothic',sans-serif;background:var(--bg);
-    color:var(--fg);font-size:14px;line-height:1.6;padding:0 0 80px}
-  .nav{background:var(--card);border-bottom:1px solid var(--bd);padding:12px 20px;
-    display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10}
-  .nav a.brand{font-weight:800;font-size:15px;color:var(--fg);text-decoration:none}
-  .nav .back{margin-left:auto;font-size:12.5px;color:var(--mut);text-decoration:none}
-  .wrap{max-width:860px;margin:24px auto;padding:0 18px}
-  h1{font-size:22px;font-weight:800;margin-bottom:5px}
-  .lead{color:var(--mut);font-size:13.5px;margin-bottom:20px}
+/* 구독 페이지 전용 — service.php/blog.php 와 같은 방식: 기존 .wrap/.card/.btn 위에 최소한만 더합니다 */
+.sub-state{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.sub-badge{font-size:12px;font-weight:800;border-radius:999px;padding:5px 13px}
+.sub-badge.muted{background:var(--bg2);color:var(--mut)}
+.sub-badge.wait{background:#fffbeb;color:#b45309}
+.sub-badge.ok{background:#eefaf1;color:#15803d}
+.sub-badge.err{background:#fdeceb;color:var(--danger)}
+.sub-meta{font-size:12.5px;color:var(--mut)}
 
-  .card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);
-    padding:18px;margin-bottom:16px}
+.sub-notice{background:#fffbeb;border:1px solid #f6d8a8;border-radius:10px;
+  padding:12px 14px;font-size:12.5px;color:#b45309;line-height:1.75;margin-bottom:16px}
+.sub-flash{border-radius:9px;padding:11px 14px;font-size:13px;font-weight:600;margin-bottom:16px}
+.sub-flash.ok{background:#eefaf1;border:1px solid #bfe6cb;color:#15803d}
+.sub-flash.err{background:#fdeceb;border:1px solid #eebfb8;color:var(--danger)}
 
-  /* 현재 상태 */
-  .state{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-  .state__badge{font-size:12px;font-weight:800;border-radius:999px;padding:5px 13px}
-  .state__badge.ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-bd)}
-  .state__badge.wait{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-bd)}
-  .state__badge.err{background:var(--err-bg);color:var(--err);border:1px solid var(--err-bd)}
-  .state__badge.muted{background:var(--card2);color:var(--mut);border:1px solid var(--bd)}
-  .state__meta{font-size:12.5px;color:var(--mut)}
+.sub-sec-t{font-size:15px;font-weight:800;margin-bottom:12px}
 
-  /* 플랜 */
-  .plans{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  @media(max-width:620px){.plans{grid-template-columns:1fr}}
-  .plan{position:relative;border:1px solid var(--bd);border-radius:var(--r);
-    padding:18px;background:var(--card);display:flex;flex-direction:column;gap:11px;
-    cursor:pointer;transition:.14s}
-  .plan:hover{border-color:var(--accent)}
-  .plan.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
-  .plan__badge{position:absolute;top:-10px;right:14px;background:var(--ok);color:#fff;
-    font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px}
-  .plan__name{font-size:13px;font-weight:700;color:var(--mut)}
-  .plan__price{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}
-  .plan__num{font-size:29px;font-weight:900;letter-spacing:-.02em}
-  .plan__unit{font-size:13px;color:var(--mut)}
-  .plan__was{font-size:12.5px;color:var(--sub);text-decoration:line-through}
-  .plan__sub{font-size:12.5px;color:var(--mut);line-height:1.65;min-height:36px}
-  .plan__list{list-style:none;display:grid;gap:6px;font-size:12.5px}
-  .plan__list li{display:flex;gap:6px;align-items:flex-start;line-height:1.55}
-  .plan__list li::before{content:'✓';font-weight:800;color:var(--accent);flex-shrink:0}
+.sub-plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:14px}
+.sub-plan{position:relative;display:block;background:var(--card2);border:1px solid var(--bd);
+  border-radius:12px;padding:18px;cursor:pointer;transition:.14s}
+.sub-plan:hover{border-color:var(--brand)}
+.sub-plan.sel{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.sub-plan__badge{position:absolute;top:-10px;right:14px;background:#16a34a;color:#fff;
+  font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px}
+.sub-plan__name{font-size:13px;font-weight:700;color:var(--mut2)}
+.sub-plan__price{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;margin-top:4px}
+.sub-plan__num{font-size:28px;font-weight:900;letter-spacing:-.02em}
+.sub-plan__unit{font-size:13px;color:var(--mut)}
+.sub-plan__was{font-size:12.5px;color:var(--mut);text-decoration:line-through}
+.sub-plan__sub{font-size:12.5px;color:var(--mut2);line-height:1.65;min-height:34px;margin:8px 0}
+.sub-plan__list{list-style:none;display:grid;gap:6px;font-size:12.5px;padding:0}
+.sub-plan__list li{display:flex;gap:6px;align-items:flex-start;line-height:1.55}
+.sub-plan__list li::before{content:'✓';font-weight:800;color:var(--brand);flex-shrink:0}
 
-  .btn{border:0;border-radius:var(--r-sm);padding:12px 20px;font-size:14px;font-weight:700;
-    cursor:pointer;font-family:inherit;background:var(--accent);color:#fff;transition:.12s}
-  .btn:hover{filter:brightness(1.08)}
-  .btn:disabled{opacity:.5;cursor:not-allowed}
-  .btn--ghost{background:var(--card);color:var(--mut);border:1px solid var(--bd2)}
-  .btn--wide{width:100%;margin-top:16px}
-  .btn--sm{padding:8px 14px;font-size:12.5px}
+.sub-empty{color:var(--mut);font-size:12.5px;padding:14px;text-align:center}
+table.sub-table{width:100%;border-collapse:collapse;font-size:12.5px}
+table.sub-table th,table.sub-table td{border:1px solid var(--bd);padding:7px 10px;text-align:left}
+table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-space:nowrap}
 
-  .flash{border-radius:var(--r-sm);padding:11px 14px;font-size:13px;font-weight:600;margin-bottom:16px}
-  .flash.ok{background:var(--ok-bg);border:1px solid var(--ok-bd);color:var(--ok)}
-  .flash.err{background:var(--err-bg);border:1px solid var(--err-bd);color:var(--err)}
+.sub-faq{display:grid;gap:9px}
+.sub-faq__q{font-size:13.5px;font-weight:700;margin-bottom:3px}
+.sub-faq__a{font-size:12.5px;color:var(--mut2);line-height:1.75}
 
-  .notice{background:var(--warn-bg);border:1px solid var(--warn-bd);border-radius:var(--r-sm);
-    padding:12px 14px;font-size:12.5px;color:var(--warn);line-height:1.75;margin-bottom:16px}
-
-  .sec-t{font-size:15px;font-weight:800;margin-bottom:10px}
-  table{width:100%;border-collapse:collapse;font-size:12.5px}
-  th,td{border:1px solid var(--bd);padding:7px 10px;text-align:left}
-  th{background:var(--card2);color:var(--mut);font-weight:700;white-space:nowrap}
-  .empty{color:var(--sub);font-size:12.5px;padding:14px;text-align:center}
-
-  .faq{display:grid;gap:9px}
-  .faq__q{font-size:13.5px;font-weight:700;margin-bottom:3px}
-  .faq__a{font-size:12.5px;color:var(--mut);line-height:1.75}
-  textarea{width:100%;border:1px solid var(--bd2);border-radius:var(--r-sm);padding:10px 12px;
-    font-size:13.5px;font-family:inherit;resize:vertical;color:var(--fg)}
+.sub-textarea{width:100%;border:1px solid var(--bd2);border-radius:9px;padding:10px 12px;
+  font-size:13.5px;font-family:inherit;resize:vertical;color:var(--fg);background:var(--bg2)}
 </style>
-</head>
-<body>
 
-<div class="nav">
-  <a class="brand" href="/index.php">YeoHub</a>
-  <a class="back" href="/building_manager.php">← 돌아가기</a>
-</div>
+<header class="page-head">
+  <div class="page-head__inner">
+    <div class="page-head__label"><span></span> 구독</div>
+    <h1>구독</h1>
+    <p>모든 기능을 제한 없이 사용합니다. 월 구독과 연 구독 중에 선택하세요.</p>
+  </div>
+</header>
 
-<div class="wrap">
-  <h1>구독</h1>
-  <div class="lead">모든 기능을 제한 없이 사용합니다. 월 구독과 연 구독 중에 선택하세요.</div>
-
+<main class="wrap">
   <?php if ($flash): ?>
-    <div class="flash <?=h($flashType)?>"><?=h($flash)?></div>
+    <div class="sub-flash <?=h($flashType)?>"><?=h($flash)?></div>
   <?php endif; ?>
 
   <?php if (!$hasUser): ?>
-    <div class="flash err">로그인 정보를 확인할 수 없어 구독 정보를 불러오지 못했습니다. 다시 로그인해 주세요.</div>
+    <div class="sub-flash err">로그인 정보를 확인할 수 없어 구독 정보를 불러오지 못했습니다. 다시 로그인해 주세요.</div>
   <?php endif; ?>
 
   <!-- ★ 결제 연동 전 안내 — PG 연동 후 이 블록을 지우세요 -->
-  <div class="notice">
+  <div class="sub-notice">
     <b>현재는 준비 중입니다.</b><br>
     결제 시스템 연동 전이라 지금 신청하시면 <b>사전 신청</b>으로 접수됩니다.
     실제 결제는 이루어지지 않으며, 준비가 끝나면 안내해 드리겠습니다.
@@ -291,25 +255,21 @@ $yearSave    = $yearCompare - $yearly['price']; // 3,800
 
   <!-- 현재 상태 -->
   <div class="card">
-    <div class="sec-t">현재 상태</div>
-    <div class="state">
-      <span class="state__badge <?=h($statusTone)?>"><?=h($statusText)?></span>
+    <div class="sub-sec-t">현재 상태</div>
+    <div class="sub-state">
+      <span class="sub-badge <?=h($statusTone)?>"><?=h($statusText)?></span>
       <?php if (!empty($sub['plan_name'])): ?>
-        <span class="state__meta">
+        <span class="sub-meta">
           <?=h($sub['plan_name'])?> · <?=number_format((int)($sub['price'] ?? 0))?>원
-          <?php if (!empty($sub['requested_at'])): ?>
-            · 신청 <?=h($sub['requested_at'])?>
-          <?php endif; ?>
-          <?php if (!empty($sub['expires_at'])): ?>
-            · 이용 만료 <?=h($sub['expires_at'])?>
-          <?php endif; ?>
+          <?php if (!empty($sub['requested_at'])): ?> · 신청 <?=h($sub['requested_at'])?><?php endif; ?>
+          <?php if (!empty($sub['expires_at'])): ?> · 이용 만료 <?=h($sub['expires_at'])?><?php endif; ?>
         </span>
       <?php endif; ?>
       <?php if (in_array($status, ['pending','active'], true)): ?>
         <form method="post" style="margin-left:auto">
           <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
           <input type="hidden" name="act" value="cancel">
-          <button class="btn btn--ghost btn--sm" type="submit"
+          <button class="btn btn--ghost" type="submit"
             onclick="return confirm('구독을 해지할까요?\n입력하신 자료는 삭제되지 않습니다.')">해지하기</button>
         </form>
       <?php endif; ?>
@@ -318,61 +278,63 @@ $yearSave    = $yearCompare - $yearly['price']; // 3,800
 
   <!-- 플랜 선택 -->
   <?php if (!in_array($status, ['active'], true)): ?>
-  <form method="post" id="planForm">
-    <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
-    <input type="hidden" name="act" value="subscribe">
-    <input type="hidden" name="plan" id="planInput" value="yearly">
+  <div class="card">
+    <div class="sub-sec-t">요금제 선택</div>
+    <form method="post" id="planForm">
+      <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
+      <input type="hidden" name="act" value="subscribe">
+      <input type="hidden" name="plan" id="planInput" value="yearly">
 
-    <div class="plans">
-      <!-- 월 -->
-      <label class="plan" data-plan="monthly" onclick="pickPlan('monthly')">
-        <div class="plan__name"><?=h($monthly['name'])?></div>
-        <div class="plan__price">
-          <span class="plan__num"><?=number_format($monthly['price'])?></span>
-          <span class="plan__unit">원 / <?=h($monthly['period'])?></span>
-        </div>
-        <div class="plan__sub">부담 없이 시작해 보고 싶을 때. 언제든 해지할 수 있습니다.</div>
-        <ul class="plan__list">
-          <li>모든 기능 사용</li>
-          <li>거래처 200곳까지</li>
-          <li>건축물대장 자동 조회</li>
-        </ul>
-      </label>
+      <div class="sub-plans">
+        <!-- 월 -->
+        <label class="sub-plan" data-plan="monthly" onclick="pickPlan('monthly')">
+          <div class="sub-plan__name"><?=h($monthly['name'])?></div>
+          <div class="sub-plan__price">
+            <span class="sub-plan__num"><?=number_format($monthly['price'])?></span>
+            <span class="sub-plan__unit">원 / <?=h($monthly['period'])?></span>
+          </div>
+          <div class="sub-plan__sub">부담 없이 시작해 보고 싶을 때. 언제든 해지할 수 있습니다.</div>
+          <ul class="sub-plan__list">
+            <li>모든 기능 사용</li>
+            <li>거래처 200곳까지</li>
+            <li>건축물대장 자동 조회</li>
+          </ul>
+        </label>
 
-      <!-- 연 -->
-      <label class="plan sel" data-plan="yearly" onclick="pickPlan('yearly')">
-        <span class="plan__badge">2개월 무료</span>
-        <div class="plan__name"><?=h($yearly['name'])?></div>
-        <div class="plan__price">
-          <span class="plan__num"><?=number_format($yearly['price'])?></span>
-          <span class="plan__unit">원 / <?=h($yearly['period'])?></span>
-          <span class="plan__was"><?=number_format($yearCompare)?>원</span>
-        </div>
-        <div class="plan__sub">
-          월 구독으로 1년이면 <?=number_format($yearCompare)?>원 —
-          <b><?=number_format($yearSave)?>원 더 저렴</b>합니다.
-        </div>
-        <ul class="plan__list">
-          <li>월 구독의 모든 기능</li>
-          <li>2개월분 무료</li>
-          <li>1년간 요금 변동 없음</li>
-        </ul>
-      </label>
-    </div>
+        <!-- 연 -->
+        <label class="sub-plan sel" data-plan="yearly" onclick="pickPlan('yearly')">
+          <span class="sub-plan__badge">2개월 무료</span>
+          <div class="sub-plan__name"><?=h($yearly['name'])?></div>
+          <div class="sub-plan__price">
+            <span class="sub-plan__num"><?=number_format($yearly['price'])?></span>
+            <span class="sub-plan__unit">원 / <?=h($yearly['period'])?></span>
+            <span class="sub-plan__was"><?=number_format($yearCompare)?>원</span>
+          </div>
+          <div class="sub-plan__sub">
+            월 구독으로 1년이면 <?=number_format($yearCompare)?>원 —
+            <b><?=number_format($yearSave)?>원 더 저렴</b>합니다.
+          </div>
+          <ul class="sub-plan__list">
+            <li>월 구독의 모든 기능</li>
+            <li>2개월분 무료</li>
+            <li>1년간 요금 변동 없음</li>
+          </ul>
+        </label>
+      </div>
 
-    <button class="btn btn--wide" type="submit" <?= $hasUser ? '' : 'disabled' ?>>
-      선택한 요금제로 신청하기
-    </button>
-  </form>
+      <button class="btn btn--primary" type="submit" style="width:100%;justify-content:center"
+        <?= $hasUser ? '' : 'disabled' ?>>선택한 요금제로 신청하기</button>
+    </form>
+  </div>
   <?php endif; ?>
 
   <!-- 결제 내역 -->
-  <div class="card" style="margin-top:16px">
-    <div class="sec-t">신청 · 결제 내역</div>
+  <div class="card">
+    <div class="sub-sec-t">신청 · 결제 내역</div>
     <?php $hist = (array)($sub['history'] ?? []); if (!$hist): ?>
-      <div class="empty">아직 내역이 없습니다.</div>
+      <div class="sub-empty">아직 내역이 없습니다.</div>
     <?php else: ?>
-      <table>
+      <table class="sub-table">
         <tr><th>일시</th><th>구분</th><th>금액</th><th>비고</th></tr>
         <?php foreach (array_reverse($hist) as $row): ?>
           <tr>
@@ -388,51 +350,51 @@ $yearSave    = $yearCompare - $yearly['price']; // 3,800
 
   <!-- 안내 -->
   <div class="card">
-    <div class="sec-t">이용 안내</div>
-    <div class="faq">
+    <div class="sub-sec-t">이용 안내</div>
+    <div class="sub-faq">
       <div>
-        <div class="faq__q">결제는 어떻게 이루어지나요?</div>
-        <div class="faq__a">등록하신 카드로 선택한 주기(월 또는 연)마다 자동으로 청구됩니다.
+        <div class="sub-faq__q">결제는 어떻게 이루어지나요?</div>
+        <div class="sub-faq__a">등록하신 카드로 선택한 주기(월 또는 연)마다 자동으로 청구됩니다.
           카드번호는 저장하지 않으며, 결제사가 발급한 결제키만 보관합니다.</div>
       </div>
       <div>
-        <div class="faq__q">해지하면 자료가 사라지나요?</div>
-        <div class="faq__a">아니요. 입력하신 건물 정보와 기록은 삭제되지 않습니다.
+        <div class="sub-faq__q">해지하면 자료가 사라지나요?</div>
+        <div class="sub-faq__a">아니요. 입력하신 건물 정보와 기록은 삭제되지 않습니다.
           다시 구독하시면 이어서 사용하실 수 있습니다.</div>
       </div>
       <div>
-        <div class="faq__q">요금제를 바꿀 수 있나요?</div>
-        <div class="faq__a">월 구독과 연 구독은 서로 변경하실 수 있으며, 변경 시점 이후 기간부터 적용됩니다.</div>
+        <div class="sub-faq__q">요금제를 바꿀 수 있나요?</div>
+        <div class="sub-faq__a">월 구독과 연 구독은 서로 변경하실 수 있으며, 변경 시점 이후 기간부터 적용됩니다.</div>
       </div>
       <div>
-        <div class="faq__q">세금계산서 발행이 되나요?</div>
-        <div class="faq__a">필요하시면 아래로 문의해 주세요. 사업자 정보를 확인한 뒤 안내해 드리겠습니다.</div>
+        <div class="sub-faq__q">세금계산서 발행이 되나요?</div>
+        <div class="sub-faq__a">필요하시면 아래로 문의해 주세요. 사업자 정보를 확인한 뒤 안내해 드리겠습니다.</div>
       </div>
     </div>
   </div>
 
   <!-- 문의 -->
   <div class="card">
-    <div class="sec-t">문의하기</div>
+    <div class="sub-sec-t">문의하기</div>
     <form method="post">
       <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
       <input type="hidden" name="act" value="inquiry">
-      <textarea name="message" rows="3"
+      <textarea class="sub-textarea" name="message" rows="3"
         placeholder="구독·결제에 대해 궁금한 점을 남겨주세요. 확인 후 안내해 드리겠습니다."></textarea>
-      <button class="btn btn--ghost btn--sm" type="submit" style="margin-top:9px" <?= $hasUser ? '' : 'disabled' ?>>
+      <button class="btn btn--ghost" type="submit" style="margin-top:9px" <?= $hasUser ? '' : 'disabled' ?>>
         문의 보내기
       </button>
     </form>
   </div>
-</div>
+</main>
 
 <script>
 function pickPlan(p){
   document.getElementById('planInput').value = p;
-  document.querySelectorAll('.plan').forEach(function(el){
+  document.querySelectorAll('.sub-plan').forEach(function(el){
     el.classList.toggle('sel', el.dataset.plan === p);
   });
 }
 </script>
-</body>
-</html>
+
+<?php require __DIR__ . '/_footer.php'; ?>

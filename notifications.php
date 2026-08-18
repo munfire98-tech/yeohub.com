@@ -7,6 +7,8 @@
    각 기능에서 notif_push() 를 호출하도록 붙이면 됩니다.
 
    저장 위치: data/notifications/{회원키}.json
+
+   화면은 _header.php / _footer.php 를 그대로 씁니다 (blog.php·service.php 와 동일 구조).
    ============================================================= */
 declare(strict_types=1);
 ini_set('session.cookie_httponly', '1');
@@ -87,102 +89,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $items = notif_read();
 $unread = 0; foreach ($items as $n) if (empty($n['read'])) $unread++;
+
+$PAGE_TITLE = '알림';
+require __DIR__ . '/_header.php';
 ?>
-<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>알림 — YEOHUB</title>
 <style>
-  :root{--bg:#f5f7fb;--card:#fff;--bd:#e3e8f0;--bd2:#d4dbe6;--fg:#1a2436;--mut:#7a8699;--mut2:#56627a;
-    --brand:#2563eb;--brand2:#1d4ed8;--danger:#dc2626;--danger-soft:#fdeceb}
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,"Apple SD Gothic Neo",sans-serif;
-    padding:0 0 80px}
-  .nav{background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--bd);
-    padding:0;position:sticky;top:0;z-index:10}
-  .nav__inner{max-width:720px;margin:0 auto;padding:0 20px;height:56px;display:flex;align-items:center;gap:12px}
-  .nav__inner a.brand{font-weight:800;font-size:18px;color:var(--fg);text-decoration:none}
-  .nav__inner .back{margin-left:auto;font-size:12.5px;color:var(--mut);text-decoration:none}
-  .wrap{max-width:720px;margin:0 auto;padding:26px 20px}
-  .head{display:flex;align-items:center;gap:10px;margin-bottom:18px}
-  h1{font-size:20px;font-weight:800}
-  .cnt{font-size:12px;font-weight:800;background:var(--danger-soft);color:var(--danger);
-    border-radius:999px;padding:3px 10px}
-  .actions{margin-left:auto;display:flex;gap:8px}
-  .btn{border:1px solid var(--bd2);background:#fff;color:var(--mut2);border-radius:9px;
-    padding:7px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none}
-  .btn:hover{border-color:var(--brand);color:var(--brand2)}
+/* 알림 페이지 전용 — service.php/blog.php 와 같은 방식: 기존 .wrap/.card/.btn 위에 최소한만 더합니다 */
+.ntf-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.ntf-cnt{font-size:12px;font-weight:800;background:#fdeceb;color:var(--danger);
+  border-radius:999px;padding:3px 10px}
+.ntf-actions{margin-left:auto;display:flex;gap:8px}
 
-  .list{background:var(--card);border:1px solid var(--bd);border-radius:14px;overflow:hidden}
-  .item{display:flex;gap:12px;padding:15px 16px;border-bottom:1px solid var(--bd);text-decoration:none;
-    color:inherit;position:relative}
-  .item:last-child{border-bottom:0}
-  .item:hover{background:var(--bg)}
-  .item.unread{background:#eff6ff}
-  .item__dot{width:7px;height:7px;border-radius:50%;background:var(--brand);flex-shrink:0;margin-top:6px}
-  .item__dot.read{background:transparent}
-  .item__body{flex:1;min-width:0}
-  .item__title{font-size:13.5px;font-weight:700;margin-bottom:3px}
-  .item__desc{font-size:12.5px;color:var(--mut2);line-height:1.6}
-  .item__time{font-size:11px;color:var(--mut);white-space:nowrap;flex-shrink:0}
+.ntf-list{background:var(--card);border:1px solid var(--bd);border-radius:14px;overflow:hidden}
+.ntf-item{display:flex;gap:12px;padding:15px 16px;border-bottom:1px solid var(--bd);text-decoration:none;
+  color:inherit;position:relative}
+.ntf-item:last-child{border-bottom:0}
+.ntf-item:hover{background:var(--bg2)}
+.ntf-item.unread{background:#eff6ff}
+.ntf-dot{width:7px;height:7px;border-radius:50%;background:var(--brand);flex-shrink:0;margin-top:6px}
+.ntf-dot.read{background:transparent}
+.ntf-body{flex:1;min-width:0}
+.ntf-title{font-size:13.5px;font-weight:700;margin-bottom:3px;color:var(--fg)}
+.ntf-desc{font-size:12.5px;color:var(--mut2);line-height:1.6}
+.ntf-time{font-size:11px;color:var(--mut);white-space:nowrap;flex-shrink:0}
 
-  .empty{text-align:center;padding:70px 20px;color:var(--mut)}
-  .empty__ico{font-size:32px;margin-bottom:12px}
-  .empty h3{font-size:16px;font-weight:800;color:var(--mut2);margin-bottom:6px}
-  .empty p{font-size:13px;line-height:1.7}
+.ntf-empty{text-align:center;padding:60px 20px;color:var(--mut)}
+.ntf-empty .ico{font-size:30px;margin-bottom:10px}
+.ntf-empty h3{font-size:16px;font-weight:800;color:var(--mut2);margin-bottom:6px}
+.ntf-empty p{font-size:13px;line-height:1.7}
 </style>
-</head>
-<body>
 
-<div class="nav"><div class="nav__inner">
-  <a class="brand" href="/index.php">YEOHUB</a>
-  <a class="back" href="/building_manager.php">← 돌아가기</a>
-</div></div>
-
-<div class="wrap">
-  <div class="head">
+<header class="page-head">
+  <div class="page-head__inner">
+    <div class="page-head__label"><span></span> 알림</div>
     <h1>알림</h1>
-    <?php if ($unread > 0): ?><span class="cnt"><?=$unread?>개 안 읽음</span><?php endif; ?>
-    <div class="actions">
-      <?php if ($items): ?>
-        <form method="post"><input type="hidden" name="csrf" value="<?=h($CSRF)?>">
-          <input type="hidden" name="act" value="read_all">
-          <button class="btn" type="submit">모두 읽음</button></form>
-        <form method="post" onsubmit="return confirm('알림을 모두 지울까요?')">
-          <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
-          <input type="hidden" name="act" value="clear">
-          <button class="btn" type="submit">전체 지우기</button></form>
-      <?php endif; ?>
-    </div>
+    <p>점검일이 다가오거나 처리할 일이 생기면 여기로 알려드립니다.</p>
   </div>
+</header>
 
-  <?php if (!$items): ?>
-    <div class="empty">
-      <div class="empty__ico">🔔</div>
-      <h3>아직 알림이 없습니다</h3>
-      <p>점검일이 다가오거나 처리할 일이 생기면 여기로 알려드릴게요.</p>
+<main class="wrap">
+  <div class="card">
+    <div class="ntf-head">
+      <?php if ($unread > 0): ?><span class="ntf-cnt"><?=$unread?>개 안 읽음</span><?php endif; ?>
+      <div class="ntf-actions">
+        <?php if ($items): ?>
+          <form method="post"><input type="hidden" name="csrf" value="<?=h($CSRF)?>">
+            <input type="hidden" name="act" value="read_all">
+            <button class="btn" type="submit">모두 읽음</button></form>
+          <form method="post" onsubmit="return confirm('알림을 모두 지울까요?')">
+            <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
+            <input type="hidden" name="act" value="clear">
+            <button class="btn" type="submit">전체 지우기</button></form>
+        <?php endif; ?>
+      </div>
     </div>
-  <?php else: ?>
-    <div class="list">
-      <?php foreach ($items as $n): ?>
-        <a class="item<?= empty($n['read']) ? ' unread' : '' ?>"
-           href="<?= !empty($n['link']) ? h($n['link']) : '#' ?>"
-           <?php if (empty($n['read'])): ?>
-             onclick="fetch('/notifications.php',{method:'POST',body:new URLSearchParams({csrf:<?=json_encode($CSRF)?>,act:'read_one',id:<?=json_encode($n['id']??'')?>})})"
-           <?php endif; ?>>
-          <span class="item__dot<?= empty($n['read']) ? '' : ' read' ?>"></span>
-          <div class="item__body">
-            <div class="item__title"><?=h($n['title'] ?? '')?></div>
-            <?php if (!empty($n['body'])): ?><div class="item__desc"><?=h($n['body'])?></div><?php endif; ?>
-          </div>
-          <span class="item__time"><?=h($n['at'] ?? '')?></span>
-        </a>
-      <?php endforeach; ?>
-    </div>
-  <?php endif; ?>
-</div>
 
-</body>
-</html>
+    <?php if (!$items): ?>
+      <div class="ntf-empty">
+        <div class="ico">🔔</div>
+        <h3>아직 알림이 없습니다</h3>
+        <p>점검일이 다가오거나 처리할 일이 생기면 여기로 알려드릴게요.</p>
+      </div>
+    <?php else: ?>
+      <div class="ntf-list">
+        <?php foreach ($items as $n): ?>
+          <a class="ntf-item<?= empty($n['read']) ? ' unread' : '' ?>"
+             href="<?= !empty($n['link']) ? h($n['link']) : '#' ?>"
+             <?php if (empty($n['read'])): ?>
+               onclick="fetch('/notifications.php',{method:'POST',body:new URLSearchParams({csrf:<?=json_encode($CSRF)?>,act:'read_one',id:<?=json_encode($n['id']??'')?>})})"
+             <?php endif; ?>>
+            <span class="ntf-dot<?= empty($n['read']) ? '' : ' read' ?>"></span>
+            <div class="ntf-body">
+              <div class="ntf-title"><?=h($n['title'] ?? '')?></div>
+              <?php if (!empty($n['body'])): ?><div class="ntf-desc"><?=h($n['body'])?></div><?php endif; ?>
+            </div>
+            <span class="ntf-time"><?=h($n['at'] ?? '')?></span>
+          </a>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
+  </div>
+</main>
+
+<?php require __DIR__ . '/_footer.php'; ?>
