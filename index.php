@@ -104,19 +104,6 @@ function assert_csrf(string $tok): void {
 $notice = '';
 $CSRF = csrf_token();
 
-/* 알림 미확인 개수 — notifications.php 가 쌓아둔 데이터를 그대로 씁니다 */
-$unreadCount = 0;
-if (is_logged_in()) {
-  $__nUid = function_exists('app_user_key') ? app_user_key() : '';
-  if ($__nUid !== '') {
-    $__nFile = __DIR__ . '/data/notifications/' . $__nUid . '.json';
-    if (is_file($__nFile)) {
-      $__nList = json_decode((string)@file_get_contents($__nFile), true);
-      if (is_array($__nList)) { foreach ($__nList as $__n) { if (empty($__n['read'])) $unreadCount++; } }
-    }
-  }
-}
-
 /* ─ 카카오 콜백 처리 ─ */
 if (isset($_GET['kakao_callback'])) {
   $code  = $_GET['code'] ?? '';
@@ -335,14 +322,15 @@ header('Content-Type: text/html; charset=utf-8');
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="naver-site-verification" content="08ff3d5a27a9c771ad785abfa862bd9f69a87ba9" />
-<title>YEOHUB(요허브) | 소방안전관리 플랫폼</title>
-<meta name="description" content="YeoHub(요허브)는 소방안전관리자를 위한 소방안전관리 플랫폼입니다. 업무 수행 기록과 소방계획서를 한 곳에서 관리하세요." />
-<meta name="keywords" content="요허브,Yeohub,요허브 소방,소방안전관리,소방안전관리 플랫폼,소방안전관리자,업무수행기록,소방계획서,소방행정" />
+<meta name="naver-site-verification" content="6345bf3b5d83c352d473eb9f72377eb4bbb38253" /><!-- 소방계획서.com -->
+<title>소방계획서(소방계획서) | 소방안전관리 플랫폼</title>
+<meta name="description" content="소방계획서.com(소방계획서)는 소방안전관리자를 위한 소방안전관리 플랫폼입니다. 업무 수행 기록과 소방계획서를 한 곳에서 관리하세요." />
+<meta name="keywords" content="소방계획서,Yeohub,소방계획서 소방,소방안전관리,소방안전관리 플랫폼,소방안전관리자,업무수행기록,소방계획서,소방행정" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="YeoHub(요허브) | 소방안전관리 플랫폼" />
+<meta property="og:title" content="소방계획서.com(소방계획서) | 소방안전관리 플랫폼" />
 <meta property="og:description" content="요허브는 소방안전관리자를 위한 플랫폼입니다. 업무 수행 기록부터 소방계획서까지 한 곳에서 관리하세요." />
 <meta property="og:url" content="https://www.yeohub.com" />
-<meta property="og:site_name" content="YeoHub(요허브)" />
+<meta property="og:site_name" content="소방계획서.com(소방계획서)" />
 <meta property="og:locale" content="ko_KR" />
 <style>
 :root{
@@ -366,42 +354,6 @@ a:hover{color:#1e40af}
 .nav__links a:hover{color:var(--brand2)}
 .nav__badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#ecfdf3;border:1px solid #bbf7d0;color:#15803d}
 .nav__actions{display:flex;gap:8px;align-items:center}
-
-/* ── 상단 아이콘 (결제 · 알림 · 프로필) — building_manager.php 와 동일 톤 ── */
-.nav__icons{display:flex;align-items:center;gap:6px}
-.nav__icobtn{position:relative;display:flex;align-items:center;justify-content:center;
-  width:38px;height:38px;border-radius:10px;border:1px solid transparent;background:transparent;
-  color:var(--mut2);cursor:pointer;font-family:inherit;transition:.14s}
-.nav__icobtn:hover{background:var(--bg2);border-color:var(--bd)}
-.nav__icobtn svg{width:19px;height:19px}
-.nav__dot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;
-  background:#ef4444;border:1.5px solid #fff}
-
-.nav__profile{position:relative}
-.nav__avatar{width:36px;height:36px;border-radius:50%;border:0;cursor:pointer;font-family:inherit;
-  background:linear-gradient(135deg,var(--brand),var(--accent));color:#fff;font-size:13px;font-weight:800;
-  display:flex;align-items:center;justify-content:center;transition:.14s}
-.nav__avatar:hover{filter:brightness(1.06)}
-.nav__avatar.admin{background:linear-gradient(135deg,#f59e0b,#ea580c)}
-
-.nav__pop{position:absolute;top:calc(100% + 10px);right:0;width:220px;background:#fff;
-  border:1px solid var(--bd);border-radius:14px;box-shadow:0 14px 34px rgba(16,24,38,.14);
-  padding:8px;z-index:60;display:none}
-.nav__pop.show{display:block}
-.nav__pop__head{padding:11px 12px 12px;border-bottom:1px solid var(--bd)}
-.nav__pop__name{font-size:14px;font-weight:800;color:var(--fg)}
-.nav__pop__sub{font-size:11.5px;color:var(--mut);margin-top:2px}
-.nav__pop__list{padding:6px 0 0}
-.nav__pop__item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:9px;
-  border:0;background:transparent;color:var(--fg);font-size:13px;font-weight:600;font-family:inherit;
-  cursor:pointer;text-align:left;text-decoration:none}
-.nav__pop__item:hover{background:var(--bg2)}
-.nav__pop__item svg{width:16px;height:16px;color:var(--mut2);flex-shrink:0}
-.nav__pop__item--danger{color:#dc2626}
-.nav__pop__item--danger svg{color:#dc2626}
-.nav__pop__div{height:1px;background:var(--bd);margin:6px 2px}
-@media(max-width:680px){ .nav__pop{right:-8px} }
-
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:9px;border:1px solid var(--bd2);background:var(--card);color:var(--fg);font-size:13px;cursor:pointer;transition:.15s;text-decoration:none;font-family:inherit}
 .btn:hover{border-color:var(--brand);background:#f0f5ff;color:var(--brand2)}
 .btn--primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
@@ -482,10 +434,11 @@ footer a:hover{color:var(--fg)}
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:200;padding:16px}
 .modal{width:min(92vw,420px);max-height:90vh;overflow-y:auto;background:#ffffff;border:1px solid var(--bd2);border-radius:18px;padding:24px;box-shadow:0 24px 60px rgba(20,40,80,.18)}
 
-/* ══════════ 로그인 팝업: 2단 레이아웃 (YeoHub 밝은 톤에 맞춤) ══════════
+/* ══════════ 로그인 팝업: 2단 레이아웃 (소방계획서.com/소방계획서 메인화면과 같은 톤) ══════════
    왼쪽 = 로그인/회원가입 폼, 오른쪽 = 제공 기능 안내.
-   전부 사이트 전역 색상변수(--bg·--card·--brand 등)를 그대로 씁니다.
-   flex 대신 grid-template-columns 로 폭을 못 박아 비율이 안 무너지게 했습니다. */
+   메인화면과 같은 전역 색상변수(--card·--brand·--bg2 등)를 그대로 씁니다.
+   flex 대신 grid-template-columns 로 폭을 못 박고, min-height:0 으로 내부
+   스크롤이 실제로 작동하게 했습니다(회원가입 폼이 길어도 안 잘림). */
 #authModal .modal{
   position:relative;box-sizing:border-box;width:min(94vw,860px);max-width:860px;padding:0;
   background:var(--card);border:1px solid var(--bd);border-radius:20px;
@@ -608,7 +561,7 @@ footer a:hover{color:var(--fg)}
 <nav class="nav">
   <div class="nav__inner">
     <div class="nav__brand">
-      YEOHUB
+      소방계획서.com
       <?php if (is_admin()): ?>
         <span class="nav__badge">관리자</span>
       <?php endif; ?>
@@ -631,82 +584,33 @@ footer a:hover{color:var(--fg)}
       <?php if (!is_logged_in()): ?>
         <button class="btn btn--primary" id="openAuth">로그인</button>
       <?php else: ?>
+        <?php if (!empty($_SESSION['nickname'])): ?>
+          <span class="nickname"><?=h($_SESSION['nickname'])?>님</span>
+        <?php endif; ?>
         <?php if (is_admin()): ?>
           <a class="btn btn--primary" href="/admin_memo.php">📝 메모</a>
         <?php else: ?>
           <a class="btn btn--primary" href="<?=h(work_page())?>"><?= (($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리' : '업무페이지' ?></a>
         <?php endif; ?>
-
-        <div class="nav__icons">
-          <a class="nav__icobtn" href="/subscribe_page.php" title="결제·구독">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/><path d="M16 14h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          </a>
-          <a class="nav__icobtn" href="/notifications.php" title="알림">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 18a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-            <?php if ($unreadCount > 0): ?><span class="nav__dot"></span><?php endif; ?>
-          </a>
-          <div class="nav__profile" id="navProfile">
-            <button type="button" class="nav__avatar<?= is_admin() ? ' admin' : '' ?>" id="navAvatarBtn"
-              onclick="document.getElementById('navPop').classList.toggle('show')">
-              <?= h(mb_substr((string)($_SESSION['nickname'] ?? '유'), 0, 1)) ?>
-            </button>
-            <div class="nav__pop" id="navPop">
-              <?php if (!empty($_SESSION['nickname'])): ?>
-                <div class="nav__pop__head">
-                  <div class="nav__pop__name"><?=h($_SESSION['nickname'])?>님</div>
-                  <div class="nav__pop__sub"><?= is_admin() ? '관리자' : '건물 소방안전관리자' ?></div>
-                </div>
-              <?php endif; ?>
-              <div class="nav__pop__list">
-                <a class="nav__pop__item" href="/settings.php">
-                  <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1-1.56 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34H9a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87V9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-                  내 정보
-                </a>
-                <a class="nav__pop__item" href="/subscribe_page.php">
-                  <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/></svg>
-                  결제·구독
-                </a>
-                <a class="nav__pop__item" href="/notifications.php">
-                  <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-                  알림
-                </a>
-                <div class="nav__pop__div"></div>
-                <a class="nav__pop__item nav__pop__item--danger" href="/?logout=1&csrf=<?=h($CSRF)?>"
-                   onclick="return confirm('로그아웃할까요?');">
-                  <svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  로그아웃
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
+        <a class="btn btn--ghost" href="/?logout=1&csrf=<?=h($CSRF)?>"
+           onclick="return confirm('로그아웃할까요?');">로그아웃</a>
       <?php endif; ?>
       <button class="nav__toggle" id="navToggle" aria-label="메뉴 열기" aria-expanded="false">☰</button>
     </div>
   </div>
 </nav>
 
-<script>
-  /* 프로필 드롭다운: 바깥을 누르면 닫힘 */
-  document.addEventListener('click', function(e){
-    var wrap = document.getElementById('navProfile');
-    var pop = document.getElementById('navPop');
-    if (wrap && pop && !wrap.contains(e.target)) pop.classList.remove('show');
-  });
-</script>
-
-
 <!-- HERO -->
 <section class="hero-wrap">
   <div class="hero">
    <div class="hero__grid">
     <div class="hero__col">
-      <div class="hero__label"><span></span>요허브</div>
-                    <h1> YEOHUB <em>업무지원</em> 플렛폼 </h1>
+      <div class="hero__label"><span></span>소방계획</div>
+                    <h1> 안전관리 <em>업무지원</em> </h1>
                     <p class="hero__sub">소방안전관리, 수행에서 증명까지</p>
                     <p class="hero__note">
                       매월 수행한 안전관리 업무를 간편하게 기록하고 체계적으로 보관하세요.
-                      TWORIX가 반복 입력은 줄이고, 필요한 순간 확인할 수 있는 업무수행 근거를 남겨드립니다.
+                      반복 입력은 줄이고, 필요한 순간 확인할 수 있는 업무수행 근거를 남겨드립니다.
                     </p>
       <?php if ($notice !== ''): ?>
         <div class="alert <?= is_admin() ? 'alert--ok' : 'alert--warn' ?>"
@@ -942,9 +846,9 @@ $oldRole = (string)($oldSignup['role'] ?? '');
       <h4>지금 가입하고<br>바로 시작하세요</h4>
       <?php
         $amFeats = [
+          ['📋', '소방계획서 작성'],
           ['🏢', '건축물대장 자동 조회'],
           ['🧯', '자위소방대 편성'],
-          ['📋', '소방계획서'],
           ['🚒', '점검·훈련 기록'],
           ['📅', '일정·D-DAY 알림'],
           ['🗺️', '거래처 지도'],

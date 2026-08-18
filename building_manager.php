@@ -515,7 +515,7 @@ a.pstep:hover{background:#f2f6fd}
 
 <nav class="nav">
   <div class="nav__inner">
-    <a class="nav__brand" href="/index.php">YEOHUB</a>
+    <a class="nav__brand" href="/index.php">소방계획서.HUB</a>
     <div class="nav__right">
       <?php if ($adminView): ?>
         <span style="font-size:13px"><?= '관리자 보기 · ' . h($targetNick) . ' (' . h($viewUid) . ')' ?></span>
@@ -682,7 +682,7 @@ a.pstep:hover{background:#f2f6fd}
         <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
       </a>
       <?php if ($hasBi && !$s2): ?>
-        <div class="psub psub--why">대장·부대장·활동조를 먼저 정해두면 아래 기록들이 자동으로 채워집니다</div>
+        <div class="psub psub--why"></div>
       <?php endif; ?>
 
       <?php stepNudge(3, $nowStep, '이번 달 기록표를 작성하세요'); ?>

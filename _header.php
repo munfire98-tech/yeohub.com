@@ -30,7 +30,7 @@ $NAV = [
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= $PAGE_TITLE !== '' ? h($PAGE_TITLE) . ' — YEOHUB' : 'YEOHUB — 소방안전관리' ?></title>
+<title><?= $PAGE_TITLE !== '' ? h($PAGE_TITLE) . ' — 소방계획서.com' : '소방계획서.com — 소방안전관리' ?></title>
 <style>
 :root{
   --bg:#f5f7fb; --bg2:#eef2f8; --card:#ffffff; --card2:#ffffff;
@@ -109,7 +109,7 @@ footer a:hover{color:var(--fg)}
 <!-- NAV -->
 <nav class="nav">
   <div class="nav__inner">
-    <a class="nav__brand" href="/index.php">YEOHUB</a>
+    <a class="nav__brand" href="/index.php">소방계획서.com</a>
     <ul class="nav__links" id="navLinks">
       <?php foreach ($NAV as $key => $item): ?>
         <li><a href="<?=h($item['href'])?>"<?= $ACTIVE === $key ? ' class="active"' : '' ?>><?=h($item['label'])?></a></li>
