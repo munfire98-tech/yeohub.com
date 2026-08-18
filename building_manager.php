@@ -46,6 +46,21 @@ $biProg = function_exists('bi_progress')
 $biDone = $biProg['filled'] >= $biProg['total'];
 
 $nick = $_SESSION['nickname'] ?? '사용자';
+
+/* 알림 미확인 개수 — notifications.php 가 아직 없어도 안전하게 0으로 둡니다 */
+$unreadCount = 0;
+if (function_exists('app_user_key')) {
+  $__nUid = app_user_key();
+  if ($__nUid !== '') {
+    $__nFile = __DIR__ . '/data/notifications/' . $__nUid . '.json';
+    if (is_file($__nFile)) {
+      $__nList = json_decode((string)@file_get_contents($__nFile), true);
+      if (is_array($__nList)) {
+        foreach ($__nList as $__n) { if (empty($__n['read'])) $unreadCount++; }
+      }
+    }
+  }
+}
 $targetNick = $nick;
 if ($adminView) {
   $membersFileForName = __DIR__ . '/data/members.json';
@@ -260,6 +275,40 @@ a{text-decoration:none}
 .nav__right{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--mut2)}
 .btn{display:inline-flex;align-items:center;padding:8px 16px;border-radius:9px;border:1px solid var(--bd2);background:#fff;color:var(--fg);font-size:13px;font-weight:600}
 .btn:hover{border-color:var(--brand);color:var(--brand2)}
+
+/* ── 상단 아이콘 (결제 · 알림 · 프로필) ── */
+.nav__icons{display:flex;align-items:center;gap:6px}
+.nav__icobtn{position:relative;display:flex;align-items:center;justify-content:center;
+  width:38px;height:38px;border-radius:10px;border:1px solid transparent;background:transparent;
+  color:var(--mut2);cursor:pointer;font-family:inherit;transition:.14s}
+.nav__icobtn:hover{background:var(--bg);border-color:var(--bd)}
+.nav__icobtn svg{width:19px;height:19px}
+.nav__dot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;
+  background:#ef4444;border:1.5px solid #fff}
+
+.nav__profile{position:relative}
+.nav__avatar{width:36px;height:36px;border-radius:50%;border:0;cursor:pointer;font-family:inherit;
+  background:linear-gradient(135deg,var(--brand),var(--accent));color:#fff;font-size:13px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;transition:.14s}
+.nav__avatar:hover{filter:brightness(1.06)}
+.nav__avatar.admin{background:linear-gradient(135deg,#f59e0b,#ea580c)}
+
+.nav__pop{position:absolute;top:calc(100% + 10px);right:0;width:220px;background:#fff;
+  border:1px solid var(--bd);border-radius:14px;box-shadow:0 14px 34px rgba(16,24,38,.14);
+  padding:8px;z-index:60;display:none}
+.nav__pop.show{display:block}
+.nav__pop__head{padding:11px 12px 12px;border-bottom:1px solid var(--bd)}
+.nav__pop__name{font-size:14px;font-weight:800;color:var(--fg)}
+.nav__pop__sub{font-size:11.5px;color:var(--mut);margin-top:2px}
+.nav__pop__list{padding:6px 0 0}
+.nav__pop__item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:9px;
+  border:0;background:transparent;color:var(--fg);font-size:13px;font-weight:600;font-family:inherit;
+  cursor:pointer;text-align:left;text-decoration:none}
+.nav__pop__item:hover{background:var(--bg)}
+.nav__pop__item svg{width:16px;height:16px;color:var(--mut2);flex-shrink:0}
+.nav__pop__item--danger{color:#dc2626}
+.nav__pop__item--danger svg{color:#dc2626}
+.nav__pop__div{height:1px;background:var(--bd);margin:6px 2px}
 .page-head{position:relative;overflow:hidden;border-bottom:1px solid var(--bd);
   background:linear-gradient(rgba(37,99,235,.04) 1px,transparent 1px) 0 0/100% 28px,
   linear-gradient(90deg,rgba(37,99,235,.04) 1px,transparent 1px) 0 0/28px 100%,
@@ -468,17 +517,77 @@ a.pstep:hover{background:#f2f6fd}
   <div class="nav__inner">
     <a class="nav__brand" href="/index.php">YEOHUB</a>
     <div class="nav__right">
-      <span><?= $adminView ? '관리자 보기 · ' . h($targetNick) . ' (' . h($viewUid) . ')' : h($nick) . '님 · 건물 소방안전관리자' ?></span>
       <?php if ($adminView): ?>
+        <span style="font-size:13px"><?= '관리자 보기 · ' . h($targetNick) . ' (' . h($viewUid) . ')' ?></span>
         <a class="btn" href="/admin_member_review.php?uid=<?=h(rawurlencode($viewUid))?>">확인요청</a>
         <a class="btn" href="/admin_members.php">회원 목록</a>
-      <?php else: ?>
-        <a class="btn" href="/settings.php">설정</a>
       <?php endif; ?>
-      <a class="btn" href="/logout.php">로그아웃</a>
+
+      <div class="nav__icons">
+        <!-- 결제 -->
+        <a class="nav__icobtn" href="/subscribe_page.php" title="결제·구독">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/><path d="M16 14h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </a>
+        <!-- 알림 -->
+        <a class="nav__icobtn" href="/notifications.php" title="알림">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 18a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <?php if (!empty($unreadCount)): ?><span class="nav__dot"></span><?php endif; ?>
+        </a>
+        <!-- 프로필 -->
+        <div class="nav__profile" id="navProfile">
+          <button type="button" class="nav__avatar<?= $adminView ? ' admin' : '' ?>" id="navAvatarBtn"
+            onclick="document.getElementById('navPop').classList.toggle('show')">
+            <?= h(mb_substr($adminView ? $targetNick : $nick, 0, 1)) ?>
+          </button>
+          <div class="nav__pop" id="navPop">
+            <div class="nav__pop__head">
+              <div class="nav__pop__name"><?= h($adminView ? $targetNick : $nick) ?>님</div>
+              <div class="nav__pop__sub"><?= $adminView ? '관리자 보기 중' : '건물 소방안전관리자' ?></div>
+            </div>
+            <div class="nav__pop__list">
+              <a class="nav__pop__item" href="/settings.php">
+                <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1-1.56 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34H9a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87V9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                내 정보
+              </a>
+              <a class="nav__pop__item" href="/subscribe_page.php">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/></svg>
+                결제·구독
+              </a>
+              <a class="nav__pop__item" href="/notifications.php">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                알림
+              </a>
+              <?php if ($adminView): ?>
+                <a class="nav__pop__item" href="/admin_member_review.php?uid=<?=h(rawurlencode($viewUid))?>">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  확인요청
+                </a>
+                <a class="nav__pop__item" href="/admin_members.php">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  회원 목록
+                </a>
+              <?php endif; ?>
+              <div class="nav__pop__div"></div>
+              <a class="nav__pop__item nav__pop__item--danger" href="/logout.php">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                로그아웃
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </nav>
+
+<script>
+  /* 프로필 드롭다운: 바깥을 누르면 닫힘 */
+  document.addEventListener('click', function(e){
+    var wrap = document.getElementById('navProfile');
+    var pop = document.getElementById('navPop');
+    if (wrap && pop && !wrap.contains(e.target)) pop.classList.remove('show');
+  });
+</script>
 
 <header class="page-head">
   <div class="page-head__inner">

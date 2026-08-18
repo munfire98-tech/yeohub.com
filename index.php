@@ -104,6 +104,19 @@ function assert_csrf(string $tok): void {
 $notice = '';
 $CSRF = csrf_token();
 
+/* 알림 미확인 개수 — notifications.php 가 쌓아둔 데이터를 그대로 씁니다 */
+$unreadCount = 0;
+if (is_logged_in()) {
+  $__nUid = function_exists('app_user_key') ? app_user_key() : '';
+  if ($__nUid !== '') {
+    $__nFile = __DIR__ . '/data/notifications/' . $__nUid . '.json';
+    if (is_file($__nFile)) {
+      $__nList = json_decode((string)@file_get_contents($__nFile), true);
+      if (is_array($__nList)) { foreach ($__nList as $__n) { if (empty($__n['read'])) $unreadCount++; } }
+    }
+  }
+}
+
 /* ─ 카카오 콜백 처리 ─ */
 if (isset($_GET['kakao_callback'])) {
   $code  = $_GET['code'] ?? '';
@@ -353,6 +366,42 @@ a:hover{color:#1e40af}
 .nav__links a:hover{color:var(--brand2)}
 .nav__badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#ecfdf3;border:1px solid #bbf7d0;color:#15803d}
 .nav__actions{display:flex;gap:8px;align-items:center}
+
+/* ── 상단 아이콘 (결제 · 알림 · 프로필) — building_manager.php 와 동일 톤 ── */
+.nav__icons{display:flex;align-items:center;gap:6px}
+.nav__icobtn{position:relative;display:flex;align-items:center;justify-content:center;
+  width:38px;height:38px;border-radius:10px;border:1px solid transparent;background:transparent;
+  color:var(--mut2);cursor:pointer;font-family:inherit;transition:.14s}
+.nav__icobtn:hover{background:var(--bg2);border-color:var(--bd)}
+.nav__icobtn svg{width:19px;height:19px}
+.nav__dot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;
+  background:#ef4444;border:1.5px solid #fff}
+
+.nav__profile{position:relative}
+.nav__avatar{width:36px;height:36px;border-radius:50%;border:0;cursor:pointer;font-family:inherit;
+  background:linear-gradient(135deg,var(--brand),var(--accent));color:#fff;font-size:13px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;transition:.14s}
+.nav__avatar:hover{filter:brightness(1.06)}
+.nav__avatar.admin{background:linear-gradient(135deg,#f59e0b,#ea580c)}
+
+.nav__pop{position:absolute;top:calc(100% + 10px);right:0;width:220px;background:#fff;
+  border:1px solid var(--bd);border-radius:14px;box-shadow:0 14px 34px rgba(16,24,38,.14);
+  padding:8px;z-index:60;display:none}
+.nav__pop.show{display:block}
+.nav__pop__head{padding:11px 12px 12px;border-bottom:1px solid var(--bd)}
+.nav__pop__name{font-size:14px;font-weight:800;color:var(--fg)}
+.nav__pop__sub{font-size:11.5px;color:var(--mut);margin-top:2px}
+.nav__pop__list{padding:6px 0 0}
+.nav__pop__item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:9px;
+  border:0;background:transparent;color:var(--fg);font-size:13px;font-weight:600;font-family:inherit;
+  cursor:pointer;text-align:left;text-decoration:none}
+.nav__pop__item:hover{background:var(--bg2)}
+.nav__pop__item svg{width:16px;height:16px;color:var(--mut2);flex-shrink:0}
+.nav__pop__item--danger{color:#dc2626}
+.nav__pop__item--danger svg{color:#dc2626}
+.nav__pop__div{height:1px;background:var(--bd);margin:6px 2px}
+@media(max-width:680px){ .nav__pop{right:-8px} }
+
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:9px;border:1px solid var(--bd2);background:var(--card);color:var(--fg);font-size:13px;cursor:pointer;transition:.15s;text-decoration:none;font-family:inherit}
 .btn:hover{border-color:var(--brand);background:#f0f5ff;color:var(--brand2)}
 .btn--primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
@@ -433,77 +482,59 @@ footer a:hover{color:var(--fg)}
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:200;padding:16px}
 .modal{width:min(92vw,420px);max-height:90vh;overflow-y:auto;background:#ffffff;border:1px solid var(--bd2);border-radius:18px;padding:24px;box-shadow:0 24px 60px rgba(20,40,80,.18)}
 
-/* ══════════ 로그인 팝업: 2단 다크 레이아웃 (레퍼런스 스타일) ══════════
-   왼쪽 = 로그인/회원가입/관리자 폼(다크), 오른쪽 = 가입 혜택(다크, 조금 더 진함).
-   내부 폼 로직·아이디는 그대로 두고, #authModal 안에서만 색을 덮어씁니다. */
+/* ══════════ 로그인 팝업: 2단 레이아웃 (YeoHub 밝은 톤에 맞춤) ══════════
+   왼쪽 = 로그인/회원가입 폼, 오른쪽 = 제공 기능 안내.
+   전부 사이트 전역 색상변수(--bg·--card·--brand 등)를 그대로 씁니다.
+   flex 대신 grid-template-columns 로 폭을 못 박아 비율이 안 무너지게 했습니다. */
 #authModal .modal{
-  position:relative;width:min(94vw,840px);max-width:840px;padding:0;background:#15161d;
-  border:1px solid #2a2c38;border-radius:20px;display:flex;overflow:hidden;max-height:min(90vh,720px)
+  position:relative;box-sizing:border-box;width:min(94vw,860px);max-width:860px;padding:0;
+  background:var(--card);border:1px solid var(--bd);border-radius:20px;
+  display:grid;grid-template-columns:1fr 320px;grid-template-rows:minmax(0,1fr);align-items:stretch;
+  overflow:hidden;max-height:min(90vh,720px)
 }
 #authModal .amodal__left{
-  flex:1 1 380px;min-width:0;padding:34px 32px;overflow-y:auto;background:#15161d
+  box-sizing:border-box;min-width:0;min-height:0;padding:34px 32px;overflow-y:auto;background:var(--card)
 }
 #authModal .amodal__right{
-  flex:0 0 320px;background:#1b1d27;border-left:1px solid #2a2c38;
-  padding:34px 30px;display:flex;flex-direction:column
+  box-sizing:border-box;min-width:0;min-height:0;background:var(--bg2);border-left:1px solid var(--bd);
+  padding:30px 28px;overflow-y:auto;display:flex;flex-direction:column
 }
 @media (max-width:720px){
-  #authModal .modal{flex-direction:column;max-height:92vh}
+  #authModal .modal{grid-template-columns:1fr;max-height:92vh}
   #authModal .amodal__right{display:none}   /* 좁은 화면에선 폼에 집중, 혜택 패널은 숨김 */
 }
 
 #authModal .modal__head{margin-bottom:22px}
-#authModal .modal__head h3{font-size:20px;font-weight:800;color:#fff;letter-spacing:-.01em}
+#authModal .modal__head h3{font-size:20px;font-weight:800;color:var(--fg);letter-spacing:-.01em}
 #authModal #closeAuth{
-  position:absolute;top:16px;right:18px;background:transparent;border:0;color:#6b7280;
+  position:absolute;top:16px;right:18px;background:transparent;border:0;color:var(--mut);
   font-size:18px;padding:6px;z-index:2
 }
-#authModal #closeAuth:hover{color:#fff}
+#authModal #closeAuth:hover{color:var(--fg)}
 
-#authModal .auth-tabs{background:#20222c;border:1px solid #2a2c38}
-#authModal .auth-tab{color:#8a90a3}
-#authModal .auth-tab.active{background:#5b5ff2;color:#fff}
-
-#authModal .auth-divider{color:#5c6072}
-#authModal .auth-divider::before,#authModal .auth-divider::after{content:'';flex:1;border-top:1px solid #2a2c38}
-#authModal .auth-divider span{padding:0 10px}
-
-#authModal .field label{color:#9aa0b4;font-size:12.5px;font-weight:600}
-#authModal .inp{
-  background:#20222c;border:1px solid #2e3140;color:#f1f2f6;padding:13px 15px;border-radius:11px
-}
-#authModal .inp::placeholder{color:#5c6072}
-#authModal .inp:focus{border-color:#5b5ff2;box-shadow:0 0 0 3px rgba(91,95,242,.18)}
-
-#authModal .btn--primary{
-  background:#5b5ff2;border-color:#5b5ff2;font-weight:700;padding:13px 16px;border-radius:11px
-}
-#authModal .btn--primary:hover{background:#4c50e0;border-color:#4c50e0}
-#authModal .btn--primary:disabled{background:#33354a;border-color:#33354a;color:#6b7280}
-#authModal .btn--kakao{border-radius:11px;padding:13px 16px;font-weight:700}
-#authModal .mini-btn{background:#20222c;border:1px solid #2e3140;color:#c7cbdb}
-#authModal .mini-btn:hover{border-color:#5b5ff2;color:#fff}
-#authModal .chk-msg,#authModal .code-msg,#authModal .code-timer{color:#8a90a3}
-#authModal .roles{gap:8px}
-#authModal .role{color:#c7cbdb;background:#20222c;border:1px solid #2e3140;border-radius:10px;padding:9px 12px}
-#authModal a[href="/find_account.php"]{color:#9aa0b4}
-#authModal a[href="/find_account.php"]:hover{color:#c7cbdb}
-#authModal .amodal__err{color:#f87171;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);
+#authModal .amodal__err{color:#b91c1c;background:#fdeceb;border:1px solid #f6c7c2;
   border-radius:10px;padding:10px 13px;font-size:12.5px;margin-bottom:16px}
 
-/* 오른쪽 혜택 패널 */
-#authModal .amodal__right h4{color:#fff;font-size:17px;font-weight:800;line-height:1.4;margin-bottom:22px;letter-spacing:-.01em}
-#authModal .amodal__feats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:26px}
-#authModal .amodal__feat{aspect-ratio:1;display:flex;align-items:center;justify-content:center;
-  background:#20222c;border:1px solid #2a2c38;border-radius:13px;font-size:20px}
-#authModal .amodal__check{display:flex;gap:11px;margin-bottom:18px}
-#authModal .amodal__check .ico{flex-shrink:0;width:19px;height:19px;border-radius:50%;background:#22c55e;
-  color:#0b0f0c;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;margin-top:1px}
-#authModal .amodal__check .tx b{display:block;color:#f1f2f6;font-size:13.5px;font-weight:700;margin-bottom:2px}
-#authModal .amodal__check .tx span{display:block;color:#7c8194;font-size:11.5px;line-height:1.6}
-#authModal .amodal__more{margin-top:auto;padding-top:18px;text-align:right}
-#authModal .amodal__more a{color:#c7cbdb;font-size:12.5px;font-weight:700;text-decoration:none}
-#authModal .amodal__more a:hover{color:#fff}
+/* 오른쪽: 제공 기능 (정적 목록, 단색 톤) */
+#authModal .amodal__right h4{color:var(--fg);font-size:16.5px;font-weight:800;line-height:1.4;
+  margin-bottom:20px;letter-spacing:-.01em}
+#authModal .amodal__mlabel{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+  color:var(--mut);margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em}
+#authModal .amodal__mlabel .dot{width:5px;height:5px;border-radius:50%;background:var(--accent)}
+#authModal .amodal__flist{display:flex;flex-direction:column;gap:3px;margin-bottom:22px}
+#authModal .amodal__frow{display:flex;align-items:center;gap:11px;padding:6px 0}
+#authModal .amodal__ftile{flex:0 0 auto;width:32px;height:32px;border-radius:9px;
+  background:var(--card);border:1px solid var(--bd);display:flex;align-items:center;
+  justify-content:center;font-size:14.5px}
+#authModal .amodal__flabel{font-size:12.5px;font-weight:600;color:var(--fg)}
+#authModal .amodal__check{display:flex;gap:11px;margin-bottom:16px}
+#authModal .amodal__check .ico{flex-shrink:0;width:18px;height:18px;border-radius:50%;background:var(--ok);
+  color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:900;margin-top:1px}
+#authModal .amodal__check .tx b{display:block;color:var(--fg);font-size:13px;font-weight:700;margin-bottom:2px}
+#authModal .amodal__check .tx span{display:block;color:var(--mut);font-size:11.5px;line-height:1.6}
+#authModal .amodal__more{margin-top:auto;padding-top:16px;text-align:right}
+#authModal .amodal__more a{color:var(--brand2);font-size:12.5px;font-weight:700;text-decoration:none}
+#authModal .amodal__more a:hover{text-decoration:underline}
 .modal__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
 .modal__head h3{font-size:16px;font-weight:600}
 .auth-tabs{display:flex;gap:4px;margin-bottom:18px;background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:4px}
@@ -600,21 +631,70 @@ footer a:hover{color:var(--fg)}
       <?php if (!is_logged_in()): ?>
         <button class="btn btn--primary" id="openAuth">로그인</button>
       <?php else: ?>
-        <?php if (!empty($_SESSION['nickname'])): ?>
-          <span class="nickname"><?=h($_SESSION['nickname'])?>님</span>
-        <?php endif; ?>
         <?php if (is_admin()): ?>
           <a class="btn btn--primary" href="/admin_memo.php">📝 메모</a>
         <?php else: ?>
           <a class="btn btn--primary" href="<?=h(work_page())?>"><?= (($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리' : '업무페이지' ?></a>
         <?php endif; ?>
-        <a class="btn btn--ghost" href="/?logout=1&csrf=<?=h($CSRF)?>"
-           onclick="return confirm('로그아웃할까요?');">로그아웃</a>
+
+        <div class="nav__icons">
+          <a class="nav__icobtn" href="/subscribe_page.php" title="결제·구독">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/><path d="M16 14h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </a>
+          <a class="nav__icobtn" href="/notifications.php" title="알림">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 18a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <?php if ($unreadCount > 0): ?><span class="nav__dot"></span><?php endif; ?>
+          </a>
+          <div class="nav__profile" id="navProfile">
+            <button type="button" class="nav__avatar<?= is_admin() ? ' admin' : '' ?>" id="navAvatarBtn"
+              onclick="document.getElementById('navPop').classList.toggle('show')">
+              <?= h(mb_substr((string)($_SESSION['nickname'] ?? '유'), 0, 1)) ?>
+            </button>
+            <div class="nav__pop" id="navPop">
+              <?php if (!empty($_SESSION['nickname'])): ?>
+                <div class="nav__pop__head">
+                  <div class="nav__pop__name"><?=h($_SESSION['nickname'])?>님</div>
+                  <div class="nav__pop__sub"><?= is_admin() ? '관리자' : '건물 소방안전관리자' ?></div>
+                </div>
+              <?php endif; ?>
+              <div class="nav__pop__list">
+                <a class="nav__pop__item" href="/settings.php">
+                  <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1-1.56 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34H9a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87V9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                  내 정보
+                </a>
+                <a class="nav__pop__item" href="/subscribe_page.php">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/></svg>
+                  결제·구독
+                </a>
+                <a class="nav__pop__item" href="/notifications.php">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                  알림
+                </a>
+                <div class="nav__pop__div"></div>
+                <a class="nav__pop__item nav__pop__item--danger" href="/?logout=1&csrf=<?=h($CSRF)?>"
+                   onclick="return confirm('로그아웃할까요?');">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  로그아웃
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
       <?php endif; ?>
       <button class="nav__toggle" id="navToggle" aria-label="메뉴 열기" aria-expanded="false">☰</button>
     </div>
   </div>
 </nav>
+
+<script>
+  /* 프로필 드롭다운: 바깥을 누르면 닫힘 */
+  document.addEventListener('click', function(e){
+    var wrap = document.getElementById('navProfile');
+    var pop = document.getElementById('navPop');
+    if (wrap && pop && !wrap.contains(e.target)) pop.classList.remove('show');
+  });
+</script>
+
 
 <!-- HERO -->
 <section class="hero-wrap">
@@ -860,21 +940,28 @@ $oldRole = (string)($oldSignup['role'] ?? '');
 
     <div class="amodal__right">
       <h4>지금 가입하고<br>바로 시작하세요</h4>
-      <div class="amodal__feats">
-        <div class="amodal__feat" title="거래처 지도">🗺️</div>
-        <div class="amodal__feat" title="건축물대장 자동 조회">🏢</div>
-        <div class="amodal__feat" title="자위소방대 편성">🧯</div>
-        <div class="amodal__feat" title="소방계획서">📋</div>
-        <div class="amodal__feat" title="일정·D-DAY">📅</div>
-        <div class="amodal__feat" title="업무수행 기록표">🗂️</div>
+      <?php
+        $amFeats = [
+          ['🏢', '건축물대장 자동 조회'],
+          ['🧯', '자위소방대 편성'],
+          ['📋', '소방계획서'],
+          ['🚒', '점검·훈련 기록'],
+          ['📅', '일정·D-DAY 알림'],
+          ['🗺️', '거래처 지도'],
+        ];
+      ?>
+      <div class="amodal__mlabel"><span class="dot"></span>제공하는 기능</div>
+      <div class="amodal__flist">
+        <?php foreach ($amFeats as $f): ?>
+          <div class="amodal__frow">
+            <span class="amodal__ftile"><?=$f[0]?></span>
+            <span class="amodal__flabel"><?=h($f[1])?></span>
+          </div>
+        <?php endforeach; ?>
       </div>
       <div class="amodal__check">
         <span class="ico">✓</span>
         <div class="tx"><b>무료로 시작 가능</b><span>가입만 해도 기본 기능을 바로 써볼 수 있어요</span></div>
-      </div>
-      <div class="amodal__check">
-        <span class="ico">✓</span>
-        <div class="tx"><b>건축물대장 자동 조회</b><span>주소만 검색하면 연면적·층수·구조가 채워져요</span></div>
       </div>
       <div class="amodal__check">
         <span class="ico">✓</span>
