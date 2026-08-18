@@ -91,6 +91,11 @@ $items = notif_read();
 $unread = 0; foreach ($items as $n) if (empty($n['read'])) $unread++;
 
 $PAGE_TITLE = '알림';
+$NAV_MODE = 'account';
+$IS_LOGGED_IN = true;                          // 이 페이지는 이미 위에서 로그인 필수 처리했으므로 항상 true
+$ACCOUNT_NICK = $_SESSION['nickname'] ?? '사용자';
+$ACCOUNT_IS_ADMIN = is_admin();
+$ACCOUNT_UNREAD = $unread;                     // 위에서 이미 계산한 값을 그대로 재사용
 require __DIR__ . '/_header.php';
 ?>
 <style>

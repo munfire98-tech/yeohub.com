@@ -179,6 +179,10 @@ $yearCompare = $monthly['price'] * 12;          // 22,800
 $yearSave    = $yearCompare - $yearly['price']; // 3,800
 
 $PAGE_TITLE = '구독';
+$NAV_MODE = 'account';
+$IS_LOGGED_IN = true;                          // 이 페이지는 이미 위에서 로그인 필수 처리했으므로 항상 true
+$ACCOUNT_NICK = $_SESSION['nickname'] ?? '사용자';
+$ACCOUNT_IS_ADMIN = is_admin();
 require __DIR__ . '/_header.php';
 ?>
 <style>
