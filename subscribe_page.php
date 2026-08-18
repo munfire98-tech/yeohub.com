@@ -267,7 +267,7 @@ $yearSave    = $yearCompare - $yearly['price']; // 3,800
 
 <div class="nav">
   <a class="brand" href="/index.php">YeoHub</a>
-  <a class="back" href="/clients_mini.php">← 돌아가기</a>
+  <a class="back" href="/building_manager.php">← 돌아가기</a>
 </div>
 
 <div class="wrap">
