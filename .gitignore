@@ -1,0 +1,57 @@
+# ==========================
+# User Data (업로드 데이터)
+# ==========================
+data/photos/
+data/users/
+data/clientfiles/
+data/fireplan/
+data/signatures/
+data/uploads/
+uploads/
+
+# ==========================
+# Backups
+# ==========================
+data/_backups/
+backup/
+backups/
+*.bak
+*.old
+
+# ==========================
+# Logs
+# ==========================
+*.log
+logs/
+
+# ==========================
+# Cache / Temp
+# ==========================
+cache/
+tmp/
+temp/
+
+# ==========================
+# OS
+# ==========================
+.DS_Store
+Thumbs.db
+
+# ==========================
+# IDE
+# ==========================
+.vscode/
+.idea/
+
+# ==========================
+# Archives
+# ==========================
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+*.gz
+
+mail_secret.php
