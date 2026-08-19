@@ -512,7 +512,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 
 <nav class="nav">
   <div class="nav__in">
-    <a class="brand" href="/index.php">YeoHub</a>
+    <a class="brand" href="/index.php">소방계획서.B_S_CHAT</a>
     <div style="display:flex;gap:8px">
       <form method="post" style="display:inline"
             onsubmit="return confirm('입력한 건물 기본정보를 모두 지우고 처음부터 다시 시작합니다.\n계속할까요?')">
