@@ -313,10 +313,14 @@ table.f5 tr:first-child td{border-top:1px solid #333}
      이번엔 여유를 크게 두고 32mm로 줄입니다(그래도 원래 34px의 약 4배 큽니다). */
   textarea.cell{min-height:32mm;font-size:10.5px;line-height:1.3}
   input.cell{font-size:10.5px}
-  .res label{font-size:10px;margin:0}
+  /* 확인결과(양호/불량) 라디오 버튼 — 인쇄용 크기 지정이 빠져있어서 브라우저 기본 크기·파란색으로
+     크게 나오고 있었습니다. 등급·보고방법 체크박스(.chk input)와 똑같이 맞춥니다. */
+  .res{vertical-align:middle}
+  .res label{font-size:10px;margin:0;display:flex;align-items:center;gap:4px}
+  .res input{width:11px;height:11px;margin:0;accent-color:#333}
   .chk{font-size:10px;margin-right:5px;white-space:nowrap}
   .chkline{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;white-space:nowrap}
-  .chk input{margin:0;width:11px;height:11px}
+  .chk input{margin:0;width:11px;height:11px;accent-color:#333}
   .footnote{font-size:8.5px;margin-top:6px;line-height:1.45}
   .paper{font-size:8.5px;margin-top:4px}
   .perf{gap:5px}
