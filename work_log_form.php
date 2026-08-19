@@ -307,6 +307,8 @@ table.f5 tr:first-child td{border-top:1px solid #333}
      줄(행) 단위로만 안 쪼개지게 하고, 표 자체는 필요하면 줄 사이에서 넘어가게 둡니다. */
   table.f tr,table.f td,table.f th{page-break-inside:avoid !important;break-inside:avoid !important}
   table.f td,table.f th{padding:3px 5px;font-size:10.5px;line-height:1.25}
+  /* 지하층 등 5칸 표 — 나머지 표와 인쇄 시 글자 크기를 맞춥니다(안 맞추면 이 부분만 커 보임) */
+  table.f5 td{padding:3px 4px;font-size:9.5px}
   /* 확인내용/조치사항 textarea — 지난번 48mm는 실제 렌더링에서 2페이지로 넘어갔습니다.
      이번엔 여유를 크게 두고 32mm로 줄입니다(그래도 원래 34px의 약 4배 큽니다). */
   textarea.cell{min-height:32mm;font-size:10.5px;line-height:1.3}
@@ -423,7 +425,7 @@ table.f5 tr:first-child td{border-top:1px solid #333}
       <td class="lbl">소재지</td>
       <td colspan="3"><input class="cell" type="text" name="_addr" value="<?=h($fixed['address'] ?? '')?>" readonly></td>
     </tr>
-    <tr><td colspan="4" style="padding:0">
+    <tr><td colspan="4" style="padding:0;border:0">
       <table class="f5">
         <tr><td class="lbl">지하층</td><td class="lbl">지상층</td><td class="lbl">연면적(㎡)</td><td class="lbl">바닥면적(㎡)</td><td class="lbl">동수</td></tr>
         <tr><td><?=h($fixed['floor_b'] ?? '')?></td><td><?=h($fixed['floor_a'] ?? '')?></td><td><?=h($fixed['area_t'] ?? '')?></td><td><?=h($fixed['area_f'] ?? '')?></td><td><?=h($fixed['dongsu'] ?? '')?></td></tr>
