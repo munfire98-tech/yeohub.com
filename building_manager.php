@@ -254,68 +254,18 @@ if (is_file($tdb)) {
   }
 }
 ?>
-<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>건물 소방안전관리 — YeoHub</title>
+<?php
+$PAGE_TITLE = '건물 소방안전관리';
+$NAV_MODE = 'account';
+$IS_LOGGED_IN = true;              // 이 페이지는 이미 위에서 로그인 필수 처리했으므로 항상 true
+$ACCOUNT_NICK = $nick;
+$ACCOUNT_IS_ADMIN = is_admin();
+$ACCOUNT_UNREAD = $unreadCount;    // 위에서 이미 계산한 값을 그대로 재사용
+require __DIR__ . '/_header.php';
+?>
 <style>
-:root{
-  --bg:#f5f7fb; --card:#fff; --bd:#e3e8f0; --bd2:#d4dbe6;
-  --fg:#1a2436; --mut:#7a8699; --mut2:#56627a;
-  --brand:#2563eb; --brand2:#1d4ed8; --accent:#0891b2;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{background:var(--bg);color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,"Apple SD Gothic Neo",sans-serif;line-height:1.6}
-a{text-decoration:none}
-.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--bd)}
-.nav__inner{max-width:1120px;margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px}
-.nav__brand{font-weight:800;font-size:22px;color:var(--fg);letter-spacing:.5px}
-.nav__right{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--mut2)}
-.btn{display:inline-flex;align-items:center;padding:8px 16px;border-radius:9px;border:1px solid var(--bd2);background:#fff;color:var(--fg);font-size:13px;font-weight:600}
-.btn:hover{border-color:var(--brand);color:var(--brand2)}
-
-/* ── 상단 아이콘 (결제 · 알림 · 프로필) ── */
-.nav__icons{display:flex;align-items:center;gap:6px}
-.nav__icobtn{position:relative;display:flex;align-items:center;justify-content:center;
-  width:38px;height:38px;border-radius:10px;border:1px solid transparent;background:transparent;
-  color:var(--mut2);cursor:pointer;font-family:inherit;transition:.14s}
-.nav__icobtn:hover{background:var(--bg);border-color:var(--bd)}
-.nav__icobtn svg{width:19px;height:19px}
-.nav__dot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;
-  background:#ef4444;border:1.5px solid #fff}
-
-.nav__profile{position:relative}
-.nav__avatar{width:36px;height:36px;border-radius:50%;border:0;cursor:pointer;font-family:inherit;
-  background:linear-gradient(135deg,var(--brand),var(--accent));color:#fff;font-size:13px;font-weight:800;
-  display:flex;align-items:center;justify-content:center;transition:.14s}
-.nav__avatar:hover{filter:brightness(1.06)}
-.nav__avatar.admin{background:linear-gradient(135deg,#f59e0b,#ea580c)}
-
-.nav__pop{position:absolute;top:calc(100% + 10px);right:0;width:220px;background:#fff;
-  border:1px solid var(--bd);border-radius:14px;box-shadow:0 14px 34px rgba(16,24,38,.14);
-  padding:8px;z-index:60;display:none}
-.nav__pop.show{display:block}
-.nav__pop__head{padding:11px 12px 12px;border-bottom:1px solid var(--bd)}
-.nav__pop__name{font-size:14px;font-weight:800;color:var(--fg)}
-.nav__pop__sub{font-size:11.5px;color:var(--mut);margin-top:2px}
-.nav__pop__list{padding:6px 0 0}
-.nav__pop__item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:9px;
-  border:0;background:transparent;color:var(--fg);font-size:13px;font-weight:600;font-family:inherit;
-  cursor:pointer;text-align:left;text-decoration:none}
-.nav__pop__item:hover{background:var(--bg)}
-.nav__pop__item svg{width:16px;height:16px;color:var(--mut2);flex-shrink:0}
-.nav__pop__item--danger{color:#dc2626}
-.nav__pop__item--danger svg{color:#dc2626}
-.nav__pop__div{height:1px;background:var(--bd);margin:6px 2px}
-.page-head{position:relative;overflow:hidden;border-bottom:1px solid var(--bd);
-  background:linear-gradient(rgba(37,99,235,.04) 1px,transparent 1px) 0 0/100% 28px,
-  linear-gradient(90deg,rgba(37,99,235,.04) 1px,transparent 1px) 0 0/28px 100%,
-  linear-gradient(180deg,#fbfcff,#eef3fb)}
-.page-head::before{content:'';position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(ellipse 760px 320px at 12% 0%,rgba(8,145,178,.10),transparent 70%)}
-.page-head__inner{position:relative;max-width:1120px;margin:0 auto;padding:48px 24px 40px}
+/* building_manager.php 전용 -- _header.php 가 :root.nav.wrap.card.page-head 기본값을 이미 제공합니다.
+   여기서는 이 페이지만의 것(진행 패널.평가 배너.팝업 등)만 추가.보완합니다. */
 .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;border:1px solid var(--bd2);background:#fff;color:var(--mut2);font-size:12px;margin-bottom:14px}
 .badge span{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block}
 .page-head h1{font-size:clamp(24px,3.5vw,34px);font-weight:700;letter-spacing:-.5px;margin-bottom:8px}
@@ -344,8 +294,8 @@ a{text-decoration:none}
 .setup-badge--need{background:#fff7ed;color:#b45309}
 .setup-badge--review{background:#fef3c7;color:#b45309}
 .setup-badge--admin{background:#e0f2fe;color:#0369a1}
-@media(max-width:680px){.nav__inner{padding:0 16px}.page-head__inner{padding:36px 20px 28px}}
-/* ── 배정된 피난 시뮬레이션 ── */
+@media(max-width:680px){.page-head__inner{padding:36px 20px 28px}}
+/* -- 배정된 피난 시뮬레이션 -- */
 .evac-strip{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px}
 .evac-strip__label{font-size:12px;font-weight:700;color:var(--mut2);
   display:inline-flex;align-items:center;gap:6px}
@@ -372,7 +322,7 @@ a{text-decoration:none}
 .qrbox .qclose{width:100%;padding:10px;border:0;border-radius:10px;background:var(--brand);
   color:#fff;font-size:13px;font-weight:700;cursor:pointer}
 
-/* ── 시뮬레이션 배정 요청 ── */
+/* -- 시뮬레이션 배정 요청 -- */
 .evac-req{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;
   padding:13px 16px;border-radius:12px;background:#fff;border:1px dashed #b6d0f5}
 .evac-req__t{font-size:13px;font-weight:700;color:var(--brand2)}
@@ -399,7 +349,7 @@ a{text-decoration:none}
 .evac-req__btn--go:hover{filter:brightness(1.08);color:#fff}
 @media(max-width:560px){.evac-req__btn,.evac-req__btn--go{margin-left:0;width:100%;justify-content:center}}
 
-/* ── 배정 신청 팝업 ── */
+/* -- 배정 신청 팝업 -- */
 .rqov{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;
   align-items:center;justify-content:center;z-index:200;padding:18px}
 .rqov.on{display:flex}
@@ -426,7 +376,7 @@ a{text-decoration:none}
 .rqbtns .rqgo:hover{filter:brightness(1.08)}
 .rqbtns .rqgo:disabled{background:#e8edf5;color:#8a94a6;cursor:default;filter:none}
 
-/* ── 진행 현황 (헤더 우측 패널) ── */
+/* -- 진행 현황 (헤더 우측 패널) -- */
 .page-head__inner{display:flex;gap:28px;align-items:flex-start}
 .ph-left{flex:1;min-width:0}
 .prog{width:236px;flex-shrink:0;background:#fff;border:1px solid var(--bd);border-radius:14px;
@@ -467,7 +417,7 @@ a.pstep:hover{background:#f2f6fd}
   .prog{width:100%}
 }
 
-/* ── 지금 할 일 배너 ── */
+/* -- 지금 할 일 배너 -- */
 .todo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:15px 18px;border-radius:14px;
   margin-bottom:6px;font-size:14px;font-weight:600;line-height:1.55}
 .todo--need{background:#fff7ed;border:1px solid #f6d8a8;color:#92400e}
@@ -477,7 +427,7 @@ a.pstep:hover{background:#f2f6fd}
 .todo .btn2:hover{filter:brightness(1.08)}
 @media(max-width:560px){.todo .btn2{margin-left:0;width:100%;text-align:center}}
 
-/* ── 주기별 섹션 ── */
+/* -- 주기별 섹션 -- */
 .sec{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:28px 0 12px}
 .sec__chip{font-size:11px;font-weight:800;padding:4px 11px;border-radius:999px;letter-spacing:.02em}
 .chip-first{background:#eef2ff;color:var(--brand2)}
@@ -510,84 +460,6 @@ a.pstep:hover{background:#f2f6fd}
 .cardprog__t--ok{color:#15803d}
 .cardprog__t--ok b{color:#15803d}
 </style>
-</head>
-<body>
-
-<nav class="nav">
-  <div class="nav__inner">
-    <a class="nav__brand" href="/index.php">소방계획서.HUB</a>
-    <div class="nav__right">
-      <?php if ($adminView): ?>
-        <span style="font-size:13px"><?= '관리자 보기 · ' . h($targetNick) . ' (' . h($viewUid) . ')' ?></span>
-        <a class="btn" href="/admin_member_review.php?uid=<?=h(rawurlencode($viewUid))?>">확인요청</a>
-        <a class="btn" href="/admin_members.php">회원 목록</a>
-      <?php endif; ?>
-
-      <div class="nav__icons">
-        <!-- 결제 -->
-        <a class="nav__icobtn" href="/subscribe_page.php" title="결제·구독">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/><path d="M16 14h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        </a>
-        <!-- 알림 -->
-        <a class="nav__icobtn" href="/notifications.php" title="알림">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 18a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          <?php if (!empty($unreadCount)): ?><span class="nav__dot"></span><?php endif; ?>
-        </a>
-        <!-- 프로필 -->
-        <div class="nav__profile" id="navProfile">
-          <button type="button" class="nav__avatar<?= $adminView ? ' admin' : '' ?>" id="navAvatarBtn"
-            onclick="document.getElementById('navPop').classList.toggle('show')">
-            <?= h(mb_substr($adminView ? $targetNick : $nick, 0, 1)) ?>
-          </button>
-          <div class="nav__pop" id="navPop">
-            <div class="nav__pop__head">
-              <div class="nav__pop__name"><?= h($adminView ? $targetNick : $nick) ?>님</div>
-              <div class="nav__pop__sub"><?= $adminView ? '관리자 보기 중' : '건물 소방안전관리자' ?></div>
-            </div>
-            <div class="nav__pop__list">
-              <a class="nav__pop__item" href="/settings.php">
-                <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1-1.56 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34H9a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87V9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-                내 정보
-              </a>
-              <a class="nav__pop__item" href="/subscribe_page.php">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/></svg>
-                결제·구독
-              </a>
-              <a class="nav__pop__item" href="/notifications.php">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-                알림
-              </a>
-              <?php if ($adminView): ?>
-                <a class="nav__pop__item" href="/admin_member_review.php?uid=<?=h(rawurlencode($viewUid))?>">
-                  <svg viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                  확인요청
-                </a>
-                <a class="nav__pop__item" href="/admin_members.php">
-                  <svg viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                  회원 목록
-                </a>
-              <?php endif; ?>
-              <div class="nav__pop__div"></div>
-              <a class="nav__pop__item nav__pop__item--danger" href="/logout.php">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                로그아웃
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</nav>
-
-<script>
-  /* 프로필 드롭다운: 바깥을 누르면 닫힘 */
-  document.addEventListener('click', function(e){
-    var wrap = document.getElementById('navProfile');
-    var pop = document.getElementById('navPop');
-    if (wrap && pop && !wrap.contains(e.target)) pop.classList.remove('show');
-  });
-</script>
 
 <header class="page-head">
   <div class="page-head__inner">
@@ -1112,5 +984,4 @@ function showQr(id, name){
 }
 </script>
 <?php require __DIR__ . '/memo_widget.php'; ?>
-</body>
-</html>
+<?php require __DIR__ . '/_footer.php'; ?>
