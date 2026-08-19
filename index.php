@@ -605,8 +605,8 @@ footer a:hover{color:var(--fg)}
   <div class="hero">
    <div class="hero__grid">
     <div class="hero__col">
-      <div class="hero__label"><span></span>소방계획</div>
-                    <h1>YEOHUB 안전관리<em>업무지원</em></h1>
+      <div class="hero__label"><span></span>YEOHUB</div>
+                    <h1>안전관리<em>업무지원</em></h1>
                     <p class="hero__sub">소방안전관리, 수행에서 증명까지</p>
                     <p class="hero__note">
                       매월 수행한 안전관리 업무를 간편하게 기록하고 체계적으로 보관하세요.

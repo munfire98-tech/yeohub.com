@@ -1200,10 +1200,12 @@ function doLookupSearch(kw, list, inp, s){
     .then(function(j){
       list.innerHTML='';
       if(!j.ok){ list.style.display='block';
-        list.innerHTML='<div style="padding:10px 13px;color:var(--mut)">'+esc(j.error||'검색 실패')+'</div>'; return; }
+        list.innerHTML='<div style="padding:10px 13px;color:var(--mut)">'+esc(j.error||'검색 실패')+'</div>';
+        appendDirectAddrOption(list, kw, s); return; }
       var rs=j.results||[];
       if(!rs.length){ list.style.display='block';
-        list.innerHTML='<div style="padding:10px 13px;color:var(--mut)">검색 결과가 없습니다. 다르게 입력해 보세요.</div>'; return; }
+        list.innerHTML='<div style="padding:10px 13px;color:var(--mut)">검색 결과가 없습니다.</div>';
+        appendDirectAddrOption(list, kw, s); return; }
       rs.forEach(function(a){
         var d=document.createElement('div');
         d.style.cssText='padding:10px 13px;cursor:pointer;border-bottom:1px solid #f0f2f6';
@@ -1216,10 +1218,30 @@ function doLookupSearch(kw, list, inp, s){
         d.onclick=function(){ doLookupPick(a, s); };
         list.appendChild(d);
       });
+      /* 이름으로 찾아도 안 나올 수 있으니, 후보가 있어도 직접 입력 선택지를 항상 열어둔다 */
+      appendDirectAddrOption(list, kw, s);
       list.style.display='block';
     })
     .catch(function(){ list.style.display='block';
-      list.innerHTML='<div style="padding:10px 13px;color:#991b1b">검색 중 연결이 끊겼습니다.</div>'; });
+      list.innerHTML='<div style="padding:10px 13px;color:#991b1b">검색 중 연결이 끊겼습니다.</div>';
+      appendDirectAddrOption(list, kw, s); });
+}
+
+/* ── 카카오맵에 없는 곳 대비: 입력한 글자를 '주소'로 보고 juso 로 바로 조회 ──
+   카카오 키워드검색은 상호(장소) 위주라, 등록 안 된 업체·건물은 이름으로도
+   주소로도 결과가 0건일 수 있다. 이때는 카카오를 건너뛰고 juso 로 직접 넘긴다. */
+function appendDirectAddrOption(list, kw, s){
+  var d=document.createElement('div');
+  d.style.cssText='padding:11px 13px;cursor:pointer;background:#fafbfd';
+  d.innerHTML='<div style="font-weight:700;color:var(--navy)">📍 "'+esc(kw)+'" 를 주소로 직접 찾기</div>'+
+              '<div style="font-size:11.5px;color:var(--mut);margin-top:2px">카카오맵에 없는 곳이면 이렇게 시도해 보세요</div>';
+  d.onmouseover=function(){ d.style.background='#eef4ff'; };
+  d.onmouseout=function(){ d.style.background='#fafbfd'; };
+  d.onclick=function(){
+    /* road·jibun 둘 다 같은 문자열을 넘긴다 — 서버가 juso 로 알아서 코드 변환한다 */
+    doLookupPick({ place: kw, road: kw, jibun: kw }, s);
+  };
+  list.appendChild(d);
 }
 
 /* ── 후보 클릭 → juso+건축HUB 조회 → 기본정보 한번에 저장 ── */

@@ -15,9 +15,9 @@ use PHPMailer\PHPMailer\Exception;
 
 // ─────────────────────────────────────────────
 //  ↓↓↓ 여기 API 키만 넣으세요 ↓↓↓
-require_once __DIR__ . '/mail_secret.php';
+<?php
 
-$resend_api_key = RESEND_API_KEY;   // ← re_로 시작하는 키
+$apiKey = require __DIR__ . '/mail_secret.php';   // ← re_로 시작하는 키
 //  ↑↑↑ 여기 API 키만 넣으세요 ↑↑↑
 
 define('SMTP_HOST', 'smtp.resend.com');

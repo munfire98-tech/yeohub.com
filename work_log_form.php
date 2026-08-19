@@ -170,6 +170,12 @@ textarea.cell{min-height:64px}
 .footnote{font-size:11px;color:#333;margin-top:12px;line-height:1.7}
 .paper{font-size:11px;color:#333;text-align:right;margin-top:10px}
 
+/* 지하층·지상층·연면적·바닥면적·동수 — 5칸 중첩표 */
+table.f5{width:100%;border-collapse:collapse;table-layout:fixed}
+table.f5 td{border:1px solid #333;border-top:0;padding:5px 4px;font-size:12px;text-align:center;
+  vertical-align:middle;width:20%}
+table.f5 tr:first-child td{border-top:1px solid #333}
+
 /* 수행자 + 서명 */
 .perf{display:flex;align-items:center;gap:8px}
 .perf__name{flex:1 1 auto;min-width:60px}
@@ -296,10 +302,14 @@ textarea.cell{min-height:64px}
   .sheet{font-size:10.5px}
   .title{font-size:18px;letter-spacing:3px;margin:2px 0 4px}
   .law,.guide{font-size:9px;margin-bottom:3px}
-  table.f{page-break-inside:avoid !important;break-inside:avoid !important}
+  /* ★ 표 전체에 '쪼개지 마'를 걸면, 표가 페이지에 살짝만 안 맞아도
+     표 통째로 다음 페이지로 밀려버립니다 — 그게 2페이지로 넘어간 원인이었습니다.
+     줄(행) 단위로만 안 쪼개지게 하고, 표 자체는 필요하면 줄 사이에서 넘어가게 둡니다. */
   table.f tr,table.f td,table.f th{page-break-inside:avoid !important;break-inside:avoid !important}
   table.f td,table.f th{padding:3px 5px;font-size:10.5px;line-height:1.25}
-  textarea.cell{min-height:34px;font-size:10.5px;line-height:1.3}
+  /* 확인내용/조치사항 textarea — 지난번 48mm는 실제 렌더링에서 2페이지로 넘어갔습니다.
+     이번엔 여유를 크게 두고 32mm로 줄입니다(그래도 원래 34px의 약 4배 큽니다). */
+  textarea.cell{min-height:32mm;font-size:10.5px;line-height:1.3}
   input.cell{font-size:10.5px}
   .res label{font-size:10px;margin:0}
   .chk{font-size:10px;margin-right:5px;white-space:nowrap}
@@ -336,7 +346,7 @@ textarea.cell{min-height:64px}
   <div class="guide">※ [ ]에는 해당되는 곳에 √표를 합니다.</div>
 
   <table class="f">
-    <colgroup><col style="width:110px"><col><col style="width:80px"><col></colgroup>
+    <colgroup><col style="width:16%"><col style="width:44%"><col style="width:12%"><col style="width:28%"></colgroup>
     <tr>
       <td class="lbl">수행일자</td>
       <td>
@@ -397,7 +407,7 @@ textarea.cell{min-height:64px}
   </table>
 
   <table class="f" style="margin-top:-1px">
-    <colgroup><col style="width:110px"><col style="width:80px"><col><col style="width:70px"><col></colgroup>
+    <colgroup><col style="width:16%"><col style="width:12%"><col style="width:32%"><col style="width:10%"><col style="width:30%"></colgroup>
     <tr>
       <td class="lbl" rowspan="3">소방안전<br>관리대상물</td>
       <td class="lbl">상호</td>
@@ -413,18 +423,16 @@ textarea.cell{min-height:64px}
       <td class="lbl">소재지</td>
       <td colspan="3"><input class="cell" type="text" name="_addr" value="<?=h($fixed['address'] ?? '')?>" readonly></td>
     </tr>
-    <tr>
-      <td class="lbl center">지하/지상층·면적·동수</td>
-      <td colspan="3">
-        지하 <?=h($fixed['floor_b'] ?? '')?>층 · 지상 <?=h($fixed['floor_a'] ?? '')?>층 ·
-        연면적 <?=h($fixed['area_t'] ?? '')?>㎡ · 바닥면적 <?=h($fixed['area_f'] ?? '')?>㎡ ·
-        <?=h($fixed['dongsu'] ?? '')?>동
-      </td>
-    </tr>
+    <tr><td colspan="4" style="padding:0">
+      <table class="f5">
+        <tr><td class="lbl">지하층</td><td class="lbl">지상층</td><td class="lbl">연면적(㎡)</td><td class="lbl">바닥면적(㎡)</td><td class="lbl">동수</td></tr>
+        <tr><td><?=h($fixed['floor_b'] ?? '')?></td><td><?=h($fixed['floor_a'] ?? '')?></td><td><?=h($fixed['area_t'] ?? '')?></td><td><?=h($fixed['area_f'] ?? '')?></td><td><?=h($fixed['dongsu'] ?? '')?></td></tr>
+      </table>
+    </td></tr>
   </table>
 
   <table class="f" style="margin-top:-1px">
-    <colgroup><col style="width:110px"><col><col style="width:96px"><col style="width:150px"></colgroup>
+    <colgroup><col style="width:14%"><col style="width:42%"><col style="width:14%"><col style="width:30%"></colgroup>
     <tr><th>항 목</th><th>확인내용</th><th>확인결과</th><th>조치사항</th></tr>
     <?php
       $rows = [
@@ -448,7 +456,7 @@ textarea.cell{min-height:64px}
   </table>
 
   <table class="f" style="margin-top:-1px">
-    <colgroup><col style="width:110px"><col style="width:130px"><col><col style="width:150px"></colgroup>
+    <colgroup><col style="width:14%"><col style="width:18%"><col style="width:38%"><col style="width:30%"></colgroup>
     <tr>
       <td class="lbl" rowspan="2">불량사항<br>개선보고</td>
       <td class="lbl">보고일시</td>
