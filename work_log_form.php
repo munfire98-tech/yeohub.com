@@ -136,7 +136,7 @@ $url = function(string $path) use ($adminQuery): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>업무 수행 기록표 <?=h($monthLabel)?> — TWORIX</title>
 <style>
-:root{--bg:#f5f7fb;--card:#fff;--bd:#e3e8f0;--bd2:#d4dbe6;--fg:#1a2436;--mut2:#56627a;--brand:#2563eb;--brand2:#1d4ed8}
+:root{--bg:#f5f7fb;--card:#fff;--bd:#e3e8f0;--bd2:#d4dbe6;--fg:#1a2436;--mut2:#56627a;--brand:#2563eb;--brand2:#1d4ed8;--form-line-color:#333;--form-line-width:1px}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:var(--bg);color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,"Apple SD Gothic Neo",sans-serif;line-height:1.5}
 a{text-decoration:none}
@@ -155,9 +155,12 @@ a{text-decoration:none}
 .law{font-size:12px;color:#333;margin-bottom:6px}
 .title{text-align:center;font-size:24px;font-weight:800;letter-spacing:6px;margin:6px 0 8px}
 .guide{font-size:11px;color:#333;margin-bottom:10px}
-table.f{width:100%;border-collapse:collapse;table-layout:fixed}
-table.f td,table.f th{border:1px solid #333;padding:6px 8px;font-size:13px;vertical-align:middle;word-break:break-all}
-table.f th{background:#f3f4f6;font-weight:700;text-align:center}
+table.f{width:100%;border-collapse:collapse;border-spacing:0;table-layout:fixed}
+table.f>tbody>tr>td,table.f>tbody>tr>th{border:var(--form-line-width) solid var(--form-line-color);padding:6px 8px;font-size:13px;vertical-align:middle;word-break:break-all}
+table.f>tbody>tr>th{background:#f3f4f6;font-weight:700;text-align:center}
+/* 연속된 표는 겹치지 않고 앞 표의 아래쪽 선 하나만 공유합니다. */
+table.f--joined{margin-top:0!important}
+table.f--joined>tbody>tr:first-child>td,table.f--joined>tbody>tr:first-child>th{border-top-width:0}
 .lbl{background:#f3f4f6;font-weight:700;text-align:center;width:110px}
 .center{text-align:center}
 input.cell,textarea.cell{width:100%;border:0;background:transparent;font-size:13px;font-family:inherit;color:#111;resize:none;outline:none;padding:2px 0}
@@ -171,10 +174,11 @@ textarea.cell{min-height:64px}
 .paper{font-size:11px;color:#333;text-align:right;margin-top:10px}
 
 /* 지하층·지상층·연면적·바닥면적·동수 — 5칸 중첩표 */
-table.f5{width:100%;border-collapse:collapse;table-layout:fixed}
-table.f5 td{border:1px solid #333;border-top:0;padding:5px 4px;font-size:12px;text-align:center;
+table.f5{width:100%;border-collapse:collapse;border-spacing:0;table-layout:fixed}
+table.f5>tbody>tr>td{border:var(--form-line-width) solid var(--form-line-color);border-top:0;padding:5px 4px;font-size:12px;text-align:center;
   vertical-align:middle;width:20%}
-table.f5 tr:first-child td{border-top:1px solid #333}
+table.f5>tbody>tr:first-child>td{border-top:var(--form-line-width) solid var(--form-line-color)}
+.nested-table-cell{padding:0!important;border:0!important}
 
 /* 수행자 + 서명 */
 .perf{display:flex;align-items:center;gap:8px}
@@ -288,6 +292,8 @@ table.f5 tr:first-child td{border-top:1px solid #333}
   .dcell{padding:11px 0;font-size:15px}
 }
 @media print{
+  :root{--form-line-color:#000;--form-line-width:.25mm}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .topbar,.toast,.hint,.mask{display:none !important}
   .dbtn,.dpop{display:none !important}
   .dwrap{display:block}
@@ -306,6 +312,14 @@ table.f5 tr:first-child td{border-top:1px solid #333}
      표 통째로 다음 페이지로 밀려버립니다 — 그게 2페이지로 넘어간 원인이었습니다.
      줄(행) 단위로만 안 쪼개지게 하고, 표 자체는 필요하면 줄 사이에서 넘어가게 둡니다. */
   table.f tr,table.f td,table.f th{page-break-inside:avoid !important;break-inside:avoid !important}
+  table.f,table.f5{border-collapse:collapse!important;border-spacing:0!important}
+  table.f>tbody>tr>td,table.f>tbody>tr>th,table.f5>tbody>tr>td{
+    border-color:var(--form-line-color)!important;
+    border-style:solid!important;
+    border-width:var(--form-line-width)!important;
+  }
+  table.f--joined>tbody>tr:first-child>td,table.f--joined>tbody>tr:first-child>th{border-top-width:0!important}
+  table.f .nested-table-cell{padding:0!important;border:0!important}
   table.f td,table.f th{padding:3px 5px;font-size:10.5px;line-height:1.25}
   /* 지하층 등 5칸 표 — 나머지 표와 인쇄 시 글자 크기를 맞춥니다(안 맞추면 이 부분만 커 보임) */
   table.f5 td{padding:3px 4px;font-size:9.5px}
@@ -412,10 +426,10 @@ table.f5 tr:first-child td{border-top:1px solid #333}
     </tr>
   </table>
 
-  <table class="f" style="margin-top:-1px">
+  <table class="f f--joined">
     <colgroup><col style="width:16%"><col style="width:12%"><col style="width:32%"><col style="width:10%"><col style="width:30%"></colgroup>
     <tr>
-      <td class="lbl" rowspan="3">소방안전<br>관리대상물</td>
+      <td class="lbl">소방안전<br>관리대상물</td>
       <td class="lbl">상호</td>
       <td colspan="1"><input class="cell" type="text" name="_sangho" value="<?=h($fixed['sangho'] ?? '')?>" readonly></td>
       <td class="lbl">등급</td>
@@ -426,10 +440,13 @@ table.f5 tr:first-child td{border-top:1px solid #333}
       </td>
     </tr>
     <tr>
+      <td class="lbl"></td>
       <td class="lbl">소재지</td>
       <td colspan="3"><input class="cell" type="text" name="_addr" value="<?=h($fixed['address'] ?? '')?>" readonly></td>
     </tr>
-    <tr><td colspan="4" style="padding:0;border:0">
+    <tr>
+      <td class="lbl"></td>
+      <td colspan="4" class="nested-table-cell">
       <table class="f5">
         <tr><td class="lbl">지하층</td><td class="lbl">지상층</td><td class="lbl">연면적(㎡)</td><td class="lbl">바닥면적(㎡)</td><td class="lbl">동수</td></tr>
         <tr><td><?=h($fixed['floor_b'] ?? '')?></td><td><?=h($fixed['floor_a'] ?? '')?></td><td><?=h($fixed['area_t'] ?? '')?></td><td><?=h($fixed['area_f'] ?? '')?></td><td><?=h($fixed['dongsu'] ?? '')?></td></tr>
@@ -437,7 +454,7 @@ table.f5 tr:first-child td{border-top:1px solid #333}
     </td></tr>
   </table>
 
-  <table class="f" style="margin-top:-1px">
+  <table class="f f--joined">
     <colgroup><col style="width:14%"><col style="width:42%"><col style="width:14%"><col style="width:30%"></colgroup>
     <tr><th>항 목</th><th>확인내용</th><th>확인결과</th><th>조치사항</th></tr>
     <?php
@@ -461,7 +478,7 @@ table.f5 tr:first-child td{border-top:1px solid #333}
     <?php endforeach; ?>
   </table>
 
-  <table class="f" style="margin-top:-1px">
+  <table class="f f--joined">
     <colgroup><col style="width:14%"><col style="width:18%"><col style="width:38%"><col style="width:30%"></colgroup>
     <tr>
       <td class="lbl" rowspan="2">불량사항<br>개선보고</td>
