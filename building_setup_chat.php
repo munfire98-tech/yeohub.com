@@ -713,23 +713,58 @@ var HELP = {
   },
 
   grade: function(){
-    var fl   = parseInt(SAVED.floor_a || '0', 10) || 0;
-    var area = parseFloat(SAVED.area_t || '0') || 0;
+    /* 화재의 예방 및 안전관리에 관한 법률 시행령 [별표 4] 기준.
+       ★ 아파트와 그 외 건물의 기준이 서로 다릅니다.
+         특급 — 아파트: 50층↑(지하 제외) 또는 높이 200m↑
+                그 외 : 30층↑(지하 포함) 또는 높이 120m↑ 또는 연면적 10만㎡↑
+         1급  — 아파트: 30층↑(지하 제외) 또는 높이 120m↑
+                그 외 : 11층↑(지하 제외) 또는 연면적 1.5만㎡↑
+         2급/3급 — 설치된 소방설비로 갈립니다(규모만으론 판단 불가). */
+    var flA  = parseInt(SAVED.floor_a || '0', 10) || 0;   // 지상 층수
+    var flB  = parseInt(SAVED.floor_b || '0', 10) || 0;   // 지하 층수
+    var area = parseFloat(SAVED.area_t || '0') || 0;      // 연면적
+    var hgt  = parseFloat(SAVED.bd_height || '0') || 0;   // 높이(m) — 건축물대장에서 옴
+    var use  = String(SAVED.use || '') + ' ' + String(SAVED.bd_use_main || '') + ' ' + String(SAVED.bd_use_etc || '');
+    var isApt = /아파트|공동주택/.test(use);
 
-    /* 규모만으로 갈리는 경우는 바로 알려준다 */
-    if (fl >= 30 || area >= 100000){
-      gradeAnswer('특급', '지상 ' + fl + '층 · 연면적 ' + area.toLocaleString() + '㎡ 규모라면 특급에 해당합니다.');
-      return;
-    }
-    if (fl >= 11 || area >= 15000){
-      gradeAnswer('1급', (fl >= 11 ? '지상 ' + fl + '층으로 11층 이상이라' : '연면적이 15,000㎡ 이상이라') + ' 1급에 해당합니다.');
-      return;
+    var why = [];
+    if (flA) why.push('지상 ' + flA + '층');
+    if (hgt)  why.push('높이 ' + hgt + 'm');
+    if (area) why.push('연면적 ' + area.toLocaleString() + '㎡');
+    var scale = why.join(' · ');
+
+    if (isApt){
+      /* ── 아파트 ── */
+      if (flA >= 50 || hgt >= 200){
+        gradeAnswer('특급', '아파트는 50층 이상이거나 높이 200m 이상이면 특급입니다. (' + scale + ')');
+        return;
+      }
+      if (flA >= 30 || hgt >= 120){
+        gradeAnswer('1급', '아파트는 30층 이상이거나 높이 120m 이상이면 1급입니다. (' + scale + ')');
+        return;
+      }
+      /* 그 밖의 아파트는 설비 기준으로 2급·3급이 갈립니다 */
+    } else {
+      /* ── 아파트 외 ── */
+      if ((flA + flB) >= 30 || hgt >= 120 || area >= 100000){
+        gradeAnswer('특급',
+          '아파트가 아닌 건물은 30층 이상(지하 포함)이거나 높이 120m 이상, ' +
+          '또는 연면적 10만㎡ 이상이면 특급입니다. (' + scale +
+          (flB ? ' · 지하 ' + flB + '층' : '') + ')');
+        return;
+      }
+      if (flA >= 11 || area >= 15000){
+        gradeAnswer('1급',
+          (flA >= 11 ? '지상 11층 이상이라' : '연면적이 1만 5천㎡ 이상이라') +
+          ' 1급입니다. (' + scale + ')');
+        return;
+      }
     }
 
-    /* 나머지는 눈으로 확인할 수 있는 것으로 묻는다 */
+    /* 규모로 안 갈리면 설비를 물어봅니다 */
     bot(md('등급은 건물 규모와 **설치된 소방설비**로 정해집니다.\n' +
-      '말씀하신 규모(지상 ' + (fl || '?') + '층' + (area ? ' · ' + area.toLocaleString() + '㎡' : '') +
-      ')면 2급 아니면 3급인데, 하나만 더 확인하면 됩니다.'));
+      (scale ? '말씀하신 규모(' + scale + ')면 ' : '') +
+      '2급 아니면 3급인데, 하나만 더 확인하면 됩니다.'));
 
     setTimeout(function(){
       bot(md('건물 복도에 **옥내소화전함**(빨간 호스가 든 함)이나 ' +
@@ -737,8 +772,8 @@ var HELP = {
         '소화전함은 보통 계단 옆이나 복도 벽에 있습니다. 스프링클러는 천장에 달린 작은 금속 노즐입니다.');
       var b = box();
       var w = document.createElement('div'); w.className='opts';
-      [['있습니다', '2급', '옥내소화전이나 스프링클러가 설치된 건물은 보통 2급입니다.'],
-       ['없습니다 · 화재감지기만 있어요', '3급', '자동화재탐지설비만 설치된 건물은 보통 3급입니다.'],
+      [['있습니다', '2급', '옥내소화전이나 스프링클러가 설치된 건물은 2급입니다.'],
+       ['없습니다 · 화재감지기만 있어요', '3급', '간이스프링클러나 자동화재탐지설비만 설치된 건물은 3급입니다.'],
        ['잘 모르겠어요', '', '']
       ].forEach(function(o){
         var btn = document.createElement('button');
@@ -760,6 +795,37 @@ var HELP = {
     }, 360);
   }
 };
+
+/* 규모만으로 등급이 확실히 갈리는 경우에만 결과를 돌려줍니다.
+   2급·3급은 설치된 소방설비를 봐야 하므로 여기서는 판정하지 않습니다(null 반환).
+   근거: 화재의 예방 및 안전관리에 관한 법률 시행령 [별표 4] */
+function guessGrade(){
+  var flA  = parseInt(SAVED.floor_a || '0', 10) || 0;
+  var flB  = parseInt(SAVED.floor_b || '0', 10) || 0;
+  var area = parseFloat(SAVED.area_t || '0') || 0;
+  var hgt  = parseFloat(SAVED.bd_height || '0') || 0;
+  var use  = String(SAVED.use || '') + ' ' + String(SAVED.bd_use_main || '') + ' ' + String(SAVED.bd_use_etc || '');
+  var isApt = /아파트|공동주택/.test(use);
+
+  if (!flA && !area && !hgt) return null;   // 아무 정보도 없으면 추천하지 않음
+
+  if (isApt){
+    if (flA >= 50 || hgt >= 200)
+      return { grade:'특급', why:'아파트가 50층 이상이거나 높이 200m 이상입니다.' };
+    if (flA >= 30 || hgt >= 120)
+      return { grade:'1급', why:'아파트가 30층 이상이거나 높이 120m 이상입니다.' };
+    return null;   // 그 밖의 아파트는 설비로 갈립니다
+  }
+
+  if ((flA + flB) >= 30 || hgt >= 120 || area >= 100000)
+    return { grade:'특급', why:'30층 이상(지하 포함)이거나 높이 120m 이상, 또는 연면적 10만㎡ 이상입니다.' };
+  if (flA >= 11)
+    return { grade:'1급', why:'지상 11층 이상입니다.' };
+  if (area >= 15000)
+    return { grade:'1급', why:'연면적이 1만 5천㎡ 이상입니다.' };
+
+  return null;   // 2급·3급은 소방설비를 확인해야 합니다
+}
 
 /* 추정한 등급을 제시하고 확인받는다 */
 function gradeAnswer(grade, why){
@@ -1118,10 +1184,52 @@ function ask(s){
   }
 
   if (s.type === 'choice'){
+    /* 등급 질문이면, 건축물대장으로 이미 알 수 있는 경우 미리 계산해서 추천합니다. */
+    var autoGrade = (s.field === 'grade') ? guessGrade() : null;
+    if (s.field === 'grade'){
+      /* 추천이 왜 안 나오는지 콘솔에서 바로 확인할 수 있게 남깁니다. */
+      console.log('[등급추천 진단]', {
+        용도: SAVED.use, 대장주용도: SAVED.bd_use_main, 대장기타용도: SAVED.bd_use_etc,
+        지상층: SAVED.floor_a, 지하층: SAVED.floor_b,
+        연면적: SAVED.area_t, 높이: SAVED.bd_height,
+        결과: autoGrade
+      });
+    }
+    if (autoGrade){
+      var rec = document.createElement('div');
+      rec.style.cssText = 'background:#eefaf1;border:1px solid #bfe6cb;border-radius:11px;' +
+        'padding:12px 14px;margin-bottom:12px;font-size:13.5px;color:#15803d;line-height:1.65';
+      rec.innerHTML = '건축물대장 정보로 계산하면 <b>' + esc(autoGrade.grade) + '</b>입니다.<br>' +
+        '<span style="font-size:12px;color:var(--mut2)">' + esc(autoGrade.why) + '</span>';
+      b.appendChild(rec);
+    } else if (s.field === 'grade'){
+      /* 규모만으로는 2급·3급이 안 갈립니다(법으로 소방설비를 봐야 합니다).
+         아무 안내도 없으면 고장처럼 보이므로, 왜 추천이 없는지 알려줍니다. */
+      var flA  = parseInt(SAVED.floor_a || '0', 10) || 0;
+      var area = parseFloat(SAVED.area_t || '0') || 0;
+      var note = document.createElement('div');
+      note.style.cssText = 'background:var(--bg2);border:1px solid var(--bd);border-radius:11px;' +
+        'padding:12px 14px;margin-bottom:12px;font-size:13px;color:var(--mut2);line-height:1.7';
+      if (!flA && !area){
+        note.innerHTML = '층수·연면적이 아직 없어서 자동 계산을 못 했습니다. ' +
+          '아시는 등급을 고르시거나, 모르시면 <b>잘 모르겠어요</b>를 눌러주세요.';
+      } else {
+        note.innerHTML = '이 규모(' +
+          (flA ? '지상 ' + flA + '층' : '') + (flA && area ? ' · ' : '') +
+          (area ? area.toLocaleString() + '㎡' : '') +
+          ')는 <b>2급 또는 3급</b>인데, 둘 중 어느 쪽인지는 설치된 소방설비로 갈립니다.<br>' +
+          '<b>잘 모르겠어요</b>를 누르시면 몇 가지 여쭤보고 알려드리겠습니다.';
+      }
+      b.appendChild(note);
+    }
+
     var w=document.createElement('div'); w.className='opts';
     s.options.forEach(function(o){
       var btn=document.createElement('button'); btn.className='opt'; btn.type='button';
-      btn.textContent=o;
+      btn.textContent = o + (autoGrade && autoGrade.grade === o ? ' ✓' : '');
+      if (autoGrade && autoGrade.grade === o){
+        btn.style.cssText = 'border-color:#22c55e;background:#f0fdf4;color:#15803d;font-weight:700';
+      }
       btn.onclick=function(){ submit(s, o, {}, o); };
       w.appendChild(btn);
     });
