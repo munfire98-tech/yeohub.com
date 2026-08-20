@@ -344,6 +344,17 @@ require __DIR__ . '/_header.php';
   color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;
   display:inline-flex;align-items:center;text-decoration:none}
 .subs__btn:hover{filter:brightness(1.08)}
+
+/* 전체 인쇄 카드 (자동알림 배너 아래) — 같은 형태에 색만 구분합니다 */
+.prt{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
+  padding:13px 16px;border-radius:12px;background:#f0f9ff;border:1px solid #bae6fd}
+.prt__t{font-size:13px;font-weight:700;color:#0369a1}
+.prt__d{font-size:12px;color:var(--mut2)}
+.prt__btn{margin-left:auto;padding:9px 16px;border:0;border-radius:10px;background:#0284c7;
+  color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;
+  display:inline-flex;align-items:center;text-decoration:none}
+.prt__btn:hover{filter:brightness(1.08);color:#fff}
+@media(max-width:560px){.prt__btn{margin-left:0;width:100%;justify-content:center}}
 .evac-req__btn--go{margin-left:auto;display:inline-flex;align-items:center;text-decoration:none;
   background:#b45309;color:#fff;font-weight:700;font-size:13px;padding:9px 16px;border-radius:10px}
 .evac-req__btn--go:hover{filter:brightness(1.08);color:#fff}
@@ -511,6 +522,15 @@ a.pstep:hover{background:#f2f6fd}
           <div class="subs__d">점검·임무카드 전달을 놓치지 않도록 미리 알려드립니다.</div>
         </div>
         <a class="subs__btn" href="<?=h($url('/subscribe_page.php'))?>">구독하기 →</a>
+      </div>
+
+      <!-- 전체 서류 인쇄 -->
+      <div class="prt">
+        <div>
+          <div class="prt__t">🖨 서류 전체 인쇄</div>
+          <div class="prt__d">업무수행 기록표·소방계획서·자위소방대·훈련기록을 모아서 인쇄합니다.</div>
+        </div>
+        <a class="prt__btn" href="<?=h($url('/print_all.php'))?>">인쇄하러 가기 →</a>
       </div>
     </div>
 
