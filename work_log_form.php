@@ -155,11 +155,12 @@ a{text-decoration:none}
 .law{font-size:12px;color:#333;margin-bottom:6px}
 .title{text-align:center;font-size:24px;font-weight:800;letter-spacing:6px;margin:6px 0 8px}
 .guide{font-size:11px;color:#333;margin-bottom:10px}
-table.f{width:100%;border-collapse:collapse;border-spacing:0;table-layout:fixed}
+table.f{width:100%;border-collapse:collapse;border-spacing:0;table-layout:fixed;
+  border:var(--form-line-width) solid var(--form-line-color)}
 table.f>tbody>tr>td,table.f>tbody>tr>th{border:var(--form-line-width) solid var(--form-line-color);padding:6px 8px;font-size:13px;vertical-align:middle;word-break:break-all}
 table.f>tbody>tr>th{background:#f3f4f6;font-weight:700;text-align:center}
 /* 연속된 표는 겹치지 않고 앞 표의 아래쪽 선 하나만 공유합니다. */
-table.f--joined{margin-top:0!important}
+table.f--joined{margin-top:0!important;border-top:0!important}
 table.f--joined>tbody>tr:first-child>td,table.f--joined>tbody>tr:first-child>th{border-top-width:0}
 .lbl{background:#f3f4f6;font-weight:700;text-align:center;width:110px}
 .center{text-align:center}
@@ -173,12 +174,11 @@ textarea.cell{min-height:64px}
 .footnote{font-size:11px;color:#333;margin-top:12px;line-height:1.7}
 .paper{font-size:11px;color:#333;text-align:right;margin-top:10px}
 
-/* 지하층·지상층·연면적·바닥면적·동수 — 5칸 중첩표 */
-table.f5{width:100%;border-collapse:collapse;border-spacing:0;table-layout:fixed}
-table.f5>tbody>tr>td{border:var(--form-line-width) solid var(--form-line-color);border-top:0;padding:5px 4px;font-size:12px;text-align:center;
-  vertical-align:middle;width:20%}
-table.f5>tbody>tr:first-child>td{border-top:var(--form-line-width) solid var(--form-line-color)}
-.nested-table-cell{padding:0!important;border:0!important}
+/* ★ 통합표는 20칸 기준입니다.
+   한 행에서 colspan 합계가 20이 되도록 수정하면 셀 너비를 쉽게 바꿀 수 있습니다.
+   예: colspan="4" = 20%, colspan="10" = 50% */
+.master-table col{width:5%}
+.master-table .center-cell{text-align:center}
 
 /* 수행자 + 서명 */
 .perf{display:flex;align-items:center;gap:8px}
@@ -312,17 +312,18 @@ table.f5>tbody>tr:first-child>td{border-top:var(--form-line-width) solid var(--f
      표 통째로 다음 페이지로 밀려버립니다 — 그게 2페이지로 넘어간 원인이었습니다.
      줄(행) 단위로만 안 쪼개지게 하고, 표 자체는 필요하면 줄 사이에서 넘어가게 둡니다. */
   table.f tr,table.f td,table.f th{page-break-inside:avoid !important;break-inside:avoid !important}
-  table.f,table.f5{border-collapse:collapse!important;border-spacing:0!important}
-  table.f>tbody>tr>td,table.f>tbody>tr>th,table.f5>tbody>tr>td{
+  table.f{border-collapse:collapse!important;border-spacing:0!important}
+  /* ★ border-collapse 에서는 표 맨 가장자리(특히 우측) 선이 인쇄 시 절반만 그려지는 일이
+     흔합니다. 표 자체에 바깥 테두리를 명시해 안쪽 선과 같은 굵기로 맞춥니다. */
+  table.f{border:var(--form-line-width) solid var(--form-line-color)!important}
+  table.f>tbody>tr>td,table.f>tbody>tr>th{
     border-color:var(--form-line-color)!important;
     border-style:solid!important;
     border-width:var(--form-line-width)!important;
   }
+  table.f--joined{border-top:0!important}
   table.f--joined>tbody>tr:first-child>td,table.f--joined>tbody>tr:first-child>th{border-top-width:0!important}
-  table.f .nested-table-cell{padding:0!important;border:0!important}
   table.f td,table.f th{padding:3px 5px;font-size:10.5px;line-height:1.25}
-  /* 지하층 등 5칸 표 — 나머지 표와 인쇄 시 글자 크기를 맞춥니다(안 맞추면 이 부분만 커 보임) */
-  table.f5 td{padding:3px 4px;font-size:9.5px}
   /* 확인내용/조치사항 textarea — 지난번 48mm는 실제 렌더링에서 2페이지로 넘어갔습니다.
      이번엔 여유를 크게 두고 32mm로 줄입니다(그래도 원래 34px의 약 4배 큽니다). */
   textarea.cell{min-height:32mm;font-size:10.5px;line-height:1.3}
@@ -365,11 +366,22 @@ table.f5>tbody>tr:first-child>td{border-top:var(--form-line-width) solid var(--f
   <div class="title">소방안전관리자 업무 수행 기록표</div>
   <div class="guide">※ [ ]에는 해당되는 곳에 √표를 합니다.</div>
 
-  <table class="f">
-    <colgroup><col style="width:16%"><col style="width:44%"><col style="width:12%"><col style="width:28%"></colgroup>
+  <!--
+    ★ 표 수정 방법
+    이 표는 전체 너비를 20칸으로 나눈 구조입니다. 1칸 = 5%.
+    같은 <tr> 안의 colspan 합계는 기본적으로 20이 되게 맞추세요.
+    가로 셀 합치기: colspan 숫자를 늘립니다.
+    세로 셀 합치기: rowspan 숫자를 늘립니다.
+  -->
+  <table class="f master-table">
+    <colgroup>
+      <?php for ($ci=0; $ci<20; $ci++): ?><col><?php endfor; ?>
+    </colgroup>
+
+    <!-- 수행일자 / 수행자 : 4 + 8 + 3 + 5 = 20 -->
     <tr>
-      <td class="lbl">수행일자</td>
-      <td>
+      <td class="lbl" colspan="4">수행일자</td>
+      <td colspan="8">
         <?php
           [$calY, $calM] = array_map('intval', explode('-', $month));
           $calDays  = (int)date('t', mktime(0, 0, 0, $calM, 1, $calY));
@@ -412,8 +424,8 @@ table.f5>tbody>tr:first-child>td{border-top:var(--form-line-width) solid var(--f
           </div>
         </div>
       </td>
-      <td class="lbl">수행자</td>
-      <td>
+      <td class="lbl" colspan="3">수행자</td>
+      <td colspan="5">
         <div class="perf">
           <input class="cell perf__name" type="text" name="performer" value="<?=h($defPerformer)?>" placeholder="성명">
           <div class="sign" id="signSlot">
@@ -424,39 +436,51 @@ table.f5>tbody>tr:first-child>td{border-top:var(--form-line-width) solid var(--f
         <input type="hidden" name="sign_data" id="signData" value="<?=h($curSign)?>">
       </td>
     </tr>
-  </table>
 
-  <table class="f f--joined">
-    <colgroup><col style="width:16%"><col style="width:12%"><col style="width:32%"><col style="width:10%"><col style="width:30%"></colgroup>
+    <!-- 소방안전관리대상물 -->
+    <!-- 첫 칸은 아래 4개 행을 세로로 합칩니다. -->
     <tr>
-      <td class="lbl">소방안전<br>관리대상물</td>
-      <td class="lbl">상호</td>
-      <td colspan="1"><input class="cell" type="text" name="_sangho" value="<?=h($fixed['sangho'] ?? '')?>" readonly></td>
-      <td class="lbl">등급</td>
-      <td>
+      <td class="lbl" rowspan="4" colspan="3">소방안전<br>관리대상물</td>
+      <td class="lbl" colspan="3">상호</td>
+      <td colspan="7"><input class="cell" type="text" name="_sangho" value="<?=h($fixed['sangho'] ?? '')?>" readonly></td>
+      <td class="lbl" colspan="2">등급</td>
+      <td colspan="5">
         <?php foreach (['특급','1급','2급','3급'] as $gg): ?>
           <span class="chk"><input type="checkbox" disabled <?= (($fixed['grade'] ?? '')===$gg)?'checked':'' ?>> <?=$gg?></span>
         <?php endforeach; ?>
       </td>
     </tr>
-    <tr>
-      <td class="lbl"></td>
-      <td class="lbl">소재지</td>
-      <td colspan="3"><input class="cell" type="text" name="_addr" value="<?=h($fixed['address'] ?? '')?>" readonly></td>
-    </tr>
-    <tr>
-      <td class="lbl"></td>
-      <td colspan="4" class="nested-table-cell">
-      <table class="f5">
-        <tr><td class="lbl">지하층</td><td class="lbl">지상층</td><td class="lbl">연면적(㎡)</td><td class="lbl">바닥면적(㎡)</td><td class="lbl">동수</td></tr>
-        <tr><td><?=h($fixed['floor_b'] ?? '')?></td><td><?=h($fixed['floor_a'] ?? '')?></td><td><?=h($fixed['area_t'] ?? '')?></td><td><?=h($fixed['area_f'] ?? '')?></td><td><?=h($fixed['dongsu'] ?? '')?></td></tr>
-      </table>
-    </td></tr>
-  </table>
 
-  <table class="f f--joined">
-    <colgroup><col style="width:14%"><col style="width:42%"><col style="width:14%"><col style="width:30%"></colgroup>
-    <tr><th>항 목</th><th>확인내용</th><th>확인결과</th><th>조치사항</th></tr>
+    <!-- rowspan 3칸이 이미 있으므로 나머지 colspan 합계는 17 -->
+    <tr>
+      <td class="lbl" colspan="3">소재지</td>
+      <td colspan="14"><input class="cell" type="text" name="_addr" value="<?=h($fixed['address'] ?? '')?>" readonly></td>
+    </tr>
+
+    <!-- 5개 정보의 제목 -->
+    <tr>
+      <td class="lbl" colspan="3">지하층</td>
+      <td class="lbl" colspan="3">지상층</td>
+      <td class="lbl" colspan="4">연면적(㎡)</td>
+      <td class="lbl" colspan="4">바닥면적(㎡)</td>
+      <td class="lbl" colspan="3">동수</td>
+    </tr>
+    <!-- 5개 정보의 값 -->
+    <tr>
+      <td class="center-cell" colspan="3"><?=h($fixed['floor_b'] ?? '')?></td>
+      <td class="center-cell" colspan="3"><?=h($fixed['floor_a'] ?? '')?></td>
+      <td class="center-cell" colspan="4"><?=h($fixed['area_t'] ?? '')?></td>
+      <td class="center-cell" colspan="4"><?=h($fixed['area_f'] ?? '')?></td>
+      <td class="center-cell" colspan="3"><?=h($fixed['dongsu'] ?? '')?></td>
+    </tr>
+
+    <!-- 업무 확인표 : 3 + 8 + 3 + 6 = 20 -->
+    <tr>
+      <th colspan="3">항 목</th>
+      <th colspan="8">확인내용</th>
+      <th colspan="3">확인결과</th>
+      <th colspan="6">조치사항</th>
+    </tr>
     <?php
       $rows = [
         ['sobang','소방시설'],
@@ -467,23 +491,21 @@ table.f5>tbody>tr:first-child>td{border-top:var(--form-line-width) solid var(--f
       foreach ($rows as [$k,$label]):
     ?>
     <tr>
-      <td class="lbl"><?=$label?></td>
-      <td><textarea class="cell" name="<?=$k?>_note" placeholder="확인내용"><?=h($noteVal($k))?></textarea></td>
-      <td class="res">
+      <td class="lbl" colspan="3"><?=$label?></td>
+      <td colspan="8"><textarea class="cell" name="<?=$k?>_note" placeholder="확인내용"><?=h($noteVal($k))?></textarea></td>
+      <td class="res" colspan="3">
         <label><input type="radio" name="<?=$k?>_result" value="양호" <?= $it($k,'result')==='양호'?'checked':'' ?>> 양호</label>
         <label><input type="radio" name="<?=$k?>_result" value="불량" <?= $it($k,'result')==='불량'?'checked':'' ?>> 불량</label>
       </td>
-      <td><textarea class="cell" name="<?=$k?>_action" placeholder="조치사항"><?=h($it($k,'action'))?></textarea></td>
+      <td colspan="6"><textarea class="cell" name="<?=$k?>_action" placeholder="조치사항"><?=h($it($k,'action'))?></textarea></td>
     </tr>
     <?php endforeach; ?>
-  </table>
 
-  <table class="f f--joined">
-    <colgroup><col style="width:14%"><col style="width:18%"><col style="width:38%"><col style="width:30%"></colgroup>
+    <!-- 불량사항 개선보고 : 왼쪽 3칸은 2개 행을 세로로 합침 -->
     <tr>
-      <td class="lbl" rowspan="2">불량사항<br>개선보고</td>
-      <td class="lbl">보고일시</td>
-      <td>
+      <td class="lbl" rowspan="2" colspan="3">불량사항<br>개선보고</td>
+      <td class="lbl" colspan="3">보고일시</td>
+      <td colspan="8">
         <span class="chkline">
           보고방법
           <?php foreach (['대면','서면','정보통신'] as $mm): ?>
@@ -491,11 +513,11 @@ table.f5>tbody>tr:first-child>td{border-top:var(--form-line-width) solid var(--f
           <?php endforeach; ?>
         </span>
       </td>
-      <td class="lbl">보고받은 사람</td>
+      <td class="lbl" colspan="6">보고받은 사람</td>
     </tr>
     <tr>
-      <td><input class="cell" type="text" name="r_when" value="<?=h($rp('when'))?>" placeholder="  .  .  ."></td>
-      <td>
+      <td colspan="3"><input class="cell" type="text" name="r_when" value="<?=h($rp('when'))?>" placeholder="  .  .  ."></td>
+      <td colspan="8">
         <span class="chkline">
           조치방법
           <?php foreach (['이전','제거','수리·교체','기타'] as $fx): ?>
@@ -503,7 +525,7 @@ table.f5>tbody>tr:first-child>td{border-top:var(--form-line-width) solid var(--f
           <?php endforeach; ?>
         </span>
       </td>
-      <td><input class="cell" type="text" name="r_person" value="<?=h($rp('person'))?>" placeholder="성명"></td>
+      <td colspan="6"><input class="cell" type="text" name="r_person" value="<?=h($rp('person'))?>" placeholder="성명"></td>
     </tr>
   </table>
 

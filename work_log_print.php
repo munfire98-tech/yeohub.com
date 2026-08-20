@@ -63,51 +63,133 @@ function render_sheet(string $monthKey, array $rec, array $fixed): string {
     <div class="law">■ 화재의 예방 및 안전관리에 관한 법률 시행규칙 [별지 제12호서식]</div>
     <div class="title">소방안전관리자 업무 수행 기록표</div>
     <div class="guide">※ [ ]에는 해당되는 곳에 √표를 합니다. &nbsp;&nbsp;(<?=h($monthLabel)?>)</div>
-    <table class="f"><colgroup><col style="width:16%"><col style="width:44%"><col style="width:12%"><col style="width:28%"></colgroup>
-      <tr><td class="lbl">수행일자</td><td><?=h($it('','') ?: ($rec['date'] ?? ''))?></td>
-          <td class="lbl">수행자</td><td>
-            <div class="perfp">
-              <span><?=h($rec['performer'] ?? ($fixed['performer'] ?? ''))?></span>
-              <?php if (!empty($rec['sign'])): ?>
-                <img class="signp" src="<?=h($rec['sign'])?>" alt="서명">
-              <?php endif; ?>
-            </div>
-          </td></tr>
-    </table>
-    <table class="f" style="margin-top:-1px"><colgroup><col style="width:16%"><col style="width:12%"><col style="width:32%"><col style="width:10%"><col style="width:30%"></colgroup>
-      <tr><td class="lbl" rowspan="3">소방안전<br>관리대상물</td><td class="lbl">상호</td><td><?=h($fixed['sangho'] ?? '')?></td>
-          <td class="lbl">등급</td><td>
-            <?php foreach (['특급','1급','2급','3급'] as $gg): ?><span class="chk"><?= (($fixed['grade'] ?? '')===$gg)?'&#9745;':'&#9744;' ?> <?=$gg?></span><?php endforeach; ?>
-          </td></tr>
-      <tr><td class="lbl">소재지</td><td colspan="3"><?=h($fixed['address'] ?? '')?></td></tr>
-      <tr><td colspan="4" style="padding:0">
-        <table class="f5">
-          <tr><td class="lbl">지하층</td><td class="lbl">지상층</td><td class="lbl">연면적(㎡)</td><td class="lbl">바닥면적(㎡)</td><td class="lbl">동수</td></tr>
-          <tr><td><?=h($fixed['floor_b'] ?? '')?></td><td><?=h($fixed['floor_a'] ?? '')?></td><td><?=h($fixed['area_t'] ?? '')?></td><td><?=h($fixed['area_f'] ?? '')?></td><td><?=h($fixed['dongsu'] ?? '')?></td></tr>
-        </table>
-      </td></tr>
-    </table>
-    <table class="f" style="margin-top:-1px"><colgroup><col style="width:14%"><col style="width:42%"><col style="width:14%"><col style="width:30%"></colgroup>
-      <tr><th>항 목</th><th>확인내용</th><th>확인결과</th><th>조치사항</th></tr>
-      <?php foreach ($rows as [$k,$label]): ?>
-        <tr class="noterow"><td class="lbl"><?=$label?></td>
-            <td><div class="notebox"><?=nl2br(h($it($k,'note')))?></div></td>
-            <td class="res">
-              <div><?= $it($k,'result')==='양호'?'&#9745;':'&#9744;' ?> 양호</div>
-              <div><?= $it($k,'result')==='불량'?'&#9745;':'&#9744;' ?> 불량</div>
-            </td>
-            <td><?=nl2br(h($it($k,'action')))?></td></tr>
-      <?php endforeach; ?>
-    </table>
-    <table class="f" style="margin-top:-1px"><colgroup><col style="width:14%"><col style="width:18%"><col style="width:38%"><col style="width:30%"></colgroup>
-      <tr><td class="lbl" rowspan="2">불량사항<br>개선보고</td><td class="lbl">보고일시</td>
-          <td><span class="chkline">보고방법 <?php foreach (['대면','서면','정보통신'] as $mm): ?><span class="chk"><?= $rp('method')===$mm?'&#9745;':'&#9744;' ?> <?=$mm?></span><?php endforeach; ?></span></td>
-          <td class="lbl">보고받은 사람</td></tr>
-      <tr><td><?=h($rp('when'))?></td>
-          <td><span class="chkline">조치방법 <?php foreach (['이전','제거','수리·교체','기타'] as $fx): ?><span class="chk"><?= $rp('fix')===$fx?'&#9745;':'&#9744;' ?> <?=$fx?></span><?php endforeach; ?></span></td>
-          <td><?=h($rp('person'))?></td></tr>
-    </table>
-    <div class="footnote">※ 작성요령<br>1. 월 1회 이상 작성 &nbsp; 2. 소방계획서·점검표의 점검항목 참고 &nbsp; 3. 특성에 따라 기타사항 추가 &nbsp; 4. 수신기·제어반·가압송수장치 중점 확인</div>
+    <!--
+    ★ 표 수정 방법
+    이 표는 전체 너비를 20칸으로 나눈 구조입니다. 1칸 = 5%.
+    같은 <tr> 안의 colspan 합계는 기본적으로 20이 되게 맞추세요.
+    가로 셀 합치기: colspan 숫자를 늘립니다.
+    세로 셀 합치기: rowspan 숫자를 늘립니다.
+  -->
+  <table class="f master-table">
+    <colgroup>
+      <?php for ($ci=0; $ci<20; $ci++): ?><col><?php endfor; ?>
+    </colgroup>
+
+    <!-- 수행일자 / 수행자 : 4 + 8 + 3 + 5 = 20 -->
+    <tr>
+      <td class="lbl" colspan="4">수행일자</td>
+      <td colspan="8"><?=h($rec['date'] ?? '')?></td>
+      <td class="lbl" colspan="3">수행자</td>
+      <td colspan="5">
+        <div class="perfp">
+          <span><?=h($rec['performer'] ?? ($fixed['performer'] ?? ''))?></span>
+          <?php if (!empty($rec['sign'])): ?>
+            <img class="signp" src="<?=h($rec['sign'])?>" alt="서명">
+          <?php endif; ?>
+        </div>
+      </td>
+    </tr>
+
+    <!-- 소방안전관리대상물 -->
+    <!-- 첫 칸은 아래 4개 행을 세로로 합칩니다. -->
+    <tr>
+      <td class="lbl" rowspan="4" colspan="3">소방안전<br>관리대상물</td>
+      <td class="lbl" colspan="3">상호</td>
+      <td colspan="7"><?=h($fixed['sangho'] ?? '')?></td>
+      <td class="lbl" colspan="2">등급</td>
+      <td colspan="5">
+        <?php foreach (['특급','1급','2급','3급'] as $gg): ?>
+          <span class="chk"><input type="checkbox" disabled <?= (($fixed['grade'] ?? '')===$gg)?'checked':'' ?>> <?=$gg?></span>
+        <?php endforeach; ?>
+      </td>
+    </tr>
+
+    <!-- rowspan 3칸이 이미 있으므로 나머지 colspan 합계는 17 -->
+    <tr>
+      <td class="lbl" colspan="3">소재지</td>
+      <td colspan="14"><?=h($fixed['address'] ?? '')?></td>
+    </tr>
+
+    <!-- 5개 정보의 제목 -->
+    <tr>
+      <td class="lbl" colspan="3">지하층</td>
+      <td class="lbl" colspan="3">지상층</td>
+      <td class="lbl" colspan="4">연면적(㎡)</td>
+      <td class="lbl" colspan="4">바닥면적(㎡)</td>
+      <td class="lbl" colspan="3">동수</td>
+    </tr>
+    <!-- 5개 정보의 값 -->
+    <tr>
+      <td class="center-cell" colspan="3"><?=h($fixed['floor_b'] ?? '')?></td>
+      <td class="center-cell" colspan="3"><?=h($fixed['floor_a'] ?? '')?></td>
+      <td class="center-cell" colspan="4"><?=h($fixed['area_t'] ?? '')?></td>
+      <td class="center-cell" colspan="4"><?=h($fixed['area_f'] ?? '')?></td>
+      <td class="center-cell" colspan="3"><?=h($fixed['dongsu'] ?? '')?></td>
+    </tr>
+
+    <!-- 업무 확인표 : 3 + 8 + 3 + 6 = 20 -->
+    <tr>
+      <th colspan="3">항 목</th>
+      <th colspan="8">확인내용</th>
+      <th colspan="3">확인결과</th>
+      <th colspan="6">조치사항</th>
+    </tr>
+    <?php
+      $rows = [
+        ['sobang','소방시설'],
+        ['pinan','피난방화시설'],
+        ['hwagi','화기취급감독'],
+        ['etc','기타사항'],
+      ];
+      foreach ($rows as [$k,$label]):
+    ?>
+    <tr>
+      <td class="lbl" colspan="3"><?=$label?></td>
+      <td colspan="8"><div class="notebox"><?=nl2br(h($it($k,'note')))?></div></td>
+      <td class="res" colspan="3">
+        <div><?= $it($k,'result')==='양호'?'&#9745;':'&#9744;' ?> 양호</div>
+        <div><?= $it($k,'result')==='불량'?'&#9745;':'&#9744;' ?> 불량</div>
+      </td>
+      <td colspan="6"><?=nl2br(h($it($k,'action')))?></td>
+    </tr>
+    <?php endforeach; ?>
+
+    <!-- 불량사항 개선보고 : 왼쪽 3칸은 2개 행을 세로로 합침 -->
+    <tr>
+      <td class="lbl" rowspan="2" colspan="3">불량사항<br>개선보고</td>
+      <td class="lbl" colspan="3">보고일시</td>
+      <td colspan="8">
+        <span class="chkline">
+          보고방법
+          <?php foreach (['대면','서면','정보통신'] as $mm): ?>
+            <span class="chk"><?= $rp('method')===$mm?'&#9745;':'&#9744;' ?> <?=$mm?></span>
+          <?php endforeach; ?>
+        </span>
+      </td>
+      <td class="lbl" colspan="6">보고받은 사람</td>
+    </tr>
+    <tr>
+      <td colspan="3"><?=h($rp('when'))?></td>
+      <td colspan="8">
+        <span class="chkline">
+          조치방법
+          <?php foreach (['이전','제거','수리·교체','기타'] as $fx): ?>
+            <span class="chk"><?= $rp('fix')===$fx?'&#9745;':'&#9744;' ?> <?=$fx?></span>
+          <?php endforeach; ?>
+        </span>
+      </td>
+      <td colspan="6"><?=h($rp('person'))?></td>
+    </tr>
+  </table>
+
+    <div class="footnote">
+      ※ 작성요령<br>
+      1. 소방안전관리대상물의 소방안전관리자는 소방안전관리업무를 수행한 날을 포함하여 월 1회 이상 작성<br>
+      2. 당해연도 소방계획서 및 소방시설등(최초점검, 작동점검, 종합점검) 점검표에 따른 점검항목을 참고하여 작성<br>
+      3. 소방안전관리대상물의 특성에 따라 기타사항에 추가항목을 작성<br>
+      4. 경보설비의 수신기, 소화설비의 제어반 및 가압송수장치(펌프 등)를 중점적으로 확인하여 작성
+    </div>
+    <div class="paper">210mm×297mm[백상지(80g/㎡) 또는 중질지(80g/㎡)]</div>
   </div>
   <?php
   return ob_get_clean();
@@ -132,11 +214,11 @@ a{text-decoration:none}
 .btn--primary{background:var(--brand);border-color:var(--brand);color:#fff}
 .hint{max-width:900px;margin:14px auto 0;color:var(--mut2);font-size:13px;padding:0 8px}
 .empty{max-width:900px;margin:40px auto;text-align:center;color:var(--mut2)}
-.sheet{max-width:900px;margin:16px auto;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:24px 28px;box-shadow:0 10px 30px rgba(20,40,80,.06)}
+.sheet{max-width:900px;margin:16px auto 40px;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:26px 30px;box-shadow:0 10px 30px rgba(20,40,80,.06)}
 .law{font-size:12px;color:#333;margin-bottom:6px}
-.title{text-align:center;font-size:23px;font-weight:800;letter-spacing:5px;margin:6px 0 8px}
+.title{text-align:center;font-size:24px;font-weight:800;letter-spacing:6px;margin:6px 0 8px}
 .guide{font-size:11px;color:#333;margin-bottom:10px}
-table.f{width:100%;border-collapse:collapse;table-layout:fixed}
+table.f{width:100%;border-collapse:collapse;border-spacing:0;table-layout:fixed;border:1px solid #333}
 table.f td,table.f th{border:1px solid #333;padding:6px 8px;font-size:13px;vertical-align:middle;word-break:break-all}
 table.f th{background:#f3f4f6;font-weight:700;text-align:center}
 .lbl{background:#f3f4f6;font-weight:700;text-align:center}
@@ -144,15 +226,14 @@ table.f th{background:#f3f4f6;font-weight:700;text-align:center}
 .chk{display:inline-flex;align-items:center;gap:3px;margin-right:8px;font-size:13px}
 .chkline{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
 .res div{font-size:13px;margin:2px 0}
-.footnote{font-size:11px;color:#333;margin-top:10px;line-height:1.6}
+.footnote{font-size:11px;color:#333;margin-top:12px;line-height:1.7}
+.paper{font-size:11px;color:#333;text-align:right;margin-top:10px}
 .perfp{display:flex;align-items:center;gap:8px}
 .signp{height:30px;max-width:110px;width:auto;object-fit:contain;flex-shrink:0}
 
-/* 지하층·지상층·연면적·바닥면적·동수 — 5칸 중첩표(부모 표의 열 폭과 무관하게 5등분) */
-table.f5{width:100%;border-collapse:collapse;table-layout:fixed}
-table.f5 td{border:1px solid #333;border-top:0;padding:5px 4px;font-size:12px;text-align:center;
-  vertical-align:middle;width:20%}
-table.f5 tr:first-child td{border-top:1px solid #333}
+/* ★ 통합표: 20칸 기준, 각 col은 5% */
+.master-table col{width:5%}
+.master-table .center-cell{text-align:center}
 
 /* 확인내용 4줄(소방시설·피난방화시설·화기취급감독·기타사항) — 손으로 적을 여백을 충분히 둡니다.
    td 자체의 height 는 브라우저·PDF 엔진에 따라 무시될 수 있어, 안쪽 div 의 min-height 로 확실하게 잡습니다. */
@@ -201,7 +282,7 @@ tr.noterow td{vertical-align:top}
   .title{font-size:18px;letter-spacing:3px;margin:2px 0 4px}
   .law,.guide{font-size:9px;margin-bottom:3px}
   table.f{table-layout:fixed !important;width:100% !important;
-    page-break-inside:avoid !important;break-inside:avoid !important}
+    border:1px solid #333 !important}
   table.f tr,table.f td,table.f th{page-break-inside:avoid !important;break-inside:avoid !important}
   table.f td,table.f th{padding:3px 5px;font-size:10.5px;line-height:1.25;
     overflow:hidden;word-break:break-all}
@@ -210,24 +291,19 @@ tr.noterow td{vertical-align:top}
   .chk{font-size:9.5px;margin-right:4px;white-space:normal}
   .chkline{display:flex;flex-wrap:wrap;align-items:center;gap:3px 6px}
   .footnote{font-size:8.5px;margin-top:6px;line-height:1.45}
+  .paper{font-size:8.5px;margin-top:4px}
   .perfp{gap:5px}
 
-  /* 지하층 등 5칸 표 */
-  table.f5 td{padding:3px 4px;font-size:9.5px}
-
-  /* 확인내용 4줄 — 손으로 적을 여백. A4 한 장에 넉넉히 들어가는 걸 계산해 49mm 로 고정.
+  /* 확인내용 4줄 — work_log_form.php(월별 인쇄)와 같은 32mm 로 통일합니다.
      td 의 height 대신 안쪽 div 의 min-height 를 씁니다(더 확실하게 반영됩니다).
      ★ 위에서 모든 셀에 overflow:hidden 을 걸어뒀는데, 그게 이 div의 min-height 가
         실제로 셀을 키우는 걸 막고 있었습니다 — 이 줄만 다시 풀어줍니다. */
   tr.noterow td{vertical-align:top;padding-top:4px;overflow:visible!important}
-  .notebox{min-height:49mm;display:block}
+  .notebox{min-height:32mm;display:block}
 }
 </style>
 </head>
 <body>
-<div style="background:#ff0000;color:#fff;text-align:center;padding:14px;font-size:18px;font-weight:900">
-  ⚠ 이 빨간 줄이 보이면 새 파일이 실행되고 있는 겁니다 — TEST-V4
-</div>
 <div class="topbar">
   <a class="brand" href="/index.php">TWORIX</a>
   <div class="actions">
