@@ -74,6 +74,13 @@ function bi_blank(): array {
     'note_pinan' => '',
     'note_hwagi' => '',
     'note_etc'   => '',
+    // ── 위치 좌표 (지도 표시용, 주소 검색 시 자동으로 채워짐) ──
+    'bd_lat'      => '',   // 위도
+    'bd_lng'      => '',   // 경도
+    // ── 집결지 (화재 시 대피 후 모이는 장소) ─────────────────
+    'assembly_lat'  => '', // 집결지 위도
+    'assembly_lng'  => '', // 집결지 경도
+    'assembly_kind' => '', // 어떤 곳인지 (예: 주차장, 앞 공터)
     // ── 건축물대장 상세 (자동조회로 채워짐) ─────────────────
     'bd_struct'   => '',   // 구조 (strctCdNm, 예: 철근콘크리트구조)
     'bd_struct_etc'=> '',  // 기타구조 (etcStrct)

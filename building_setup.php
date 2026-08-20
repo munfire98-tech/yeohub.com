@@ -18,6 +18,11 @@ $role = $_SESSION['role'] ?? 'agency';
 if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
 
 require_once __DIR__ . '/building_info.php';
+
+/* 집결지 지도를 그리는 데 쓰는 카카오 JavaScript 키.
+   파일이 없거나 키가 비어 있어도 페이지는 정상 동작합니다(지도만 안 보임). */
+$__api = @include __DIR__ . '/api_keys.php';
+$KAKAO_JS = (is_array($__api) && !empty($__api['kakao_js'])) ? (string)$__api['kakao_js'] : '';
 require_once __DIR__ . '/user_key.php';
 
 /* 회원을 특정하지 못하면 남의 데이터를 읽거나 덮어쓸 수 있으므로 여기서 멈춘다 */
@@ -412,19 +417,38 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
       </table>
     </section>
 
-    <!-- 4. 근무인원 -->
+    <!-- 4. 집결지 -->
     <section class="sec">
-      <div class="sec__t"><span class="n">4</span> 근무인원 <small>13호 자위소방대</small></div>
+      <div class="sec__t"><span class="n">4</span> 집결지 <small>화재 시 대피 후 모이는 장소</small></div>
       <div class="row">
-        <div class="fld"><label>평일 주간 (명)</label>
-          <input type="text" name="wd_day" value="<?=$v('wd_day')?>"></div>
-        <div class="fld"><label>평일 야간 (명)</label>
-          <input type="text" name="wd_night" value="<?=$v('wd_night')?>"></div>
-        <div class="fld"><label>휴일 주간 (명)</label>
-          <input type="text" name="hd_day" value="<?=$v('hd_day')?>"></div>
-        <div class="fld"><label>휴일 야간 (명)</label>
-          <input type="text" name="hd_night" value="<?=$v('hd_night')?>"></div>
+        <div class="fld" style="flex:1 1 100%">
+          <label>집결지 이름</label>
+          <input type="text" name="assembly_kind" value="<?=$v('assembly_kind')?>"
+                 placeholder="예: 앞 주차장, 건너편 공원">
+        </div>
       </div>
+
+      <?php
+        $asmLat = trim((string)($d['assembly_lat'] ?? ''));
+        $asmLng = trim((string)($d['assembly_lng'] ?? ''));
+      ?>
+      <!-- 좌표는 숨겨서 함께 저장합니다(지도는 이 좌표로 매번 새로 그립니다) -->
+      <input type="hidden" name="assembly_lat" id="asmLat" value="<?=h($asmLat)?>">
+      <input type="hidden" name="assembly_lng" id="asmLng" value="<?=h($asmLng)?>">
+
+      <?php if ($asmLat !== '' && $asmLng !== ''): ?>
+        <div id="asmMap" style="width:100%;height:240px;border:1px solid var(--bd);
+             border-radius:10px;margin-top:10px;background:#eef2f7"></div>
+        <div class="hint" style="margin-top:8px">
+          지도를 눌러 위치를 옮길 수 있습니다.
+          <span id="asmSaved" style="color:var(--ok);font-weight:700;display:none">위치가 바뀌었습니다 — 아래 저장을 눌러주세요.</span>
+        </div>
+      <?php else: ?>
+        <div class="hint" style="margin-top:10px">
+          아직 지도에서 위치를 찍지 않았습니다.
+          <a href="/building_setup_chat.php">대화형 입력</a>에서 지도를 눌러 지정할 수 있습니다.
+        </div>
+      <?php endif; ?>
     </section>
 
   </form>
@@ -436,7 +460,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 
     <div style="font-size:12.5px;color:#991b1b;line-height:1.8;background:#fef2f2;
                 border:1px solid #fecaca;border-radius:9px;padding:12px 14px;margin-bottom:12px">
-      위에 입력한 <b>대상물·규모·건축물대장·소방안전관리자·근무인원</b>이 모두 비워집니다.<br>
+      위에 입력한 <b>대상물·규모·건축물대장·소방안전관리자·집결지</b>가 모두 비워집니다.<br>
       이 정보는 <b>업무수행 기록표·훈련 기록부·소방계획서</b>가 함께 쓰므로,
       비우면 그 서식들에서도 불러올 값이 없어집니다.<br>
       <b>되돌릴 수 없으니</b> 필요하면 먼저 내용을 따로 적어두세요.
@@ -476,5 +500,47 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
     });
   });
 </script>
+
+<?php if ($KAKAO_JS !== '' && $asmLat !== '' && $asmLng !== ''): ?>
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=<?=h($KAKAO_JS)?>&autoload=false"></script>
+<script>
+/* 집결지 지도 — 저장된 좌표로 매번 새로 그립니다(이미지를 따로 저장하지 않습니다).
+   지도를 누르면 마커가 옮겨지고, 숨은 입력칸의 좌표가 함께 바뀝니다. */
+(function(){
+  if (typeof kakao === 'undefined' || !kakao.maps) return;
+  kakao.maps.load(function(){
+    var el = document.getElementById('asmMap');
+    if (!el) return;
+    var lat = parseFloat(document.getElementById('asmLat').value);
+    var lng = parseFloat(document.getElementById('asmLng').value);
+    if (!lat || !lng) return;
+
+    var pos = new kakao.maps.LatLng(lat, lng);
+    var map = new kakao.maps.Map(el, { center: pos, level: 3 });
+    var marker = new kakao.maps.Marker({ map: map, position: pos });
+
+    // 건물 위치도 같이 보여주면 거리 감이 잡힙니다.
+    var bLat = parseFloat(<?=json_encode((string)($d['bd_lat'] ?? ''))?>);
+    var bLng = parseFloat(<?=json_encode((string)($d['bd_lng'] ?? ''))?>);
+    if (bLat && bLng){
+      var bPos = new kakao.maps.LatLng(bLat, bLng);
+      new kakao.maps.Circle({ map: map, center: bPos, radius: 6,
+        strokeWeight: 2, strokeColor: '#2563eb', strokeOpacity: 1,
+        fillColor: '#2563eb', fillOpacity: 0.9 });
+      new kakao.maps.CustomOverlay({ map: map, position: bPos, yAnchor: 2.2,
+        content: '<div style="background:#2563eb;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap">건물</div>' });
+    }
+
+    kakao.maps.event.addListener(map, 'click', function(e){
+      marker.setPosition(e.latLng);
+      document.getElementById('asmLat').value = e.latLng.getLat();
+      document.getElementById('asmLng').value = e.latLng.getLng();
+      var s = document.getElementById('asmSaved');
+      if (s) s.style.display = 'inline';
+    });
+  });
+})();
+</script>
+<?php endif; ?>
 </body>
 </html>

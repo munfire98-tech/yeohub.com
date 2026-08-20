@@ -94,6 +94,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'search')
       'road'     => $doc['road_address_name'] ?? '',
       'jibun'    => $doc['address_name']      ?? '',
       'category' => $doc['category_group_name'] ?? '',
+      'lng'      => $doc['x'] ?? '',   // 카카오는 x=경도, y=위도로 내려줍니다
+      'lat'      => $doc['y'] ?? '',
     ];
   }
   echo json_encode(['ok'=>true,'results'=>$out], JSON_UNESCAPED_UNICODE); exit;
@@ -108,6 +110,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
   $road  = trim((string)($_POST['road']  ?? ''));
   $jibun = trim((string)($_POST['jibun'] ?? ''));
   $place = trim((string)($_POST['place'] ?? ''));
+  $lat   = trim((string)($_POST['lat']   ?? ''));   // 검색 결과의 좌표 (지도 표시용)
+  $lng   = trim((string)($_POST['lng']   ?? ''));
 
   // 1) juso 로 시군구·법정동 코드 확보 (지번 우선, 실패 시 도로명)
   $jusoJibun = bldg_juso_code($API, $jibun);
@@ -115,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
   $base = $jusoJibun ?: $jusoRoad;
   if (!$base) {
     echo json_encode(['ok'=>true,'partial'=>true,
-      'patch'=>['name'=>$place, 'address'=>($road ?: $jibun)],
+      'patch'=>['name'=>$place, 'address'=>($road ?: $jibun), 'bd_lat'=>$lat, 'bd_lng'=>$lng],
       'note'=>'주소를 코드로 변환하지 못해 이름·주소만 채웠습니다.']); exit;
   }
 
@@ -279,6 +283,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
     // 기존 핵심 항목
     'name'    => trim((string)($val('bldNm'))) ?: $place,
     'address' => trim((string)($val('newPlatPlc'))) ?: trim((string)($val('platPlc'))),
+    // 지도 표시용 좌표 (카카오 검색 결과에서 그대로 받아옵니다)
+    'bd_lat'  => $lat,
+    'bd_lng'  => $lng,
     'use'     => bldg_map_use($useNm),
     'floor_a' => (string)$floorA,
     'floor_b' => (string)$floorB,
@@ -439,6 +446,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .btn--pri{background:var(--brand);border-color:var(--brand);color:#fff}
 .btn--pri:hover{background:var(--brand2);color:#fff}
 .btn--sm{padding:6px 12px;font-size:12.5px}
+/* 집결지 장소 유형 — 고른 버튼을 강조 */
+.btn.is-on{background:var(--brand);border-color:var(--brand);color:#fff}
 
 /* 진행 막대 */
 .prog{position:sticky;top:56px;z-index:45;background:#fff;border-bottom:1px solid var(--bd)}
@@ -548,6 +557,34 @@ button{font:inherit;color:inherit;cursor:pointer}
 
 <script>
 var CSRF   = <?=json_encode($CSRF)?>;
+var KAKAO_JS_KEY = <?=json_encode($API['kakao_js'] ?? '')?>;
+
+/* 카카오 지도 SDK 를 필요할 때 한 번만 불러옵니다.
+   JavaScript 키가 비어 있거나 로드에 실패하면 onFail 로 알려줍니다. */
+var _kakaoMapState = 'idle';   // idle | loading | ready | failed
+var _kakaoMapQueue = [];
+function loadKakaoMap(onReady, onFail){
+  if (!KAKAO_JS_KEY){ if(onFail) onFail(); return; }
+  if (_kakaoMapState === 'ready'){ onReady(); return; }
+  if (_kakaoMapState === 'failed'){ if(onFail) onFail(); return; }
+  _kakaoMapQueue.push({ ok:onReady, fail:onFail });
+  if (_kakaoMapState === 'loading') return;
+  _kakaoMapState = 'loading';
+
+  var sc = document.createElement('script');
+  sc.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' + encodeURIComponent(KAKAO_JS_KEY) + '&autoload=false';
+  sc.onload = function(){
+    kakao.maps.load(function(){
+      _kakaoMapState = 'ready';
+      _kakaoMapQueue.forEach(function(q){ q.ok(); }); _kakaoMapQueue = [];
+    });
+  };
+  sc.onerror = function(){
+    _kakaoMapState = 'failed';
+    _kakaoMapQueue.forEach(function(q){ if(q.fail) q.fail(); }); _kakaoMapQueue = [];
+  };
+  document.head.appendChild(sc);
+}
 var SAVED  = <?=json_encode($d, JSON_UNESCAPED_UNICODE)?>;
 var NOUSER = <?=$noUser ? 'true' : 'false'?>;
 var NICK   = <?=json_encode($nick, JSON_UNESCAPED_UNICODE)?>;
@@ -568,6 +605,9 @@ var STEPS = [
 
   { field:'address', q:'소재지는 어디인가요?', type:'text', ph:'예: 서울특별시 강남구 테헤란로 123',
     hint:'도로명 주소로 적어주세요. 동·호수까지는 필요 없습니다.' },
+
+  { field:'__assembly', q:'화재 시 모일 집결지는 어디인가요?', type:'assembly', skip:true,
+    hint:'대피한 사람들이 모여서 인원을 확인하는 장소입니다. 건물에서 안전하게 떨어져 있고, 소방차 진입에 방해되지 않는 곳이 좋습니다. 검색해서 고르면 위치까지 저장됩니다.' },
 
   { field:'use', q:'건물을 주로 어떤 용도로 쓰나요?', type:'choice',
     options:['업무시설(사무실)','판매시설(상가·매장)','숙박시설','공장·창고','의료시설','교육연구시설','복합용도','그 밖'],
@@ -882,6 +922,198 @@ function ask(s){
     skipBtn.onclick=function(){ clearBox(); me('직접 입력할게요'); step++; next(); };
     srow.appendChild(skipBtn); b.appendChild(srow);
     inp.focus();
+    return;
+  }
+
+  if (s.type === 'assembly'){
+    /* 집결지 — 지도를 눌러 위치를 찍습니다.
+       지도가 안 뜨는 환경(키 미설정 등)에서는 아래 검색창으로도 지정할 수 있습니다.
+       ★ 저장은 반드시 save() 를 통해야 서버에 반영됩니다(answers 변수는 쓰이지 않습니다). */
+    var aLat = parseFloat(SAVED.bd_lat || '') || null;
+    var aLng = parseFloat(SAVED.bd_lng || '') || null;
+
+    var picked = {
+      lat: SAVED.assembly_lat || '',
+      lng: SAVED.assembly_lng || ''
+    };
+
+    // 지도 자리
+    var mapWrap = document.createElement('div');
+    mapWrap.style.cssText='border:1px solid var(--bd2);border-radius:11px;overflow:hidden;margin-bottom:8px';
+    var mapEl = document.createElement('div');
+    mapEl.style.cssText='width:100%;height:280px;background:#eef2f7';
+    mapWrap.appendChild(mapEl); b.appendChild(mapWrap);
+
+    var tip = document.createElement('div');
+    tip.style.cssText='font-size:12.5px;color:var(--mut);margin:0 0 12px';
+    tip.innerHTML = '<b>①</b> 지도를 눌러 집결지 위치를 찍어주세요.';
+    b.appendChild(tip);
+
+    // 장소 검색(지도가 안 뜰 때 대비 + 편의)
+    var searchWrap = document.createElement('div');
+    searchWrap.style.position = 'relative';
+    var sinp = document.createElement('input');
+    sinp.type='text'; sinp.autocomplete='off';
+    sinp.placeholder='장소를 검색해서 찾을 수도 있습니다 (예: ○○공원)';
+    sinp.style.cssText='width:100%;padding:10px 13px;border:1px solid var(--bd2);border-radius:10px;font-size:13.5px;font-family:inherit';
+    var slist = document.createElement('div');
+    slist.style.cssText='position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--bd);border-radius:11px;box-shadow:0 8px 24px rgba(16,24,40,.12);z-index:30;max-height:240px;overflow:auto;display:none';
+    searchWrap.appendChild(sinp); searchWrap.appendChild(slist); b.appendChild(searchWrap);
+
+    // 장소 유형
+    var kindLabel = document.createElement('div');
+    kindLabel.style.cssText='font-size:12.5px;color:var(--mut);margin:14px 0 8px';
+    kindLabel.innerHTML='<b>②</b> 집결지 이름을 넣어주세요';
+    b.appendChild(kindLabel);
+
+    var kindWrap = document.createElement('div'); kindWrap.className='opts';
+    var KINDS = ['주차장','앞 공터','옆 공원','운동장','인근 광장','건물 앞 도로변'];
+    var kindBtns = [];
+    KINDS.forEach(function(k){
+      var btn=document.createElement('button');
+      btn.className='btn btn--sm'; btn.type='button'; btn.textContent=k;
+      btn.onclick=function(){
+        kindBtns.forEach(function(x){ x.classList.remove('is-on'); });
+        btn.classList.add('is-on');
+        kindInput.value = k;
+        kindInput.style.borderColor = '#22c55e';
+        if (picked.lat){
+          tip.innerHTML = '✅ 준비됐습니다. 아래 <b>집결지로 저장</b>을 눌러주세요.';
+          tip.style.color = '#15803d';
+        }
+      };
+      kindBtns.push(btn); kindWrap.appendChild(btn);
+    });
+    b.appendChild(kindWrap);
+
+    var kindInput = document.createElement('input');
+    kindInput.type='text';
+    kindInput.placeholder='또는 직접 입력 (예: 건너편 은행 주차장)';
+    kindInput.value = SAVED.assembly_kind || '';
+    kindInput.style.cssText='width:100%;padding:11px 14px;border:1px solid var(--bd2);border-radius:11px;font-size:14.8px;font-family:inherit;margin-top:8px';
+    b.appendChild(kindInput);
+
+    // 저장 / 건너뛰기
+    var srow=document.createElement('div'); srow.className='subrow';
+    var okBtn=document.createElement('button');
+    okBtn.className='btn btn--primary btn--sm'; okBtn.type='button'; okBtn.textContent='집결지로 저장';
+    okBtn.onclick=function(){
+      var kind = kindInput.value.trim();
+      if (!picked.lat && !kind){
+        tip.textContent = '지도에서 위치를 찍거나, 어떤 곳인지 적어주세요.';
+        tip.style.color = '#b91c1c';
+        return;
+      }
+      var patch = { assembly_kind: kind };
+      if (picked.lat && picked.lng){
+        patch.assembly_lat = String(picked.lat);
+        patch.assembly_lng = String(picked.lng);
+      }
+      clearBox(); me('집결지: ' + (kind || '지도에 표시한 위치'));
+      save(patch, function(){ step++; next(); });
+    };
+    var skipBtn=document.createElement('button');
+    skipBtn.className='btn btn--sm'; skipBtn.type='button'; skipBtn.textContent='나중에 정할게요';
+    skipBtn.onclick=function(){ clearBox(); me('나중에 정할게요'); step++; next(); };
+    srow.appendChild(okBtn); srow.appendChild(skipBtn); b.appendChild(srow);
+
+    // ── 지도 그리기 ──
+    var mapObj = null, marker = null;
+    function setMarker(latlng){
+      if (!mapObj) return;
+      if (marker) marker.setMap(null);
+      marker = new kakao.maps.Marker({ map: mapObj, position: latlng });
+      picked.lat = latlng.getLat(); picked.lng = latlng.getLng();
+      tip.innerHTML = '✅ 위치를 찍었습니다. <b>이제 집결지 이름을 넣어주세요.</b>';
+      tip.style.color = '#15803d';
+      // 다음에 할 일(이름 넣기)을 눈에 띄게 강조합니다.
+      kindLabel.textContent = '집결지 이름을 넣어주세요';
+      kindLabel.style.color = '#15803d';
+      kindLabel.style.fontWeight = '700';
+      kindInput.style.borderColor = '#22c55e';
+      kindInput.style.boxShadow = '0 0 0 3px rgba(34,197,94,.15)';
+      okBtn.classList.add('btn--primary');
+      if (!kindInput.value.trim()) kindInput.focus();
+    }
+
+    loadKakaoMap(function(){
+      var center = new kakao.maps.LatLng(aLat || 37.5665, aLng || 126.9780);
+      mapObj = new kakao.maps.Map(mapEl, { center: center, level: 3 });
+
+      // 건물 위치(파란 점) — 집결지 마커와 구분
+      if (aLat && aLng){
+        new kakao.maps.Circle({
+          map: mapObj, center: center, radius: 6,
+          strokeWeight: 2, strokeColor: '#2563eb', strokeOpacity: 1,
+          fillColor: '#2563eb', fillOpacity: 0.9
+        });
+        new kakao.maps.CustomOverlay({
+          map: mapObj, position: center, yAnchor: 2.2,
+          content: '<div style="background:#2563eb;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap">건물</div>'
+        });
+      }
+
+      // 이미 저장된 집결지가 있으면 복원
+      if (picked.lat && picked.lng){
+        setMarker(new kakao.maps.LatLng(parseFloat(picked.lat), parseFloat(picked.lng)));
+      }
+      kakao.maps.event.addListener(mapObj, 'click', function(e){ setMarker(e.latLng); });
+    }, function(){
+      // 지도를 못 불러온 경우 — 검색만으로도 지정할 수 있게 안내
+      mapWrap.style.display = 'none';
+      tip.textContent = '지도를 불러오지 못했습니다. 아래에서 장소를 검색하거나 직접 적어주세요.';
+    });
+
+    // ── 검색으로 지정 ──
+    var asmTimer=null;
+    sinp.addEventListener('input', function(){
+      clearTimeout(asmTimer);
+      var kw=sinp.value.trim();
+      if(kw.length<2){ slist.style.display='none'; return; }
+      asmTimer=setTimeout(function(){
+        var fd=new FormData(); fd.append('act','search'); fd.append('csrf',CSRF); fd.append('keyword',kw);
+        fetch(location.pathname+location.search,{method:'POST',body:fd,credentials:'same-origin'})
+          .then(function(r){return r.json();})
+          .then(function(j){
+            slist.innerHTML='';
+            var rs=(j&&j.results)||[];
+            if(!rs.length){
+              slist.style.display='block';
+              slist.innerHTML='<div style="padding:10px 13px;color:var(--mut)">검색 결과가 없습니다.</div>';
+              return;
+            }
+            rs.forEach(function(a){
+              var d=document.createElement('div');
+              d.style.cssText='padding:10px 13px;cursor:pointer;border-bottom:1px solid #f0f2f6';
+              d.innerHTML='<div style="font-weight:700">'+esc(a.place)+'</div>'+
+                          '<div style="font-size:11.5px;color:var(--mut);margin-top:2px">'+esc(a.road||a.jibun||'')+'</div>';
+              d.onmouseover=function(){ d.style.background='#f3f6fb'; };
+              d.onmouseout=function(){ d.style.background='#fff'; };
+              d.onclick=function(){
+                slist.style.display='none';
+                sinp.value = a.place;
+                if (!kindInput.value.trim()) kindInput.value = a.place;
+                var la = parseFloat(a.lat||''), ln = parseFloat(a.lng||'');
+                if (la && ln){
+                  if (mapObj){
+                    var pos = new kakao.maps.LatLng(la, ln);
+                    mapObj.setCenter(pos);
+                    setMarker(pos);
+                  } else {
+                    picked.lat = la; picked.lng = ln;
+                    tip.textContent = '집결지 위치가 지정되었습니다: ' + a.place;
+                    tip.style.color = 'var(--mut)';
+                  }
+                }
+              };
+              slist.appendChild(d);
+            });
+            slist.style.display='block';
+          })
+          .catch(function(){ slist.style.display='none'; });
+      }, 300);
+    });
+
     return;
   }
 
@@ -1251,6 +1483,7 @@ function doLookupPick(a, s){
     var fd=new FormData();
     fd.append('act','lookup'); fd.append('csrf',CSRF);
     fd.append('place',a.place||''); fd.append('road',a.road||''); fd.append('jibun',a.jibun||'');
+    fd.append('lat',a.lat||''); fd.append('lng',a.lng||'');
     fetch(location.pathname+location.search,{method:'POST',body:fd,credentials:'same-origin'})
       .then(function(r){return r.json();})
       .then(function(j){

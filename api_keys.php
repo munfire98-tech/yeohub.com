@@ -16,6 +16,10 @@ declare(strict_types=1);
 
 return [
   'kakao' => 'aea180f8a9ccf7395bccfb6dfbede9c6',
+  // 카카오 지도를 화면에 그리려면 REST 키가 아니라 'JavaScript 키'가 따로 필요합니다.
+  // 카카오 개발자센터 > 내 애플리케이션 > 앱 키 > JavaScript 키를 복사해 넣으세요.
+  // (그리고 플랫폼 > Web 에 사이트 도메인 등록 필요)
+  'kakao_js' => 'b00cf3b12ed8cfeaefbf6d37101d8d81',
   'juso'  => 'U01TX0FVVEgyMDI2MDgwNzE4MzU1MzExOTkzNjg=',
   'hub'   => 'Bgl2NmDmpeG5hvoX7LxHR8Zdsz1oI6F63aCuHumXF7OlzZiIx3QitUGVVklUe/NXW1WIHjewqbeTgz2QllSNQQ==',
 
