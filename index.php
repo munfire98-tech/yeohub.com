@@ -713,8 +713,9 @@ footer a:hover{color:var(--fg)}
                     <h1>안전관리 <em>업무지원</em></h1>
                     <p class="hero__sub">소방안전관리, 수행에서 증명까지</p>
                     <p class="hero__note">
-                      매월 수행한 안전관리 업무를 간편하게 기록하고 체계적으로 보관하세요.
-                      반복 입력은 줄이고, 필요한 순간 확인할 수 있는 업무수행 근거를 남겨드립니다.
+                      건물 정보를 한 번만 입력하면 업무수행 기록표·소방계획서·자위소방대 편성표가
+                      법정서식 그대로 만들어집니다. 반복 입력은 줄이고, 필요한 순간 꺼내 쓸 수 있는
+                      업무수행 근거를 남겨드립니다.
                     </p>
       <?php if ($notice !== ''): ?>
         <div class="alert <?= is_admin() ? 'alert--ok' : 'alert--warn' ?>"
@@ -722,64 +723,206 @@ footer a:hover{color:var(--fg)}
       <?php endif; ?>
     </div>
 
-    <!-- 홍보 슬라이드: [1] 시뮬 화면  [2] 분석 보고서 -->
+    <!-- 홍보 슬라이드: 서비스 5가지 -->
     <div class="promo" id="promo">
       <div class="promo__track" id="promoTrack">
 
-        <!-- 슬라이드 1 : 실제 시뮬 화면 -->
-        <a class="promo__slide" href="<?= is_admin() ? '/fire_evac_sim.php' : '/fire_evac_sim.php?embed=1' ?>">
+        <!-- 1. 건축물대장 자동 조회 -->
+        <a class="promo__slide" href="/service.php">
           <div class="promo__top">
-            <span class="promo__tag"><span class="dot"></span>피난 시뮬레이션</span>
-            <span class="promo__meta">대피 동선 검증</span>
-          </div>
-          <div class="promo__stage">
-            <img src="/evac_demo.png" alt="피난 시뮬레이션 화면" loading="lazy">
-          </div>
-          <p class="promo__cap">화재 발생 시 재실자의 대피 흐름을 한눈에</p>
-        </a>
-
-        <!-- 슬라이드 2 : 분석 보고서 -->
-        <a class="promo__slide" href="<?= is_admin() ? '/fire_evac_sim.php' : '/fire_evac_sim.php?embed=1' ?>">
-          <div class="promo__top">
-            <span class="promo__tag"><i>📄</i> 피난 분석 보고서</span>
-            <span class="promo__meta">자동 생성</span>
+            <span class="promo__tag"><span class="dot"></span>건축물대장 자동 조회</span>
+            <span class="promo__meta">공공데이터 연동</span>
           </div>
           <div class="promo__stage promo__stage--rpt">
-            <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="분석 보고서 예시">
+            <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="건축물대장 자동 조회">
               <rect x="0" y="0" width="340" height="210" fill="#fff"/>
-              <rect x="20" y="16" width="120" height="9" rx="2" fill="#1a2436"/>
-              <rect x="20" y="30" width="80" height="6" rx="2" fill="#b8c0cc"/>
-              <rect x="250" y="16" width="70" height="20" rx="4" fill="#e6f1fb"/>
-              <text x="285" y="30" font-size="9" fill="#185fa5" text-anchor="middle" font-family="sans-serif">적합</text>
-              <line x1="20" y1="48" x2="320" y2="48" stroke="#e3e8f0"/>
-              <rect x="20"  y="60" width="88" height="46" rx="5" fill="#f5f7fb"/>
-              <rect x="126" y="60" width="88" height="46" rx="5" fill="#f5f7fb"/>
-              <rect x="232" y="60" width="88" height="46" rx="5" fill="#f5f7fb"/>
-              <text x="30" y="76" font-size="7" fill="#7a8699" font-family="sans-serif">총 대피시간</text>
-              <text x="30" y="96" font-size="17" fill="#1a2436" font-family="sans-serif" font-weight="600">4:12</text>
-              <text x="136" y="76" font-size="7" fill="#7a8699" font-family="sans-serif">대피 완료</text>
-              <text x="136" y="96" font-size="17" fill="#0f9d63" font-family="sans-serif" font-weight="600">312</text>
-              <text x="242" y="76" font-size="7" fill="#7a8699" font-family="sans-serif">최대 밀집</text>
-              <text x="242" y="96" font-size="17" fill="#d8471f" font-family="sans-serif" font-weight="600">3.4</text>
-              <text x="20" y="128" font-size="8" fill="#56627a" font-family="sans-serif">층별 대피 소요시간</text>
-              <rect x="20"  y="150" width="24" height="44" rx="2" fill="#85b7eb"/>
-              <rect x="58"  y="136" width="24" height="58" rx="2" fill="#378add"/>
-              <rect x="96"  y="162" width="24" height="32" rx="2" fill="#85b7eb"/>
-              <rect x="134" y="144" width="24" height="50" rx="2" fill="#85b7eb"/>
-              <rect x="172" y="158" width="24" height="36" rx="2" fill="#85b7eb"/>
-              <line x1="20" y1="194" x2="320" y2="194" stroke="#d4dbe6"/>
-              <rect x="220" y="150" width="100" height="7" rx="2" fill="#eef2f8"/>
-              <rect x="220" y="164" width="100" height="7" rx="2" fill="#eef2f8"/>
-              <rect x="220" y="178" width="72"  height="7" rx="2" fill="#eef2f8"/>
+              <rect x="20" y="22" width="300" height="26" rx="6" fill="#f8fafc" stroke="#d4dbe6"/>
+              <circle cx="38" cy="35" r="5" fill="none" stroke="#7a8699" stroke-width="1.6"/>
+              <line x1="42" y1="39" x2="46" y2="43" stroke="#7a8699" stroke-width="1.6" stroke-linecap="round"/>
+              <text x="56" y="39" font-size="9" fill="#56627a" font-family="sans-serif">서울특별시 용산구 한강대로 405</text>
+              <circle cx="26" cy="64" r="6" fill="#eefaf1"/>
+              <path d="M23 64l2.5 2.5L29.5 62" stroke="#15803d" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              <text x="38" y="67" font-size="8" fill="#15803d" font-family="sans-serif">건축물대장에서 불러왔습니다</text>
+              <rect x="20"  y="82" width="145" height="40" rx="6" fill="#f5f7fb"/>
+              <rect x="175" y="82" width="145" height="40" rx="6" fill="#f5f7fb"/>
+              <rect x="20"  y="130" width="145" height="40" rx="6" fill="#f5f7fb"/>
+              <rect x="175" y="130" width="145" height="40" rx="6" fill="#f5f7fb"/>
+              <text x="32" y="97" font-size="7" fill="#7a8699" font-family="sans-serif">연면적</text>
+              <text x="32" y="114" font-size="13" fill="#1a2436" font-family="sans-serif" font-weight="600">15,723㎡</text>
+              <text x="187" y="97" font-size="7" fill="#7a8699" font-family="sans-serif">층수</text>
+              <text x="187" y="114" font-size="13" fill="#1a2436" font-family="sans-serif" font-weight="600">지하1 / 지상8</text>
+              <text x="32" y="145" font-size="7" fill="#7a8699" font-family="sans-serif">구조</text>
+              <text x="32" y="162" font-size="13" fill="#1a2436" font-family="sans-serif" font-weight="600">철근콘크리트조</text>
+              <text x="187" y="145" font-size="7" fill="#7a8699" font-family="sans-serif">사용승인일</text>
+              <text x="187" y="162" font-size="13" fill="#1a2436" font-family="sans-serif" font-weight="600">2015-03-24</text>
             </svg>
           </div>
-          <p class="promo__cap">시뮬 결과를 분석 보고서로 자동 정리</p>
+          <p class="promo__cap">주소만 검색하면 규모·구조·용도가 한 번에 채워집니다</p>
+        </a>
+
+        <!-- 2. 문답식 설정 -->
+        <a class="promo__slide" href="/service.php">
+          <div class="promo__top">
+            <span class="promo__tag"><i>💬</i> 문답식 설정</span>
+            <span class="promo__meta">묻는 대로 답하면 끝</span>
+          </div>
+          <div class="promo__stage promo__stage--rpt">
+            <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="문답식 설정 대화 화면">
+              <rect x="0" y="0" width="340" height="210" fill="#fff"/>
+              <rect x="20" y="20" width="200" height="30" rx="10" fill="#f1f5f9"/>
+              <text x="32" y="39" font-size="8.5" fill="#1a2436" font-family="sans-serif">건물은 몇 층인가요?</text>
+              <rect x="150" y="58" width="170" height="26" rx="10" fill="#2563eb"/>
+              <text x="308" y="75" font-size="8.5" fill="#fff" font-family="sans-serif" text-anchor="end">지상 12층 · 지하 2층</text>
+              <rect x="20" y="92" width="230" height="30" rx="10" fill="#f1f5f9"/>
+              <text x="32" y="111" font-size="8.5" fill="#1a2436" font-family="sans-serif">소방안전관리 등급은 어떻게 되나요?</text>
+              <rect x="20" y="130" width="126" height="24" rx="8" fill="#eefaf1" stroke="#bfe6cb"/>
+              <text x="30" y="145" font-size="7.5" fill="#15803d" font-family="sans-serif">계산하면 1급입니다</text>
+              <rect x="20" y="160" width="44" height="22" rx="7" fill="#fff" stroke="#d4dbe6"/>
+              <text x="42" y="174" font-size="8" fill="#56627a" font-family="sans-serif" text-anchor="middle">특급</text>
+              <rect x="70" y="160" width="44" height="22" rx="7" fill="#eefaf1" stroke="#22c55e"/>
+              <text x="92" y="174" font-size="8" fill="#15803d" font-family="sans-serif" text-anchor="middle" font-weight="600">1급 ✓</text>
+              <rect x="120" y="160" width="44" height="22" rx="7" fill="#fff" stroke="#d4dbe6"/>
+              <text x="142" y="174" font-size="8" fill="#56627a" font-family="sans-serif" text-anchor="middle">2급</text>
+              <rect x="170" y="160" width="44" height="22" rx="7" fill="#fff" stroke="#d4dbe6"/>
+              <text x="192" y="174" font-size="8" fill="#56627a" font-family="sans-serif" text-anchor="middle">3급</text>
+            </svg>
+          </div>
+          <p class="promo__cap">어려운 서식 용어 대신, 물어보는 대로 답하면 됩니다</p>
+        </a>
+
+        <!-- 3. 자위소방대 편성 -->
+        <a class="promo__slide" href="/service.php">
+          <div class="promo__top">
+            <span class="promo__tag"><i>🧯</i> 자위소방대 편성</span>
+            <span class="promo__meta">명단만 붙여넣으면 자동</span>
+          </div>
+          <div class="promo__stage promo__stage--rpt">
+            <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="자위소방대 편성표">
+              <rect x="0" y="0" width="340" height="210" fill="#fff"/>
+              <rect x="130" y="18" width="80" height="26" rx="5" fill="#1a2436"/>
+              <text x="170" y="35" font-size="9" fill="#fff" font-family="sans-serif" text-anchor="middle">대장 · 문우주</text>
+              <line x1="170" y1="44" x2="170" y2="58" stroke="#9aa3b2"/>
+              <rect x="130" y="58" width="80" height="24" rx="5" fill="#475569"/>
+              <text x="170" y="74" font-size="8.5" fill="#fff" font-family="sans-serif" text-anchor="middle">부대장 · 김철수</text>
+              <line x1="170" y1="82" x2="170" y2="96" stroke="#9aa3b2"/>
+              <line x1="55" y1="96" x2="285" y2="96" stroke="#9aa3b2"/>
+              <line x1="55" y1="96" x2="55" y2="108" stroke="#9aa3b2"/>
+              <line x1="132" y1="96" x2="132" y2="108" stroke="#9aa3b2"/>
+              <line x1="208" y1="96" x2="208" y2="108" stroke="#9aa3b2"/>
+              <line x1="285" y1="96" x2="285" y2="108" stroke="#9aa3b2"/>
+              <rect x="20" y="108" width="70" height="46" rx="5" fill="#f5f7fb" stroke="#d4dbe6"/>
+              <text x="55" y="124" font-size="7.5" fill="#1a2436" font-family="sans-serif" text-anchor="middle" font-weight="600">비상연락</text>
+              <text x="55" y="138" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">이영희</text>
+              <text x="55" y="149" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">박민수</text>
+              <rect x="97" y="108" width="70" height="46" rx="5" fill="#f5f7fb" stroke="#d4dbe6"/>
+              <text x="132" y="124" font-size="7.5" fill="#1a2436" font-family="sans-serif" text-anchor="middle" font-weight="600">초기소화</text>
+              <text x="132" y="138" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">정대한</text>
+              <text x="132" y="149" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">최수진</text>
+              <rect x="173" y="108" width="70" height="46" rx="5" fill="#f5f7fb" stroke="#d4dbe6"/>
+              <text x="208" y="124" font-size="7.5" fill="#1a2436" font-family="sans-serif" text-anchor="middle" font-weight="600">피난유도</text>
+              <text x="208" y="138" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">강호동</text>
+              <text x="208" y="149" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">유재석</text>
+              <rect x="250" y="108" width="70" height="46" rx="5" fill="#f5f7fb" stroke="#d4dbe6"/>
+              <text x="285" y="124" font-size="7.5" fill="#1a2436" font-family="sans-serif" text-anchor="middle" font-weight="600">응급구조</text>
+              <text x="285" y="138" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">신동엽</text>
+              <text x="285" y="149" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">김종국</text>
+              <text x="170" y="180" font-size="7.5" fill="#8a94a6" font-family="sans-serif" text-anchor="middle">적은 순서대로 대장 · 부대장 · 활동조에 배치됩니다</text>
+            </svg>
+          </div>
+          <p class="promo__cap">이름만 붙여넣으면 편성표가 만들어집니다</p>
+        </a>
+
+        <!-- 4. 피난 시뮬레이션 -->
+        <a class="promo__slide" href="/service.php">
+          <div class="promo__top">
+            <span class="promo__tag"><i>🚪</i> 피난 시뮬레이션</span>
+            <span class="promo__meta">대피 동선 확인</span>
+          </div>
+          <div class="promo__stage promo__stage--rpt">
+            <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="피난 동선 시뮬레이션">
+              <rect x="0" y="0" width="340" height="210" fill="#fff"/>
+              <rect x="30" y="24" width="280" height="130" rx="4" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+              <line x1="115" y1="24" x2="115" y2="100" stroke="#cbd5e1" stroke-width="1.5"/>
+              <line x1="225" y1="24" x2="225" y2="100" stroke="#cbd5e1" stroke-width="1.5"/>
+              <line x1="30" y1="100" x2="310" y2="100" stroke="#cbd5e1" stroke-width="1.5"/>
+              <circle cx="70" cy="60" r="9" fill="#fee2e2"/>
+              <text x="70" y="64" font-size="9" text-anchor="middle" font-family="sans-serif">🔥</text>
+              <path d="M70 76 L70 112 L150 112 L150 140" stroke="#2563eb" stroke-width="2" fill="none" stroke-dasharray="4 3" stroke-linecap="round"/>
+              <path d="M170 60 L170 112 L150 112" stroke="#2563eb" stroke-width="2" fill="none" stroke-dasharray="4 3" stroke-linecap="round"/>
+              <path d="M270 60 L270 112 L155 112" stroke="#2563eb" stroke-width="2" fill="none" stroke-dasharray="4 3" stroke-linecap="round"/>
+              <rect x="132" y="140" width="36" height="14" rx="3" fill="#16a34a"/>
+              <text x="150" y="150" font-size="7" fill="#fff" font-family="sans-serif" text-anchor="middle">비상구</text>
+              <circle cx="170" cy="60" r="4" fill="#64748b"/>
+              <circle cx="270" cy="60" r="4" fill="#64748b"/>
+              <text x="30" y="178" font-size="8" fill="#56627a" font-family="sans-serif">예상 대피시간</text>
+              <text x="105" y="178" font-size="8" fill="#1a2436" font-family="sans-serif" font-weight="600">4분 12초</text>
+              <text x="180" y="178" font-size="8" fill="#56627a" font-family="sans-serif">병목 구간</text>
+              <text x="245" y="178" font-size="8" fill="#d8471f" font-family="sans-serif" font-weight="600">2층 계단</text>
+            </svg>
+          </div>
+          <p class="promo__cap">화재 시 대피 흐름을 미리 확인하고 교육 자료로 씁니다</p>
+        </a>
+
+        <!-- 5. 법정서식 자동 완성 -->
+        <a class="promo__slide" href="/service.php">
+          <div class="promo__top">
+            <span class="promo__tag"><i>📄</i> 법정서식 자동 완성</span>
+            <span class="promo__meta">별지 제12호서식</span>
+          </div>
+          <div class="promo__stage promo__stage--rpt">
+            <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="업무 수행 기록표">
+              <rect x="0" y="0" width="340" height="210" fill="#fff"/>
+              <text x="16" y="16" font-size="5.5" fill="#555" font-family="sans-serif">■ 화재의 예방 및 안전관리에 관한 법률 시행규칙 [별지 제12호서식]</text>
+              <text x="170" y="34" font-size="11" fill="#111" font-family="sans-serif" font-weight="600" text-anchor="middle" letter-spacing="1.5">소방안전관리자 업무 수행 기록표</text>
+              <rect x="16" y="46" width="66" height="17" fill="#f3f4f6" stroke="#333" stroke-width=".7"/>
+              <rect x="82" y="46" width="106" height="17" fill="#fff" stroke="#333" stroke-width=".7"/>
+              <rect x="188" y="46" width="50" height="17" fill="#f3f4f6" stroke="#333" stroke-width=".7"/>
+              <rect x="238" y="46" width="86" height="17" fill="#fff" stroke="#333" stroke-width=".7"/>
+              <text x="49" y="58" font-size="6.5" fill="#111" font-family="sans-serif" text-anchor="middle">수행일자</text>
+              <text x="88" y="58" font-size="6.5" fill="#111" font-family="sans-serif">2026-08-20</text>
+              <text x="213" y="58" font-size="6.5" fill="#111" font-family="sans-serif" text-anchor="middle">수행자</text>
+              <text x="244" y="58" font-size="6.5" fill="#111" font-family="sans-serif">문우주</text>
+              <rect x="16" y="63" width="66" height="17" fill="#f3f4f6" stroke="#333" stroke-width=".7"/>
+              <rect x="82" y="63" width="242" height="17" fill="#fff" stroke="#333" stroke-width=".7"/>
+              <text x="49" y="75" font-size="6.5" fill="#111" font-family="sans-serif" text-anchor="middle">대상물</text>
+              <text x="88" y="75" font-size="6.5" fill="#111" font-family="sans-serif">○○빌딩 · 지상 12층 · 연면적 15,200㎡</text>
+              <rect x="16" y="84" width="66" height="15" fill="#f3f4f6" stroke="#333" stroke-width=".7"/>
+              <rect x="82" y="84" width="160" height="15" fill="#f3f4f6" stroke="#333" stroke-width=".7"/>
+              <rect x="242" y="84" width="82" height="15" fill="#f3f4f6" stroke="#333" stroke-width=".7"/>
+              <text x="49" y="94" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">항 목</text>
+              <text x="162" y="94" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">확인내용</text>
+              <text x="283" y="94" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">확인결과</text>
+              <rect x="16" y="99" width="66" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
+              <rect x="82" y="99" width="160" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
+              <rect x="242" y="99" width="82" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
+              <text x="49" y="113" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">소방시설</text>
+              <text x="88" y="113" font-size="6" fill="#333" font-family="sans-serif">수신기 및 제어반 정상 작동 확인</text>
+              <text x="283" y="113" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">☑ 양호</text>
+              <rect x="16" y="121" width="66" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
+              <rect x="82" y="121" width="160" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
+              <rect x="242" y="121" width="82" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
+              <text x="49" y="135" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">피난방화시설</text>
+              <text x="88" y="135" font-size="6" fill="#333" font-family="sans-serif">방화문 폐쇄 및 피난통로 확인</text>
+              <text x="283" y="135" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">☑ 양호</text>
+              <rect x="16" y="143" width="66" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
+              <rect x="82" y="143" width="160" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
+              <rect x="242" y="143" width="82" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
+              <text x="49" y="157" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">화기취급감독</text>
+              <text x="88" y="157" font-size="6" fill="#333" font-family="sans-serif">화기취급 구역 이상 유무 확인</text>
+              <text x="283" y="157" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">☑ 양호</text>
+              <text x="16" y="180" font-size="5.5" fill="#8a94a6" font-family="sans-serif">210mm×297mm[백상지(80g/㎡)]</text>
+            </svg>
+          </div>
+          <p class="promo__cap">법정서식 그대로, 인쇄하면 이 모습 그대로 나옵니다</p>
         </a>
       </div>
 
       <div class="promo__dots" role="tablist">
         <button class="promo__dot is-on" data-i="0" aria-label="1번 슬라이드"></button>
         <button class="promo__dot" data-i="1" aria-label="2번 슬라이드"></button>
+        <button class="promo__dot" data-i="2" aria-label="3번 슬라이드"></button>
+        <button class="promo__dot" data-i="3" aria-label="4번 슬라이드"></button>
+        <button class="promo__dot" data-i="4" aria-label="5번 슬라이드"></button>
       </div>
       <button class="promo__arw promo__arw--l" aria-label="이전">‹</button>
       <button class="promo__arw promo__arw--r" aria-label="다음">›</button>
