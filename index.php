@@ -104,6 +104,25 @@ function assert_csrf(string $tok): void {
 $notice = '';
 $CSRF = csrf_token();
 
+/* 알림 미확인 개수 — 종 아이콘의 빨간 점 표시에 씁니다.
+   user_key.php 가 없거나 회원을 특정 못 해도 안전하게 0으로 둡니다. */
+$unreadCount = 0;
+if (is_logged_in()) {
+  if (!function_exists('app_user_key') && is_file(__DIR__ . '/user_key.php')) {
+    @require_once __DIR__ . '/user_key.php';
+  }
+  if (function_exists('app_user_key')) {
+    $__nUid = app_user_key();
+    if ($__nUid !== '') {
+      $__nFile = __DIR__ . '/data/notifications/' . $__nUid . '.json';
+      if (is_file($__nFile)) {
+        $__nList = json_decode((string)@file_get_contents($__nFile), true);
+        if (is_array($__nList)) { foreach ($__nList as $__n) { if (empty($__n['read'])) $unreadCount++; } }
+      }
+    }
+  }
+}
+
 /* ─ 카카오 콜백 처리 ─ */
 if (isset($_GET['kakao_callback'])) {
   $code  = $_GET['code'] ?? '';
@@ -268,13 +287,14 @@ if (isset($_GET['kakao_callback'])) {
     exit;
   }
 
-  // 로그인 후 이동: 유형이 있으면 업무페이지로, 없으면(첫 로그인) 유형 선택 페이지로
+  // 로그인 후 이동: 첫 로그인(유형 미선택)만 유형 선택 페이지로 보내고,
+  // 그 외에는 메인(index.php)에 머무릅니다. 업무페이지는 상단 버튼으로 직접 들어갑니다.
   if (!empty($_SESSION['is_user'])) {
     if (is_admin()) {
       header('Location: /index.php'); exit;
     }
     if (!empty($_SESSION['role'])) {
-      header('Location: ' . work_page()); exit;
+      header('Location: /index.php'); exit;
     }
     header('Location: /select_role.php'); exit;   // 유형 미선택 → 선택 페이지
   }
@@ -354,6 +374,39 @@ a:hover{color:#1e40af}
 .nav__links a:hover{color:var(--brand2)}
 .nav__badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#ecfdf3;border:1px solid #bbf7d0;color:#15803d}
 .nav__actions{display:flex;gap:8px;align-items:center}
+
+/* ── 계정 아이콘 (건물관리 · 결제 · 알림 · 프로필) — 다른 페이지와 같은 모양 ── */
+.nw-icons{display:flex;align-items:center;gap:6px}
+.nw-icobtn{position:relative;display:flex;align-items:center;justify-content:center;
+  width:38px;height:38px;border-radius:10px;border:1px solid transparent;background:transparent;
+  color:var(--mut2);cursor:pointer;font-family:inherit;transition:.14s;text-decoration:none}
+.nw-icobtn:hover{background:var(--bg2);border-color:var(--bd)}
+.nw-icobtn svg{width:19px;height:19px}
+.nw-dot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;
+  background:#ef4444;border:1.5px solid #fff}
+.nw-profile{position:relative}
+.nw-avatar{width:36px;height:36px;border-radius:50%;border:0;cursor:pointer;font-family:inherit;
+  background:linear-gradient(135deg,var(--brand),var(--accent));color:#fff;font-size:13px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;transition:.14s}
+.nw-avatar:hover{filter:brightness(1.06)}
+.nw-avatar.admin{background:linear-gradient(135deg,#f59e0b,#ea580c)}
+.nw-pop{position:absolute;top:calc(100% + 10px);right:0;width:220px;background:var(--card);
+  border:1px solid var(--bd);border-radius:14px;box-shadow:0 14px 34px rgba(16,24,38,.14);
+  padding:8px;z-index:90;display:none}
+.nw-pop.show{display:block}
+.nw-pop__head{padding:11px 12px 12px;border-bottom:1px solid var(--bd)}
+.nw-pop__name{font-size:14px;font-weight:800;color:var(--fg)}
+.nw-pop__sub{font-size:11.5px;color:var(--mut);margin-top:2px}
+.nw-pop__list{padding:6px 0 0}
+.nw-pop__item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:9px;
+  border:0;background:transparent;color:var(--fg);font-size:13px;font-weight:600;font-family:inherit;
+  cursor:pointer;text-align:left;text-decoration:none}
+.nw-pop__item:hover{background:var(--bg2)}
+.nw-pop__item svg{width:16px;height:16px;color:var(--mut2);flex-shrink:0}
+.nw-pop__item--danger{color:var(--danger)}
+.nw-pop__item--danger svg{color:var(--danger)}
+.nw-pop__div{height:1px;background:var(--bd);margin:6px 2px}
+@media(max-width:680px){ .nw-pop{right:-8px} }
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:9px;border:1px solid var(--bd2);background:var(--card);color:var(--fg);font-size:13px;cursor:pointer;transition:.15s;text-decoration:none;font-family:inherit}
 .btn:hover{border-color:var(--brand);background:#f0f5ff;color:var(--brand2)}
 .btn--primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
@@ -584,21 +637,72 @@ footer a:hover{color:var(--fg)}
       <?php if (!is_logged_in()): ?>
         <button class="btn btn--primary" id="openAuth">로그인</button>
       <?php else: ?>
-        <?php if (!empty($_SESSION['nickname'])): ?>
-          <span class="nickname"><?=h($_SESSION['nickname'])?>님</span>
-        <?php endif; ?>
         <?php if (is_admin()): ?>
           <a class="btn btn--primary" href="/admin_memo.php">📝 메모</a>
-        <?php else: ?>
-          <a class="btn btn--primary" href="<?=h(work_page())?>"><?= (($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리' : '업무페이지' ?></a>
         <?php endif; ?>
-        <a class="btn btn--ghost" href="/?logout=1&csrf=<?=h($CSRF)?>"
-           onclick="return confirm('로그아웃할까요?');">로그아웃</a>
+
+        <div class="nw-icons">
+          <a class="nw-icobtn" href="<?=h(work_page())?>" title="<?= (($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리' : '업무페이지' ?>">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h1M11 8h1M7 12h1M11 12h1M7 16h1M11 16h1M17 14h1M17 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </a>
+          <a class="nw-icobtn" href="/subscribe_page.php" title="결제·구독">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/><path d="M16 14h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </a>
+          <a class="nw-icobtn" href="/notifications.php" title="알림">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 18a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <?php if ($unreadCount > 0): ?><span class="nw-dot"></span><?php endif; ?>
+          </a>
+          <div class="nw-profile" id="navProfile">
+            <button type="button" class="nw-avatar<?= is_admin() ? ' admin' : '' ?>" id="navAvatarBtn"
+              onclick="document.getElementById('navPop').classList.toggle('show')">
+              <?=h(mb_substr((string)($_SESSION['nickname'] ?? '유'), 0, 1))?>
+            </button>
+            <div class="nw-pop" id="navPop">
+              <div class="nw-pop__head">
+                <div class="nw-pop__name"><?=h($_SESSION['nickname'] ?? '사용자')?>님</div>
+                <div class="nw-pop__sub"><?= is_admin() ? '관리자' : ((($_SESSION['role'] ?? '') === 'building') ? '건물 소방안전관리자' : '소방대행업체') ?></div>
+              </div>
+              <div class="nw-pop__list">
+                <a class="nw-pop__item" href="<?=h(work_page())?>">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h1M11 8h1M7 12h1M11 12h1M7 16h1M11 16h1M17 14h1M17 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  <?= (($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리' : '업무페이지' ?>
+                </a>
+                <a class="nw-pop__item" href="/settings.php">
+                  <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1-1.56 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34H9a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87V9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                  내 정보
+                </a>
+                <a class="nw-pop__item" href="/subscribe_page.php">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/></svg>
+                  결제·구독
+                </a>
+                <a class="nw-pop__item" href="/notifications.php">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                  알림
+                </a>
+                <div class="nw-pop__div"></div>
+                <a class="nw-pop__item nw-pop__item--danger" href="/?logout=1&csrf=<?=h($CSRF)?>"
+                   onclick="return confirm('로그아웃할까요?');">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  로그아웃
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
       <?php endif; ?>
       <button class="nav__toggle" id="navToggle" aria-label="메뉴 열기" aria-expanded="false">☰</button>
     </div>
   </div>
 </nav>
+
+<script>
+  /* 프로필 드롭다운: 바깥을 누르면 닫힘 */
+  document.addEventListener('click', function(e){
+    var wrap = document.getElementById('navProfile');
+    var pop  = document.getElementById('navPop');
+    if (wrap && pop && !wrap.contains(e.target)) pop.classList.remove('show');
+  });
+</script>
 
 <!-- HERO -->
 <section class="hero-wrap">

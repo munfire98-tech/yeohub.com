@@ -34,6 +34,10 @@ function normalize_role(string $role): string {
   return $role === 'building' ? 'building' : 'agency';
 }
 
+/* 유형별 업무페이지 주소.
+   ※ 로그인·가입 직후에는 더 이상 여기로 보내지 않고 메인(index.php)에 머무릅니다.
+      사용자가 상단 아이콘으로 직접 들어가는 방식입니다.
+      다른 곳에서 쓸 수 있어 함수는 남겨둡니다. */
 function role_landing(string $role): string {
   return $role === 'building' ? '/building_manager.php' : '/clients_mini.php';
 }
@@ -283,7 +287,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
           $_SESSION['nickname'] = $nickname;
           $_SESSION['role'] = $role;
           $_SESSION['login_type'] = 'member';
-          header('Location: ' . role_landing($role));
+          header('Location: /index.php');
           exit;
         }
       }
@@ -335,7 +339,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $_SESSION['nickname'] = (string)$result['nickname'];
         $_SESSION['role'] = $role;
         $_SESSION['login_type'] = 'member';
-        header('Location: ' . role_landing($role));
+        header('Location: /index.php');
         exit;
       }
     }
