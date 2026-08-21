@@ -339,13 +339,21 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
   .guide-arrow-down{text-align:center;font-size:11px;color:var(--mut);margin:6px 0}
 
   .guide-rule{background:#eff6ff;border:1px solid #cfe0fb;border-radius:12px;
-    padding:13px 15px;margin-bottom:18px}
-  .guide-rule b{font-size:12.5px;color:var(--navy);display:block;margin-bottom:9px}
-  .guide-rule__row{display:flex;align-items:center;gap:9px;font-size:12.5px;
-    color:#2b3446;padding:3px 0}
-  .guide-rule__no{width:22px;height:22px;flex:0 0 22px;border-radius:7px;
+    padding:14px 16px;margin-bottom:18px}
+  .guide-rule b{font-size:12.5px;color:var(--navy);display:block;margin-bottom:10px}
+  /* 세 번째 줄처럼 글이 길어 두 줄이 되면, 번호가 가운데로 내려가 첫 글자와 어긋납니다.
+     flex-start 로 맞춰 번호를 항상 첫 줄에 붙입니다. */
+  .guide-rule__row{display:flex;align-items:flex-start;gap:10px;font-size:12.5px;
+    color:#2b3446;padding:4px 0;line-height:1.65}
+  .guide-rule__no{min-width:24px;height:20px;flex:0 0 auto;border-radius:6px;padding:0 6px;
     background:var(--navy);color:#fff;font-size:10.5px;font-weight:800;
-    display:flex;align-items:center;justify-content:center}
+    display:inline-flex;align-items:center;justify-content:center;
+    margin-top:1px}   /* 글자 첫 줄 높이에 살짝 맞춤 */
+  /* '첫 줄 / 둘째 줄 / 나머지' 를 같은 폭으로 잡아 세로로 열을 맞춥니다 */
+  .guide-rule__from{flex:0 0 52px;color:#5b6577}
+  .guide-rule__to{flex:1;min-width:0}
+  .guide-rule__to b{display:inline;font-size:12.5px;margin:0}
+  .guide-rule__sub{font-size:11.5px;color:#6b7688;line-height:1.6}
 
   .guide-foot{display:flex;align-items:center;justify-content:space-between;
     gap:10px;flex-wrap:wrap}
@@ -1235,9 +1243,22 @@ document.addEventListener('keydown', function(e){
 
     <div class="guide-rule">
       <b>💡 적은 순서가 곧 직책이 됩니다</b>
-      <div class="guide-rule__row"><span class="guide-rule__no">1</span>첫 줄 → <b>대장</b></div>
-      <div class="guide-rule__row"><span class="guide-rule__no">2</span>둘째 줄 → <b>부대장</b></div>
-      <div class="guide-rule__row"><span class="guide-rule__no">3~</span>나머지 → <b>비상연락·초기소화·피난유도</b> 등 활동조에 순서대로</div>
+      <div class="guide-rule__row">
+        <span class="guide-rule__no">1</span>
+        <span class="guide-rule__from">첫 줄</span>
+        <span class="guide-rule__to"><b>대장</b></span>
+      </div>
+      <div class="guide-rule__row">
+        <span class="guide-rule__no">2</span>
+        <span class="guide-rule__from">둘째 줄</span>
+        <span class="guide-rule__to"><b>부대장</b></span>
+      </div>
+      <div class="guide-rule__row">
+        <span class="guide-rule__no">3</span>
+        <span class="guide-rule__from">나머지</span>
+        <span class="guide-rule__to"><b>활동조</b>에 순서대로<br>
+          <span class="guide-rule__sub">비상연락 · 초기소화 · 피난유도 …</span></span>
+      </div>
     </div>
 
     <div class="guide-foot guide-foot--single">
