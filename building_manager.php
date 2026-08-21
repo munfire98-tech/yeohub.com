@@ -470,6 +470,27 @@ a.pstep:hover{background:#f2f6fd}
 .cardprog__t b{color:var(--brand2);font-weight:800;margin-right:3px}
 .cardprog__t--ok{color:#15803d}
 .cardprog__t--ok b{color:#15803d}
+/* ── 첫 방문 안내 팝업 ── */
+.gdov{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;
+  align-items:center;justify-content:center;z-index:300;padding:20px}
+.gdov.on{display:flex}
+.gdbox{background:#fff;border-radius:16px;padding:26px 24px 20px;max-width:400px;width:100%;
+  box-shadow:0 20px 50px rgba(15,30,60,.25);text-align:center}
+.gdbox__ico{font-size:34px;margin-bottom:12px}
+.gdbox h4{font-size:17px;font-weight:800;margin:0 0 8px;line-height:1.45}
+.gdbox p{font-size:13.5px;color:var(--mut2);margin:0 0 18px;line-height:1.7}
+.gdbox__hi{display:inline-block;background:#eff6ff;color:var(--brand2);
+  font-weight:700;padding:2px 8px;border-radius:6px}
+.gdbox__btn{width:100%;padding:12px;border:0;border-radius:11px;background:var(--brand);
+  color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+.gdbox__btn:hover{filter:brightness(1.08)}
+.gdbox__again{display:flex;align-items:center;justify-content:center;gap:7px;
+  margin-top:14px;font-size:12.5px;color:var(--mut);cursor:pointer}
+.gdbox__again input{cursor:pointer}
+
+/* 안내가 가리키는 진행 현황 패널을 잠깐 강조합니다 */
+.prog.gd-hi{box-shadow:0 0 0 4px rgba(37,99,235,.35),0 4px 14px rgba(15,30,60,.05);
+  border-color:var(--brand);transition:box-shadow .3s,border-color .3s}
 </style>
 
 <header class="page-head">
@@ -1003,5 +1024,68 @@ function showQr(id, name){
   document.getElementById('qrov').classList.add('on');
 }
 </script>
+<!-- 첫 방문 안내 팝업 -->
+<div class="gdov" id="gdov">
+  <div class="gdbox">
+    <div class="gdbox__ico">👋</div>
+    <h4>무엇부터 하면 되는지 알려드릴게요</h4>
+    <p>
+      화면 <span class="gdbox__hi">우측 상단의 진행 현황</span>을 보시면<br>
+      지금 해야 할 일이 순서대로 표시됩니다.<br>
+      항목을 눌러 하나씩 진행해 주세요.
+    </p>
+    <button class="gdbox__btn" type="button" id="gdClose">알겠습니다</button>
+    <label class="gdbox__again">
+      <input type="checkbox" id="gdNever"> 다음부터 보지 않기
+    </label>
+  </div>
+</div>
+
+<script>
+(function(){
+  /* 첫 방문 안내 — "다음부터 보지 않기"는 쿠키에 1년간 기록합니다. */
+  var KEY = 'bm_guide_hide';
+
+  function getCookie(name){
+    var m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return m ? m.pop() : '';
+  }
+  function setCookie(name, val, days){
+    var d = new Date();
+    d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
+    document.cookie = name + '=' + val + ';expires=' + d.toUTCString() + ';path=/;SameSite=Lax';
+  }
+
+  var ov    = document.getElementById('gdov');
+  var btn   = document.getElementById('gdClose');
+  var never = document.getElementById('gdNever');
+  var prog  = document.querySelector('.prog');
+  if (!ov || !btn) return;
+
+  if (getCookie(KEY) === '1') return;   // 이미 "보지 않기"를 선택한 경우
+
+  // 화면이 그려진 뒤 잠깐 있다가 띄웁니다.
+  setTimeout(function(){ ov.classList.add('on'); }, 400);
+
+  function close(){
+    if (never && never.checked) setCookie(KEY, '1', 365);
+    ov.classList.remove('on');
+    // 닫은 직후, 안내가 가리킨 진행 현황을 잠깐 강조해 줍니다.
+    if (prog){
+      prog.classList.add('gd-hi');
+      prog.scrollIntoView({ behavior:'smooth', block:'nearest' });
+      setTimeout(function(){ prog.classList.remove('gd-hi'); }, 2200);
+    }
+  }
+
+  btn.addEventListener('click', close);
+  // 바깥을 눌러도 닫힙니다(체크박스 선택은 그대로 반영).
+  ov.addEventListener('click', function(e){ if (e.target === ov) close(); });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && ov.classList.contains('on')) close();
+  });
+})();
+</script>
+
 <?php require __DIR__ . '/memo_widget.php'; ?>
 <?php require __DIR__ . '/_footer.php'; ?>
