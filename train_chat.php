@@ -53,7 +53,7 @@ if (!$rec) {
   <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>훈련·교육 기록부 문답 — TWORIX</title>
+  <title>훈련·교육 기록부 문답 — 소방계획서.com</title>
   <style>
   :root{--bg:#f5f7fb;--card:#fff;--bd:#e3e8f0;--bd2:#d4dbe6;--fg:#1a2436;
     --mut:#7a8699;--mut2:#56627a;--brand:#2563eb;--brand2:#1d4ed8}
@@ -93,7 +93,7 @@ if (!$rec) {
   </head>
   <body>
   <nav class="nav"><div class="nav__in">
-    <a class="brand" href="/index.php">TWORIX</a>
+    <a class="brand" href="/index.php">소방계획서.com</a>
     <div style="display:flex;gap:8px">
       <a class="btn" href="/train.php">← 목록</a>
     </div>
@@ -291,7 +291,7 @@ $HINTS = [
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>훈련·교육 기록부 문답 작성 — TWORIX</title>
+<title>훈련·교육 기록부 문답 작성 — yeohub</title>
 <style>
 :root{--bg:#f5f7fb;--card:#fff;--bd:#e3e8f0;--bd2:#d4dbe6;--fg:#1a2436;
   --mut:#7a8699;--mut2:#56627a;--brand:#2563eb;--brand2:#1d4ed8;--accent:#0891b2}
@@ -394,7 +394,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 
 <nav class="nav">
   <div class="nav__in">
-    <a class="brand" href="/index.php">TWORIX</a>
+    <a class="brand" href="/index.php">소방계획서.com</a>
     <div style="display:flex;gap:8px">
       <form method="post" style="display:inline"
             onsubmit="return confirm('지금까지 답한 훈련·교육 내용을 모두 지우고 처음부터 다시 시작합니다.\n계속할까요?')">
@@ -858,7 +858,7 @@ function ask(s){
   }
 }
 
-/* ── 잘 모르겠을 때 TWORIX에 물어보기 ── */
+/* ── 잘 모르겠을 때 yeohub에 물어보기 ── */
 function requestReview(s, btn){
   if (btn.disabled) return;
   btn.disabled = true;
@@ -872,14 +872,14 @@ function requestReview(s, btn){
     .then(function(j){
       if (!j || !j.ok) throw new Error('request');
       clearBox();
-      me('잘 모르겠어요 · TWORIX에 요청');
-      bot(md('**TWORIX에 검토를 요청했습니다.**\n' +
+      me('잘 모르겠어요 · yeohub에 요청');
+      bot(md('**yeohub에 검토를 요청했습니다.**\n' +
         '관리자가 확인하고 답을 드립니다. 이 항목은 비워둔 채로 다음으로 넘어가겠습니다.'));
       step++; setTimeout(go, 520);
     })
     .catch(function(){
       btn.disabled = false;
-      btn.textContent = '🙋 잘 모르겠어요 · TWORIX에 요청하기';
+      btn.textContent = '🙋 잘 모르겠어요 · yeohub에 요청하기';
       alert('요청을 접수하지 못했습니다. 잠시 후 다시 시도해 주세요.');
     });
 }
@@ -893,7 +893,7 @@ function addReview(b, s){
   rq.className = 'btn btn--sm';
   rq.type = 'button';
   rq.style.cssText = 'border-color:#fdba74;color:#b45309';
-  rq.textContent = '🙋 잘 모르겠어요 · TWORIX에 요청하기';
+  rq.textContent = '🙋 잘 모르겠어요 · yeohub에 요청하기';
   rq.onclick = function(){ requestReview(s, rq); };
   row.appendChild(rq);
 }

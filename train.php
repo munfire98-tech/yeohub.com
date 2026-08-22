@@ -38,7 +38,7 @@ $list = tr_list();
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>소방훈련·교육 기록부 — TWORIX</title>
+<title>소방훈련·교육 기록부 — 소방계획서.com</title>
 <style>
 :root{--bg:#f5f7fb;--card:#fff;--bd:#e3e8f0;--bd2:#d4dbe6;--fg:#1a2436;
   --mut:#7a8699;--mut2:#56627a;--brand:#2563eb;--brand2:#1d4ed8;--accent:#0891b2}
@@ -83,7 +83,7 @@ a{text-decoration:none}
 
 <nav class="nav">
   <div class="nav__in">
-    <a class="brand" href="/index.php">TWORIX</a>
+    <a class="brand" href="/index.php">소방계획서.com</a>
     <div class="nav__r">
       <span><?=h($nick)?>님</span>
       <a class="btn" href="/building_manager.php">← 메인</a>

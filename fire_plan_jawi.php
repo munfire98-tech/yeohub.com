@@ -571,7 +571,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
 
 <div class="appbar no-print">
   <div class="appbar__in">
-    <h1>🧯 자위소방대 편성표</h1>
+    <h1>소방계획서.com JW</h1>
     <span class="status" id="statusChip">🆕 새 편성표</span>
     <span class="sp"></span>
     <nav class="appnav" aria-label="바로가기">
