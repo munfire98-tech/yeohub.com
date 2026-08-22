@@ -390,6 +390,7 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
       </button>
     </form>
   </div>
+  <?php require __DIR__ . '/memo_widget.php'; ?>
 </main>
 
 <script>

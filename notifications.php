@@ -174,6 +174,7 @@ require __DIR__ . '/_header.php';
       </div>
     <?php endif; ?>
   </div>
+  <?php require __DIR__ . '/memo_widget.php'; ?>
 </main>
 
 <?php require __DIR__ . '/_footer.php'; ?>
