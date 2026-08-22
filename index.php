@@ -944,7 +944,7 @@ footer a:hover{color:var(--fg)}
         </div>
       </div>
     <?php else: ?>
-      <?php $workLabel = (($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리 페이지 들어가기 →' : '업무페이지 들어가기 →'; ?>
+      <?php $workLabel = (($_SESSION['role'] ?? 'agency') === 'building') ? '🏢 건물 관리 페이지 들어가기 →' : '📋 업무페이지 들어가기 →'; ?>
       <div class="cta-box">
         <div class="cta-box__btns">
           <a class="btn btn--primary btn--lg" href="<?=h(work_page())?>"><?=h($workLabel)?></a>

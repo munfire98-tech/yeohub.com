@@ -213,10 +213,25 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
     border:1px solid #d6dce6;border-radius:9px;padding:7px 12px;background:#fff;font-weight:600}
   .appbar .back:hover{background:#f6f8fb}
 
+  /* 상단 바 바로가기 아이콘 (건물관리·알림·결제) */
+  .appnav{display:flex;align-items:center;gap:4px;margin-right:6px}
+  .appnav__ic{display:flex;align-items:center;justify-content:center;width:34px;height:34px;
+    border-radius:9px;color:var(--mut);border:1px solid transparent;transition:.14s}
+  .appnav__ic svg{width:18px;height:18px}
+  .appnav__ic:hover{background:#f0f4fa;border-color:#d6dce6;color:var(--navy)}
+  @media(max-width:560px){.appnav{display:none}}
+
   /* ══ 2단 레이아웃 ══ */
   .layout{max-width:1240px;margin:0 auto;padding:18px;
-    display:grid;grid-template-columns:290px minmax(0,1fr);gap:18px;align-items:start}
-  @media (max-width:900px){ .layout{grid-template-columns:1fr;padding:14px} }
+    display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:18px;align-items:start}
+  /* 마크업은 그대로 두고 화면 순서만 바꿉니다 — 작업 영역이 왼쪽, 패널이 오른쪽 */
+  .layout > main{order:1}
+  .layout > .side{order:2}
+  @media (max-width:900px){
+    .layout{grid-template-columns:1fr;padding:14px}
+    .layout > main{order:2}      /* 좁은 화면에선 패널을 위로 올려 먼저 보이게 */
+    .layout > .side{order:1}
+  }
 
   .card{background:var(--card);border:1px solid var(--brd);border-radius:var(--radius);
     box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
@@ -232,18 +247,58 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
 
   /* 사이드바 */
   .side{position:sticky;top:66px}
+
+  /* ── 진행 현황 패널 (building_manager.php 와 같은 구성) ── */
+  .prog{background:#fff;border:1px solid var(--brd);border-radius:var(--radius);
+    padding:14px 16px;margin-bottom:12px;box-shadow:var(--shadow)}
+  .prog__t{font-size:12px;font-weight:800;color:var(--mut);letter-spacing:.03em;margin-bottom:10px}
+  .pstep{display:flex;align-items:center;gap:9px;padding:8px 4px;font-size:13px;font-weight:700;
+    color:var(--mut);border-radius:8px;transition:.12s}
+  .pstep .no{width:20px;height:20px;border-radius:50%;background:#e8edf5;color:var(--mut);
+    display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+  .pstep__label{min-width:0;flex:1}
+  .pstep--done{color:#15803d}
+  .pstep--done .no{background:#22c55e;color:#fff}
+  .pstep--now{color:var(--navy)}
+  .pstep--now .no{background:var(--navy);color:#fff;box-shadow:0 0 0 3px rgba(58,85,114,.16)}
+  .pstep+.pstep{border-top:1px dashed var(--brd)}
+  .ptag{margin-left:auto;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;
+    flex-shrink:0;white-space:nowrap}
+  .ptag--done{background:#f0fdf4;color:#15803d}
+  .ptag--wait{background:#eef1f6;color:#8a94a6}
+  .ptag--now{background:#eef4fb;color:var(--navy)}
+  .prog__hint{font-size:11px;color:var(--mut);margin-top:10px;text-align:center;line-height:1.6}
   @media (max-width:900px){ .side{position:static} }
   .side .card{margin-bottom:12px}
-  .planlist{display:flex;flex-direction:column;gap:7px;max-height:52vh;overflow-y:auto;
-    padding:12px;background:#fbfcfe}
+  .planlist{display:flex;flex-direction:column;gap:0;max-height:52vh;overflow-y:auto;
+    padding:6px 12px 12px;background:#fff}
+  /* 몇 개 저장돼 있는지 제목 옆에 바로 보여줍니다 (비어 있으면 표시 안 함) */
+  .cnt:not(:empty){display:inline-flex;align-items:center;justify-content:center;
+    min-width:20px;height:20px;padding:0 6px;margin-left:7px;border-radius:999px;
+    background:var(--red);color:#fff;font-size:11.5px;font-weight:800;vertical-align:middle}
   @media (max-width:900px){ .planlist{max-height:230px} }
-  .plan-card{border:1px solid #e0e5ec;border-radius:11px;padding:10px 11px;background:#fff;
-    cursor:pointer;transition:.15s}
-  .plan-card:hover{border-color:#b9c6e6;box-shadow:0 2px 8px rgba(58,85,114,.08)}
-  .plan-card.active{border-color:var(--red);background:#fdf5f4;box-shadow:0 0 0 2px #f6d9d4}
-  .plan-card .pc-name{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .plan-card .pc-meta{font-size:11px;color:var(--mut);margin-top:3px}
-  .plan-card .pc-btns{display:flex;gap:5px;margin-top:8px}
+
+  /* ── 저장된 편성표 목록 (building_manager 의 진행 현황과 같은 방식) ── */
+  .plan-card{display:block;padding:10px 6px;border-radius:8px;background:transparent;
+    cursor:pointer;transition:.12s;border:0}
+  .plan-card + .plan-card{border-top:1px dashed var(--brd)}
+  .plan-card:hover{background:#f2f6fd}
+  .plan-card.active{background:#fdf5f4;box-shadow:0 0 0 2px #f6d9d4;border-radius:10px}
+  .plan-card.active + .plan-card{border-top:0}
+  .pc-row{display:flex;align-items:center;gap:9px}
+  .pc-no{width:20px;height:20px;border-radius:50%;background:#e8edf5;color:var(--mut);
+    display:inline-flex;align-items:center;justify-content:center;font-size:11px;
+    font-weight:800;flex-shrink:0}
+  .plan-card.active .pc-no{background:var(--red);color:#fff;
+    box-shadow:0 0 0 3px rgba(192,57,43,.14)}
+  .plan-card .pc-name{font-weight:700;font-size:13px;color:var(--ink);flex:1;min-width:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pc-tag{margin-left:auto;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;
+    flex-shrink:0;white-space:nowrap;background:#eef1f6;color:#8a94a6}
+  .plan-card.active .pc-tag{background:#fdecea;color:var(--red)}
+  .plan-card .pc-meta{font-size:11px;color:var(--mut);margin:4px 0 0 29px}
+  .plan-card .pc-btns{display:none;gap:5px;margin:8px 0 2px 29px}
+  .plan-card.active .pc-btns,.plan-card:hover .pc-btns{display:flex}
   .pcbtn{flex:1;border:1px solid #dde2ea;background:#fff;border-radius:7px;padding:5px 0;
     font-size:11.5px;cursor:pointer;font-family:inherit;color:var(--mut);font-weight:600}
   .pcbtn:hover{background:#f5f7fa;color:var(--ink)}
@@ -269,6 +324,23 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
   .btn-ghost{background:#fff;border:1px solid #d6dce6;color:var(--ink)}
   .btn-ghost:hover{background:#f5f7fa}
   .btn-sm{padding:6px 11px;font-size:12px;border-radius:8px}
+
+  /* 접힌 상태의 '명단 고치기' 버튼 — 눈에 띄게 */
+  .btn-accent{background:#eff6ff;border-color:#9cc0f5;color:var(--navy);font-weight:700}
+
+  /* 접혔을 때 카드 자리에 나타나는 안내 줄 (누르면 다시 펴집니다) */
+  .reopen{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+    background:#f7faff;border:1px dashed #9cc0f5;border-radius:12px;
+    padding:14px 16px;margin:0 18px 18px;width:calc(100% - 36px);
+    cursor:pointer;font-family:inherit;transition:.14s}
+  .reopen:hover{background:#eff6ff;border-color:var(--brand);border-style:solid}
+  .reopen__ic{font-size:18px;flex-shrink:0}
+  .reopen__tx{flex:1;min-width:0}
+  .reopen__tx b{display:block;font-size:13.5px;font-weight:700;color:var(--navy)}
+  .reopen__tx small{display:block;font-size:11.5px;color:var(--mut);margin-top:2px}
+  .reopen__arrow{font-size:14px;color:var(--brand);flex-shrink:0}
+  @media(max-width:560px){.reopen{margin:0 14px 14px;width:calc(100% - 28px)}}
+
   .btn-block{width:100%;justify-content:center}
   .hint{font-size:12px;color:var(--mut);margin-top:6px}
   .chip{font-size:10.5px;font-weight:700;color:#0369a1;background:#e0f2fe;
@@ -502,17 +574,50 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
     <h1>🧯 자위소방대 편성표</h1>
     <span class="status" id="statusChip">🆕 새 편성표</span>
     <span class="sp"></span>
+    <nav class="appnav" aria-label="바로가기">
+      <a class="appnav__ic" href="/building_manager.php" title="건물 관리">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h1M11 8h1M7 12h1M11 12h1M7 16h1M11 16h1M17 14h1M17 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </a>
+      <a class="appnav__ic" href="/notifications.php" title="알림">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 18a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </a>
+      <a class="appnav__ic" href="/subscribe_page.php" title="결제·구독">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/><path d="M16 14h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </a>
+    </nav>
     <a class="back" href="<?=h($JW_BACK[0])?>"><?=h($JW_BACK[1])?></a>
   </div>
 </div>
 
 <div class="layout">
 
-  <!-- ════ 좌측: 저장된 편성표 ════ -->
+  <!-- ════ 우측: 진행 현황 · 저장된 편성표 ════ -->
   <aside class="side no-print">
+
+    <!-- 진행 현황 (building_manager 와 같은 방식) -->
+    <div class="prog">
+      <div class="prog__t">진행 현황</div>
+      <div class="pstep" id="ps1">
+        <span class="no">1</span>
+        <span class="pstep__label">대상물 확인</span>
+        <span class="ptag ptag--wait" id="pt1">대기</span>
+      </div>
+      <div class="pstep" id="ps2">
+        <span class="no">2</span>
+        <span class="pstep__label">명단 적기</span>
+        <span class="ptag ptag--wait" id="pt2">대기</span>
+      </div>
+      <div class="pstep" id="ps3">
+        <span class="no">3</span>
+        <span class="pstep__label">편성표 저장</span>
+        <span class="ptag ptag--wait" id="pt3">대기</span>
+      </div>
+      <div class="prog__hint" id="progHint">건물 이름부터 적어주세요</div>
+    </div>
+
     <div class="card">
       <div class="card__hd">
-        <h2>저장된 편성표</h2>
+        <h2>저장된 편성표<span class="cnt" id="planCount"></span></h2>
         <button class="btn btn-ghost btn-sm" onclick="newPlan()">＋ 새로</button>
       </div>
       <div id="planList" class="planlist"><div class="empty">불러오는 중…</div></div>
@@ -549,6 +654,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
       </div>
     </div>
 
+
     <!-- ① 대상물 -->
     <section class="card no-print" id="p1">
       <div class="card__hd">
@@ -581,6 +687,16 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
         <button class="btn btn-ghost btn-sm" type="button" onclick="openGuide()" title="예시 다시 보기">❓ 어떻게 적나요?</button>
         <button class="btn btn-ghost btn-sm" type="button" id="foldBtn" onclick="toggleFold()">접기</button>
       </div>
+
+      <!-- 접혔을 때만 보이는 안내 줄 — 눌러서 다시 펼 수 있습니다 -->
+      <button type="button" class="reopen" id="p2reopen" style="display:none" onclick="toggleFold(false)">
+        <span class="reopen__ic">✏️</span>
+        <span class="reopen__tx">
+          <b>명단을 고치려면 여기를 누르세요</b>
+          <small id="reopenCount">적어둔 명단이 접혀 있습니다</small>
+        </span>
+        <span class="reopen__arrow">▾</span>
+      </button>
       <div class="card__bd" id="p2body">
         <!-- 세 칸이 무엇인지 눈에 보이게: 이 순서로 적으면 됩니다 -->
         <div class="rosterhead" aria-hidden="true">
@@ -809,13 +925,27 @@ document.addEventListener('DOMContentLoaded', function(){
   if (!hasData) openGuide();
 });
 
-/* ② 카드 접기/펴기 */
+/* ② 카드 접기/펴기
+   접힌 상태에서는 '펴기' 버튼이 작아 눈에 안 띄어, 명단을 고치려는 사용자가 헤맸습니다.
+   그래서 접히면 카드 자리에 눌러서 열 수 있는 안내 줄을 대신 보여줍니다. */
 function toggleFold(force){
   const body = document.getElementById('p2body');
   const btn  = document.getElementById('foldBtn');
+  const bar  = document.getElementById('p2reopen');
   const hide = (typeof force === 'boolean') ? force : (body.style.display !== 'none');
   body.style.display = hide ? 'none' : '';
-  btn.textContent = hide ? '펴기' : '접기';
+  btn.textContent = hide ? '✏️ 명단 고치기' : '접기';
+  btn.classList.toggle('btn-accent', hide);
+  if (bar) {
+    bar.style.display = hide ? '' : 'none';
+    if (hide) {
+      /* 몇 명이 접혀 있는지 알려주면, 열어볼지 판단하기 쉽습니다 */
+      const ta = (document.getElementById('bulkInput')||{}).value || '';
+      const n  = ta.split('\n').map(s=>s.trim()).filter(Boolean).length;
+      const cnt = document.getElementById('reopenCount');
+      if (cnt) cnt.textContent = n ? ('적어둔 명단 ' + n + '명이 접혀 있습니다') : '명단이 접혀 있습니다';
+    }
+  }
 }
 
 /* 단계 번호 색을 현재 상태에 맞춥니다 */
@@ -828,6 +958,38 @@ function markSteps(){
   if (hasPeople)      { set('sn2','done'); set('sn3',''); }
   else if (ta.trim()) { set('sn2','');     set('sn3','wait'); }
   else                { set('sn2', site.trim() ? '' : 'wait'); set('sn3','wait'); }
+
+  /* 우측 진행 현황 패널도 같이 갱신합니다 */
+  updateProgress(site.trim() !== '', ta.trim() !== '', hasPeople);
+}
+
+/* 우측 진행 현황 — 지금 어디까지 왔고 다음에 뭘 해야 하는지 보여줍니다 */
+function updateProgress(hasSite, hasText, hasPeople){
+  const saved = !!currentPlanId;
+  /* [단계, 끝났나, 지금 할 차례인가, 배지 글자] */
+  const steps = [
+    ['1', hasSite,   !hasSite,                       hasSite   ? '완료' : '지금'],
+    ['2', hasPeople, hasSite && !hasPeople,          hasPeople ? '완료' : (hasText ? '배치 전' : (hasSite ? '지금' : '대기'))],
+    ['3', saved,     hasPeople && !saved,            saved     ? '저장됨' : (hasPeople ? '지금' : '대기')]
+  ];
+  steps.forEach(([n, done, now, label]) => {
+    const row = document.getElementById('ps'+n);
+    const tag = document.getElementById('pt'+n);
+    if (!row || !tag) return;
+    row.className = 'pstep' + (done ? ' pstep--done' : (now ? ' pstep--now' : ''));
+    tag.className = 'ptag ' + (done ? 'ptag--done' : (now ? 'ptag--now' : 'ptag--wait'));
+    tag.textContent = label;
+  });
+
+  const hint = document.getElementById('progHint');
+  if (hint) {
+    hint.textContent =
+      !hasSite   ? '건물 이름부터 적어주세요' :
+      !hasText   ? '아래에 명단을 붙여넣어 주세요' :
+      !hasPeople ? '자동 배치를 눌러주세요' :
+      !saved     ? '확인 후 저장하면 끝납니다' :
+                   '저장되었습니다. 언제든 고칠 수 있습니다';
+  }
 }
 
 function autoAssign(){
@@ -1080,6 +1242,7 @@ async function saveplan(){
       currentPlanId = res.id;
       toast(res.updated ? "수정 저장됨 ("+res.saved+")" : "새 편성표로 저장됨");
       setEditingHint();
+      markSteps();      // 저장되면 3단계가 '저장됨'으로 바뀝니다
       loadList();
     } else toast("저장 실패: "+(res.msg||""));
   }catch(e){ toast("네트워크 오류"); }
@@ -1150,13 +1313,19 @@ async function loadList(){
     const fd=new FormData(); fd.append('csrf',CSRF); fd.append('action','fire_list');
     const res=await fetch(location.pathname,{method:'POST',body:fd}).then(r=>r.json());
     const list=(res&&res.list)||[];
+    const cntEl=document.getElementById('planCount');
+    if(cntEl) cntEl.textContent = list.length ? list.length : '';
     if(list.length===0){
       box.innerHTML='<div class="empty">아직 저장된 편성표가<br>없습니다.<br><br>작성 후 아래 💾 저장을<br>눌러보세요.</div>';
       return;
     }
-    box.innerHTML=list.map(p=>`
+    box.innerHTML=list.map((p,i)=>`
       <div class="plan-card${p.id===currentPlanId?' active':''}" data-id="${p.id}" onclick="if(!event.target.closest('button'))loadPlan('${p.id}')">
-        <div class="pc-name">${esc(p.site_name||'(이름 없음)')}</div>
+        <div class="pc-row">
+          <span class="pc-no">${i+1}</span>
+          <span class="pc-name">${esc(p.site_name||'(이름 없음)')}</span>
+          <span class="pc-tag">${p.id===currentPlanId?'수정 중':p.total+'명'}</span>
+        </div>
         <div class="pc-meta">편성 ${p.total}명 · ${esc((p.saved||'').slice(0,16))}</div>
         <div class="pc-btns">
           <button class="pcbtn" onclick="loadPlan('${p.id}')">불러오기</button>
@@ -1166,6 +1335,7 @@ async function loadList(){
       </div>`).join('');
   }catch(e){ box.innerHTML='<div class="empty">목록을 불러오지 못했습니다.</div>'; }
 }
+
 
 /* ---------- toast ---------- */
 let toastT;

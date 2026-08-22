@@ -177,19 +177,12 @@ $wlKey   = preg_replace('/[^A-Za-z0-9_]/', '_', $rawKey);   // work_log.php와 �
 /* ① 이번 달 업무수행 기록표: data/worklog/{uid}/mYYYY-MM.json 존재 여부 */
 $doneWorkLog = is_file(__DIR__ . '/data/worklog/' . $wlKey . '/m' . date('Y-m') . '.json');
 
-/* ② 올해 자위소방대 편성표: _jawi.json에 올해 저장된 기록 존재 여부
- *    (fire_plan_jawi.php는 회원 키를 가공 없이 그대로 폴더명으로 쓴다) */
+/* ② 자위소방대 교육·훈련을 올해 실시했는가
+ *    ★ 예전에는 편성표(_jawi.json)가 있으면 교육까지 한 것으로 처리했는데,
+ *      편성표는 '명단'이고 교육은 '실시 기록'이라 서로 다른 것입니다.
+ *      명단만 만들어도 '교육 완료'로 표시되던 문제가 있어 분리했습니다.
+ *      편성표 존재 여부는 아래 $hasRoster 가 따로 판단합니다. */
 $doneJawi = false;
-if ($keySafe) {
-  $jf = __DIR__ . '/data/fireplan/' . $rawKey . '/_jawi.json';
-  if (is_file($jf)) {
-    $ja = json_decode((string)@file_get_contents($jf), true);
-    if (is_array($ja)) foreach ($ja as $p) {
-      $d = (string)(($p['saved'] ?? '') ?: ($p['created'] ?? ''));
-      if (strncmp($d, date('Y'), 4) === 0) { $doneJawi = true; break; }
-    }
-  }
-}
 
 $jawiStatus = null;   // 올해 자위소방대 교육·훈련 기록의 진행 상태
 
