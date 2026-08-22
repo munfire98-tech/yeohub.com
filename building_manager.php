@@ -74,7 +74,10 @@ if ($adminView) {
 
 /* ── 건물 기본정보 검토요청 상태
  * building_setup_chat.php 에서 보낸 "건물 기본정보:" 요청만 집계한다.
- * 미확인 요청은 개수로 보여주고, 관리자 확인완료 표시는 7일 뒤 자연스럽게 숨긴다. */
+ * 미확인 요청은 개수로 보여준다.
+ * ※ '관리자 확인완료'는 더 이상 여기에 배지로 띄우지 않는다.
+ *    관리자가 처리하는 순간 회원에게 알림(notifications)으로 보내므로,
+ *    진행 현황에는 남기지 않는다. (아래 $reviewResolvedRecent 는 계산만 남겨 둠) */
 $reviewPending = 0;
 $reviewResolvedRecent = false;
 $adminReviewRows = [];
@@ -574,7 +577,6 @@ a.pstep:hover{background:#f2f6fd}
         <span class="no"><?= $s1 ? '✓' : '1' ?></span><span class="pstep__label">기본정보</span>
         <?php if ($s1): ?><span class="ptag ptag--done">완료</span>
         <?php elseif ($reviewPending > 0): ?><span class="ptag ptag--review">확인요청 <?=$reviewPending?>건</span>
-        <?php elseif ($reviewResolvedRecent): ?><span class="ptag ptag--admin">관리자 확인완료</span>
         <?php elseif ($hasBi): ?><span class="ptag ptag--part"><?=$biProg['percent']?>%</span>
         <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
       </a>
@@ -702,8 +704,6 @@ a.pstep:hover{background:#f2f6fd}
                           <span class="badge badge--setup">기본정보</span>
                           <?php if ($reviewPending > 0): ?>
                             <span class="setup-badge setup-badge--review">확인요청 <?=$reviewPending?>건</span>
-                          <?php elseif ($reviewResolvedRecent): ?>
-                            <span class="setup-badge setup-badge--admin">관리자 확인완료</span>
                           <?php elseif ($biDone): ?>
                             <span class="setup-badge setup-badge--ok">입력 완료</span>
                           <?php elseif ($hasBi): ?>
@@ -716,7 +716,6 @@ a.pstep:hover{background:#f2f6fd}
                         <h3><?= $hasBi ? h($biName) : '건물 기본정보 입력' ?></h3>
                         <p class="card__sub"><?php
                           if ($reviewPending > 0) echo 'YeoHub에 검토요청한 기본정보 항목이 ' . (int)$reviewPending . '건 있습니다. 관리자 확인 후 완료 표시로 바뀝니다.';
-                          elseif ($reviewResolvedRecent) echo '관리자가 최근 검토요청을 확인 완료했습니다. 이 표시는 며칠 뒤 자동으로 사라지고 입력 완료로 바뀝니다.';
                           elseif ($biDone) echo '대상명·주소·등급·소방안전관리자 정보 · 모든 서식에 자동 반영';
                           elseif ($hasBi) echo '남은 항목: ' . h(implode(', ', $biProg['missing']));
                           else echo '한 번만 입력하면 아래 모든 서식에 자동으로 채워집니다';

@@ -763,20 +763,20 @@ footer a:hover{color:var(--fg)}
         <!-- 2. 문답식 설정 -->
         <a class="promo__slide" href="/service.php">
           <div class="promo__top">
-            <span class="promo__tag"><i>💬</i> 문답식 설정</span>
+            <span class="promo__tag"><i>💬</i> 문답식or클릭 설정</span>
             <span class="promo__meta">묻는 대로 답하면 끝</span>
           </div>
           <div class="promo__stage promo__stage--rpt">
             <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="문답식 설정 대화 화면">
               <rect x="0" y="0" width="340" height="210" fill="#fff"/>
               <rect x="20" y="20" width="200" height="30" rx="10" fill="#f1f5f9"/>
-              <text x="32" y="39" font-size="8.5" fill="#1a2436" font-family="sans-serif">건물은 몇 층인가요?</text>
+              <text x="32" y="39" font-size="8.5" fill="#1a2436" font-family="sans-serif">소방안전관리자로 선임된 분은 누구인가요?</text>
               <rect x="150" y="58" width="170" height="26" rx="10" fill="#2563eb"/>
-              <text x="308" y="75" font-size="8.5" fill="#fff" font-family="sans-serif" text-anchor="end">지상 12층 · 지하 2층</text>
+              <text x="308" y="75" font-size="8.5" fill="#fff" font-family="sans-serif" text-anchor="end">홍길동</text>
               <rect x="20" y="92" width="230" height="30" rx="10" fill="#f1f5f9"/>
               <text x="32" y="111" font-size="8.5" fill="#1a2436" font-family="sans-serif">소방안전관리 등급은 어떻게 되나요?</text>
               <rect x="20" y="130" width="126" height="24" rx="8" fill="#eefaf1" stroke="#bfe6cb"/>
-              <text x="30" y="145" font-size="7.5" fill="#15803d" font-family="sans-serif">계산하면 1급입니다</text>
+              <text x="30" y="145" font-size="7.5" fill="#15803d" font-family="sans-serif">건축물 계산상 1급입니다 </text>
               <rect x="20" y="160" width="44" height="22" rx="7" fill="#fff" stroke="#d4dbe6"/>
               <text x="42" y="174" font-size="8" fill="#56627a" font-family="sans-serif" text-anchor="middle">특급</text>
               <rect x="70" y="160" width="44" height="22" rx="7" fill="#eefaf1" stroke="#22c55e"/>

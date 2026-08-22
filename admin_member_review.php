@@ -205,15 +205,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'resolve'
   }
   $targetId = (string)($_POST['request_id'] ?? '');
   $logs = read_json($logFile);
+  $resolvedTexts = [];
   foreach ($logs as &$row) {
     if (($row['kind'] ?? '') === 'review' && ($row['uid'] ?? '') === $uid
         && ($targetId === 'all' || ($row['id'] ?? '') === $targetId)) {
+      /* 이미 처리된 건은 다시 알리지 않습니다 */
+      if (($row['status'] ?? '') !== 'resolved') {
+        $resolvedTexts[] = (string)($row['text'] ?? '');
+      }
       $row['status'] = 'resolved';
       $row['resolved_at'] = date('Y-m-d H:i:s');
     }
   }
   unset($row);
   write_json($logFile, $logs);
+
+  /* 회원에게 알림을 보냅니다 (notifications.php 와 같은 저장 방식) */
+  if ($resolvedTexts) {
+    $ndir = $dataDir . '/notifications';
+    if (!is_dir($ndir)) @mkdir($ndir, 0775, true);
+    $nfile = $ndir . '/' . $uid . '.json';
+    $nlist = is_file($nfile) ? (json_decode((string)@file_get_contents($nfile), true) ?: []) : [];
+
+    $cnt  = count($resolvedTexts);
+    $body = $cnt === 1
+      ? mb_substr($resolvedTexts[0], 0, 120)
+      : (mb_substr($resolvedTexts[0], 0, 80) . ' 외 ' . ($cnt - 1) . '건');
+
+    array_unshift($nlist, [
+      'id'    => bin2hex(random_bytes(8)),
+      'title' => '요청하신 내용을 확인했습니다',
+      'body'  => $body,
+      'link'  => '/building_manager.php',
+      'read'  => false,
+      'at'    => date('Y-m-d H:i:s'),
+    ]);
+    $nlist = array_slice($nlist, 0, 100);
+    $ntmp  = $nfile . '.tmp';
+    if (file_put_contents($ntmp, json_encode($nlist, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX) !== false) {
+      @rename($ntmp, $nfile);
+    }
+  }
+
   header('Location: /admin_member_review.php?uid=' . rawurlencode($uid)); exit;
 }
 
@@ -221,6 +254,9 @@ $requests = [];
 foreach (array_reverse(read_json($logFile)) as $row) {
   if (($row['kind'] ?? '') === 'review' && ($row['uid'] ?? '') === $uid) $requests[] = $row;
 }
+
+/* 이 아이디가 아직 살아있는 회원인지 — 탈퇴했다면 확인할 자료가 없습니다 */
+$memberGone = !isset($members[$uid]);
 
 $planDir = $dataDir . '/fireplan/' . $uid;
 $plans = [];      // 소방계획서
@@ -308,7 +344,7 @@ a{text-decoration:none;color:inherit}.nav{background:#fff;border-bottom:1px soli
 .plan summary{cursor:pointer;font-weight:800;padding:4px 0}.plan+.plan{border-top:1px solid var(--bd);margin-top:15px;padding-top:15px}.plan-meta{font-size:12px;color:var(--mut);font-weight:400;margin-left:8px}
 .fields{display:grid;grid-template-columns:minmax(110px,180px) 1fr;margin:14px 0 0;border:1px solid var(--bd);border-radius:10px;overflow:hidden}.fields dt,.fields dd{margin:0;padding:9px 11px;border-bottom:1px solid var(--bd)}.fields dt{font-size:12px;font-weight:700;background:#f8fafc}.fields dd{font-size:13px;word-break:break-word}.fields dt:last-of-type,.fields dd:last-of-type{border-bottom:0}.fields .fields{margin:0;border-radius:6px}.empty-value{color:#94a3b8}.empty{padding:25px;text-align:center;color:var(--mut)}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.edit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.field{display:flex;flex-direction:column;gap:5px}.field.wide{grid-column:1/-1}.field label{font-size:12px;font-weight:700;color:var(--mut)}.field input,.field select{width:100%;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;font-size:13px;background:#fff}.mgr-table{width:100%;border-collapse:collapse;margin-top:16px;font-size:12px}.mgr-table th,.mgr-table td{padding:7px 5px;border-bottom:1px solid var(--bd);text-align:left}.mgr-table input,.mgr-table select{width:100%;min-width:80px;padding:7px;border:1px solid #cbd5e1;border-radius:7px}.saved{padding:11px 14px;margin-bottom:16px;border:1px solid #a7f3d0;border-radius:9px;background:#ecfdf5;color:#047857;font-size:13px;font-weight:700}@media(max-width:720px){.edit-grid{grid-template-columns:1fr 1fr}.field.wide{grid-column:1/-1}.mgr-scroll{overflow-x:auto}}
+.edit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.field{display:flex;flex-direction:column;gap:5px}.field.wide{grid-column:1/-1}.field label{font-size:12px;font-weight:700;color:var(--mut)}.field input,.field select{width:100%;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;font-size:13px;background:#fff}.mgr-table{width:100%;border-collapse:collapse;margin-top:16px;font-size:12px}.mgr-table th,.mgr-table td{padding:7px 5px;border-bottom:1px solid var(--bd);text-align:left}.mgr-table input,.mgr-table select{width:100%;min-width:80px;padding:7px;border:1px solid #cbd5e1;border-radius:7px}.saved{padding:11px 14px;margin-bottom:16px;border:1px solid #a7f3d0;border-radius:9px;background:#ecfdf5;color:#047857;font-size:13px;font-weight:700}.gone-notice{padding:12px 15px;margin-bottom:16px;border:1px solid #e2e8f0;border-radius:9px;background:#f8fafc;color:#475569;font-size:13px;line-height:1.7}.gone-notice b{display:block;color:#334155;margin-bottom:3px}.gone-notice code{background:#e2e8f0;padding:1px 6px;border-radius:5px;font-size:12px}@media(max-width:720px){.edit-grid{grid-template-columns:1fr 1fr}.field.wide{grid-column:1/-1}.mgr-scroll{overflow-x:auto}}
 .listitem{display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-top:1px dashed var(--bd)}
 .listitem:first-of-type{border-top:0}
 .listno{flex:0 0 22px;height:22px;border-radius:50%;background:#eef2ff;color:#1d4ed8;
@@ -381,9 +417,21 @@ a{text-decoration:none;color:inherit}.nav{background:#fff;border-bottom:1px soli
   <?php endif; ?>
   <?php if (isset($_GET['saved'])): ?><div class="saved">건물 기본정보를 저장했습니다.</div><?php endif; ?>
 
+  <?php if ($memberGone): ?>
+    <div class="gone-notice">
+      <b>탈퇴한 회원입니다.</b>
+      이 아이디(<code><?=h($uid)?></code>)는 삭제되어 확인할 자료가 없습니다.
+      아래 요청 기록은 참고용으로만 남아 있습니다.
+    </div>
+  <?php endif; ?>
+
   <section class="card">
     <h2>검토요청 <?=count($requests)?>건</h2>
-    <?php if (!$requests): ?><div class="empty">검토요청이 없습니다.</div><?php endif; ?>
+    <?php if (!$requests): ?>
+      <div class="empty">
+        <?= $memberGone ? '해당 아이디가 삭제되어, 확인요청이 없습니다.' : '검토요청이 없습니다.' ?>
+      </div>
+    <?php endif; ?>
     <?php foreach ($requests as $request): $pending = ($request['status'] ?? 'pending') !== 'resolved'; ?>
       <div class="request">
         <div class="meta">
