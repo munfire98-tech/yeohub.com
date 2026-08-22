@@ -32,6 +32,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'delete')
 /* 목록 조회 */
 $plans = fp_list_plans();
 
+/* ── 연도별 보유 현황 ──────────────────────────────────────────
+   법령상 소방계획은 매년 12월 31일까지 다음 해 것을 작성하고,
+   작성한 문서는 2년간 보관해야 합니다(화재예방법 시행령 제27조 관련).
+   그래서 '올해 것'과 '작년 것'이 있는지를 각각 확인해 보여줍니다.
+   계획서에 연도 필드가 따로 없으므로 작성일(created_at)의 연도로 봅니다. */
+$thisYear = (int)date('Y');
+$lastYear = $thisYear - 1;
+$nextYear = $thisYear + 1;
+
+$byYear = [];   // [연도 => 그 해에 만든 계획서 목록]
+foreach ($plans as $p) {
+  $stamp = (string)($p['created_at'] ?? $p['updated_at'] ?? '');
+  $y = (int)substr($stamp, 0, 4);
+  if ($y > 0) $byYear[$y][] = $p;
+}
+
+$hasThisYear = !empty($byYear[$thisYear]);
+$hasLastYear = !empty($byYear[$lastYear]);
+$hasNextYear = !empty($byYear[$nextYear]);
+
+/* 연말(11~12월)에는 '다음 해 계획서'를 준비할 시기임을 함께 알립니다 */
+$isYearEnd  = ((int)date('n') >= 11);
+$daysToYearEnd = (int)ceil((strtotime($thisYear . '-12-31 23:59:59') - time()) / 86400);
+
 $totalSections = 0;
 foreach (fp_sections() as $ch) $totalSections += count($ch['items']);
 ?>
@@ -75,6 +99,31 @@ a{text-decoration:none}
 .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:24px}
 .empty{text-align:center;color:var(--mut2);padding:48px 20px}
+
+/* ── 연도별 보유 현황 ── */
+.yearcov__hd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.yearcov__law{font-size:12px;color:var(--mut2)}
+.yearcov__law b{color:var(--fg)}
+.yearcov__grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ycell{border:1px solid var(--bd);border-radius:11px;padding:13px 15px;background:#fff}
+.ycell__y{font-size:13px;font-weight:800;color:var(--fg);margin-bottom:6px;
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ycell__tag{font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;
+  background:#eef2ff;color:#4338ca}
+.ycell__s{font-size:15px;font-weight:800;margin-bottom:3px}
+.ycell__d{font-size:11.5px;color:var(--mut2);line-height:1.55}
+.ycell--ok{border-color:#bfe6cb;background:#f6fdf8}
+.ycell--ok .ycell__s{color:#15803d}
+.ycell--miss{border-color:#eebfb8;background:#fef6f5}
+.ycell--miss .ycell__s{color:#b91c1c}
+.ycell--now{border-color:#f6d8a8;background:#fffbeb}
+.ycell--now .ycell__s{color:#b45309}
+.ycell--soon{border-color:#f6d8a8;background:#fffbeb}
+.ycell--soon .ycell__s{color:#b45309}
+.ycell--wait .ycell__s{color:var(--mut2)}
+.yearcov__todo{margin-top:12px;padding:11px 14px;border-radius:9px;
+  background:#fffbeb;border:1px solid #f6d8a8;color:#92400e;font-size:12.5px;line-height:1.7}
+@media(max-width:640px){.yearcov__grid{grid-template-columns:1fr}}
 .empty h3{font-size:18px;color:var(--fg);margin-bottom:8px}
 .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap}
 .toolbar h2{font-size:18px;font-weight:700}
@@ -299,6 +348,65 @@ details[open] .law__chev{transform:rotate(180deg)}
       </div>
     </div>
   </details>
+
+  <!-- ── 연도별 보유 현황 ──
+       소방계획은 매년 새로 만들고, 만든 문서는 2년간 보관해야 합니다.
+       그래서 올해·작년 것이 있는지 한눈에 보이게 합니다. -->
+  <div class="card yearcov">
+    <div class="yearcov__hd">
+      <h2>연도별 보유 현황</h2>
+      <span class="yearcov__law">소방계획은 매년 작성하고 <b>2년간 보관</b>해야 합니다</span>
+    </div>
+
+    <div class="yearcov__grid">
+      <div class="ycell <?= $hasLastYear ? 'ycell--ok' : 'ycell--miss' ?>">
+        <div class="ycell__y"><?=$lastYear?>년</div>
+        <?php if ($hasLastYear): ?>
+          <div class="ycell__s">보유 <?=count($byYear[$lastYear])?>건</div>
+          <div class="ycell__d">보관 기간 내</div>
+        <?php else: ?>
+          <div class="ycell__s">없음</div>
+          <div class="ycell__d">보관 대상인데 자료가 없습니다</div>
+        <?php endif; ?>
+      </div>
+
+      <div class="ycell <?= $hasThisYear ? 'ycell--ok' : 'ycell--now' ?>">
+        <div class="ycell__y"><?=$thisYear?>년 <span class="ycell__tag">올해</span></div>
+        <?php if ($hasThisYear): ?>
+          <div class="ycell__s">보유 <?=count($byYear[$thisYear])?>건</div>
+          <div class="ycell__d">작성 완료</div>
+        <?php else: ?>
+          <div class="ycell__s">없음</div>
+          <div class="ycell__d">올해 계획서를 작성해 주세요</div>
+        <?php endif; ?>
+      </div>
+
+      <div class="ycell <?= $hasNextYear ? 'ycell--ok' : ($isYearEnd ? 'ycell--soon' : 'ycell--wait') ?>">
+        <div class="ycell__y"><?=$nextYear?>년</div>
+        <?php if ($hasNextYear): ?>
+          <div class="ycell__s">보유 <?=count($byYear[$nextYear])?>건</div>
+          <div class="ycell__d">미리 준비됨</div>
+        <?php elseif ($isYearEnd): ?>
+          <div class="ycell__s">준비 필요</div>
+          <div class="ycell__d"><?=$daysToYearEnd?>일 남음 · 12월 31일까지</div>
+        <?php else: ?>
+          <div class="ycell__s">—</div>
+          <div class="ycell__d">연말에 준비하시면 됩니다</div>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <?php if (!$hasThisYear || (!$hasNextYear && $isYearEnd)): ?>
+      <div class="yearcov__todo">
+        <?php if (!$hasThisYear): ?>
+          <b><?=$thisYear?>년 소방계획서가 없습니다.</b> 아래에서 새로 작성해 주세요.
+        <?php else: ?>
+          <b><?=$nextYear?>년 계획서를 준비할 시기입니다.</b>
+          다음 해 계획은 <?=$thisYear?>년 12월 31일까지 작성하는 것이 원칙입니다.
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
+  </div>
 
   <div class="card">
     <div class="toolbar">
