@@ -95,6 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $clean = [
       'site_name'  => mb_substr(trim($data['site_name'] ?? ''), 0, 80),
       'work_type'  => mb_substr(trim($data['work_type'] ?? ''), 0, 40),
+      /* 적어둔 명단 원문 — 불러오기 할 때 그대로 되살립니다 */
+      'bulk_text'  => mb_substr((string)($data['bulk_text'] ?? ''), 0, 20000),
       'cmd'        => array_map(fn($v)=>mb_substr((string)$v,0,200), (array)($data['cmd'] ?? [])),
       'deputy'     => array_map(fn($v)=>mb_substr((string)$v,0,200), (array)($data['deputy'] ?? [])),
       'groups'     => [],
@@ -321,6 +323,9 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
   .btn-primary:hover{background:var(--red-d)}
   .btn-navy{background:var(--navy);color:#fff;box-shadow:0 2px 8px rgba(58,85,114,.22)}
   .btn-navy:hover{background:#2f465e}
+  .btn-success{background:#16a34a;color:#fff;box-shadow:0 2px 8px rgba(22,163,74,.22);
+    text-decoration:none}
+  .btn-success:hover{background:#15803d;color:#fff}
   .btn-ghost{background:#fff;border:1px solid #d6dce6;color:var(--ink)}
   .btn-ghost:hover{background:#f5f7fa}
   .btn-sm{padding:6px 11px;font-size:12px;border-radius:8px}
@@ -372,6 +377,28 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
     padding-top:9px;border-top:1px dashed #e3e8f0}
   .next-hint b{color:var(--navy)}
   .next-hint.done{color:#15803d}
+  /* 명단을 적고 배치 전 — 다음에 눌러야 할 것을 눈에 띄게 */
+  .next-hint--ready{color:#15803d;font-weight:700;font-size:12.5px}
+  .next-hint--ready b{color:#15803d}
+  .btn--nudge{box-shadow:0 0 0 4px rgba(192,57,43,.22);
+    animation:nudgePulse 1.5s ease-in-out infinite}
+  .btn-navy.btn--nudge{box-shadow:0 0 0 4px rgba(58,85,114,.24),0 2px 8px rgba(58,85,114,.22)}
+  .btn-success.btn--nudge{box-shadow:0 0 0 4px rgba(22,163,74,.24),0 2px 8px rgba(22,163,74,.22)}
+  @keyframes nudgePulse{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  @media(prefers-reduced-motion:reduce){.btn--nudge{animation:none}}
+
+  /* ── 저장 완료 안내 ── */
+  .savedone{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    background:#f6fdf8;border:1px solid #bfe6cb;border-radius:var(--radius);
+    padding:14px 16px;margin-bottom:16px;box-shadow:var(--shadow)}
+  .savedone__ic{font-size:20px;flex-shrink:0}
+  .savedone__tx{flex:1;min-width:0}
+  .savedone__tx b{display:block;font-size:14px;font-weight:800;color:#15803d}
+  .savedone__tx small{display:block;font-size:12px;color:var(--mut);margin-top:3px;line-height:1.6}
+  .savedone__btn{flex-shrink:0;background:#16a34a;color:#fff;border-radius:10px;
+    padding:10px 17px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap}
+  .savedone__btn:hover{filter:brightness(1.08);color:#fff}
+  @media(max-width:560px){.savedone__btn{width:100%;text-align:center}}
   .next-hint.done b{color:#15803d}
   .paste-help__note{font-size:11.5px;color:var(--mut);line-height:1.7;margin-top:9px;
     background:#f8fafc;border:1px dashed #ccd6e4;border-radius:9px;padding:10px 12px}
@@ -496,7 +523,13 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
     display:flex;gap:10px;justify-content:center;align-items:center;
     box-shadow:0 -2px 14px rgba(16,24,40,.07);z-index:35}
   .savebar .meta{font-size:12px;color:var(--mut);margin-right:6px}
-  @media (max-width:560px){ .savebar .meta{display:none} .savebar .btn{flex:1;justify-content:center} }
+  .savebar .btn{white-space:nowrap}
+  .savebar__next[hidden]{display:none}
+  @media (max-width:560px){
+    .savebar{gap:6px;padding:9px 8px}
+    .savebar .meta{display:none}
+    .savebar .btn{flex:1;justify-content:center;padding:10px 7px;font-size:12px}
+  }
 
   .toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%) translateY(8px);
     background:#1f2430;color:#fff;padding:11px 18px;border-radius:11px;font-size:13px;
@@ -655,6 +688,16 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
     </div>
 
 
+    <!-- 저장이 끝나면 나타나는 안내 (저장 후 다음 할 일) -->
+    <div class="savedone no-print" id="savedDone" style="display:none">
+      <div class="savedone__ic">✅</div>
+      <div class="savedone__tx">
+        <b>편성표를 저장했습니다</b>
+        <small>건물 관리 페이지에서 남은 항목을 이어서 진행하실 수 있습니다.</small>
+      </div>
+      <a class="savedone__btn" href="/building_manager.php">건물 관리로 →</a>
+    </div>
+
     <!-- ① 대상물 -->
     <section class="card no-print" id="p1">
       <div class="card__hd">
@@ -783,15 +826,18 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
 </div>
 
 <div class="savebar no-print">
-  <span class="meta" id="editingHint"></span>
-  <button class="btn btn-navy" onclick="saveplan()">💾 저장</button>
-  <button class="btn btn-primary" onclick="window.print()">🖨️ 인쇄 / PDF</button>
+  <span class="meta" id="editingHint" aria-live="polite"></span>
+  <button class="btn btn-navy" id="savePlanBtn" type="button" onclick="saveplan()">💾 저장</button>
+  <a class="btn btn-success savebar__next" id="buildingManagerBtn" href="/building_manager.php" hidden>🏢 건물 관리로</a>
+  <button class="btn btn-primary" type="button" onclick="window.print()">🖨️ 인쇄 / PDF</button>
 </div>
 <div class="toast no-print" id="toast"></div>
 
 <script>
 const CSRF = <?=json_encode($CSRF)?>;
 let currentPlanId = null;   // 현재 불러와 수정 중인 편성표 id (null이면 신규)
+let finalAction = '';       // autoAssign 뒤 save, 저장 성공 뒤 building
+let rosterChanged = false;  // 명단을 고친 뒤 다시 자동 배치해야 하는 상태
 
 /* ---------- 임무 기본 문구 (활동조 자동 배정용) ---------- */
 const GROUP_TEMPLATES = [
@@ -844,6 +890,17 @@ function parseLine(line){
 const MGR_NAME = <?=json_encode($JW_MGR)?>;
 const MGR_TEL  = <?=json_encode($JW_MGRTEL)?>;
 
+function hideSavedDone(){
+  const done = document.getElementById('savedDone');
+  if (done) done.style.display = 'none';
+}
+
+function markRosterChanged(){
+  rosterChanged = true;
+  finalAction = '';
+  hideSavedDone();
+}
+
 function fillMgr(){
   if (!MGR_NAME) return;
   const ta = document.getElementById('bulkInput');
@@ -851,6 +908,7 @@ function fillMgr(){
   const cur = ta.value.split(/\n/).map(s=>s.trim()).filter(Boolean);
   if (cur.some(l => l.indexOf(MGR_NAME) === 0)) { toast('이미 명단에 있습니다.'); return; }
   ta.value = [line].concat(cur).join('\n');
+  markRosterChanged();
   countBulk(); ta.focus();
   toast(MGR_NAME + ' 님을 대장 자리(첫 줄)에 넣었습니다.');
 }
@@ -865,6 +923,7 @@ function fillSample(){
     '박민수 010-5555-6666',
     '최수진'
   ].join('\n');
+  markRosterChanged();
   countBulk(); ta.focus();
   toast('예시를 넣었습니다. 실제 이름으로 바꾼 뒤 자동 배치를 누르세요.');
 }
@@ -877,7 +936,24 @@ function countBulk(){
   const el = document.getElementById('bulkCount');
   if (el){ el.textContent = n + '명'; el.classList.toggle('zero', n===0); }
   const btn = document.getElementById('assignBtn');
-  if (btn) btn.textContent = n > 0 ? ('⚡ ' + n + '명 자동 배치') : '⚡ 자동 배치';
+  if (btn) {
+    btn.textContent = n > 0 ? ('⚡ ' + n + '명 자동 배치') : '⚡ 자동 배치';
+    /* 명단은 적었는데 아직 배치를 안 했으면 버튼을 눈에 띄게 해서 다음 행동을 유도합니다 */
+    const notAssigned = rosterChanged || !(model && (model.cmd && model.cmd.name || (model.groups||[]).length));
+    btn.classList.toggle('btn--nudge', n > 0 && notAssigned);
+  }
+  /* 안내 문구도 상황에 맞게 바꿉니다 */
+  const hint = document.getElementById('nextHint');
+  if (hint) {
+    const notAssigned2 = rosterChanged || !(model && (model.cmd && model.cmd.name || (model.groups||[]).length));
+    if (n > 0 && notAssigned2) {
+      hint.innerHTML = '✅ ' + n + '명을 적으셨습니다. 이제 <b>⚡ ' + n + '명 자동 배치</b>를 눌러주세요';
+      hint.classList.add('next-hint--ready');
+    } else {
+      hint.innerHTML = '명단을 적고 <b>⚡ 자동 배치</b>를 누르면 아래 편성표가 채워집니다';
+      hint.classList.remove('next-hint--ready');
+    }
+  }
   renderLivePreview(lines);
   markSteps();
 }
@@ -949,10 +1025,41 @@ function toggleFold(force){
 }
 
 /* 단계 번호 색을 현재 상태에 맞춥니다 */
+function hasAssignedPeople(){
+  return !!(model && (model.cmd && model.cmd.name || (model.groups||[]).length));
+}
+
+/* 자동 배치 다음에는 저장, 저장 다음에는 건물 관리로 버튼 하나만 강조합니다. */
+function updateFinalActions(){
+  const saveBtn = document.getElementById('savePlanBtn');
+  const buildingBtn = document.getElementById('buildingManagerBtn');
+  const meta = document.getElementById('editingHint');
+  const needsSave = finalAction === 'save' && hasAssignedPeople();
+  const goBuilding = finalAction === 'building' && !!currentPlanId && !rosterChanged;
+
+  if (saveBtn) {
+    saveBtn.classList.toggle('btn--nudge', needsSave);
+    saveBtn.textContent = needsSave ? '💾 이제 저장' : (currentPlanId ? '💾 다시 저장' : '💾 저장');
+  }
+  if (buildingBtn) {
+    buildingBtn.hidden = !goBuilding;
+    buildingBtn.classList.toggle('btn--nudge', goBuilding);
+  }
+  if (meta && needsSave) meta.textContent = '편성표를 확인한 뒤 저장해 주세요';
+  if (meta && goBuilding) meta.textContent = '저장 완료 · 건물 관리에서 계속하세요';
+}
+
+function markPlanChanged(){
+  if (!hasAssignedPeople()) return;
+  finalAction = 'save';
+  hideSavedDone();
+  markSteps();
+}
+
 function markSteps(){
   const site = (document.getElementById('siteName')||{}).value || '';
   const ta   = (document.getElementById('bulkInput')||{}).value || '';
-  const hasPeople = !!(model && (model.cmd && model.cmd.name || (model.groups||[]).length));
+  const hasPeople = hasAssignedPeople() && !rosterChanged;
   const set = (id, cls) => { const el=document.getElementById(id); if(el) el.className='stepno '+cls; };
   set('sn1', site.trim() ? 'done' : '');
   if (hasPeople)      { set('sn2','done'); set('sn3',''); }
@@ -961,11 +1068,12 @@ function markSteps(){
 
   /* 우측 진행 현황 패널도 같이 갱신합니다 */
   updateProgress(site.trim() !== '', ta.trim() !== '', hasPeople);
+  updateFinalActions();
 }
 
 /* 우측 진행 현황 — 지금 어디까지 왔고 다음에 뭘 해야 하는지 보여줍니다 */
 function updateProgress(hasSite, hasText, hasPeople){
-  const saved = !!currentPlanId;
+  const saved = !!currentPlanId && finalAction !== 'save' && !rosterChanged;
   /* [단계, 끝났나, 지금 할 차례인가, 배지 글자] */
   const steps = [
     ['1', hasSite,   !hasSite,                       hasSite   ? '완료' : '지금'],
@@ -988,6 +1096,7 @@ function updateProgress(hasSite, hasText, hasPeople){
       !hasText   ? '아래에 명단을 붙여넣어 주세요' :
       !hasPeople ? '자동 배치를 눌러주세요' :
       !saved     ? '확인 후 저장하면 끝납니다' :
+      finalAction === 'building' ? '저장되었습니다. 건물 관리로 이동하세요' :
                    '저장되었습니다. 언제든 고칠 수 있습니다';
   }
 }
@@ -1012,7 +1121,11 @@ function autoAssign(){
     si++;
   });
   model.groups = model.groups.filter(g=>g.members.length>0);
+  rosterChanged = false;
+  finalAction = 'save';
+  hideSavedDone();
   render();
+  countBulk();
   toggleFold(true);                                   // 배치 끝나면 ②는 접어 시야를 넓힙니다
   /* 다음에 뭘 하면 되는지 안내를 바꿔줍니다 */
   var nh = document.getElementById('nextHint');
@@ -1026,7 +1139,11 @@ function autoAssign(){
 
 function clearAll(){
   model = { cmd:{name:"",tel:"",dept:"",task:CMD_TASK}, deputy:{name:"",tel:"",dept:"",task:DEP_TASK}, groups:[] };
+  rosterChanged = !!((document.getElementById('bulkInput')||{}).value || '').trim();
+  finalAction = currentPlanId ? 'save' : '';
+  hideSavedDone();
   render();
+  countBulk();
 }
 
 const CIRC = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨"];
@@ -1201,7 +1318,10 @@ function syncPrintHead(){
   if (tc) tc.textContent = total + "명";
 }
 document.addEventListener('input', e=>{
-  if (e.target && (e.target.id==='siteName' || e.target.id==='workType')) syncPrintHead();
+  if (e.target && (e.target.id==='siteName' || e.target.id==='workType')) {
+    syncPrintHead();
+    markPlanChanged();
+  }
 });
 
 /* 표를 고치는 동안 조직도를 다시 그립니다.
@@ -1209,22 +1329,25 @@ document.addEventListener('input', e=>{
 let chartT = null;
 function chartSoon(){ clearTimeout(chartT); chartT = setTimeout(renderChart, 250); }
 
-function updCmd(key,field,val){ model[key][field]=val; if(field==='name') syncPrintHead(); chartSoon(); }
+function updCmd(key,field,val){ model[key][field]=val; if(field==='name') syncPrintHead(); markPlanChanged(); chartSoon(); }
 function upd(gi,mi,field,val){
-  if(field==='gname'){ model.groups[gi].name=val; chartSoon(); return; }
+  if(field==='gname'){ model.groups[gi].name=val; markPlanChanged(); chartSoon(); return; }
   model.groups[gi].members[mi][field]=val;
-  chartSoon();
+  markPlanChanged(); chartSoon();
 }
-function addMember(gi){ model.groups[gi].members.push({name:"",tel:"",dept:"",task:""}); render(); }
-function delMember(gi,mi){ model.groups[gi].members.splice(mi,1); render(); }
-function delGroup(gi){ if(confirm("이 활동조를 삭제할까요?")){ model.groups.splice(gi,1); render(); } }
-function addGroup(){ model.groups.push({name:"새 활동조", members:[{name:"",tel:"",dept:"",task:""}]}); render(); }
+function addMember(gi){ model.groups[gi].members.push({name:"",tel:"",dept:"",task:""}); markPlanChanged(); render(); }
+function delMember(gi,mi){ model.groups[gi].members.splice(mi,1); markPlanChanged(); render(); }
+function delGroup(gi){ if(confirm("이 활동조를 삭제할까요?")){ model.groups.splice(gi,1); markPlanChanged(); render(); } }
+function addGroup(){ model.groups.push({name:"새 활동조", members:[{name:"",tel:"",dept:"",task:""}]}); markPlanChanged(); render(); }
 
 /* ---------- 저장 / 불러오기 ---------- */
 function collect(){
   return {
     site_name: document.getElementById('siteName').value,
     work_type: document.getElementById('workType').value,
+    /* 적어둔 명단 원문도 함께 저장합니다.
+       이게 없으면 불러왔을 때 편성 결과만 보이고, 명단을 다시 적어야 합니다. */
+    bulk_text: (document.getElementById('bulkInput')||{}).value || '',
     cmd:    [model.cmd.name, model.cmd.tel, model.cmd.task],
     deputy: [model.deputy.name, model.deputy.tel, model.deputy.task],
     groups: model.groups
@@ -1240,28 +1363,64 @@ async function saveplan(){
     const res = await fetch(location.pathname,{method:'POST',body:fd}).then(r=>r.json());
     if(res.ok){
       currentPlanId = res.id;
+      finalAction = 'building';
       toast(res.updated ? "수정 저장됨 ("+res.saved+")" : "새 편성표로 저장됨");
       setEditingHint();
       markSteps();      // 저장되면 3단계가 '저장됨'으로 바뀝니다
       loadList();
+      showSavedDone(); // 저장 후 다음에 할 일을 안내합니다
     } else toast("저장 실패: "+(res.msg||""));
   }catch(e){ toast("네트워크 오류"); }
 }
 
+/* 저장이 끝나면 안내를 남기고, 하단의 '건물 관리로' 버튼을 강조합니다. */
+function showSavedDone(){
+  const el = document.getElementById('savedDone');
+  if (!el) return;
+  el.style.display = '';
+  updateFinalActions();
+}
+
 function applyPlan(p){
+  finalAction = '';
+  rosterChanged = false;
   document.getElementById('siteName').value=p.site_name||"";
   document.getElementById('workType').value=p.work_type||"단일근무(주간)";
   model.cmd={name:(p.cmd&&p.cmd[0])||"",tel:(p.cmd&&p.cmd[1])||"",task:(p.cmd&&p.cmd[2])||CMD_TASK};
   model.deputy={name:(p.deputy&&p.deputy[0])||"",tel:(p.deputy&&p.deputy[1])||"",task:(p.deputy&&p.deputy[2])||DEP_TASK};
   model.groups=(p.groups||[]).map(g=>({name:g.name||"",members:(g.members||[]).map(m=>({name:m.name||"",tel:m.tel||"",task:m.task||""}))}));
+
+  /* 적어둔 명단도 되살립니다.
+     예전에 저장한 편성표에는 bulk_text 가 없으므로, 그때는 편성 결과에서 거꾸로 만들어 채웁니다. */
+  const ta = document.getElementById('bulkInput');
+  if (ta) {
+    ta.value = (typeof p.bulk_text === 'string' && p.bulk_text !== '')
+      ? p.bulk_text
+      : rebuildBulkFromModel();
+    countBulk();
+  }
   render();
+}
+
+/* 편성 결과(model)에서 명단 텍스트를 거꾸로 만들어 냅니다.
+   순서는 대장 → 부대장 → 활동조 차례이며, 자동 배치가 읽는 형식과 같습니다. */
+function rebuildBulkFromModel(){
+  const lines = [];
+  const push = (m) => {
+    if (!m || !m.name) return;
+    lines.push([m.name, m.tel || '', m.task || ''].filter(Boolean).join('   '));
+  };
+  push(model.cmd);
+  push(model.deputy);
+  (model.groups || []).forEach(g => (g.members || []).forEach(push));
+  return lines.join('\n');
 }
 
 async function loadPlan(id){
   const fd=new FormData(); fd.append('csrf',CSRF); fd.append('action','fire_load'); fd.append('plan_id',id);
   const res=await fetch(location.pathname,{method:'POST',body:fd}).then(r=>r.json());
   if(res && res.plan){
-    currentPlanId=id; applyPlan(res.plan); setEditingHint();
+    currentPlanId=id; finalAction=''; applyPlan(res.plan); setEditingHint();
     loadList(); toggleFold(true);
     toast("불러왔습니다. 수정 후 저장하면 이 항목이 갱신됩니다.");
     document.getElementById('p3').scrollIntoView({behavior:'smooth', block:'start'});
@@ -1272,7 +1431,7 @@ async function deletePlan(id, name){
   if(!confirm("'"+(name||'이 편성표')+"' 를 삭제할까요?")) return;
   const fd=new FormData(); fd.append('csrf',CSRF); fd.append('action','fire_delete'); fd.append('plan_id',id);
   await fetch(location.pathname,{method:'POST',body:fd}).then(r=>r.json());
-  if(currentPlanId===id){ currentPlanId=null; setEditingHint(); }
+  if(currentPlanId===id){ currentPlanId=null; finalAction=''; setEditingHint(); }
   toast("삭제되었습니다."); loadList();
 }
 
@@ -1285,10 +1444,13 @@ async function dupPlan(id){
 
 function newPlan(){
   currentPlanId=null;
+  finalAction='';
+  rosterChanged=false;
   clearAll();
   document.getElementById('siteName').value="";
   document.getElementById('workType').value="단일근무(주간)";
   document.getElementById('bulkInput').value="";
+  rosterChanged=false;
   countBulk(); setEditingHint(); toggleFold(false);
   toast("새 편성표 작성 모드입니다.");
   window.scrollTo({top:0,behavior:'smooth'});
@@ -1305,6 +1467,7 @@ function setEditingHint(){
     chip.textContent="🆕 새 편성표"; chip.className="status";
   }
   document.querySelectorAll('.plan-card').forEach(c=>c.classList.toggle('active', c.dataset.id===currentPlanId));
+  updateFinalActions();
 }
 
 async function loadList(){
@@ -1351,7 +1514,11 @@ loadList();
 /* ── 입력에 반응해 안내를 갱신합니다 ── */
 (function(){
   const ta = document.getElementById('bulkInput');
-  if (ta) ta.addEventListener('input', countBulk);
+  if (ta) ta.addEventListener('input', function(){
+    markRosterChanged();
+    countBulk();
+    updateFinalActions();
+  });
   const sn = document.getElementById('siteName');
   if (sn) sn.addEventListener('input', markSteps);
   if (sn && sn.value.trim() !== '') {
