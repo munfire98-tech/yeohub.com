@@ -44,8 +44,8 @@ $CSRF = $_SESSION['csrf'];
 
 /* ── 요금제 정의 (여기만 고치면 화면·저장값이 함께 바뀝니다) ── */
 const PLANS = [
-  'monthly' => ['name'=>'월 구독', 'price'=>1900,  'period'=>'월', 'months'=>1],
-  'yearly'  => ['name'=>'연 구독', 'price'=>19000, 'period'=>'년', 'months'=>12],
+  'monthly' => ['name'=>'월 구독', 'price'=>2900,  'period'=>'월', 'months'=>1],
+  'yearly'  => ['name'=>'연 구독', 'price'=>29000, 'period'=>'년', 'months'=>12],
 ];
 
 /* ── 저장 위치 ── */
