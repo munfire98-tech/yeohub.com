@@ -82,17 +82,7 @@ $reviewPending = 0;
 $reviewResolvedRecent = false;
 $adminReviewRows = [];
 
-/* 구독(Pro) 상태 — 우측 패널의 안내를 무엇으로 보여줄지 정하는 데 씁니다.
-   active 면 이미 이용 중이므로 '구독하기'를 띄우지 않습니다. */
-$proStatus = 'none';
-if ($keySafe) {
-  $subFile = __DIR__ . '/data/subscribe/' . $rawKey . '/subscription.json';
-  if (is_file($subFile)) {
-    $subData = json_decode((string)@file_get_contents($subFile), true);
-    if (is_array($subData)) $proStatus = (string)($subData['status'] ?? 'none');
-  }
-}
-$isPro = ($proStatus === 'active');
+
 $reviewResolvedUntil = strtotime('-7 days');
 $reviewFile = __DIR__ . '/data/assist_log.json';
 $memberUid = $viewUid;
@@ -188,6 +178,37 @@ $mon = date('n') . '월';
 $rawKey = $viewUid !== '' ? $viewUid : (string)($_SESSION['member_id'] ?? ('kakao_' . ($_SESSION['kakao_id'] ?? 'guest')));
 $keySafe = !preg_match('#[/\\\\]|\.\.#', $rawKey);          // 경로 문자 방어
 $wlKey   = preg_replace('/[^A-Za-z0-9_]/', '_', $rawKey);   // work_log.php와 같은 규칙
+
+/* 구독(Pro) 상태 — 우측 패널의 안내를 무엇으로 보여줄지 정하는 데 씁니다.
+   ★ 저장 위치는 subscribe_page.php / toss_billing.php 와 똑같이
+     app_user_key() 기준이어야 합니다(다르면 파일을 못 찾습니다). */
+$proStatus = 'none';
+/* 요금제·다음 결제일 등 자세한 내용은 subscribe_page.php 에서 보여줍니다.
+   여기서는 '이용 중' 여부만 쓰지만, 필요해질 때를 위해 읽어는 둡니다. */
+$proPlan = ''; $proNext = ''; $proPrice = 0;
+if (!function_exists('app_user_key') && is_file(__DIR__ . '/user_key.php')) {
+  require_once __DIR__ . '/user_key.php';
+}
+$__subKey = function_exists('app_user_key') ? app_user_key() : '';
+if ($__subKey !== '') {
+  $subFile = __DIR__ . '/data/subscribe/' . $__subKey . '/subscription.json';
+  if (is_file($subFile)) {
+    $subData = json_decode((string)@file_get_contents($subFile), true);
+    if (is_array($subData)) {
+      $proStatus = (string)($subData['status'] ?? 'none');
+      $proPlan   = (string)($subData['plan_name'] ?? '');
+      $proNext   = (string)($subData['next_billing'] ?? '');
+      $proPrice  = (int)($subData['price'] ?? 0);
+    }
+  }
+}
+$isPro = ($proStatus === 'active');
+
+/* Pro 기능 링크 — 구독 중이면 원래 페이지로, 아니면 구독 페이지로 보냅니다.
+   카드는 구독 여부와 상관없이 똑같이 보여줍니다(있는 줄 알아야 구독하니까요). */
+$proLink = function (string $path) use ($isPro, $url): string {
+  return $isPro ? $url($path) : $url('/subscribe_page.php');
+};
 
 /* ① 이번 달 업무수행 기록표: data/worklog/{uid}/mYYYY-MM.json 존재 여부 */
 $doneWorkLog = is_file(__DIR__ . '/data/worklog/' . $wlKey . '/m' . date('Y-m') . '.json');
@@ -353,6 +374,63 @@ require __DIR__ . '/_header.php';
   display:inline-flex;align-items:center;text-decoration:none}
 .subs__btn:hover{filter:brightness(1.08)}
 
+/* ── Pro 기능 카드: 미구독은 어둡게, 구독 중은 밝게 ── */
+.prolock{margin-top:16px;background:#111827;border:1px solid #293548;color:#e5e7eb;
+  border-radius:14px;padding:17px 19px;box-shadow:0 6px 18px rgba(15,23,42,.18)}
+.prolock__hd{display:flex;align-items:center;gap:11px;flex-wrap:wrap;
+  padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,.12)}
+.prolock__badge{flex-shrink:0;font-size:10px;font-weight:900;letter-spacing:.06em;
+  padding:4px 9px;border-radius:6px;background:#fbbf24;color:#3b2500;
+  border:1px solid #f59e0b}
+.prolock__ttx{flex:1;min-width:0}
+.prolock__ttx b{display:block;font-size:14px;font-weight:800;color:#fff;line-height:1.4}
+.prolock__ttx small{display:block;font-size:11.5px;color:#94a3b8;margin-top:3px}
+.prolock__btn{flex-shrink:0;background:#fff;color:#111827;border-radius:9px;
+  padding:9px 16px;font-size:12.5px;font-weight:800;text-decoration:none;white-space:nowrap}
+.prolock__btn:hover{background:#f1f5f9;color:#111827}
+
+.prolock__list{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:9px}
+.prolock__i{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none;
+  background:#1f2937;border:1px solid #334155;border-radius:10px;
+  padding:12px 13px;transition:.14s}
+.prolock__i:hover{background:#263449;border-color:#475569;transform:translateY(-1px)}
+.prolock__ic{font-size:16px;flex-shrink:0;line-height:1.35}
+.prolock__i > div{flex:1;min-width:0}
+.prolock__i b{display:block;font-size:12.5px;font-weight:700;color:#f8fafc;line-height:1.45}
+.prolock__i small{display:block;font-size:11px;color:#94a3b8;margin-top:3px;line-height:1.55}
+.prolock__go{flex-shrink:0;font-size:13px;color:#64748b;font-weight:700}
+.prolock__i:hover .prolock__go{color:#bfdbfe}
+
+/* 구독 중 — 밝은 카드와 초록색 완료 표시로 전환합니다 */
+.prolock--on{background:#fff;border-color:#bbf7d0;color:var(--fg);
+  box-shadow:0 6px 18px rgba(21,128,61,.10)}
+.prolock--on .prolock__hd{border-bottom-color:var(--bd)}
+.prolock--on .prolock__badge{background:#f0fdf4;color:#15803d;border-color:#bbf7d0}
+.prolock--on .prolock__ttx b{color:var(--fg)}
+.prolock--on .prolock__ttx small{color:var(--mut)}
+.prolock--on .prolock__btn{background:#ecfdf5;color:#047857;border:1px solid #bbf7d0}
+.prolock--on .prolock__btn:hover{background:#dcfce7;border-color:#86efac;color:#047857;filter:none}
+.prolock--on .prolock__list{gap:0;border:1px solid var(--bd);border-radius:10px;overflow:hidden}
+.prolock--on .prolock__i{background:#fff;border:0;border-radius:0;padding:14px 16px;min-height:68px}
+.prolock--on .prolock__i+.prolock__i{border-left:1px solid var(--bd)}
+.prolock--on .prolock__i:hover{background:#f8fbff;transform:none}
+.prolock--on .prolock__ic{width:32px;height:32px;display:inline-flex;align-items:center;
+  justify-content:center;border-radius:8px;background:#f1f5f9;font-size:16px;line-height:1}
+.prolock--on .prolock__i b{color:var(--fg)}
+.prolock--on .prolock__i small{color:var(--mut2)}
+.prolock--on .prolock__go{color:var(--mut);transition:transform .14s,color .14s}
+.prolock--on .prolock__i:hover .prolock__go{color:var(--brand2);transform:translateX(2px)}
+
+@media(max-width:680px){
+  .prolock--on .prolock__list{grid-template-columns:1fr}
+  .prolock--on .prolock__i+.prolock__i{border-left:0;border-top:1px solid var(--bd)}
+}
+
+@media(max-width:560px){
+  .prolock__hd{gap:9px}
+  .prolock__btn{width:100%;text-align:center;order:3}
+}
+
 /* 전체 인쇄 카드 (자동알림 배너 아래) — 같은 형태에 색만 구분합니다 */
 .prt{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
   padding:13px 16px;border-radius:12px;background:#f0f9ff;border:1px solid #bae6fd}
@@ -404,12 +482,12 @@ require __DIR__ . '/_header.php';
 
 /* ── Pro 구독 안내 (진행 현황 위) ── */
 .pro{width:236px;flex-shrink:0;border-radius:14px;padding:15px 16px;margin-bottom:12px;
-  background:linear-gradient(150deg,#1e293b,#0f172a);color:#e2e8f0;
+  background:#111827;color:#e2e8f0;border:1px solid #293548;
   box-shadow:0 6px 18px rgba(15,23,42,.18)}
 .pro__row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
 .pro__badge{font-size:10px;font-weight:900;letter-spacing:.06em;padding:3px 8px;border-radius:6px;
   background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#3b2500}
-.pro__badge--on{background:linear-gradient(135deg,#34d399,#10b981);color:#04301f}
+.pro__badge--on{background:#ecfdf5;color:#047857;border:1px solid #bbf7d0}
 .pro__badge--wait{background:#475569;color:#cbd5e1}
 .pro__t{font-size:13.5px;font-weight:800;color:#fff}
 .pro__d{font-size:11.5px;color:#94a3b8;line-height:1.7;margin-bottom:11px}
@@ -419,8 +497,26 @@ require __DIR__ . '/_header.php';
 .pro__price{font-size:10.5px;color:#64748b;text-align:center;margin-top:7px}
 .pro__link{display:inline-block;font-size:11.5px;color:#93c5fd;text-decoration:none;font-weight:700}
 .pro__link:hover{color:#bfdbfe}
-.pro--on{background:linear-gradient(150deg,#064e3b,#022c22)}
-.pro--wait{background:linear-gradient(150deg,#334155,#1e293b)}
+.pro--on{background:#fff;color:var(--fg);border-color:var(--bd);
+  box-shadow:0 4px 14px rgba(15,30,60,.06)}
+/* 구독 중 — 요금제·다음 결제일까지 보여줍니다 */
+.pro__dot{width:7px;height:7px;border-radius:50%;background:#34d399;margin-left:auto;
+  box-shadow:0 0 0 3px rgba(52,211,153,.22);animation:proPulse 2.4s ease-in-out infinite}
+@keyframes proPulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media(prefers-reduced-motion:reduce){.pro__dot{animation:none}}
+.pro--on .pro__t{color:var(--fg)}
+.pro--on .pro__d{color:var(--mut2)}
+.pro--wait .pro__d{color:#94a3b8}
+
+/* 구독 관리 버튼 */
+.pro__btn--on{background:#fff;color:var(--brand2);
+  border:1px solid #c7dbff;cursor:pointer}
+.pro__btn--on:hover{background:#f8fbff;border-color:var(--brand);color:var(--brand2)}
+.pro__btn--wait{background:rgba(255,255,255,.10);color:#cbd5e1;
+  border:1px solid rgba(255,255,255,.16)}
+.pro__btn--wait:hover{background:rgba(255,255,255,.16);color:#fff}
+.pro--on .pro__price{color:var(--mut)}
+.pro--wait{background:#111827}
 @media(max-width:760px){.pro{width:100%}}
 
 .prog{width:236px;flex-shrink:0;background:#fff;border:1px solid var(--bd);border-radius:14px;
@@ -533,58 +629,38 @@ a.pstep:hover{background:#f2f6fd}
       <h1>건물 소방안전관리</h1>
       <p>담당 건물의 점검 일정과 안전 관리 현황을 한 곳에서 확인하세요.</p>
 
-      <?php if ($evacModels): ?>
-      <div class="evac-strip">
-        <span class="evac-strip__label">🔥 배정된 피난 시뮬레이션</span>
-        <?php foreach ($evacModels as $em): ?>
-          <a class="evac-chip" href="/evac_view.php?id=<?=h(rawurlencode($em['id']))?>">
-            <span class="ic">🏢</span><?=h($em['name'])?><span class="go">→</span>
+
+
+      <!-- Pro 기능 — 구독 여부에 따라 안내 문구와 링크만 달라집니다 -->
+      <div class="prolock<?= $isPro ? ' prolock--on' : '' ?>">
+        <div class="prolock__hd">
+          <span class="prolock__badge"><?= $isPro ? '✓ PRO' : 'PRO' ?></span>
+          <div class="prolock__ttx">
+            <b><?= $isPro ? 'Settings' : '구독하면 이 기능이 열립니다' ?></b>
+          </div>
+        </div>
+
+        <div class="prolock__list">
+          <?php
+            /* 구독 중이면 각 기능으로, 아니면 구독 페이지로 보냅니다 */
+            $go = fn(string $path) => $url($isPro ? $path : '/subscribe_page.php');
+          ?>
+          <a class="prolock__i" href="<?=h($go('/ar.php'))?>">
+            <span class="prolock__ic">🔥</span>
+            <div><b>피난 시뮬레이션</b><small>대피 경로 설정</small></div>
+            <span class="prolock__go">→</span>
           </a>
-          <button type="button" class="evac-qr-btn" title="QR로 공유"
-            onclick="showQr('<?=h(rawurlencode($em['id']))?>','<?=h($em['name'])?>')">📱</button>
-        <?php endforeach; ?>
-      </div>
-      <?php else: ?>
-      <div class="evac-req <?= $evacRequested ? 'evac-req--done' : ($hasBi ? '' : 'evac-req--wait') ?>" id="evacReq">
-        <div>
-          <div class="evac-req__t" id="evacReqT">
-            <?php if ($evacRequested): ?>✓ 요청 완료 — 관리자 확인 중입니다
-            <?php elseif (!$hasBi): ?>🔒 피난 시뮬레이션 — 기본정보 입력 후 신청할 수 있습니다
-            <?php else: ?>🔥 피난 시뮬레이션이 아직 배정되지 않았습니다<?php endif; ?>
-          </div>
-          <div class="evac-req__d" id="evacReqD">
-            <?php if ($evacRequested): ?>배정이 완료되면 이 자리에 시뮬레이션이 표시됩니다.
-            <?php elseif (!$hasBi): ?>신청에는 건물 주소와 소방안전관리자 연락처가 필요합니다. 기본정보를 먼저 입력해 주세요.
-            <?php else: ?>관리자가 건물 도면대로 만든 대피 시뮬레이션을 배정받을 수 있습니다.<?php endif; ?>
-          </div>
+          <a class="prolock__i" href="<?=h($go('/notifications.php'))?>">
+            <span class="prolock__ic">🔔</span>
+            <div><b>자동알림</b><small>업무,교육,훈련일정,알림</small></div>
+            <span class="prolock__go">→</span>
+          </a>
+          <a class="prolock__i" href="<?=h($go('/print_all.php'))?>">
+            <span class="prolock__ic">🖨</span>
+            <div><b>서류 전체 인쇄</b><small>작성한 서류를 모아서 한 번에</small></div>
+            <span class="prolock__go">→</span>
+          </a>
         </div>
-        <?php if (!$evacRequested && !$hasBi): ?>
-          <a class="evac-req__btn evac-req__btn--go" href="<?=h($url('/building_setup_chat.php'))?>">기본정보 입력하기 →</a>
-        <?php else: ?>
-          <button type="button" class="evac-req__btn" id="evacReqBtn"
-            <?= $evacRequested ? 'disabled' : '' ?> onclick="openEvacReq()">
-            <?= $evacRequested ? '요청 완료' : '🙋 배정 신청하기' ?>
-          </button>
-        <?php endif; ?>
-      </div>
-      <?php endif; ?>
-
-      <!-- 자동알림 서비스 구독 -->
-      <div class="subs">
-        <div>
-          <div class="subs__t">🔔 자동알림 서비스</div>
-          <div class="subs__d">점검·임무카드 전달을 놓치지 않도록 미리 알려드립니다.</div>
-        </div>
-        <a class="subs__btn" href="<?=h($url('/subscribe_page.php'))?>">구독하기 →</a>
-      </div>
-
-      <!-- 전체 서류 인쇄 -->
-      <div class="prt">
-        <div>
-          <div class="prt__t">🖨 서류 전체 인쇄</div>
-          <div class="prt__d">업무수행 기록표·소방계획서·자위소방대·훈련기록을 모아서 인쇄합니다.</div>
-        </div>
-        <a class="prt__btn" href="<?=h($url('/print_all.php'))?>">인쇄하러 가기 →</a>
       </div>
     </div>
 
@@ -594,20 +670,25 @@ a.pstep:hover{background:#f2f6fd}
       <div class="pro pro--on">
         <div class="pro__row">
           <span class="pro__badge pro__badge--on">PRO</span>
-          <span class="pro__t">이용 중입니다</span>
+          <span class="pro__t">Pro 모드</span>
+          <span class="pro__dot" title="이용 중"></span>
         </div>
-        <p class="pro__d">모든 기능을 제한 없이 쓰실 수 있습니다.</p>
-        <a class="pro__link" href="<?=h($url('/subscribe_page.php'))?>">구독 관리 →</a>
+        <a class="pro__btn pro__btn--on" href="<?=h($url('/subscribe_page.php'))?>">
+          구독관리
+        </a>
       </div>
+
     <?php elseif ($proStatus === 'pending'): ?>
       <div class="pro pro--wait">
         <div class="pro__row">
           <span class="pro__badge pro__badge--wait">PRO</span>
-          <span class="pro__t">신청 접수됨</span>
+          <span class="pro__t">Pro 모드</span>
         </div>
-        <p class="pro__d">결제 준비가 끝나면 안내해 드리겠습니다.</p>
-        <a class="pro__link" href="<?=h($url('/subscribe_page.php'))?>">신청 내역 보기 →</a>
+        <p class="pro__d">신청이 접수되었습니다.<br>준비가 끝나면 알려드립니다.</p>
+        <a class="pro__btn pro__btn--wait" href="<?=h($url('/subscribe_page.php'))?>">신청 내역 보기</a>
+        <div class="pro__price">결제 준비 중</div>
       </div>
+
     <?php else: ?>
       <div class="pro">
         <div class="pro__row">

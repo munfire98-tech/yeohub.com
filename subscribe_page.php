@@ -44,8 +44,8 @@ $CSRF = $_SESSION['csrf'];
 
 /* ── 요금제 정의 (여기만 고치면 화면·저장값이 함께 바뀝니다) ── */
 const PLANS = [
-  'monthly' => ['name'=>'월 구독', 'price'=>2900,  'period'=>'월', 'months'=>1],
-  'yearly'  => ['name'=>'연 구독', 'price'=>29000, 'period'=>'년', 'months'=>12],
+  'monthly' => ['name'=>'월 구독', 'price'=>1900,  'period'=>'월', 'months'=>1],
+  'yearly'  => ['name'=>'연 구독', 'price'=>19000, 'period'=>'년', 'months'=>12],
 ];
 
 /* ── 저장 위치 ── */
@@ -231,12 +231,57 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
 
 .sub-textarea{width:100%;border:1px solid var(--bd2);border-radius:9px;padding:10px 12px;
   font-size:13.5px;font-family:inherit;resize:vertical;color:var(--fg);background:var(--bg2)}
+
+/* ── 준비 중 안내 ── */
+.sub-notice__t{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:700;
+  color:#92400e;margin-bottom:7px;flex-wrap:wrap}
+.sub-notice__badge{font-size:11px;font-weight:800;background:#b45309;color:#fff;
+  padding:3px 10px;border-radius:999px;letter-spacing:.02em}
+.sub-notice__d{font-size:12.5px;color:#92400e;line-height:1.8;margin:0}
+.sub-notice__d b{font-weight:700}
+
+/* ── 카드 등록 ── */
+.tb-lead{font-size:13px;color:var(--mut2);line-height:1.75;margin-bottom:14px}
+.tb-card{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:var(--bg2);border-radius:11px;padding:14px 16px}
+.tb-card__ic{font-size:22px}
+.tb-card__tx{flex:1;min-width:0}
+.tb-card__tx b{display:block;font-size:14px;font-weight:700}
+.tb-card__tx small{display:block;font-size:11.5px;color:var(--mut);margin-top:2px}
+.tb-msg{font-size:12.5px;color:var(--mut2);background:var(--bg2);border-radius:10px;
+  padding:13px 15px;line-height:1.8}
+.tb-msg code{background:#fff;border:1px solid var(--bd);border-radius:5px;
+  padding:1px 6px;font-size:11.5px}
+.tb-test{margin-top:12px;font-size:12px;color:#92400e;background:#fffbeb;
+  border:1px solid #f6d8a8;border-radius:9px;padding:10px 13px;line-height:1.7}
+
+/* ── 결제 신뢰 안내 ── */
+.trust{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;
+  margin-bottom:16px}
+.trust__item{display:flex;gap:11px;align-items:flex-start;background:var(--card);
+  border:1px solid var(--bd);border-radius:12px;padding:14px 15px}
+.trust__ico{flex:0 0 34px;width:34px;height:34px;border-radius:9px;background:#eef4ff;
+  color:var(--brand2);display:flex;align-items:center;justify-content:center}
+.trust__ico svg{width:18px;height:18px}
+.trust__item b{display:block;font-size:13px;font-weight:700;color:var(--fg);margin-bottom:3px}
+.trust__item span{display:block;font-size:11.5px;color:var(--mut2);line-height:1.6}
+
+/* ── 판매자 정보 · 환불 규정 ── */
+.seller{background:var(--bg2);border-radius:12px;padding:18px 20px;margin-top:6px}
+.seller__t{font-size:12px;font-weight:800;color:var(--mut2);letter-spacing:.04em;
+  text-transform:uppercase;margin-bottom:12px}
+.seller__grid{display:flex;flex-wrap:wrap;gap:7px 24px;font-size:12.5px;color:var(--mut);
+  line-height:1.85;margin-bottom:12px}
+.seller__grid b{font-weight:600;color:var(--mut2);margin-right:6px}
+.seller__policy{font-size:12px;color:var(--mut);line-height:1.85;margin:0;
+  padding-top:12px;border-top:1px solid var(--bd)}
+.seller__policy b{color:var(--mut2);font-weight:700}
 </style>
 
 <header class="page-head">
   <div class="page-head__inner">
-    <div class="page-head__label"><span></span> PRO 구독</div>
-    <h1>PRO 구독</h1>
+    <div class="page-head__label"><span></span> 구독</div>
+    <h1>구독</h1>
     <p>모든 기능을 제한 없이 사용합니다. 월 구독과 연 구독 중에 선택하세요.</p>
   </div>
 </header>
@@ -250,11 +295,120 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
     <div class="sub-flash err">로그인 정보를 확인할 수 없어 구독 정보를 불러오지 못했습니다. 다시 로그인해 주세요.</div>
   <?php endif; ?>
 
-  <!-- ★ 결제 연동 전 안내 — PG 연동 후 이 블록을 지우세요 -->
+  <!-- ★ 결제 연동 전 안내 — PG 연동이 끝나면 이 블록을 지우세요 -->
   <div class="sub-notice">
-    <b>현재는 준비 중입니다.</b><br>
-    결제 시스템 연동 전이라 지금 신청하시면 <b>사전 신청</b>으로 접수됩니다.
-    실제 결제는 이루어지지 않으며, 준비가 끝나면 안내해 드리겠습니다.
+    <div class="sub-notice__t">
+      <span class="sub-notice__badge">준비 중</span>
+      결제 시스템을 연동하고 있습니다
+    </div>
+    <p class="sub-notice__d">
+      토스페이먼츠 가맹 계약은 완료되었고, 현재 연동 개발 중입니다.
+      지금 신청하시면 <b>사전 신청</b>으로 접수되며 <b>결제는 이루어지지 않습니다.</b>
+      준비가 끝나면 등록하신 이메일로 안내해 드립니다.
+    </p>
+  </div>
+
+  <!-- 카드 등록 (토스페이먼츠 자동결제) -->
+  <?php
+    require_once __DIR__ . '/toss_billing.php';
+    $tbData  = tb_read();
+    $tbCard  = $tbData['card'] ?? [];
+    $hasCard = trim((string)($tbData['billing_key'] ?? '')) !== '';
+  ?>
+  <div class="card">
+    <div class="sub-sec-t">결제 카드</div>
+
+    <?php if (!tb_ready()): ?>
+      <div class="tb-msg">
+        결제 키가 아직 설정되지 않았습니다.
+        <code>api_keys.php</code> 의 <code>toss_client</code> · <code>toss_secret</code> 에
+        토스페이먼츠 키를 넣어주세요.
+      </div>
+
+    <?php elseif ($hasCard): ?>
+      <div class="tb-card">
+        <span class="tb-card__ic">💳</span>
+        <div class="tb-card__tx">
+          <b><?=h(trim(($tbCard['company'] ?? '') . ' ' . ($tbCard['number'] ?? '')) ?: '등록된 카드')?></b>
+          <small>등록일 <?=h(substr((string)($tbData['card_registered_at'] ?? ''), 0, 16))?></small>
+        </div>
+        <button class="btn btn--ghost" type="button" onclick="registerCard()">카드 바꾸기</button>
+      </div>
+
+    <?php else: ?>
+      <p class="tb-lead">
+        카드를 한 번 등록해 두시면, 매달 자동으로 결제됩니다.
+        카드번호는 저희 서버에 저장되지 않고 토스페이먼츠가 안전하게 보관합니다.
+      </p>
+      <button class="btn btn--primary" type="button" onclick="registerCard()">💳 카드 등록하기</button>
+    <?php endif; ?>
+
+    <?php if (!tb_is_live() && tb_ready()): ?>
+      <div class="tb-test">
+        <b>테스트 모드</b> · 실제로 결제되지 않습니다.
+        카드번호는 앞 6~8자리만 맞으면 나머지는 아무 값이나 넣으셔도 됩니다.
+      </div>
+    <?php endif; ?>
+  </div>
+
+  <?php if (tb_ready()): ?>
+  <script src="https://js.tosspayments.com/v1/payment"></script>
+  <script>
+    /* 카드 등록창을 띄웁니다.
+       성공하면 successUrl 로 authKey·customerKey 가 붙어 돌아오고,
+       거기서 빌링키를 발급받아 저장합니다. */
+    function registerCard(){
+      var toss = TossPayments(<?=json_encode(tb_client_key())?>);
+      toss.requestBillingAuth('카드', {
+        customerKey: <?=json_encode(tb_customer_key())?>,
+        successUrl : location.origin + '/toss_billing_return.php',
+        failUrl    : location.origin + '/toss_billing_return.php'
+      }).catch(function(e){
+        if (e.code === 'USER_CANCEL') return;      // 사용자가 창을 닫은 경우
+        alert('카드 등록을 시작하지 못했습니다: ' + (e.message || e.code || ''));
+      });
+    }
+  </script>
+  <?php endif; ?>
+
+  <!-- 결제 신뢰 안내 -->
+  <div class="trust">
+    <div class="trust__item">
+      <span class="trust__ico">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.2-2.9 8.1-7 9.5-4.1-1.4-7-5.3-7-9.5V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.5 12.2l1.8 1.8 3.4-3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <div>
+        <b>토스페이먼츠 결제</b>
+        <span>결제는 토스페이먼츠 시스템에서 처리됩니다</span>
+      </div>
+    </div>
+    <div class="trust__item">
+      <span class="trust__ico">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </span>
+      <div>
+        <b>카드번호를 저장하지 않습니다</b>
+        <span>결제사가 발급한 결제키만 보관합니다</span>
+      </div>
+    </div>
+    <div class="trust__item">
+      <span class="trust__ico">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 8h14M5 12h14M5 16h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </span>
+      <div>
+        <b>해지해도 자료는 그대로</b>
+        <span>입력하신 건물 정보와 기록은 삭제되지 않습니다</span>
+      </div>
+    </div>
+    <div class="trust__item">
+      <span class="trust__ico">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <div>
+        <b>언제든 해지</b>
+        <span>약정 없이 원하실 때 그만두실 수 있습니다</span>
+      </div>
+    </div>
   </div>
 
   <!-- 현재 상태 -->
@@ -359,7 +513,13 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
       <div>
         <div class="sub-faq__q">결제는 어떻게 이루어지나요?</div>
         <div class="sub-faq__a">등록하신 카드로 선택한 주기(월 또는 연)마다 자동으로 청구됩니다.
-          카드번호는 저장하지 않으며, 결제사가 발급한 결제키만 보관합니다.</div>
+          결제는 토스페이먼츠 시스템에서 처리되며, 카드번호는 저희 서버에 저장되지 않습니다.
+          결제사가 발급한 결제키만 보관합니다.</div>
+      </div>
+      <div>
+        <div class="sub-faq__q">환불이 되나요?</div>
+        <div class="sub-faq__a">결제 후 7일 이내에 서비스를 사용하지 않으셨다면 전액 환불해 드립니다.
+          사용 중 해지하시면 남은 기간을 일할 계산하여 환불합니다.</div>
       </div>
       <div>
         <div class="sub-faq__q">해지하면 자료가 사라지나요?</div>
@@ -390,7 +550,25 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
       </button>
     </form>
   </div>
-  <?php require __DIR__ . '/memo_widget.php'; ?>
+
+  <!-- 판매자 정보 · 환불 규정 -->
+  <div class="seller">
+    <div class="seller__t">판매자 정보</div>
+    <div class="seller__grid">
+      <span><b>상호</b>YEOHUB</span>
+      <span><b>대표</b>문현권</span>
+      <span><b>사업자등록번호</b>751-38-01677</span>
+      <span><b>소재지</b>경기도 파주시 운정중앙로</span>
+      <span><b>이메일</b>YEOHUB@YEOHUB.com</span>
+      <span><b>결제대행</b>토스페이먼츠</span>
+    </div>
+    <p class="seller__policy">
+      <b>환불 규정</b> ·
+      결제 후 7일 이내에 서비스를 사용하지 않으신 경우 전액 환불해 드립니다.
+      사용 중 해지하시면 남은 기간에 대해 일할 계산하여 환불합니다.
+      환불 요청은 위 이메일로 접수해 주세요.
+    </p>
+  </div>
 </main>
 
 <script>

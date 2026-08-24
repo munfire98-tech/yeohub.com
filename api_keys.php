@@ -23,6 +23,17 @@ return [
   'juso'  => 'U01TX0FVVEgyMDI2MDgwNzE4MzU1MzExOTkzNjg=',
   'hub'   => 'Bgl2NmDmpeG5hvoX7LxHR8Zdsz1oI6F63aCuHumXF7OlzZiIx3QitUGVVklUe/NXW1WIHjewqbeTgz2QllSNQQ==',
 
+  /* ── 토스페이먼츠 (자동결제/빌링) ──────────────────────────
+     developers.tosspayments.com > API 키 메뉴에서 확인합니다.
+     · 클라이언트 키: 브라우저에서 카드 등록창을 띄울 때 사용
+     · 시크릿 키    : 서버에서 빌링키 발급·결제 승인 API 호출에 사용 (절대 노출 금지)
+     ★ 테스트 키는 test_ 로 시작합니다. 실제 결제가 나지 않습니다.
+     ★ 클라이언트·시크릿은 반드시 같은 세트로 써야 합니다(섞으면 INVALID_API_KEY).
+     ★ 라이브 전환 시 아래 두 값만 라이브 키로 바꾸면 됩니다. */
+  'toss_client' => 'test_ck_DLJOpm5QrlwoE9bLbORPVPNdxbWn',
+  'toss_secret' => 'test_sk_XZYkKL4MrjxzMw9XANvW30zJwlEW',
+  'toss_live'   => false,   // 라이브로 바꿀 때 true (화면에 '테스트 중' 표시가 사라집니다)
+
   // 엔드포인트(확정된 정답 경로) — 바꿀 일 없으면 그대로 둡니다.
   'kakao_url' => 'https://dapi.kakao.com/v2/local/search/keyword.json',
   'juso_url'  => 'https://business.juso.go.kr/addrlink/addrLinkApi.do',
