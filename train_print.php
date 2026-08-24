@@ -67,10 +67,25 @@ th{background:#f2f4f8;font-weight:700;text-align:center;white-space:nowrap}
   body{background:#fff}
   .topbar,.hint{display:none !important}
   .doc{max-width:none;margin:0;padding:0;box-shadow:none}
-  @page{size:A4;margin:14mm 12mm}
+  @page{size:A4;margin:12mm 12mm}
   .sec{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   th,.lb{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .pgbreak{page-break-before:always}
+
+  /* ── 한 장에 맞추기 ──
+     계산해 보면 기본 크기로는 A4 한 장을 1~2mm 넘겨서
+     마지막 줄(개선계획)이 다음 장으로 밀립니다.
+     글자는 그대로 두고 줄 높이·여백만 조금씩 줄여 안으로 넣습니다. */
+  table{font-size:11.5px}
+  th,td{padding:3px 6px}
+  .title{font-size:18px;margin-bottom:3px}
+  .formno{margin-bottom:7px;padding-bottom:3px}
+  .note{margin-bottom:4px}
+  .sec{margin-top:10px;padding:3px 10px;font-size:12px}
+  .big td{height:40px}
+  .tri{height:88px;line-height:1.5}
+  /* 표가 페이지 경계에서 잘리지 않게 — 줄 단위로만 넘어가게 둡니다 */
+  tr,td,th{page-break-inside:avoid;break-inside:avoid}
 }
 .sub{background:#f2f4f8;font-weight:700;text-align:center;font-size:11.5px;padding:4px}
 .tri{vertical-align:top;font-size:11.5px;line-height:1.6;height:110px}
