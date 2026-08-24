@@ -44,8 +44,8 @@ $CSRF = $_SESSION['csrf'];
 
 /* ── 요금제 정의 (여기만 고치면 화면·저장값이 함께 바뀝니다) ── */
 const PLANS = [
-  'monthly' => ['name'=>'월 구독', 'price'=>1900,  'period'=>'월', 'months'=>1],
-  'yearly'  => ['name'=>'연 구독', 'price'=>19000, 'period'=>'년', 'months'=>12],
+  'monthly' => ['name'=>'월 구독', 'price'=>2900,  'period'=>'월', 'months'=>1],
+  'yearly'  => ['name'=>'연 구독', 'price'=>29000, 'period'=>'년', 'months'=>12],
 ];
 
 /* ── 저장 위치 ── */
@@ -235,8 +235,8 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
 
 <header class="page-head">
   <div class="page-head__inner">
-    <div class="page-head__label"><span></span> 구독</div>
-    <h1>구독</h1>
+    <div class="page-head__label"><span></span> PRO 구독</div>
+    <h1>PRO 구독</h1>
     <p>모든 기능을 제한 없이 사용합니다. 월 구독과 연 구독 중에 선택하세요.</p>
   </div>
 </header>

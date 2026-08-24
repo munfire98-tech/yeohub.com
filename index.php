@@ -1116,7 +1116,7 @@ $oldRole = (string)($oldSignup['role'] ?? '');
       </div>
       <div class="amodal__check">
         <span class="ico">✓</span>
-        <div class="tx"><b>연 구독 2개월 무료</b><span>월 1,900원, 연 결제 시 19,000원</span></div>
+        <div class="tx"><b>연 구독 2개월 무료</b><span>월 2,900원, 연 결제 시 29,000원</span></div>
       </div>
       <div class="amodal__more"><a href="/service.php">자세히 보기 →</a></div>
     </div>
