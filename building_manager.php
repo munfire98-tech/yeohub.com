@@ -81,6 +81,18 @@ if ($adminView) {
 $reviewPending = 0;
 $reviewResolvedRecent = false;
 $adminReviewRows = [];
+
+/* 구독(Pro) 상태 — 우측 패널의 안내를 무엇으로 보여줄지 정하는 데 씁니다.
+   active 면 이미 이용 중이므로 '구독하기'를 띄우지 않습니다. */
+$proStatus = 'none';
+if ($keySafe) {
+  $subFile = __DIR__ . '/data/subscribe/' . $rawKey . '/subscription.json';
+  if (is_file($subFile)) {
+    $subData = json_decode((string)@file_get_contents($subFile), true);
+    if (is_array($subData)) $proStatus = (string)($subData['status'] ?? 'none');
+  }
+}
+$isPro = ($proStatus === 'active');
 $reviewResolvedUntil = strtotime('-7 days');
 $reviewFile = __DIR__ . '/data/assist_log.json';
 $memberUid = $viewUid;
@@ -386,6 +398,31 @@ require __DIR__ . '/_header.php';
 /* -- 진행 현황 (헤더 우측 패널) -- */
 .page-head__inner{display:flex;gap:28px;align-items:flex-start}
 .ph-left{flex:1;min-width:0}
+/* Pro 배너와 진행 현황을 한 덩어리로 묶어 세로로 쌓습니다 */
+.rightcol{width:236px;flex-shrink:0;display:flex;flex-direction:column}
+@media(max-width:760px){.rightcol{width:100%}}
+
+/* ── Pro 구독 안내 (진행 현황 위) ── */
+.pro{width:236px;flex-shrink:0;border-radius:14px;padding:15px 16px;margin-bottom:12px;
+  background:linear-gradient(150deg,#1e293b,#0f172a);color:#e2e8f0;
+  box-shadow:0 6px 18px rgba(15,23,42,.18)}
+.pro__row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.pro__badge{font-size:10px;font-weight:900;letter-spacing:.06em;padding:3px 8px;border-radius:6px;
+  background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#3b2500}
+.pro__badge--on{background:linear-gradient(135deg,#34d399,#10b981);color:#04301f}
+.pro__badge--wait{background:#475569;color:#cbd5e1}
+.pro__t{font-size:13.5px;font-weight:800;color:#fff}
+.pro__d{font-size:11.5px;color:#94a3b8;line-height:1.7;margin-bottom:11px}
+.pro__btn{display:block;text-align:center;background:#fff;color:#0f172a;border-radius:9px;
+  padding:9px;font-size:12.5px;font-weight:800;text-decoration:none;transition:.14s}
+.pro__btn:hover{background:#f1f5f9;color:#0f172a}
+.pro__price{font-size:10.5px;color:#64748b;text-align:center;margin-top:7px}
+.pro__link{display:inline-block;font-size:11.5px;color:#93c5fd;text-decoration:none;font-weight:700}
+.pro__link:hover{color:#bfdbfe}
+.pro--on{background:linear-gradient(150deg,#064e3b,#022c22)}
+.pro--wait{background:linear-gradient(150deg,#334155,#1e293b)}
+@media(max-width:760px){.pro{width:100%}}
+
 .prog{width:236px;flex-shrink:0;background:#fff;border:1px solid var(--bd);border-radius:14px;
   padding:14px 16px;box-shadow:0 4px 14px rgba(15,30,60,.05)}
 .prog__t{font-size:12px;font-weight:800;color:var(--mut2);letter-spacing:.03em;margin-bottom:10px}
@@ -551,6 +588,36 @@ a.pstep:hover{background:#f2f6fd}
       </div>
     </div>
 
+    <div class="rightcol">
+    <!-- Pro 구독 안내 (진행 현황 위) -->
+    <?php if ($isPro): ?>
+      <div class="pro pro--on">
+        <div class="pro__row">
+          <span class="pro__badge pro__badge--on">PRO</span>
+          <span class="pro__t">이용 중입니다</span>
+        </div>
+        <p class="pro__d">모든 기능을 제한 없이 쓰실 수 있습니다.</p>
+        <a class="pro__link" href="<?=h($url('/subscribe_page.php'))?>">구독 관리 →</a>
+      </div>
+    <?php elseif ($proStatus === 'pending'): ?>
+      <div class="pro pro--wait">
+        <div class="pro__row">
+          <span class="pro__badge pro__badge--wait">PRO</span>
+          <span class="pro__t">신청 접수됨</span>
+        </div>
+        <p class="pro__d">결제 준비가 끝나면 안내해 드리겠습니다.</p>
+        <a class="pro__link" href="<?=h($url('/subscribe_page.php'))?>">신청 내역 보기 →</a>
+      </div>
+    <?php else: ?>
+      <div class="pro">
+        <div class="pro__row">
+          <span class="pro__badge">PRO</span>
+          <span class="pro__t">Pro 모드</span>
+        </div>
+        <a class="pro__btn" href="<?=h($url('/subscribe_page.php'))?>">구독하기 →</a>
+      </div>
+    <?php endif; ?>
+
     <aside class="prog">
       <div class="prog__t">진행 현황</div>
       <?php
@@ -628,6 +695,7 @@ a.pstep:hover{background:#f2f6fd}
 
       <div class="prog__hint"><?= $hasBi ? '항목을 누르면 바로 이동합니다' : '기본정보를 입력하면 나머지 단계가 열립니다' ?></div>
     </aside>
+    </div>
   </div>
 </header>
 
