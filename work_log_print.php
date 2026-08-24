@@ -305,7 +305,7 @@ tr.noterow td{vertical-align:top}
 </head>
 <body>
 <div class="topbar">
-  <a class="brand" href="/index.php">TWORIX</a>
+  <a class="brand" href="/index.php">소방계획서.w.l.print</a>
   <div class="actions">
   <a class="btn" href="<?=h($url('/work_log.php'))?>">← 목록</a>
     <button class="btn btn--primary" type="button" onclick="window.print()">🖨 <?=h($year)?>년 전체 PDF / 인쇄</button>

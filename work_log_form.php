@@ -98,6 +98,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
   save_json($REC_FILE, $rec);
   $saved = true;
+
+  /* 저장이 끝나면 목록(work_log.php)으로 보냅니다.
+     새로고침으로 같은 내용이 다시 저장되는 것도 함께 막아줍니다.
+     ※ $url 헬퍼는 아래에서 정의되므로 여기서는 직접 만듭니다. */
+  $go = '/work_log.php?saved=' . rawurlencode($month);
+  if (is_admin() && trim((string)($_GET['uid'] ?? '')) !== '') {
+    $go .= '&uid=' . rawurlencode($uidKey);
+  }
+  header('Location: ' . $go);
+  exit;
 }
 
 // 값 헬퍼
@@ -149,6 +159,24 @@ a{text-decoration:none}
 .btn--primary:hover{background:var(--brand2);color:#fff}
 .toast{max-width:900px;margin:16px auto 0;background:#ecfdf5;border:1px solid #a7f3d0;color:#047857;border-radius:9px;padding:10px 14px;font-size:13px}
 .hint{max-width:900px;margin:12px auto 0;color:var(--mut2);font-size:13px;padding:0 8px}
+
+/* ── 점검 진행 안내 ── */
+.ckguide{max-width:900px;margin:12px auto 0;padding:12px 15px;border-radius:10px;
+  background:#fffbeb;border:1px solid #f6d8a8;color:#92400e;font-size:13px;line-height:1.7}
+.ckguide b{font-weight:800}
+.ckguide__n{color:#b45309;font-weight:700}
+.ckguide--done{background:#f6fdf8;border-color:#bfe6cb;color:#15803d}
+/* 아직 결과를 안 고른 줄을 옅게 짚어줍니다 */
+tr.row--todo td{background:#fffdf5}
+tr.row--todo .res{box-shadow:inset 0 0 0 2px rgba(217,119,6,.22)}
+/* 다 고르면 저장 버튼을 눈에 띄게 */
+.btn--nudge{box-shadow:0 0 0 4px rgba(22,163,74,.26);
+  animation:ckPulse 1.5s ease-in-out infinite}
+@keyframes ckPulse{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@media(prefers-reduced-motion:reduce){.btn--nudge{animation:none}}
+@media print{.ckguide{display:none!important}
+  tr.row--todo td{background:transparent!important}
+  tr.row--todo .res{box-shadow:none!important}}
 
 /* A4 용지 */
 .sheet{max-width:900px;margin:16px auto 40px;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:26px 30px;box-shadow:0 10px 30px rgba(20,40,80,.06)}
@@ -345,16 +373,19 @@ textarea.cell{min-height:64px}
 <body>
 
 <div class="topbar">
-  <a class="brand" href="/index.php">TWORIX</a>
+  <a class="brand" href="/index.php">소방계획서.w.l.f</a>
   <div class="actions">
     <a class="btn" href="<?=h($url('/work_log.php'))?>">← 목록</a>
-    <button class="btn" type="button" onclick="document.getElementById('recform').requestSubmit()">저장</button>
+    <button class="btn" id="saveBtn" type="button" onclick="document.getElementById('recform').requestSubmit()">저장</button>
     <button class="btn btn--primary" type="button" onclick="window.print()">🖨 PDF / 인쇄</button>
   </div>
 </div>
 
 <?php if ($saved): ?><div class="toast">✓ <?=h($monthLabel)?> 기록이 저장되었습니다. ‘PDF / 인쇄’로 내려받을 수 있습니다.</div><?php endif; ?>
 <div class="hint">칸을 클릭해 입력한 뒤 <b>저장</b>하세요. <b>PDF / 인쇄</b>를 누르고 인쇄 대화상자에서 <b>대상: PDF로 저장</b>을 선택하면 서식이 그대로 저장됩니다. (<?=h($monthLabel)?> 기록)</div>
+
+<!-- 점검 진행 안내 (아래 스크립트가 내용을 채웁니다) -->
+<div class="ckguide no-print" id="checkGuide"></div>
 
 <form id="recform" method="post" action="<?=h($url('/work_log_form.php'))?>">
 <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
@@ -490,7 +521,7 @@ textarea.cell{min-height:64px}
       ];
       foreach ($rows as [$k,$label]):
     ?>
-    <tr>
+    <tr data-row="<?=$k?>">
       <td class="lbl" colspan="3"><?=$label?></td>
       <td colspan="8"><textarea class="cell" name="<?=$k?>_note" placeholder="확인내용"><?=h($noteVal($k))?></textarea></td>
       <td class="res" colspan="3">
@@ -544,7 +575,7 @@ textarea.cell{min-height:64px}
 <div class="mask" id="signMask">
   <div class="modal">
     <h3>서명</h3>
-    <p>아래 칸에 마우스나 손가락으로 서명하세요.</p>
+    <p>아래 칸에 마우스로 서명하세요.</p>
     <div id="padWrap">
       <canvas id="pad"></canvas>
       <div id="padHint">여기에 서명</div>
@@ -715,6 +746,54 @@ textarea.cell{min-height:64px}
 
   document.addEventListener('click', function(){ if (!pop.hidden) close(); });
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !pop.hidden) close(); });
+})();
+</script>
+
+<script>
+/* ── 점검 진행 안내 ──────────────────────────────────────────
+   1) 아직 결과를 안 고른 항목이 있으면 → 그 줄을 짚어주고 '양호' 선택을 권합니다
+   2) 네 항목을 다 고르면 → 저장 버튼을 눈에 띄게 합니다               */
+(function(){
+  var KEYS = ['sobang','pinan','hwagi','etc'];
+  var NAMES = { sobang:'소방시설', pinan:'피난방화시설', hwagi:'화기취급감독', etc:'기타사항' };
+
+  var bar  = document.getElementById('checkGuide');
+  var save = document.getElementById('saveBtn');
+  if (!bar) return;
+
+  function picked(k){
+    return !!document.querySelector('input[name="' + k + '_result"]:checked');
+  }
+
+  function update(){
+    var done = KEYS.filter(picked);
+    var left = KEYS.filter(function(k){ return !picked(k); });
+
+    /* 아직 안 고른 줄에 옅은 표시를 남겨, 어디를 봐야 할지 알려줍니다 */
+    KEYS.forEach(function(k){
+      var row = document.querySelector('tr[data-row="' + k + '"]');
+      if (row) row.classList.toggle('row--todo', !picked(k));
+    });
+
+    if (left.length === 0){
+      bar.className = 'ckguide ckguide--done';
+      bar.innerHTML = '✅ 네 항목 모두 확인했습니다. 이제 <b>저장</b>을 눌러주세요.';
+      if (save) save.classList.add('btn--nudge');
+    } else {
+      bar.className = 'ckguide';
+      bar.innerHTML = '점검을 마치셨으면 <b>확인결과</b>에서 <b>양호</b>를 눌러주세요 · ' +
+        '남은 항목 <b>' + left.map(function(k){ return NAMES[k]; }).join(' · ') + '</b> ' +
+        '<span class="ckguide__n">(' + done.length + '/' + KEYS.length + ')</span>';
+      if (save) save.classList.remove('btn--nudge');
+    }
+  }
+
+  KEYS.forEach(function(k){
+    document.querySelectorAll('input[name="' + k + '_result"]').forEach(function(el){
+      el.addEventListener('change', update);
+    });
+  });
+  update();
 })();
 </script>
 </body>
