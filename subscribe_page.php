@@ -97,34 +97,48 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
          3. 첫 결제 즉시 실행
          4. 성공 시 status='active', 실패 시 'payment_failed'
        지금은 신청 기록만 남기고 status='pending' 으로 둡니다. */
+    /* [1] 구독 신청 — 등록해 둔 카드로 첫 결제를 바로 실행합니다.
+       ★ 예전 코드는 여기서 $sub 를 통째로 새로 만들어,
+         이미 등록해 둔 billing_key(카드)를 빈 값으로 덮어썼습니다.
+         반드시 기존 내용을 읽어 와서 필요한 항목만 바꿔야 합니다. */
     if ($act === 'subscribe') {
       $plan = (string)($_POST['plan'] ?? '');
       if (!isset(PLANS[$plan])) {
         $flash = '요금제를 다시 선택해 주세요.'; $flashType = 'err';
       } else {
-        $p = PLANS[$plan];
+        require_once __DIR__ . '/toss_billing.php';
+        $p   = PLANS[$plan];
         $now = date('Y-m-d H:i:s');
-        $sub = [
-          'plan'        => $plan,
-          'plan_name'   => $p['name'],
-          'price'       => $p['price'],
-          'status'      => 'pending',        // ★PG연동 후 'active' 로
-          'requested_at'=> $now,
-          'started_at'  => '',               // ★첫 결제 성공 시각
-          'expires_at'  => '',               // ★결제일 + months
-          'billing_key' => '',               // ★PG 빌링키 (카드번호는 저장하지 않음)
-          'next_billing'=> '',               // ★다음 청구 예정일
-          'history'     => array_merge((array)($sub['history'] ?? []), [[
-            'at'=>$now, 'type'=>'request', 'plan'=>$plan, 'amount'=>$p['price'],
-            'memo'=>'구독 신청 (결제 연동 전)',
-          ]]),
-        ];
-        $ok = sub_write($sub);
-        $flash = $ok
-          ? $p['name'].' 신청이 접수되었습니다. 결제 연동 후 정식으로 시작됩니다.'
-          : '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.';
-        $flashType = $ok ? 'ok' : 'err';
-        $status = $sub['status'];
+
+        $cur = tb_read();                                  // 기존 내용(카드 포함)
+        $bk  = trim((string)($cur['billing_key'] ?? ''));
+
+        if ($bk === '') {
+          $flash = '먼저 결제 카드를 등록해 주세요.'; $flashType = 'err';
+        } else {
+          $res = tb_charge((int)$p['price'], $p['name']);   // 실제 결제
+
+          $sub = tb_read();                                // 결제 결과가 반영된 내용
+          $sub['plan']         = $plan;
+          $sub['plan_name']    = $p['name'];
+          $sub['price']        = $p['price'];
+          $sub['requested_at'] = $sub['requested_at'] ?? $now;
+
+          if ($res['ok']) {
+            $sub['status']       = 'active';
+            $sub['started_at']   = $sub['started_at'] ?? $now;
+            $sub['next_billing'] = date('Y-m-d', strtotime('+' . (int)$p['months'] . ' month'));
+            $sub['expires_at']   = $sub['next_billing'];
+            $flash = $p['name'] . ' 결제가 완료되었습니다.';
+            $flashType = 'ok';
+          } else {
+            $sub['status'] = 'payment_failed';
+            $flash = '결제에 실패했습니다: ' . $res['error'];
+            $flashType = 'err';
+          }
+          sub_write($sub);
+          $status = $sub['status'];
+        }
       }
     }
 
