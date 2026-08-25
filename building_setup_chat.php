@@ -1,5 +1,7 @@
 <?php
-/* =============================================================
+/*
+ 26년 8월 26일 수요일 오전 6시 36분에 업데이트 v1.
+=============================================================
    building_setup_chat.php — 건물 기본정보 대화형 입력
    ─────────────────────────────────────────────────────────────
    질문에 하나씩 답하면 building_info.php 에 저장됩니다.
@@ -446,6 +448,10 @@ button{font:inherit;color:inherit;cursor:pointer}
 .btn--pri{background:var(--brand);border-color:var(--brand);color:#fff}
 .btn--pri:hover{background:var(--brand2);color:#fff}
 .btn--sm{padding:6px 12px;font-size:12.5px}
+/* 다음에 눌러야 할 버튼을 살짝 강조합니다 */
+.btn--nudge{box-shadow:0 0 0 3px rgba(34,197,94,.25);animation:nudgePulse 1.6s ease-in-out infinite}
+@keyframes nudgePulse{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@media(prefers-reduced-motion:reduce){.btn--nudge{animation:none}}
 /* 집결지 장소 유형 — 고른 버튼을 강조 */
 .btn.is-on{background:var(--brand);border-color:var(--brand);color:#fff}
 
@@ -632,27 +638,9 @@ var STEPS = [
     hint:'건물주 또는 사업장 대표입니다. 소방안전관리자와 같은 분이어도 됩니다.' },
   { field:'tel',      q:'건물 대표 전화번호를 알려주세요.', type:'text', ph:'예: 02-1234-5678', skip:true, extra:true,
     hint:'관리사무실이나 방재실 번호면 됩니다.' },
-  { field:'dongsu',   q:'동 수는 몇 개인가요?', type:'number', ph:'1', skip:true, extra:true,
-    hint:'건물이 한 채면 1입니다. 여러 채를 함께 관리하시면 그 수를 적어주세요.' },
-  /* 근무인원(__staff)은 자위소방대 작성 단계에서 묻는 편이 자연스러워 이 흐름에서 뺐습니다. */
-
-  /* 업무수행 기록표 기본값 */
-  { field:'note_sobang', label:'소방시설', q:'업무수행 기록표의 소방시설 확인내용 기본값은 어떤 문구로 넣을까요?', type:'preset',
-    options:['수신기 및 제어반 정상 작동 확인','소화기 비치상태 및 압력계 정상 확인','옥내소화전함 구성품 및 사용 가능 여부 확인'],
-    skip:true, extra:true, reviewGroup:'업무수행 기록표',
-    hint:'예시를 누르면 바로 들어갑니다. 매월 기록표 작성 시 이 문구가 먼저 채워집니다.' },
-  { field:'note_pinan', label:'피난방화시설', q:'피난방화시설 확인내용 기본값은 어떤 문구로 넣을까요?', type:'preset',
-    options:['피난구 유도등 점등 상태 확인','방화문 폐쇄 및 피난통로 적치물 여부 확인','비상구 개방상태 및 피난동선 장애물 확인'],
-    skip:true, extra:true, reviewGroup:'업무수행 기록표',
-    hint:'피난통로, 방화문, 비상구처럼 대피와 관련된 점검 문구입니다.' },
-  { field:'note_hwagi', label:'화기취급감독', q:'화기취급감독 확인내용 기본값은 어떤 문구로 넣을까요?', type:'preset',
-    options:['화기취급 구역 이상 유무 확인','전열기구 및 콘센트 주변 가연물 방치 여부 확인','용접·절단 작업 등 화기작업 관리상태 확인'],
-    skip:true, extra:true, reviewGroup:'업무수행 기록표',
-    hint:'불을 쓰거나 열이 나는 작업·기구 주변을 확인하는 내용입니다.' },
-  { field:'note_etc', label:'기타사항', q:'기타사항 확인내용 기본값은 어떤 문구로 넣을까요?', type:'preset',
-    options:['소화기 비치 상태 및 표지 확인','방재실 비상연락망 최신 상태 확인','자체점검 지적사항 조치 진행상태 확인'],
-    skip:true, extra:true, reviewGroup:'업무수행 기록표',
-    hint:'위 항목에 딱 들어가지 않는 반복 확인사항을 넣으면 됩니다.' }
+  /* 근무인원(__staff)은 자위소방대 작성 단계에서 묻습니다.
+     동 수는 건축물대장 조회로 자동으로 채워지므로 묻지 않습니다.
+     업무수행 기록표의 확인내용 기본값은 기록표 화면에서 따로 받습니다. */
 ];
 
 /* ── "잘 모르겠어요"를 눌렀을 때 ─────────────────────────
@@ -932,29 +920,10 @@ function next(){
   if (step >= STEPS.length){ finish(); return; }
 
   var s = STEPS[step];
-  /* 필수가 끝나고 추가 항목으로 넘어가는 지점에서 한 번 물어본다 */
-  if (s.extra && !window.__extraAsked){
-    window.__extraAsked = true;
-    typing(function(){ askExtra(); });
-    return;
-  }
+  /* 대표자·전화번호까지 끊김 없이 이어서 묻고, 끝나면 finish() 가 마무리합니다. */
   typing(function(){ ask(s); });
 }
 
-function askExtra(){
-  bot(md('필수 항목은 다 채웠습니다. 👏\n\n' +
-    '나머지는 **없어도 서식이 만들어집니다.** 대표자·근무인원과 업무수행 기록표 확인내용 기본값까지 ' +
-    '지금 마저 채우실 수도 있고, 나중에 표에서 한 번에 넣으셔도 됩니다.'));
-  var b = box();
-  var w = document.createElement('div'); w.className='opts';
-  [['지금 마저 채울게요', function(){ clearBox(); me('지금 마저 채울게요'); next(); }],
-   ['여기까지 할게요',   function(){ clearBox(); me('여기까지 할게요'); finish(); }]
-  ].forEach(function(o){
-    var btn=document.createElement('button'); btn.className='opt'; btn.type='button';
-    btn.textContent=o[0]; btn.onclick=o[1]; w.appendChild(btn);
-  });
-  b.appendChild(w);
-}
 
 function ask(s){
   bot(md(s.q), s.hint||'');
@@ -1042,6 +1011,7 @@ function ask(s){
         kindBtns.forEach(function(x){ x.classList.remove('is-on'); });
         btn.classList.add('is-on');
         kindInput.value = k;
+        kindInput.dispatchEvent(new Event('input'));   // 저장 버튼 강조를 함께 켭니다
         kindInput.style.borderColor = '#22c55e';
         if (picked.lat){
           tip.innerHTML = '✅ 준비됐습니다. 아래 <b>집결지로 저장</b>을 눌러주세요.';
@@ -1063,6 +1033,19 @@ function ask(s){
     var srow=document.createElement('div'); srow.className='subrow';
     var okBtn=document.createElement('button');
     okBtn.className='btn btn--primary btn--sm'; okBtn.type='button'; okBtn.textContent='집결지로 저장';
+
+    /* 이름을 적으면 저장 버튼을 눈에 띄게 해서 다음 행동을 유도합니다 */
+    function nudgeSave(){
+      var ready = kindInput.value.trim() !== '';
+      okBtn.classList.toggle('btn--nudge', ready);
+      if (ready){
+        tip.innerHTML = '✅ 준비됐습니다. 아래 <b>집결지로 저장</b>을 눌러주세요.';
+        tip.style.color = '#15803d';
+      }
+    }
+    kindInput.addEventListener('input', nudgeSave);
+    nudgeSave();   // 이미 적혀 있으면 바로 표시
+
     okBtn.onclick=function(){
       var kind = kindInput.value.trim();
       if (!picked.lat && !kind){
@@ -1709,7 +1692,7 @@ function applyDongPick(j, patch, idx, isAll){
 function finish(){
   clearBox();
   typing(function(){
-    bot(md('입력하신 내용입니다. 잘못된 곳이 있으면 표에서 고치시면 됩니다.'));
+    bot(md('건물 기본정보를 저장했습니다. 👏\n\n아래 내용으로 저장되었고, 잘못된 곳은 표에서 고치실 수 있습니다.'));
 
     var d=document.createElement('div'); d.className='done';
     var rows=[
@@ -1721,10 +1704,7 @@ function finish(){
       ['소방안전관리자', (SAVED.mgrs&&SAVED.mgrs[0]) ? SAVED.mgrs[0].name : ''],
       ['대표자', SAVED.rep], ['전화번호', SAVED.tel]
     ];
-    rows.push(['업무수행 소방시설', SAVED.note_sobang]);
-    rows.push(['업무수행 피난방화시설', SAVED.note_pinan]);
-    rows.push(['업무수행 화기취급감독', SAVED.note_hwagi]);
-    rows.push(['업무수행 기타사항', SAVED.note_etc]);
+    if (SAVED.assembly_kind) rows.push(['집결지', SAVED.assembly_kind]);
     var html='<h2>건물 기본정보</h2>';
     rows.forEach(function(r){
       var v=String(r[1]||'').trim();
