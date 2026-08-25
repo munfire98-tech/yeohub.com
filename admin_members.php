@@ -262,6 +262,133 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['act'] ?? '') ==
   }
 }
 
+/* ── 구독 결제 ────────────────────────────────────────────────
+   결제일이 된 회원에게 관리자가 직접 결제를 냅니다.
+   (자동 스케줄러 없이, 이 화면에서 눌러 처리하는 방식) */
+$SUB_BASE = __DIR__ . '/data/subscribe';
+$__api    = @include __DIR__ . '/api_keys.php';
+$TOSS_SECRET = is_array($__api) ? (string)($__api['toss_secret'] ?? '') : '';
+$TOSS_LIVE   = is_array($__api) ? (bool)($__api['toss_live'] ?? false) : false;
+
+const SUB_PLANS = [
+  'monthly' => ['name'=>'월 구독', 'price'=>2900,  'months'=>1],
+  'yearly'  => ['name'=>'연 구독', 'price'=>29000, 'months'=>12],
+];
+
+/** 다음 결제일 — 말일 처리를 맞춥니다(1/31 → 2/28 → 3/31) */
+function sub_next_billing(string $fromYmd, int $months, int $anchorDay = 0): string {
+  $ts = strtotime($fromYmd); if ($ts === false) $ts = time();
+  $y = (int)date('Y', $ts); $m = (int)date('n', $ts);
+  $d = $anchorDay > 0 ? $anchorDay : (int)date('j', $ts);
+  $m += $months; $y += intdiv($m - 1, 12); $m = (($m - 1) % 12) + 1;
+  $last = (int)date('t', mktime(0,0,0,$m,1,$y));
+  if ($d > $last) $d = $last;
+  return sprintf('%04d-%02d-%02d', $y, $m, $d);
+}
+
+/** 토스 결제 승인 */
+function sub_charge_api(string $secret, string $bk, string $ck, int $amount, string $name): array {
+  $orderId = 'od_' . date('YmdHis') . '_' . bin2hex(random_bytes(4));
+  $ch = curl_init('https://api.tosspayments.com/v1/billing/' . rawurlencode($bk));
+  curl_setopt_array($ch, [
+    CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>25,
+    CURLOPT_HTTPHEADER=>['Authorization: Basic '.base64_encode($secret.':'), 'Content-Type: application/json'],
+    CURLOPT_POSTFIELDS=>json_encode(['customerKey'=>$ck,'amount'=>$amount,'orderId'=>$orderId,'orderName'=>$name], JSON_UNESCAPED_UNICODE),
+  ]);
+  $raw = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+  $body = json_decode((string)$raw, true); if (!is_array($body)) $body = [];
+  if ($code >= 200 && $code < 300) return ['ok'=>true,'orderId'=>$orderId,'error'=>''];
+  $m2 = (string)($body['message'] ?? '알 수 없는 오류');
+  $ec = (string)($body['code'] ?? '');
+  return ['ok'=>false,'orderId'=>$orderId,'error'=>($ec!==''?"[$ec] ":'').$m2];
+}
+
+/** 한 회원 결제 — 성공 여부와 안내 문구를 돌려줍니다 */
+function sub_charge_member(string $uid, string $base, string $secret, bool $isLive, bool $checkDate): array {
+  $file = $base . '/' . $uid . '/subscription.json';
+  if (!is_file($file)) return ['ok'=>false,'skip'=>true,'msg'=>'구독 정보 없음'];
+  $d = json_decode((string)@file_get_contents($file), true);
+  if (!is_array($d)) return ['ok'=>false,'skip'=>true,'msg'=>'구독 정보를 읽지 못함'];
+
+  $status = (string)($d['status'] ?? '');
+  $bk = trim((string)($d['billing_key'] ?? ''));
+  $ck = trim((string)($d['customer_key'] ?? ''));
+  $plan = (string)($d['plan'] ?? '');
+  $next = trim((string)($d['next_billing'] ?? ''));
+  $today = date('Y-m-d');
+
+  if (!in_array($status, ['active','payment_failed'], true)) return ['ok'=>false,'skip'=>true,'msg'=>'구독 중이 아님'];
+  if ($bk === '' || $ck === '')      return ['ok'=>false,'skip'=>true,'msg'=>'카드 미등록'];
+  if (!isset(SUB_PLANS[$plan]))      return ['ok'=>false,'skip'=>true,'msg'=>'요금제 정보 없음'];
+  if ($checkDate && ($next === '' || $next > $today)) return ['ok'=>false,'skip'=>true,'msg'=>'아직 결제일 전'];
+
+  /* 같은 날 두 번 결제되지 않게 막습니다 */
+  if (substr((string)($d['paid_at'] ?? ''), 0, 10) === $today) {
+    return ['ok'=>false,'skip'=>true,'msg'=>'오늘 이미 결제됨'];
+  }
+
+  $p = SUB_PLANS[$plan];
+  $res = sub_charge_api($secret, $bk, $ck, (int)$p['price'], $p['name']);
+
+  $hist = is_array($d['history'] ?? null) ? $d['history'] : [];
+  array_unshift($hist, [
+    'at'=>date('Y-m-d H:i:s'), 'amount'=>(int)$p['price'], 'name'=>$p['name'],
+    'orderId'=>$res['orderId'], 'ok'=>$res['ok'],
+    'msg'=>$res['ok'] ? '관리자 수동 결제' : $res['error'],
+    'test'=>!$isLive, 'manual'=>true,
+  ]);
+  $d['history'] = array_slice($hist, 0, 50);
+
+  if ($res['ok']) {
+    $d['status'] = 'active';
+    $d['paid_at'] = date('Y-m-d H:i:s');
+    $d['next_billing'] = sub_next_billing($next ?: date('Y-m-d'), (int)$p['months'], (int)($d['bill_day'] ?? 0));
+    $d['expires_at'] = $d['next_billing'];
+    $d['last_error'] = '';
+  } else {
+    $d['status'] = 'payment_failed';
+    $d['last_error'] = $res['error'];
+  }
+
+  $tmp = $file . '.tmp';
+  if (file_put_contents($tmp, json_encode($d, JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT), LOCK_EX) !== false) {
+    @rename($tmp, $file);
+  }
+
+  return $res['ok']
+    ? ['ok'=>true,'skip'=>false,'msg'=>'결제 완료 (다음 ' . $d['next_billing'] . ')']
+    : ['ok'=>false,'skip'=>false,'msg'=>$res['error']];
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+    && in_array(($_POST['act'] ?? ''), ['charge_one','charge_due'], true)) {
+  if (!hash_equals($CSRF, $_POST['csrf'] ?? '')) {
+    $msg = '잘못된 요청입니다.'; $msgType = 'err';
+  } elseif ($TOSS_SECRET === '' || strpos($TOSS_SECRET, '여기에') !== false) {
+    $msg = '토스 시크릿 키가 설정되지 않았습니다.'; $msgType = 'err';
+  } else {
+    $isDue   = (($_POST['act'] ?? '') === 'charge_due');
+    $targets = [];
+    if ($isDue) {
+      foreach (glob($SUB_BASE . '/*', GLOB_ONLYDIR) ?: [] as $dd) $targets[] = basename($dd);
+    } else {
+      $u = (string)($_POST['uid'] ?? '');
+      if (preg_match('/^[A-Za-z0-9_-]+$/', $u)) $targets[] = $u;
+    }
+
+    $done = 0; $fail = 0; $skip = 0; $lines = [];
+    foreach ($targets as $u) {
+      $r = sub_charge_member($u, $SUB_BASE, $TOSS_SECRET, $TOSS_LIVE, $isDue);
+      if ($r['ok'])            { $done++; $lines[] = $u . ' — ' . $r['msg']; }
+      elseif (!empty($r['skip'])) { $skip++; if (!$isDue) $lines[] = $u . ' — ' . $r['msg']; }
+      else                     { $fail++; $lines[] = $u . ' — 실패: ' . $r['msg']; }
+    }
+    $msg = "결제 {$done}건 · 실패 {$fail}건 · 건너뜀 {$skip}건"
+         . ($lines ? ' — ' . implode(' / ', array_slice($lines, 0, 4)) : '');
+    $msgType = $fail > 0 ? 'err' : 'ok';
+  }
+}
+
 /* ── 탈퇴자가 남긴 데이터 폴더 정리 ── */
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['act'] ?? '') === 'purge_orphans') {
   if (!hash_equals($CSRF, $_POST['csrf'] ?? '')) {
@@ -298,6 +425,7 @@ if (is_file($reviewFile)) {
 }
 $q       = trim((string)($_GET['q'] ?? ''));
 $fRole   = (string)($_GET['role'] ?? '');
+$fSub    = (string)($_GET['sub'] ?? '');
 
 $rows = [];
 foreach ($members as $uid => $m) {
@@ -316,6 +444,31 @@ foreach ($members as $uid => $m) {
   $hasData = false;
   foreach (member_dirs($DATA, $uid) as $d) if (is_dir($d)) { $hasData = true; break; }
 
+  /* 구독 상태 — 결제일이 됐는지 함께 계산합니다 */
+  $subF = $SUB_BASE . '/' . $uid . '/subscription.json';
+  $subExists = is_file($subF);
+  $sub  = $subExists ? (json_decode((string)@file_get_contents($subF), true) ?: []) : [];
+  $subStatus = (string)($sub['status'] ?? 'none');
+  $subCard   = trim((string)($sub['billing_key'] ?? '')) !== '';
+  $subNext   = trim((string)($sub['next_billing'] ?? ''));
+  $subEnd    = trim((string)($sub['expires_at'] ?? $sub['end_at'] ?? $sub['cancel_at'] ?? $sub['canceled_at'] ?? $sub['cancelled_at'] ?? ''));
+  $cancelPendingStatuses = ['cancel_pending','cancellation_pending','scheduled_cancel','cancel_scheduled'];
+  $canceledStatuses = ['canceled','cancelled','terminated','inactive'];
+  $subUiStatus = 'none';
+  if ($subStatus === 'refund_pending') $subUiStatus = 'refund_pending';
+  elseif ($subStatus === 'refunded') $subUiStatus = 'refunded';
+  elseif (in_array($subStatus, ['expired','ended'], true)) $subUiStatus = 'expired';
+  elseif (in_array($subStatus, $canceledStatuses, true)) $subUiStatus = 'canceled';
+  elseif (in_array($subStatus, $cancelPendingStatuses, true)
+      || ($subStatus === 'active' && !empty($sub['cancel_requested_at']))) $subUiStatus = 'cancel_pending';
+  elseif ($subStatus === 'payment_failed') $subUiStatus = 'failed';
+  elseif ($subStatus === 'active') $subUiStatus = 'active';
+  $subDue    = $subCard
+            && in_array($subStatus, ['active','payment_failed'], true)
+            && $subUiStatus !== 'cancel_pending'
+            && $subNext !== '' && $subNext <= date('Y-m-d')
+            && substr((string)($sub['paid_at'] ?? ''), 0, 10) !== date('Y-m-d');
+
   $rows[] = [
     'uid'      => $uid,
     'nickname' => $nick,
@@ -328,7 +481,37 @@ foreach ($members as $uid => $m) {
     'hasData'  => $hasData,
     'reviewCount' => (int)($reviewCount[$uid] ?? 0),
     'evacRequest' => is_array($evacRequests[$uid] ?? null) ? $evacRequests[$uid] : [],
+    'subStatus'   => $subStatus,
+    'subUiStatus' => $subUiStatus,
+    'subExists'   => $subExists,
+    'subCard'     => $subCard,
+    'subPlan'     => (string)($sub['plan_name'] ?? (SUB_PLANS[$sub['plan'] ?? '']['name'] ?? '')),
+    'subPrice'    => (int)($sub['price'] ?? (SUB_PLANS[$sub['plan'] ?? '']['price'] ?? 0)),
+    'subNext'     => $subNext,
+    'subEnd'      => $subEnd,
+    'subDue'      => $subDue,
+    'subErr'      => (string)($sub['last_error'] ?? ''),
   ];
+}
+
+/* 구독 현황 집계와 화면 필터 */
+$subStats = ['all'=>count($rows), 'active'=>0, 'due'=>0, 'failed'=>0, 'canceled'=>0, 'none'=>0];
+foreach ($rows as $r) {
+  if (in_array($r['subUiStatus'], ['cancel_pending','canceled','expired','refund_pending','refunded'], true)) $subStats['canceled']++;
+  elseif (!$r['subExists'] || $r['subUiStatus'] === 'none') $subStats['none']++;
+  elseif ($r['subDue']) $subStats['due']++;
+  elseif ($r['subUiStatus'] === 'failed') $subStats['failed']++;
+  elseif ($r['subUiStatus'] === 'active') $subStats['active']++;
+}
+$dueCount = $subStats['due'];
+if (in_array($fSub, ['active','due','failed','canceled','none'], true)) {
+  $rows = array_values(array_filter($rows, function($r) use ($fSub) {
+    if ($fSub === 'none') return !$r['subExists'] || $r['subUiStatus'] === 'none';
+    if ($fSub === 'canceled') return in_array($r['subUiStatus'], ['cancel_pending','canceled','expired','refund_pending','refunded'], true);
+    if ($fSub === 'due') return !empty($r['subDue']);
+    if ($fSub === 'failed') return $r['subCard'] && $r['subStatus'] === 'payment_failed';
+    return $r['subCard'] && $r['subStatus'] === 'active' && empty($r['subDue']);
+  }));
 }
 /* 시뮬레이션 요청 회원을 먼저, 그 다음 최근 가입순 */
 usort($rows, function($a, $b) {
@@ -381,12 +564,49 @@ h1{font-size:24px;font-weight:700;margin-bottom:4px}
 .msg.ok{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
 .msg.err{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:18px}
+.subscription-panel{margin-bottom:18px;padding:18px;border:1px solid #dbe5f3;border-radius:14px;background:linear-gradient(135deg,#f8fbff 0%,#fff 70%)}
+.subscription-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+.subscription-head h2{font-size:17px;line-height:1.35}.subscription-head p{font-size:12.5px;color:var(--mut2);margin-top:3px}
+.mode-pill{padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap}
+.mode-pill.live{background:#ecfdf5;color:#047857}.mode-pill.test{background:#fff7ed;color:#b45309}
+.sub-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
+.sub-stat{display:block;padding:12px;border:1px solid var(--bd);border-radius:11px;background:#fff;color:var(--fg);transition:.15s}
+.sub-stat:hover{transform:translateY(-1px);border-color:#93b4e8}.sub-stat.is-active{border-color:#2563eb;box-shadow:0 0 0 2px #dbeafe}
+.sub-stat__label{display:block;color:var(--mut2);font-size:11.5px;font-weight:700}.sub-stat__num{display:block;font-size:22px;font-weight:850;line-height:1.25;margin-top:2px}
+.sub-stat--due .sub-stat__num{color:#b45309}.sub-stat--failed .sub-stat__num{color:#dc2626}.sub-stat--none .sub-stat__num{color:#64748b}
+.sub-stat--canceled .sub-stat__num{color:#7c3aed}
+.sub-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #e5edf7}
+.sub-toolbar__note{font-size:12px;color:var(--mut2);flex:1}
 .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .bar input[type=search]{flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--bd2);
   border-radius:9px;font-size:14px;font-family:inherit}
 .bar select{padding:9px 12px;border:1px solid var(--bd2);border-radius:9px;font-size:13.5px;font-family:inherit}
 .cnt{font-size:13px;color:var(--mut2);margin-left:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
+
+/* ── 구독 결제 ── */
+.duebar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  background:#fffbeb;border:1px solid #f6d8a8;border-radius:12px;
+  padding:14px 17px;margin-bottom:16px}
+.duebar__tx{flex:1;min-width:0}
+.duebar__tx b{display:block;font-size:14px;font-weight:800;color:#92400e}
+.duebar__tx small{display:block;font-size:12px;color:#a16207;margin-top:3px;line-height:1.6}
+.btn--due{background:#b45309;border-color:#b45309;color:#fff;font-weight:800;white-space:nowrap}
+.btn--due:hover{filter:brightness(1.08);color:#fff}
+.btn--charge{margin-top:5px;padding:5px 11px;font-size:11.5px;font-weight:800;
+  background:#b45309;border:1px solid #b45309;color:#fff;border-radius:7px;
+  cursor:pointer;font-family:inherit}
+.btn--charge:hover{filter:brightness(1.08)}
+@media(max-width:560px){.btn--due{width:100%}}
+.sub-cell{min-width:176px}.sub-cell__top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.sub-status{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:800}
+.sub-status:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.sub-status--active{background:#ecfdf5;color:#047857}.sub-status--due{background:#fff7ed;color:#b45309}
+.sub-status--failed{background:#fef2f2;color:#dc2626}.sub-status--none{background:#f1f5f9;color:#64748b}
+.sub-status--cancel-pending{background:#f5f3ff;color:#7c3aed}.sub-status--canceled{background:#f1f5f9;color:#475569}.sub-status--expired{background:#f8fafc;color:#64748b}
+.sub-status--refund-pending{background:#fff7ed;color:#b45309}.sub-status--refunded{background:#ecfdf5;color:#047857}
+.sub-price{font-size:11.5px;font-weight:750;color:#334155}.sub-meta{margin-top:5px;font-size:11.5px;color:var(--mut2);line-height:1.55}
+.sub-meta b{color:var(--fg)}.sub-error{margin-top:5px;padding:5px 7px;border-radius:6px;background:#fef2f2;color:#b91c1c;font-size:11px;line-height:1.4;max-width:220px}
 th,td{padding:10px 8px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:middle}
 th{background:#f7f9fc;font-weight:700;font-size:12px;color:var(--mut2);white-space:nowrap}
 tr:hover td{background:#fafbfd}
@@ -410,6 +630,7 @@ td.uid{font-weight:700}
 @media(max-width:760px){
   .hide-sm{display:none}
   .wrap{padding:18px 14px 60px}
+  .sub-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 /* ── 시뮬레이션 배정 모달 ── */
 .btn--evac{padding:5px 10px;font-size:12px;white-space:nowrap}
@@ -489,6 +710,24 @@ td.uid{font-weight:700}
     <div class="msg <?=h($msgType)?>"><?=h($msg)?></div>
   <?php endif; ?>
 
+  <section class="subscription-panel" aria-labelledby="subscriptionTitle">
+    <div class="subscription-head">
+      <div><h2 id="subscriptionTitle">구독 · 결제 현황</h2><p>상태 카드를 누르면 해당 회원만 빠르게 확인할 수 있습니다.</p></div>
+      <span class="mode-pill <?=$TOSS_LIVE?'live':'test'?>"><?=$TOSS_LIVE?'실결제 모드':'테스트 모드'?></span>
+    </div>
+    <div class="sub-stats">
+      <a class="sub-stat <?= $fSub===''?'is-active':'' ?>" href="?<?=http_build_query(array_filter(['q'=>$q,'role'=>$fRole]))?>"><span class="sub-stat__label">전체 회원</span><strong class="sub-stat__num"><?=$subStats['all']?></strong></a>
+      <a class="sub-stat sub-stat--due <?= $fSub==='due'?'is-active':'' ?>" href="?<?=http_build_query(array_filter(['q'=>$q,'role'=>$fRole,'sub'=>'due']))?>"><span class="sub-stat__label">결제 필요</span><strong class="sub-stat__num"><?=$subStats['due']?></strong></a>
+      <a class="sub-stat sub-stat--failed <?= $fSub==='failed'?'is-active':'' ?>" href="?<?=http_build_query(array_filter(['q'=>$q,'role'=>$fRole,'sub'=>'failed']))?>"><span class="sub-stat__label">결제 실패</span><strong class="sub-stat__num"><?=$subStats['failed']?></strong></a>
+      <a class="sub-stat sub-stat--canceled <?= $fSub==='canceled'?'is-active':'' ?>" href="?<?=http_build_query(array_filter(['q'=>$q,'role'=>$fRole,'sub'=>'canceled']))?>"><span class="sub-stat__label">해지 · 종료</span><strong class="sub-stat__num"><?=$subStats['canceled']?></strong></a>
+      <a class="sub-stat sub-stat--none <?= $fSub==='none'?'is-active':'' ?>" href="?<?=http_build_query(array_filter(['q'=>$q,'role'=>$fRole,'sub'=>'none']))?>"><span class="sub-stat__label">카드 미등록</span><strong class="sub-stat__num"><?=$subStats['none']?></strong></a>
+    </div>
+    <div class="sub-toolbar">
+      <span class="sub-toolbar__note">정상 이용 중 <b><?=$subStats['active']?></b>명 · 결제 작업은 실행 전 확인창이 표시됩니다.</span>
+      <?php if ($dueCount > 0): ?><form method="post" onsubmit="return confirm('결제일이 된 <?=$dueCount?>명에게 결제를 진행합니다.\n계속할까요?')"><input type="hidden" name="csrf" value="<?=h($CSRF)?>"><input type="hidden" name="act" value="charge_due"><button class="btn btn--due" type="submit">💳 결제 필요 <?=$dueCount?>건 일괄 처리</button></form><?php endif; ?>
+    </div>
+  </section>
+
   <div class="card">
     <!-- 검색·필터 -->
     <form class="bar" method="get">
@@ -498,12 +737,23 @@ td.uid{font-weight:700}
         <option value="building" <?=$fRole==='building'?'selected':''?>>건물관리자</option>
         <option value="agency"   <?=$fRole==='agency'?'selected':''?>>대행업체</option>
       </select>
+      <input type="hidden" name="sub" value="<?=h($fSub)?>">
       <button class="btn" type="submit">검색</button>
-      <?php if ($q !== '' || $fRole !== ''): ?>
+      <?php if ($q !== '' || $fRole !== '' || $fSub !== ''): ?>
         <a class="btn" href="/admin_members.php">초기화</a>
       <?php endif; ?>
 	      <span class="cnt">전체 <b><?=$total?></b>명 · 표시 <b><?=count($rows)?></b>명<?php if ($evacRequestCount): ?> · 배정요청 <b><?=$evacRequestCount?></b>건<?php endif; ?></span>
     </form>
+
+    <!-- 회원별 결제 폼 (표 안에 폼을 넣을 수 없어 여기에 둡니다) -->
+    <?php foreach ($rows as $r): if (empty($r['subDue'])) continue; ?>
+      <form method="post" id="chargeForm_<?=h($r['uid'])?>" style="display:none"
+            onsubmit="return confirm('<?=h($r['uid'])?> 님에게 <?=number_format($r['subPrice'])?>원을 결제합니다.\n계속할까요?')">
+        <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
+        <input type="hidden" name="act" value="charge_one">
+        <input type="hidden" name="uid" value="<?=h($r['uid'])?>">
+      </form>
+    <?php endforeach; ?>
 
     <!-- 목록 -->
     <form method="post" id="delForm"
@@ -523,6 +773,7 @@ td.uid{font-weight:700}
             <th class="hide-sm">닉네임</th>
             <th>유형</th>
             <th>시뮬레이션</th>
+            <th>구독</th>
             <th>이메일</th>
             <th class="hide-sm">연락처</th>
             <th class="hide-sm">가입일</th>
@@ -564,6 +815,31 @@ td.uid{font-weight:700}
                  title="이 회원 화면으로 들어가 직접 고칩니다"
                  onclick="return confirm('<?=h($r['nickname'] ?: $r['uid'])?>님 계정으로 들어갑니다.\n화면 위 띠에서 언제든 관리자로 돌아올 수 있습니다.')">👤 대리보기</a>
             </td>
+            <!-- 구독 -->
+            <td class="sub-cell">
+              <?php if ($r['subExists']):
+                $uiMap = [
+                  'active'=>['sub-status--active','이용 중'], 'failed'=>['sub-status--failed','결제 실패'],
+                  'cancel_pending'=>['sub-status--cancel-pending','해지 예정'], 'canceled'=>['sub-status--canceled','해지됨'],
+                  'expired'=>['sub-status--expired','이용 종료'], 'refund_pending'=>['sub-status--refund-pending','환불 확인 중'],
+                  'refunded'=>['sub-status--refunded','해지 · 환불 완료'], 'none'=>['sub-status--none','구독 정보 없음']
+                ];
+                [$uiClass,$uiLabel] = $r['subDue'] ? ['sub-status--due','결제 필요'] : ($uiMap[$r['subUiStatus']] ?? ['sub-status--none',h($r['subStatus'])]);
+              ?>
+                <div class="sub-cell__top"><span class="sub-status <?=$uiClass?>"><?=$uiLabel?></span><?php if ($r['subPrice']): ?><span class="sub-price"><?=number_format($r['subPrice'])?>원</span><?php endif; ?></div>
+                <div class="sub-meta"><?php if ($r['subPlan']): ?><b><?=h($r['subPlan'])?></b><?php endif; ?><?php if (in_array($r['subUiStatus'], ['cancel_pending','canceled','expired','refund_pending','refunded'], true) && $r['subEnd']): ?> · <?= $r['subUiStatus']==='cancel_pending' ? '이용 종료' : '종료일' ?> <?=h(substr($r['subEnd'],0,10))?><?php elseif ($r['subNext'] && $r['subUiStatus']==='active'): ?> · 다음 결제 <?=h($r['subNext'])?><?php endif; ?></div>
+                <?php if ($r['subDue']): ?>
+                  <button class="btn btn--charge" type="submit"
+                          form="chargeForm_<?=h($r['uid'])?>">지금 결제</button>
+                <?php endif; ?>
+                <?php if ($r['subErr']): ?>
+                  <div class="sub-error" title="<?=h($r['subErr'])?>">⚠ <?=h(function_exists('mb_substr') ? mb_substr($r['subErr'],0,42,'UTF-8') : substr($r['subErr'],0,42))?></div>
+                <?php endif; ?>
+              <?php else: ?>
+                <span class="sub-status sub-status--none">카드 미등록</span><div class="sub-meta">구독 결제수단 없음</div>
+              <?php endif; ?>
+            </td>
+
             <td>
               <?php if ($r['email'] !== ''): ?>
                 <?=h($r['email'])?>

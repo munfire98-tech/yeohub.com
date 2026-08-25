@@ -73,6 +73,61 @@ function sub_write(array $d): bool {
   return @rename($tmp, $f);
 }
 
+/* ── 해지·환불 계산 -------------------------------------------------
+   정책: 결제 시각부터 7일 이내는 전액, 이후에는 결제금액 × 남은일수 ÷ 전체일수.
+   연 구독도 정가가 아니라 실제 결제한 금액을 기준으로 계산합니다. */
+function sub_latest_payment(array $sub): array {
+  $candidates = [];
+  foreach ((array)($sub['history'] ?? []) as $row) {
+    if (!is_array($row) || (int)($row['amount'] ?? 0) <= 0) continue;
+    $type = (string)($row['type'] ?? '');
+    if (in_array($type, ['refund','refund_pending','refund_failed','cancel'], true) || (array_key_exists('ok',$row) && !$row['ok'])) continue;
+    $candidates[] = $row;
+  }
+  usort($candidates, fn($a,$b) => strcmp((string)($b['at'] ?? ''), (string)($a['at'] ?? '')));
+  $last = $candidates[0] ?? [];
+  return [
+    'at' => (string)($last['at'] ?? $sub['paid_at'] ?? $sub['started_at'] ?? ''),
+    'amount' => (int)($last['amount'] ?? $sub['price'] ?? 0),
+    'payment_key' => trim((string)($last['paymentKey'] ?? $last['payment_key']
+      ?? $sub['last_payment_key'] ?? $sub['payment_key'] ?? '')),
+    'order_id' => (string)($last['orderId'] ?? $last['order_id'] ?? ''),
+  ];
+}
+function sub_refund_quote(array $sub, ?int $nowTs = null): array {
+  $nowTs = $nowTs ?? time();
+  $pay = sub_latest_payment($sub);
+  $startTs = strtotime($pay['at']);
+  $endRaw = (string)($sub['expires_at'] ?? $sub['next_billing'] ?? '');
+  $endTs = strtotime($endRaw);
+  if ($startTs === false || $endTs === false || $pay['amount'] <= 0) {
+    return ['ok'=>false,'amount'=>0,'full'=>false,'reason'=>'최근 결제정보 또는 이용기간을 확인할 수 없습니다.','payment'=>$pay,'start'=>'','end'=>'','total_days'=>0,'remaining_days'=>0];
+  }
+  $totalDays = max(1, (int)ceil(($endTs - $startTs) / 86400));
+  $remainingDays = max(0, min($totalDays, (int)ceil(($endTs - $nowTs) / 86400)));
+  $full = ($nowTs - $startTs) <= 7 * 86400;
+  $amount = $full ? $pay['amount'] : (int)floor($pay['amount'] * $remainingDays / $totalDays);
+  return ['ok'=>true,'amount'=>max(0,min($pay['amount'],$amount)),'full'=>$full,
+    'reason'=>$full?'결제 후 7일 이내 전액 환불':'남은 기간 일할 계산', 'payment'=>$pay,
+    'start'=>date('Y-m-d',$startTs),'end'=>date('Y-m-d',$endTs),
+    'total_days'=>$totalDays,'remaining_days'=>$remainingDays];
+}
+function sub_toss_refund(string $paymentKey, int $amount, string $reason, string $idemKey): array {
+  $__api = @include __DIR__ . '/api_keys.php';
+  $secret = is_array($__api) ? trim((string)($__api['toss_secret'] ?? '')) : '';
+  if ($secret === '' || strpos($secret, '여기에') !== false) return ['ok'=>false,'error'=>'토스 시크릿 키가 설정되지 않았습니다.'];
+  if ($paymentKey === '' || $amount <= 0) return ['ok'=>false,'error'=>'환불할 결제정보가 없습니다.'];
+  $ch = curl_init('https://api.tosspayments.com/v1/payments/' . rawurlencode($paymentKey) . '/cancel');
+  curl_setopt_array($ch, [CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>25,
+    CURLOPT_HTTPHEADER=>['Authorization: Basic '.base64_encode($secret.':'),'Content-Type: application/json','Idempotency-Key: '.$idemKey],
+    CURLOPT_POSTFIELDS=>json_encode(['cancelReason'=>$reason,'cancelAmount'=>$amount],JSON_UNESCAPED_UNICODE)]);
+  $raw=curl_exec($ch); $http=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE); $curlErr=curl_error($ch); curl_close($ch);
+  $body=json_decode((string)$raw,true); if(!is_array($body)) $body=[];
+  if($http>=200 && $http<300) return ['ok'=>true,'body'=>$body];
+  $error = trim((string)($body['message'] ?? $curlErr));
+  return ['ok'=>false,'error'=>$error !== '' ? $error : '환불 API 오류','code'=>(string)($body['code'] ?? '')];
+}
+
 /* 현재 구독 상태
    status: none | pending | active | canceled | expired | payment_failed */
 $sub = sub_read();
@@ -127,7 +182,11 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
           if ($res['ok']) {
             $sub['status']       = 'active';
             $sub['started_at']   = $sub['started_at'] ?? $now;
-            $sub['next_billing'] = date('Y-m-d', strtotime('+' . (int)$p['months'] . ' month'));
+            $sub['bill_day']     = $sub['bill_day'] ?? (int)date('j');   // 가입한 날짜(기준일)
+            $sub['next_billing'] = tb_next_billing(date('Y-m-d'), (int)$p['months'], (int)$sub['bill_day']);
+            /* 크론을 짧은 주기로 시험할 때 쓰는 값입니다.
+               toss_billing_cron.php 의 TEST_MODE 가 true 일 때만 의미가 있습니다. */
+            $sub['next_billing_at'] = date('Y-m-d H:i:s', time() + 180);
             $sub['expires_at']   = $sub['next_billing'];
             $flash = $p['name'] . ' 결제가 완료되었습니다.';
             $flashType = 'ok';
@@ -142,18 +201,40 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
       }
     }
 
-    /* [2] 구독 해지 ------------------------------------------------
-       ★PG연동 자리 — 실제로는 PG 정기결제 해지 API 호출 후 상태 변경.
-       해지해도 만료일까지는 사용하게 두는 방식을 권장합니다. */
+    /* [2] 구독 해지·환불 ------------------------------------------- */
     if ($act === 'cancel') {
-      if ($sub) {
+      if (in_array($status, ['refund_pending','refunded','canceled','expired'], true)) {
+        $flash = '이미 해지 또는 환불 처리가 접수된 구독입니다.'; $flashType = 'err';
+      } elseif ($sub) {
         $now = date('Y-m-d H:i:s');
-        $sub['status'] = 'canceled';
-        $sub['canceled_at'] = $now;
-        $sub['history'][] = ['at'=>$now, 'type'=>'cancel', 'memo'=>'사용자 해지 요청'];
-        sub_write($sub);
-        $flash = '구독이 해지되었습니다. 입력하신 자료는 삭제되지 않습니다.';
-        $status = 'canceled';
+        $quote = sub_refund_quote($sub);
+        if (!$quote['ok']) {
+          $flash = '자동 환불 금액을 계산하지 못했습니다. 관리자에게 문의해 주세요: '.$quote['reason']; $flashType='err';
+        } elseif ($quote['amount'] <= 0) {
+          $sub['status']='canceled'; $sub['canceled_at']=$now; $sub['expires_at']=date('Y-m-d');
+          $sub['history'][]=['at'=>$now,'type'=>'cancel','amount'=>0,'memo'=>'사용자 해지 · 환불액 없음'];
+          sub_write($sub); $flash='구독이 해지되었습니다.'; $status='canceled';
+        } else {
+          $paymentKey=(string)$quote['payment']['payment_key'];
+          if ($paymentKey === '') {
+            $sub['status']='refund_pending'; $sub['cancel_requested_at']=$now;
+            $sub['refund']=['status'=>'pending','requested_at'=>$now,'amount'=>$quote['amount'],'reason'=>$quote['reason'],'order_id'=>$quote['payment']['order_id']];
+            $sub['history'][]=['at'=>$now,'type'=>'refund_pending','amount'=>$quote['amount'],'memo'=>'결제키 확인 필요 · 관리자 환불 대기'];
+            sub_write($sub); $flash='해지 요청이 접수되었습니다. 결제 식별정보 확인 후 '.number_format($quote['amount']).'원을 환불해 드립니다.'; $flashType='ok'; $status='refund_pending';
+          } else {
+            $idem='refund-'.substr(hash('sha256',$UID.'|'.$paymentKey.'|'.$quote['amount']),0,40);
+            $refund=sub_toss_refund($paymentKey,$quote['amount'],'사용자 구독 해지',$idem);
+            if ($refund['ok']) {
+              $sub['status']='refunded'; $sub['canceled_at']=$now; $sub['expires_at']=date('Y-m-d');
+              $sub['refund']=['status'=>'done','refunded_at'=>$now,'amount'=>$quote['amount'],'reason'=>$quote['reason'],'payment_key'=>$paymentKey];
+              $sub['history'][]=['at'=>$now,'type'=>'refund','amount'=>$quote['amount'],'memo'=>$quote['reason'].' · 토스 환불 완료'];
+              sub_write($sub); $flash='구독이 해지되었고 '.number_format($quote['amount']).'원 환불이 접수되었습니다.'; $status='refunded';
+            } else {
+              $sub['history'][]=['at'=>$now,'type'=>'refund_failed','amount'=>$quote['amount'],'memo'=>'환불 실패: '.($refund['code']??'').' '.($refund['error']??'')];
+              sub_write($sub); $flash='환불 처리에 실패하여 구독을 해지하지 않았습니다: '.($refund['error']??'알 수 없는 오류'); $flashType='err';
+            }
+          }
+        }
       }
     }
 
@@ -183,10 +264,13 @@ $STATUS_LABEL = [
   'pending'        => ['신청 접수됨 · 결제 준비 중', 'wait'],
   'active'         => ['구독 중', 'ok'],
   'canceled'       => ['해지됨', 'muted'],
+  'refund_pending' => ['해지 접수 · 환불 확인 중', 'wait'],
+  'refunded'       => ['해지 · 환불 완료', 'muted'],
   'expired'        => ['기간 만료', 'wait'],
   'payment_failed' => ['결제 실패 · 확인이 필요합니다', 'err'],
 ];
 [$statusText, $statusTone] = $STATUS_LABEL[$status] ?? $STATUS_LABEL['none'];
+$refundQuote = in_array($status, ['active','payment_failed'], true) ? sub_refund_quote($sub) : [];
 
 $monthly = PLANS['monthly']; $yearly = PLANS['yearly'];
 $yearCompare = $monthly['price'] * 12;          // 22,800
@@ -208,6 +292,9 @@ require __DIR__ . '/_header.php';
 .sub-badge.ok{background:#eefaf1;color:#15803d}
 .sub-badge.err{background:#fdeceb;color:var(--danger)}
 .sub-meta{font-size:12.5px;color:var(--mut)}
+.refund-box{margin-top:14px;padding:13px 14px;border:1px solid #ddd6fe;background:#faf8ff;border-radius:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.refund-box__tx{flex:1;min-width:220px}.refund-box__tx b{display:block;font-size:13px;color:#5b21b6}.refund-box__tx span{display:block;font-size:11.5px;color:var(--mut2);margin-top:3px;line-height:1.6}
+.refund-box__amount{font-size:18px;font-weight:900;color:#6d28d9;white-space:nowrap}
 
 .sub-notice{background:#fffbeb;border:1px solid #f6d8a8;border-radius:10px;
   padding:12px 14px;font-size:12.5px;color:#b45309;line-height:1.75;margin-bottom:16px}
@@ -437,19 +524,32 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
           <?php if (!empty($sub['expires_at'])): ?> · 이용 만료 <?=h($sub['expires_at'])?><?php endif; ?>
         </span>
       <?php endif; ?>
-      <?php if (in_array($status, ['pending','active'], true)): ?>
+      <?php if (in_array($status, ['active','payment_failed'], true) && !empty($refundQuote['ok'])): ?>
         <form method="post" style="margin-left:auto">
           <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
           <input type="hidden" name="act" value="cancel">
           <button class="btn btn--ghost" type="submit"
-            onclick="return confirm('구독을 해지할까요?\n입력하신 자료는 삭제되지 않습니다.')">해지하기</button>
+            onclick="return confirm('구독을 즉시 해지하고 <?=number_format((int)$refundQuote['amount'])?>원을 환불합니다.\n환불 후에는 즉시 이용이 종료됩니다. 계속할까요?')">해지·환불하기</button>
         </form>
       <?php endif; ?>
     </div>
+    <?php if (in_array($status, ['active','payment_failed'], true)): ?>
+      <div class="refund-box">
+        <div class="refund-box__tx">
+          <b>지금 해지할 경우 예상 환불액</b>
+          <?php if (!empty($refundQuote['ok'])): ?>
+            <span><?=h($refundQuote['reason'])?> · 전체 <?=$refundQuote['total_days']?>일 중 잔여 <?=$refundQuote['remaining_days']?>일 · 환불 완료 시 즉시 이용 종료</span>
+          <?php else: ?><span><?=h((string)($refundQuote['reason'] ?? '환불 정보를 확인할 수 없습니다.'))?></span><?php endif; ?>
+        </div>
+        <strong class="refund-box__amount"><?=!empty($refundQuote['ok'])?number_format((int)$refundQuote['amount']).'원':'확인 필요'?></strong>
+      </div>
+    <?php elseif ($status === 'refund_pending'): ?>
+      <div class="refund-box"><div class="refund-box__tx"><b>환불 확인 중</b><span>관리자가 결제 식별정보를 확인한 뒤 환불을 완료합니다. 중복 요청은 처리되지 않습니다.</span></div><strong class="refund-box__amount"><?=number_format((int)($sub['refund']['amount'] ?? 0))?>원</strong></div>
+    <?php endif; ?>
   </div>
 
   <!-- 플랜 선택 -->
-  <?php if (!in_array($status, ['active'], true)): ?>
+  <?php if (in_array($status, ['none','canceled','expired','refunded'], true)): ?>
   <div class="card">
     <div class="sub-sec-t">요금제 선택</div>
     <form method="post" id="planForm">
@@ -532,8 +632,8 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
       </div>
       <div>
         <div class="sub-faq__q">환불이 되나요?</div>
-        <div class="sub-faq__a">결제 후 7일 이내에 서비스를 사용하지 않으셨다면 전액 환불해 드립니다.
-          사용 중 해지하시면 남은 기간을 일할 계산하여 환불합니다.</div>
+        <div class="sub-faq__a">결제 후 7일 이내에는 전액 환불하며, 이후에는 실제 결제금액을 기준으로 남은 기간을 일할 계산하여 환불합니다.
+          환불이 완료되면 서비스 이용이 즉시 종료됩니다.</div>
       </div>
       <div>
         <div class="sub-faq__q">해지하면 자료가 사라지나요?</div>
@@ -578,9 +678,9 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
     </div>
     <p class="seller__policy">
       <b>환불 규정</b> ·
-      결제 후 7일 이내에 서비스를 사용하지 않으신 경우 전액 환불해 드립니다.
-      사용 중 해지하시면 남은 기간에 대해 일할 계산하여 환불합니다.
-      환불 요청은 위 이메일로 접수해 주세요.
+      결제 후 7일 이내에는 전액 환불합니다.
+      이후에는 실제 결제금액에서 전체 이용기간 대비 남은 기간을 일할 계산하여 환불하며,
+      환불 완료 시 서비스 이용이 즉시 종료됩니다.
     </p>
   </div>
 </main>
