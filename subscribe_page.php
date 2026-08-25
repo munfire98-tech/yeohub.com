@@ -1,5 +1,6 @@
 <?php
 /* =============================================================
+    2026 8월 26일 8시 26분 v2
    subscribe_page.php — 구독 신청 / 관리 페이지 (틀)
    ─────────────────────────────────────────────────────────────
    지금은 "틀"입니다. 실제 결제(PG) 연동 전이라 아래처럼 동작합니다.
@@ -201,6 +202,45 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
       }
     }
 
+    /* [1-1] 요금제 변경 예약 — 현재 이용기간이 끝난 다음 결제부터 적용 */
+    if ($act === 'change_plan') {
+      $toPlan = (string)($_POST['to_plan'] ?? '');
+      $fromPlan = (string)($sub['plan'] ?? '');
+      if ($status !== 'active') {
+        $flash = '이용 중인 구독만 요금제를 변경할 수 있습니다.'; $flashType = 'err';
+      } elseif (!isset(PLANS[$fromPlan]) || !isset(PLANS[$toPlan]) || $toPlan === $fromPlan) {
+        $flash = '변경할 요금제를 다시 확인해 주세요.'; $flashType = 'err';
+      } else {
+        $effective = trim((string)($sub['next_billing'] ?? $sub['expires_at'] ?? ''));
+        if ($effective === '') {
+          $flash = '다음 결제일을 확인할 수 없어 변경을 예약하지 못했습니다.'; $flashType = 'err';
+        } else {
+          $now = date('Y-m-d H:i:s');
+          $sub['plan_change'] = [
+            'status'=>'scheduled', 'from'=>$fromPlan, 'to'=>$toPlan,
+            'requested_at'=>$now, 'effective_at'=>substr($effective,0,10),
+          ];
+          $sub['history'][] = ['at'=>$now,'type'=>'plan_change_scheduled','amount'=>PLANS[$toPlan]['price'],
+            'memo'=>PLANS[$fromPlan]['name'].' → '.PLANS[$toPlan]['name'].' · '.substr($effective,0,10).' 적용 예정'];
+          if (sub_write($sub)) $flash = PLANS[$toPlan]['name'].'으로 변경을 예약했습니다. 다음 결제일부터 적용됩니다.';
+          else { $flash='요금제 변경 예약을 저장하지 못했습니다.'; $flashType='err'; }
+        }
+      }
+    }
+
+    if ($act === 'cancel_plan_change') {
+      $change = (array)($sub['plan_change'] ?? []);
+      if (($change['status'] ?? '') !== 'scheduled') {
+        $flash = '취소할 요금제 변경 예약이 없습니다.'; $flashType = 'err';
+      } else {
+        $now = date('Y-m-d H:i:s');
+        $sub['history'][] = ['at'=>$now,'type'=>'plan_change_canceled','memo'=>'요금제 변경 예약 취소'];
+        unset($sub['plan_change']);
+        if (sub_write($sub)) $flash='요금제 변경 예약을 취소했습니다.';
+        else { $flash='변경 예약 취소를 저장하지 못했습니다.'; $flashType='err'; }
+      }
+    }
+
     /* [2] 구독 해지·환불 ------------------------------------------- */
     if ($act === 'cancel') {
       if (in_array($status, ['refund_pending','refunded','canceled','expired'], true)) {
@@ -212,12 +252,14 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
           $flash = '자동 환불 금액을 계산하지 못했습니다. 관리자에게 문의해 주세요: '.$quote['reason']; $flashType='err';
         } elseif ($quote['amount'] <= 0) {
           $sub['status']='canceled'; $sub['canceled_at']=$now; $sub['expires_at']=date('Y-m-d');
+          unset($sub['plan_change']);
           $sub['history'][]=['at'=>$now,'type'=>'cancel','amount'=>0,'memo'=>'사용자 해지 · 환불액 없음'];
           sub_write($sub); $flash='구독이 해지되었습니다.'; $status='canceled';
         } else {
           $paymentKey=(string)$quote['payment']['payment_key'];
           if ($paymentKey === '') {
             $sub['status']='refund_pending'; $sub['cancel_requested_at']=$now;
+            unset($sub['plan_change']);
             $sub['refund']=['status'=>'pending','requested_at'=>$now,'amount'=>$quote['amount'],'reason'=>$quote['reason'],'order_id'=>$quote['payment']['order_id']];
             $sub['history'][]=['at'=>$now,'type'=>'refund_pending','amount'=>$quote['amount'],'memo'=>'결제키 확인 필요 · 관리자 환불 대기'];
             sub_write($sub); $flash='해지 요청이 접수되었습니다. 결제 식별정보 확인 후 '.number_format($quote['amount']).'원을 환불해 드립니다.'; $flashType='ok'; $status='refund_pending';
@@ -226,6 +268,7 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $refund=sub_toss_refund($paymentKey,$quote['amount'],'사용자 구독 해지',$idem);
             if ($refund['ok']) {
               $sub['status']='refunded'; $sub['canceled_at']=$now; $sub['expires_at']=date('Y-m-d');
+              unset($sub['plan_change']);
               $sub['refund']=['status'=>'done','refunded_at'=>$now,'amount'=>$quote['amount'],'reason'=>$quote['reason'],'payment_key'=>$paymentKey];
               $sub['history'][]=['at'=>$now,'type'=>'refund','amount'=>$quote['amount'],'memo'=>$quote['reason'].' · 토스 환불 완료'];
               sub_write($sub); $flash='구독이 해지되었고 '.number_format($quote['amount']).'원 환불이 접수되었습니다.'; $status='refunded';
@@ -234,6 +277,73 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
               sub_write($sub); $flash='환불 처리에 실패하여 구독을 해지하지 않았습니다: '.($refund['error']??'알 수 없는 오류'); $flashType='err';
             }
           }
+        }
+      }
+    }
+
+    /* [2-1] 해지 신청 취소 — 아직 환불이 나가기 전이면 되돌릴 수 있습니다.
+       이미 환불이 완료된 건은 되돌릴 수 없습니다(돈이 이미 나갔으므로). */
+    if ($act === 'cancel_revoke') {
+      if ($status !== 'refund_pending') {
+        $flash = '취소할 수 있는 해지 신청이 없습니다.'; $flashType = 'err';
+      } else {
+        $now = date('Y-m-d H:i:s');
+        /* 해지 신청 전 상태로 되돌립니다 */
+        $sub['status'] = 'active';
+        unset($sub['cancel_requested_at']);
+        if (isset($sub['refund']) && ($sub['refund']['status'] ?? '') === 'pending') {
+          $sub['refund']['status']    = 'revoked';
+          $sub['refund']['revoked_at'] = $now;
+        }
+        $sub['history'][] = ['at'=>$now, 'type'=>'cancel_revoke', 'amount'=>0,
+                             'memo'=>'사용자가 해지 신청을 취소함 · 구독 유지'];
+        sub_write($sub);
+        $flash = '해지 신청을 취소했습니다. 구독이 그대로 유지됩니다.';
+        $flashType = 'ok';
+        $status = 'active';
+      }
+    }
+
+    /* [2-2] 다시 구독하기 — 해지·환불이 끝난 뒤 같은 카드로 재시작합니다. */
+    if ($act === 'resubscribe') {
+      if (!in_array($status, ['canceled','refunded','expired'], true)) {
+        $flash = '이미 이용 중이거나 처리 중인 구독입니다.'; $flashType = 'err';
+      } else {
+        require_once __DIR__ . '/toss_billing.php';
+        $cur  = tb_read();
+        $bk   = trim((string)($cur['billing_key'] ?? ''));
+        $plan = (string)($cur['plan'] ?? 'monthly');
+
+        if ($bk === '') {
+          $flash = '먼저 결제 카드를 등록해 주세요.'; $flashType = 'err';
+        } elseif (!isset(PLANS[$plan])) {
+          $flash = '요금제를 다시 선택해 주세요.'; $flashType = 'err';
+        } else {
+          $p   = PLANS[$plan];
+          $now = date('Y-m-d H:i:s');
+          $res = tb_charge((int)$p['price'], $p['name']);
+
+          $sub = tb_read();
+          if ($res['ok']) {
+            $sub['status']       = 'active';
+            $sub['plan']         = $plan;
+            $sub['plan_name']    = $p['name'];
+            $sub['price']        = $p['price'];
+            $sub['started_at']   = $now;
+            $sub['bill_day']     = (int)date('j');
+            $sub['next_billing'] = tb_next_billing(date('Y-m-d'), (int)$p['months'], (int)date('j'));
+            $sub['expires_at']   = $sub['next_billing'];
+            unset($sub['canceled_at'], $sub['cancel_requested_at'], $sub['refund']);
+            $sub['history'][] = ['at'=>$now,'type'=>'resubscribe','amount'=>$p['price'],
+                                 'memo'=>'해지 후 다시 구독'];
+            $flash = $p['name'].' 결제가 완료되었습니다. 다시 이용하실 수 있습니다.';
+            $flashType = 'ok'; $status = 'active';
+          } else {
+            $sub['status'] = 'payment_failed';
+            $flash = '결제에 실패했습니다: '.$res['error']; $flashType = 'err';
+            $status = 'payment_failed';
+          }
+          sub_write($sub);
         }
       }
     }
@@ -293,8 +403,28 @@ require __DIR__ . '/_header.php';
 .sub-badge.err{background:#fdeceb;color:var(--danger)}
 .sub-meta{font-size:12.5px;color:var(--mut)}
 .refund-box{margin-top:14px;padding:13px 14px;border:1px solid #ddd6fe;background:#faf8ff;border-radius:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+/* 해지 신청 취소 — 아직 되돌릴 수 있음을 알려줍니다 */
+.sub-revoke{margin-top:10px;padding:14px 16px;border-radius:10px;
+  background:#f0fdf4;border:1px solid #bbf7d0;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.sub-revoke__tx{flex:1;min-width:200px;font-size:12.5px;color:#15803d;line-height:1.7}
+
+/* 다시 구독하기 */
+.sub-again{margin-top:14px;padding:15px 17px;border-radius:10px;
+  background:var(--bg2);border:1px solid var(--bd);
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.sub-again__tx{flex:1;min-width:200px}
+.sub-again__tx b{display:block;font-size:13.5px;font-weight:700;color:var(--fg)}
+.sub-again__tx span{display:block;font-size:12px;color:var(--mut2);margin-top:3px;line-height:1.7}
+@media(max-width:560px){
+  .sub-revoke .btn,.sub-again .btn{width:100%;justify-content:center}
+}
 .refund-box__tx{flex:1;min-width:220px}.refund-box__tx b{display:block;font-size:13px;color:#5b21b6}.refund-box__tx span{display:block;font-size:11.5px;color:var(--mut2);margin-top:3px;line-height:1.6}
 .refund-box__amount{font-size:18px;font-weight:900;color:#6d28d9;white-space:nowrap}
+.plan-change{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:15px;border:1px solid var(--bd);border-radius:11px;background:var(--bg2)}
+.plan-change__flow{display:flex;align-items:center;gap:9px;flex:1;min-width:230px}.plan-change__plan b{display:block;font-size:14px}.plan-change__plan small{display:block;font-size:11.5px;color:var(--mut)}
+.plan-change__arrow{color:var(--brand);font-size:18px;font-weight:800}.plan-change__note{font-size:11.5px;color:var(--mut2);margin-top:10px;line-height:1.7}
 
 .sub-notice{background:#fffbeb;border:1px solid #f6d8a8;border-radius:10px;
   padding:12px 14px;font-size:12.5px;color:#b45309;line-height:1.75;margin-bottom:16px}
@@ -377,6 +507,17 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
 .seller__policy{font-size:12px;color:var(--mut);line-height:1.85;margin:0;
   padding-top:12px;border-top:1px solid var(--bd)}
 .seller__policy b{color:var(--mut2);font-weight:700}
+/* ── 간결한 접이식 관리 메뉴 ── */
+details.sub-fold{padding:0;overflow:hidden}
+.sub-fold>summary{list-style:none;display:flex;align-items:center;gap:12px;padding:16px 18px;cursor:pointer;user-select:none}
+.sub-fold>summary::-webkit-details-marker{display:none}
+.sub-fold>summary::after{content:'›';margin-left:auto;color:var(--mut);font-size:22px;line-height:1;transition:transform .16s}
+.sub-fold[open]>summary::after{transform:rotate(90deg)}
+.sub-fold__title{font-size:14px;font-weight:800;color:var(--fg)}
+.sub-fold__hint{font-size:11.5px;color:var(--mut);margin-left:auto}
+.sub-fold>summary::after{margin-left:0}.sub-fold__body{padding:0 18px 18px;border-top:1px solid var(--bd);padding-top:16px}
+.sub-fold .sub-sec-t{display:none}.sub-fold .trust{margin:0 18px 18px}
+@media(max-width:560px){.sub-fold__hint{display:none}}
 </style>
 
 <header class="page-head">
@@ -396,7 +537,8 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
     <div class="sub-flash err">로그인 정보를 확인할 수 없어 구독 정보를 불러오지 못했습니다. 다시 로그인해 주세요.</div>
   <?php endif; ?>
 
-  <!-- ★ 결제 연동 전 안내 — PG 연동이 끝나면 이 블록을 지우세요 -->
+  <?php require_once __DIR__ . '/toss_billing.php'; if (!tb_ready()): ?>
+  <!-- 결제키가 아직 설정되지 않은 경우에만 표시 -->
   <div class="sub-notice">
     <div class="sub-notice__t">
       <span class="sub-notice__badge">준비 중</span>
@@ -408,15 +550,17 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
       준비가 끝나면 등록하신 이메일로 안내해 드립니다.
     </p>
   </div>
+  <?php endif; ?>
 
   <!-- 카드 등록 (토스페이먼츠 자동결제) -->
   <?php
-    require_once __DIR__ . '/toss_billing.php';
     $tbData  = tb_read();
     $tbCard  = $tbData['card'] ?? [];
     $hasCard = trim((string)($tbData['billing_key'] ?? '')) !== '';
   ?>
-  <div class="card">
+  <details class="card sub-fold">
+    <summary><span class="sub-fold__title">결제카드 관리</span><span class="sub-fold__hint"><?=$hasCard?'등록된 카드 확인·변경':'카드 등록 필요'?></span></summary>
+    <div class="sub-fold__body">
     <div class="sub-sec-t">결제 카드</div>
 
     <?php if (!tb_ready()): ?>
@@ -450,7 +594,7 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
         카드번호는 앞 6~8자리만 맞으면 나머지는 아무 값이나 넣으셔도 됩니다.
       </div>
     <?php endif; ?>
-  </div>
+    </div>
 
   <?php if (tb_ready()): ?>
   <script src="https://js.tosspayments.com/v1/payment"></script>
@@ -511,6 +655,7 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
       </div>
     </div>
   </div>
+  </details>
 
   <!-- 현재 상태 -->
   <div class="card">
@@ -544,9 +689,92 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
         <strong class="refund-box__amount"><?=!empty($refundQuote['ok'])?number_format((int)$refundQuote['amount']).'원':'확인 필요'?></strong>
       </div>
     <?php elseif ($status === 'refund_pending'): ?>
-      <div class="refund-box"><div class="refund-box__tx"><b>환불 확인 중</b><span>관리자가 결제 식별정보를 확인한 뒤 환불을 완료합니다. 중복 요청은 처리되지 않습니다.</span></div><strong class="refund-box__amount"><?=number_format((int)($sub['refund']['amount'] ?? 0))?>원</strong></div>
+      <div class="refund-box">
+        <div class="refund-box__tx">
+          <b>환불 확인 중</b>
+          <span>관리자가 결제 식별정보를 확인한 뒤 환불을 완료합니다.
+            환불이 나가기 전이라면 아래에서 해지 신청을 취소하실 수 있습니다.</span>
+        </div>
+        <strong class="refund-box__amount"><?=number_format((int)($sub['refund']['amount'] ?? 0))?>원</strong>
+      </div>
+      <form method="post" class="sub-revoke">
+        <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
+        <input type="hidden" name="act" value="cancel_revoke">
+        <div class="sub-revoke__tx">
+          마음이 바뀌셨나요? 아직 환불이 나가기 전이라 되돌릴 수 있습니다.
+        </div>
+        <button class="btn btn--primary" type="submit"
+          onclick="return confirm('해지 신청을 취소하고 구독을 그대로 유지합니다.\n계속할까요?')">
+          해지 신청 취소하고 계속 이용하기
+        </button>
+      </form>
+
+    <?php elseif (in_array($status, ['canceled','refunded','expired'], true)): ?>
+      <?php
+        require_once __DIR__ . '/toss_billing.php';
+        $reCard = trim((string)(tb_read()['billing_key'] ?? '')) !== '';
+        $rePlan = (string)($sub['plan_name'] ?? '');
+        $rePrice = (int)($sub['price'] ?? 0);
+      ?>
+      <div class="sub-again">
+        <div class="sub-again__tx">
+          <b>다시 이용하시겠어요?</b>
+          <span>
+            <?php if ($reCard): ?>
+              등록해 두신 카드로 바로 시작할 수 있습니다.
+              <?php if ($rePlan): ?><?=h($rePlan)?> <?=number_format($rePrice)?>원이 결제됩니다.<?php endif; ?>
+            <?php else: ?>
+              먼저 아래에서 결제 카드를 등록해 주세요.
+            <?php endif; ?>
+          </span>
+        </div>
+        <?php if ($reCard): ?>
+          <form method="post">
+            <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
+            <input type="hidden" name="act" value="resubscribe">
+            <button class="btn btn--primary" type="submit"
+              onclick="return confirm('<?=h($rePlan ?: '구독')?> <?=number_format($rePrice)?>원을 결제하고 다시 시작합니다.\n계속할까요?')">
+              다시 구독하기
+            </button>
+          </form>
+        <?php endif; ?>
+      </div>
     <?php endif; ?>
   </div>
+
+  <?php if ($status === 'active' && isset(PLANS[$sub['plan'] ?? ''])):
+    $currentPlanKey=(string)$sub['plan'];
+    $targetPlanKey=$currentPlanKey==='monthly'?'yearly':'monthly';
+    $change=(array)($sub['plan_change'] ?? []);
+    $changeScheduled=(($change['status'] ?? '')==='scheduled' && isset(PLANS[$change['to'] ?? '']));
+  ?>
+  <details class="card sub-fold">
+    <summary><span class="sub-fold__title">요금제 변경</span><span class="sub-fold__hint"><?=$changeScheduled?h(PLANS[$change['to']]['name']).' 변경 예약됨':'다음 결제일부터 변경'?></span></summary>
+    <div class="sub-fold__body">
+    <div class="sub-sec-t">요금제 변경</div>
+    <?php if ($changeScheduled): $scheduledPlan=PLANS[$change['to']]; ?>
+      <div class="plan-change">
+        <div class="plan-change__flow">
+          <span class="plan-change__plan"><small>현재</small><b><?=h(PLANS[$currentPlanKey]['name'])?></b></span>
+          <span class="plan-change__arrow">→</span>
+          <span class="plan-change__plan"><small><?=h((string)$change['effective_at'])?>부터</small><b><?=h($scheduledPlan['name'])?> · <?=number_format($scheduledPlan['price'])?>원</b></span>
+        </div>
+        <form method="post"><input type="hidden" name="csrf" value="<?=h($CSRF)?>"><input type="hidden" name="act" value="cancel_plan_change"><button class="btn btn--ghost" type="submit" onclick="return confirm('요금제 변경 예약을 취소할까요?')">변경 예약 취소</button></form>
+      </div>
+    <?php else: $targetPlan=PLANS[$targetPlanKey]; ?>
+      <div class="plan-change">
+        <div class="plan-change__flow">
+          <span class="plan-change__plan"><small>현재 요금제</small><b><?=h(PLANS[$currentPlanKey]['name'])?> · <?=number_format(PLANS[$currentPlanKey]['price'])?>원</b></span>
+          <span class="plan-change__arrow">→</span>
+          <span class="plan-change__plan"><small>다음 결제부터</small><b><?=h($targetPlan['name'])?> · <?=number_format($targetPlan['price'])?>원</b></span>
+        </div>
+        <form method="post"><input type="hidden" name="csrf" value="<?=h($CSRF)?>"><input type="hidden" name="act" value="change_plan"><input type="hidden" name="to_plan" value="<?=h($targetPlanKey)?>"><button class="btn btn--primary" type="submit" onclick="return confirm('다음 결제일부터 <?=h($targetPlan['name'])?> <?=number_format($targetPlan['price'])?>원으로 변경할까요?\n현재 이용기간과 결제에는 영향이 없습니다.')"><?=h($targetPlan['name'])?>으로 변경 예약</button></form>
+      </div>
+    <?php endif; ?>
+    <p class="plan-change__note">현재 이용기간은 그대로 유지됩니다. 새 요금제는 다음 결제에 성공한 시점부터 적용되며, 적용 전에는 언제든 예약을 취소할 수 있습니다.</p>
+    </div>
+  </details>
+  <?php endif; ?>
 
   <!-- 플랜 선택 -->
   <?php if (in_array($status, ['none','canceled','expired','refunded'], true)): ?>
@@ -601,7 +829,9 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
   <?php endif; ?>
 
   <!-- 결제 내역 -->
-  <div class="card">
+  <details class="card sub-fold">
+    <summary><span class="sub-fold__title">신청 · 결제 내역</span><span class="sub-fold__hint"><?=count((array)($sub['history'] ?? []))?>건</span></summary>
+    <div class="sub-fold__body">
     <div class="sub-sec-t">신청 · 결제 내역</div>
     <?php $hist = (array)($sub['history'] ?? []); if (!$hist): ?>
       <div class="sub-empty">아직 내역이 없습니다.</div>
@@ -618,10 +848,13 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
         <?php endforeach; ?>
       </table>
     <?php endif; ?>
-  </div>
+    </div>
+  </details>
 
   <!-- 안내 -->
-  <div class="card">
+  <details class="card sub-fold">
+    <summary><span class="sub-fold__title">이용 안내</span><span class="sub-fold__hint">결제·환불·자료 보관 안내</span></summary>
+    <div class="sub-fold__body">
     <div class="sub-sec-t">이용 안내</div>
     <div class="sub-faq">
       <div>
@@ -649,10 +882,13 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
         <div class="sub-faq__a">필요하시면 아래로 문의해 주세요. 사업자 정보를 확인한 뒤 안내해 드리겠습니다.</div>
       </div>
     </div>
-  </div>
+    </div>
+  </details>
 
   <!-- 문의 -->
-  <div class="card">
+  <details class="card sub-fold">
+    <summary><span class="sub-fold__title">문의하기</span><span class="sub-fold__hint">구독·결제 문의 남기기</span></summary>
+    <div class="sub-fold__body">
     <div class="sub-sec-t">문의하기</div>
     <form method="post">
       <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
@@ -663,10 +899,13 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
         문의 보내기
       </button>
     </form>
-  </div>
+    </div>
+  </details>
 
   <!-- 판매자 정보 · 환불 규정 -->
-  <div class="seller">
+  <details class="seller sub-fold">
+    <summary><span class="sub-fold__title">판매자 정보 · 환불 규정</span><span class="sub-fold__hint">사업자 정보와 약관 확인</span></summary>
+    <div class="sub-fold__body">
     <div class="seller__t">판매자 정보</div>
     <div class="seller__grid">
       <span><b>상호</b>YEOHUB</span>
@@ -682,7 +921,8 @@ table.sub-table th{background:var(--bg2);color:var(--mut);font-weight:700;white-
       이후에는 실제 결제금액에서 전체 이용기간 대비 남은 기간을 일할 계산하여 환불하며,
       환불 완료 시 서비스 이용이 즉시 종료됩니다.
     </p>
-  </div>
+    </div>
+  </details>
 </main>
 
 <script>

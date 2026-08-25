@@ -316,10 +316,16 @@ function sub_charge_member(string $uid, string $base, string $secret, bool $isLi
   $plan = (string)($d['plan'] ?? '');
   $next = trim((string)($d['next_billing'] ?? ''));
   $today = date('Y-m-d');
+  $change = is_array($d['plan_change'] ?? null) ? $d['plan_change'] : [];
+  $applyPlanChange = ($change['status'] ?? '') === 'scheduled'
+    && (string)($change['effective_at'] ?? '') !== ''
+    && (string)$change['effective_at'] <= $today
+    && isset(SUB_PLANS[(string)($change['to'] ?? '')]);
+  $chargePlan = $applyPlanChange ? (string)$change['to'] : $plan;
 
   if (!in_array($status, ['active','payment_failed'], true)) return ['ok'=>false,'skip'=>true,'msg'=>'구독 중이 아님'];
   if ($bk === '' || $ck === '')      return ['ok'=>false,'skip'=>true,'msg'=>'카드 미등록'];
-  if (!isset(SUB_PLANS[$plan]))      return ['ok'=>false,'skip'=>true,'msg'=>'요금제 정보 없음'];
+  if (!isset(SUB_PLANS[$chargePlan])) return ['ok'=>false,'skip'=>true,'msg'=>'요금제 정보 없음'];
   if ($checkDate && ($next === '' || $next > $today)) return ['ok'=>false,'skip'=>true,'msg'=>'아직 결제일 전'];
 
   /* 같은 날 두 번 결제되지 않게 막습니다 */
@@ -327,7 +333,7 @@ function sub_charge_member(string $uid, string $base, string $secret, bool $isLi
     return ['ok'=>false,'skip'=>true,'msg'=>'오늘 이미 결제됨'];
   }
 
-  $p = SUB_PLANS[$plan];
+  $p = SUB_PLANS[$chargePlan];
   $res = sub_charge_api($secret, $bk, $ck, (int)$p['price'], $p['name']);
 
   $hist = is_array($d['history'] ?? null) ? $d['history'] : [];
@@ -341,6 +347,15 @@ function sub_charge_member(string $uid, string $base, string $secret, bool $isLi
 
   if ($res['ok']) {
     $d['status'] = 'active';
+    if ($applyPlanChange) {
+      $oldPlan = $plan;
+      $d['plan'] = $chargePlan;
+      $d['plan_name'] = $p['name'];
+      $d['price'] = (int)$p['price'];
+      $d['plan_change']['status'] = 'applied';
+      $d['plan_change']['applied_at'] = date('Y-m-d H:i:s');
+      $d['plan_change']['from'] = $oldPlan;
+    }
     $d['paid_at'] = date('Y-m-d H:i:s');
     $d['next_billing'] = sub_next_billing($next ?: date('Y-m-d'), (int)$p['months'], (int)($d['bill_day'] ?? 0));
     $d['expires_at'] = $d['next_billing'];
@@ -356,7 +371,7 @@ function sub_charge_member(string $uid, string $base, string $secret, bool $isLi
   }
 
   return $res['ok']
-    ? ['ok'=>true,'skip'=>false,'msg'=>'결제 완료 (다음 ' . $d['next_billing'] . ')']
+    ? ['ok'=>true,'skip'=>false,'msg'=>'결제 완료' . ($applyPlanChange ? ' · '.$p['name'].' 변경 적용' : '') . ' (다음 ' . $d['next_billing'] . ')']
     : ['ok'=>false,'skip'=>false,'msg'=>$res['error']];
 }
 
@@ -491,6 +506,7 @@ foreach ($members as $uid => $m) {
     'subEnd'      => $subEnd,
     'subDue'      => $subDue,
     'subErr'      => (string)($sub['last_error'] ?? ''),
+    'subChange'   => is_array($sub['plan_change'] ?? null) ? $sub['plan_change'] : [],
   ];
 }
 
@@ -828,6 +844,9 @@ td.uid{font-weight:700}
               ?>
                 <div class="sub-cell__top"><span class="sub-status <?=$uiClass?>"><?=$uiLabel?></span><?php if ($r['subPrice']): ?><span class="sub-price"><?=number_format($r['subPrice'])?>원</span><?php endif; ?></div>
                 <div class="sub-meta"><?php if ($r['subPlan']): ?><b><?=h($r['subPlan'])?></b><?php endif; ?><?php if (in_array($r['subUiStatus'], ['cancel_pending','canceled','expired','refund_pending','refunded'], true) && $r['subEnd']): ?> · <?= $r['subUiStatus']==='cancel_pending' ? '이용 종료' : '종료일' ?> <?=h(substr($r['subEnd'],0,10))?><?php elseif ($r['subNext'] && $r['subUiStatus']==='active'): ?> · 다음 결제 <?=h($r['subNext'])?><?php endif; ?></div>
+                <?php if (($r['subChange']['status'] ?? '') === 'scheduled' && isset(SUB_PLANS[$r['subChange']['to'] ?? ''])): ?>
+                  <div class="sub-meta" style="color:#6d28d9;font-weight:700">↳ <?=h((string)($r['subChange']['effective_at'] ?? ''))?>부터 <?=h(SUB_PLANS[$r['subChange']['to']]['name'])?></div>
+                <?php endif; ?>
                 <?php if ($r['subDue']): ?>
                   <button class="btn btn--charge" type="submit"
                           form="chargeForm_<?=h($r['uid'])?>">지금 결제</button>

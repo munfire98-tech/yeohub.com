@@ -1,5 +1,6 @@
 <?php
 // building_manager.php — 건물 소방안전관리자 전용 페이지
+// 2026 8월 26일 8시 26분 v1
 declare(strict_types=1);
 
 ini_set('session.cookie_httponly', '1');
