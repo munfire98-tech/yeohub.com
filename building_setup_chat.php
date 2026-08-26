@@ -1,7 +1,5 @@
 <?php
-/*
- 26년 8월 26일 수요일 오전 6시 36분에 업데이트 v1.
-=============================================================
+/* =============================================================
    building_setup_chat.php — 건물 기본정보 대화형 입력
    ─────────────────────────────────────────────────────────────
    질문에 하나씩 답하면 building_info.php 에 저장됩니다.
@@ -485,6 +483,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .opt{padding:9px 15px;border:1px solid var(--bd2);border-radius:999px;background:#fff;
   font-size:13.5px;font-weight:500;transition:.14s}
 .opt:hover{border-color:var(--brand);color:var(--brand2);background:#f7faff}
+.grade-guide{padding:15px 16px;border:1px solid #bfdbfe;border-radius:13px;background:linear-gradient(135deg,#eff6ff,#fff);margin-bottom:10px}
+.grade-guide__label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:var(--brand2);margin-bottom:7px}
+.grade-guide__label::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--brand)}
+.grade-guide__result{font-size:16px;font-weight:850;letter-spacing:-.02em;margin-bottom:3px}.grade-guide__hint{font-size:11.5px;color:var(--mut2);margin-bottom:11px}
+.opt--recommended{width:100%;justify-content:center;padding:11px 16px;border-radius:10px;background:var(--brand);border-color:var(--brand);color:#fff;font-weight:800;box-shadow:0 7px 16px rgba(37,99,235,.18)}
+.opt--recommended:hover{background:var(--brand2);border-color:var(--brand2);color:#fff}.grade-alts{margin-top:8px}.grade-alts__label{width:100%;font-size:11px;color:var(--mut);margin-bottom:1px}
 .inrow{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
 .inrow input{flex:1;min-width:180px;padding:11px 14px;border:1px solid var(--bd2);
   border-radius:11px;background:#fff;font-size:14.8px;font-family:inherit}
@@ -494,6 +498,14 @@ button{font:inherit;color:inherit;cursor:pointer}
 .pair label{flex:1;min-width:130px;display:flex;flex-direction:column;gap:5px;
   font-size:12.5px;color:var(--mut2)}
 .subrow{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
+.btn--manager{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8;font-weight:700}.btn--manager:hover{background:#dbeafe;border-color:#93c5fd;color:#1d4ed8}
+.btn--manager::before{content:'✓';display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#2563eb;color:#fff;font-size:10px}
+.lookup-loading{display:flex;align-items:flex-start;gap:12px;min-width:min(420px,100%)}
+.lookup-spinner{flex:0 0 24px;width:24px;height:24px;border:3px solid #dbeafe;border-top-color:var(--brand);border-radius:50%;animation:lookupSpin .75s linear infinite}
+.lookup-loading b{display:block;font-size:13.5px}.lookup-loading span{display:block;margin-top:2px;font-size:11.5px;color:var(--mut2);line-height:1.55}
+@keyframes lookupSpin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.lookup-spinner{animation-duration:1.6s}}
+.lookup-recovery{padding:13px 14px;border:1px solid #fed7aa;background:#fffaf2;border-radius:12px;margin-bottom:8px;font-size:12px;color:#92400e}
 
 .done{background:var(--card);border:1px solid var(--bd);border-radius:14px;
   padding:22px;margin-left:42px}
@@ -821,13 +833,15 @@ function gradeAnswer(grade, why){
   bot(md('말씀하신 내용으로 보면 **' + grade + '** 입니다.\n\n' + why + '\n\n' +
     '선임신고 필증에 적힌 등급이 최종 기준이니, 나중에 확인해서 다르면 표에서 고치시면 됩니다.'));
   var b = box();
-  var w = document.createElement('div'); w.className='opts';
+  var guide = document.createElement('div'); guide.className='grade-guide';
+  guide.innerHTML='<div class="grade-guide__label">자동 계산 결과</div><div class="grade-guide__result">'+esc(grade)+'</div><div class="grade-guide__hint">아래 파란 버튼을 눌러 저장하고 다음 단계로 이동하세요.</div>';
   var btn = document.createElement('button');
-  btn.className='opt'; btn.type='button';
-  btn.style.cssText = 'background:var(--brand);border-color:var(--brand);color:#fff';
-  btn.textContent = grade + '으로 넣기';
+  btn.className='opt opt--recommended'; btn.type='button';
+  btn.textContent = grade + '으로 저장하고 계속하기 →';
   btn.onclick = function(){ submit({field:'grade'}, grade, {}, grade); };
-  w.appendChild(btn);
+  guide.appendChild(btn); b.appendChild(guide);
+  var w = document.createElement('div'); w.className='opts grade-alts';
+  var altLabel=document.createElement('div'); altLabel.className='grade-alts__label'; altLabel.textContent='선임신고 필증의 등급이 다르면 직접 선택하세요.'; w.appendChild(altLabel);
   ['특급','1급','2급','3급'].forEach(function(g){
     if (g === grade) return;
     var o = document.createElement('button');
@@ -1386,12 +1400,9 @@ function addMgrQuickFill(s, container, inp){
   });
   if (!list.length) return;
 
-  var row = document.createElement('div');
-  row.className = 'subrow';
-  var lab = document.createElement('span');
-  lab.style.cssText = 'font-size:11.5px;color:var(--mut);align-self:center;margin-right:2px';
-  lab.textContent = '소방안전관리자에서:';
-  row.appendChild(lab);
+  var row = container.querySelector('.subrow');
+  if (!row){ row=document.createElement('div'); row.className='subrow'; container.appendChild(row); }
+  var made = 0;
 
   list.forEach(function(m){
     var nm = (m.name||'').trim(), tl = (m.tel||'').trim();
@@ -1399,8 +1410,9 @@ function addMgrQuickFill(s, container, inp){
     if (s.field === 'rep') {
       if (nm === '') return;
       var btn = document.createElement('button');
-      btn.className = 'btn btn--sm'; btn.type = 'button';
-      btn.innerHTML = esc(nm) + (tl ? ' <span style="opacity:.6;font-size:11px">· 연락처까지</span>' : '');
+      btn.className = 'btn btn--sm btn--manager'; btn.type = 'button';
+      btn.innerHTML = '관리자 '+esc(nm)+' 선택' + (tl ? ' <span style="opacity:.68;font-size:10.5px">· 연락처 포함</span>' : '');
+      btn.title = '앞에서 입력한 소방안전관리자 정보를 대표자 정보로 사용합니다.';
       btn.onclick = function(){
         var patch = { rep: nm };
         var shown = nm;
@@ -1417,22 +1429,21 @@ function addMgrQuickFill(s, container, inp){
           next();
         });
       };
-      row.appendChild(btn);
+      row.appendChild(btn); made++;
     }
 
     if (s.field === 'tel') {
       if (tl === '') return;
       var b2 = document.createElement('button');
-      b2.className = 'btn btn--sm'; b2.type = 'button';
-      b2.innerHTML = esc(tl) + (nm ? ' <span style="opacity:.6;font-size:11px">· '+esc(nm)+'</span>' : '');
+      b2.className = 'btn btn--sm btn--manager'; b2.type = 'button';
+      b2.innerHTML = '관리자 연락처 사용' + (nm ? ' <span style="opacity:.68;font-size:10.5px">· '+esc(nm)+'</span>' : '');
+      b2.title = tl;
       b2.onclick = function(){ submit(s, tl, null, tl); };
-      row.appendChild(b2);
+      row.appendChild(b2); made++;
     }
   });
 
-  /* 만들 버튼이 없으면(라벨만 남으면) 표시하지 않는다 */
-  if (row.children.length <= 1) return;
-  container.appendChild(row);
+  if (!made && !row.children.length) row.remove();
 }
 
 function addYeohubReview(s, container){
@@ -1571,15 +1582,26 @@ function appendDirectAddrOption(list, kw, s){
 function doLookupPick(a, s){
   clearBox(); me(a.place + (a.road?(' · '+a.road):''));
   typing(function(){
+    var loading=bot('<div class="lookup-loading"><span class="lookup-spinner" aria-hidden="true"></span><div><b>건축물대장을 가져오는 중입니다</b><span>주소 확인 후 건축물 정보를 조회하고 있습니다. 잠시만 기다려 주세요.</span></div></div>');
+    var loadingBody=loading.querySelector('.msg__b');
+    var slowTimer=setTimeout(function(){
+      if(loadingBody) loadingBody.innerHTML='<div class="lookup-loading"><span class="lookup-spinner" aria-hidden="true"></span><div><b>조회가 평소보다 오래 걸리고 있습니다</b><span>공공데이터 응답을 기다리는 중입니다. 화면을 닫지 않아도 됩니다.</span></div></div>';
+    },4500);
+    var verySlowTimer=setTimeout(function(){
+      if(loadingBody) loadingBody.innerHTML='<div class="lookup-loading"><span class="lookup-spinner" aria-hidden="true"></span><div><b>여러 건축물 정보를 확인하고 있습니다</b><span>최대 30초 정도 걸릴 수 있습니다. 응답이 없으면 재시도할 수 있게 안내해 드립니다.</span></div></div>';
+    },12000);
+    var controller=window.AbortController?new AbortController():null;
+    var abortTimer=controller?setTimeout(function(){controller.abort();},35000):null;
+    function endLoading(){ clearTimeout(slowTimer); clearTimeout(verySlowTimer); if(abortTimer) clearTimeout(abortTimer); if(loading&&loading.isConnected) loading.remove(); }
     var fd=new FormData();
     fd.append('act','lookup'); fd.append('csrf',CSRF);
     fd.append('place',a.place||''); fd.append('road',a.road||''); fd.append('jibun',a.jibun||'');
     fd.append('lat',a.lat||''); fd.append('lng',a.lng||'');
-    fetch(location.pathname+location.search,{method:'POST',body:fd,credentials:'same-origin'})
+    fetch(location.pathname+location.search,{method:'POST',body:fd,credentials:'same-origin',signal:controller?controller.signal:undefined})
       .then(function(r){return r.json();})
       .then(function(j){
-        if(!j || !j.ok){ bot(md('⚠️ '+((j&&j.error)||'조회에 실패했습니다.')+'\n\n직접 입력으로 이어가겠습니다.'));
-          step++; setTimeout(next,500); return; }
+        endLoading();
+        if(!j || !j.ok){ showLookupRecovery(a,s,(j&&j.error)||'건축물대장 조회에 실패했습니다.'); return; }
         var patch=j.patch||{};
         var lines=[];
         if(patch.name)    lines.push('**대상명** '+patch.name);
@@ -1601,9 +1623,22 @@ function doLookupPick(a, s){
         for(var k in patch){ if(patch[k]!=='' && patch[k]!==null) SAVED[k]=patch[k]; }
         save(patch, function(){ step++; setTimeout(next,500); });
       })
-      .catch(function(){ bot(md('⚠️ 조회 중 연결이 끊겼습니다. 직접 입력으로 이어가겠습니다.'));
-        step++; setTimeout(next,500); });
+      .catch(function(err){ endLoading(); showLookupRecovery(a,s,(err&&err.name==='AbortError')?'조회 시간이 35초를 초과했습니다.':'조회 중 연결이 끊겼습니다.'); });
   });
+}
+
+function showLookupRecovery(a,s,message){
+  bot(md('건축물 정보를 가져오지 못했습니다.\n\n'+message));
+  var b=box();
+  var notice=document.createElement('div'); notice.className='lookup-recovery';
+  notice.textContent='공공데이터가 일시적으로 늦거나 해당 주소의 대장이 제공되지 않을 수 있습니다.';
+  b.appendChild(notice);
+  var row=document.createElement('div'); row.className='subrow';
+  var retry=document.createElement('button'); retry.className='btn btn--pri'; retry.type='button'; retry.textContent='다시 조회하기';
+  retry.onclick=function(){ clearBox(); doLookupPick(a,s); };
+  var manual=document.createElement('button'); manual.className='btn'; manual.type='button'; manual.textContent='직접 입력으로 계속';
+  manual.onclick=function(){ clearBox(); me('직접 입력으로 계속'); step++; next(); };
+  row.appendChild(retry); row.appendChild(manual); b.appendChild(row);
 }
 
 /* ── 동 선택 — 여러 동일 때 어느 동(들)을 대상으로 할지 고른다 ──
