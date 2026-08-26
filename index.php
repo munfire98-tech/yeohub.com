@@ -474,6 +474,29 @@ a:hover{color:#1e40af}
 .cta-box{text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:16px}
 .cta-box__msg{color:var(--mut2);font-size:15px}
 .cta-box__btns{display:flex;gap:10px;flex-wrap:wrap}
+.cta-box--work{position:relative;width:100%;padding:28px 30px;border:1px solid #c9daf7;border-radius:20px;overflow:hidden;
+  background:linear-gradient(125deg,#fff 0%,#f5f9ff 60%,#edf5ff 100%);box-shadow:0 18px 46px rgba(30,64,175,.10)}
+.cta-box--work .cta-box__eyebrow{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:850;color:var(--brand);letter-spacing:.1em;text-transform:uppercase}
+.cta-box--work .cta-box__eyebrow::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.1)}
+.cta-box--work .cta-box__title{font-size:22px;font-weight:850;letter-spacing:-.035em;line-height:1.35}
+.cta-box--work .cta-box__msg{margin-top:-11px;font-size:13.5px}.cta-box--work .btn--primary{padding:13px 22px;font-size:14px;box-shadow:0 8px 18px rgba(37,99,235,.18)}
+.service-guide{position:relative;margin-top:72px;padding:52px 46px 42px;border:1px solid #dce5f1;border-radius:26px;overflow:hidden;background:linear-gradient(155deg,#fff 0%,#f8faff 58%,#f2f6fc 100%);box-shadow:0 24px 60px rgba(30,41,59,.07)}
+.service-guide::before{content:'';position:absolute;width:360px;height:360px;border-radius:50%;right:-160px;top:-210px;background:radial-gradient(circle,rgba(37,99,235,.13),rgba(37,99,235,0) 70%);pointer-events:none}
+.service-guide__head{position:relative;text-align:left;max-width:720px;margin:0 0 36px}
+.service-guide__eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:10.5px;font-weight:850;color:var(--brand);letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px}
+.service-guide__eyebrow::before{content:'';width:18px;height:2px;border-radius:2px;background:var(--brand)}
+.service-guide h2{font-size:clamp(26px,3.6vw,38px);font-weight:850;letter-spacing:-.045em;line-height:1.25;margin-bottom:12px}
+.service-guide__lead{font-size:14px;color:var(--mut2);line-height:1.8;max-width:650px}
+.service-flow{position:relative;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;counter-reset:flow}
+.service-flow::before{content:'';position:absolute;left:9%;right:9%;top:24px;height:1px;background:linear-gradient(90deg,#93c5fd,#cbd5e1);z-index:0}
+.service-step{position:relative;z-index:1;min-width:0;padding:0 8px;counter-increment:flow;background:transparent}
+.service-step:not(:last-child)::after{display:none}
+.service-step__num{display:flex;align-items:center;justify-content:center;width:48px;height:48px;border:6px solid #f8faff;border-radius:50%;background:#fff;color:var(--brand2);font-size:11px;font-weight:900;margin-bottom:17px;box-shadow:0 0 0 1px #bfd2ef,0 6px 16px rgba(30,64,175,.12)}
+.service-step__num::before{content:counter(flow,decimal-leading-zero)}
+.service-step h3{font-size:14px;font-weight:850;margin-bottom:7px;letter-spacing:-.015em}.service-step p{font-size:11.5px;color:var(--mut2);line-height:1.7;word-break:keep-all}
+.service-guide__result{position:relative;display:flex;align-items:center;justify-content:space-between;gap:20px;margin-top:34px;padding:21px 23px 21px 25px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:linear-gradient(120deg,#172554,#1e3a8a);color:#fff;box-shadow:0 12px 30px rgba(23,37,84,.18)}
+.service-guide__result b{display:block;font-size:15px;font-weight:800}.service-guide__result span{display:block;color:#bfdbfe;font-size:11.5px;margin-top:4px}
+.service-guide__result .btn{background:#fff;border-color:#fff;color:#1d4ed8;white-space:nowrap;font-weight:800}.service-guide__result .btn:hover{background:#eff6ff;transform:translateY(-1px)}
 .btn--admin{background:#0f766e;border-color:#0f766e;color:#fff;font-weight:600}
 .btn--admin:hover{background:#0d5f59;border-color:#0d5f59;color:#fff}
 .btn--lg{padding:14px 28px;font-size:15px;border-radius:11px}
@@ -604,6 +627,10 @@ footer a:hover{color:var(--fg)}
   .nav__links .m-user{padding:12px 20px;font-size:13px;color:var(--mut2);
     background:#f7f9fc;border-top:1px solid var(--bd)}
   .nav__links .m-logout a{color:#dc2626}
+  .cta-box--work{padding:21px 20px}.cta-box--work .btn{width:100%;justify-content:center}
+  .service-guide{margin-top:48px;padding:34px 20px 22px;border-radius:20px}.service-guide__head{margin-bottom:28px}.service-guide h2 br{display:none}.service-flow{grid-template-columns:1fr;gap:8px}.service-flow::before{left:23px;right:auto;top:20px;bottom:20px;width:1px;height:auto;background:linear-gradient(#93c5fd,#cbd5e1)}
+  .service-step{padding:10px 8px 10px 62px;min-height:58px}.service-step__num{position:absolute;left:0;top:7px;margin:0;width:46px;height:46px}
+  .service-step:not(:last-child)::after{display:none}.service-guide__result{align-items:flex-start;flex-direction:column}.service-guide__result .btn{width:100%;justify-content:center}
 }
 .nav__links .mobile-only{display:none}
 </style>
@@ -944,8 +971,11 @@ footer a:hover{color:var(--fg)}
         </div>
       </div>
     <?php else: ?>
-      <?php $workLabel = (($_SESSION['role'] ?? 'agency') === 'building') ? '🏢 건물 관리 페이지 들어가기 →' : '📋 업무페이지 들어가기 →'; ?>
-      <div class="cta-box">
+      <?php $isBuildingRole=(($_SESSION['role'] ?? 'agency') === 'building'); $workLabel=$isBuildingRole?'건물 관리하기 →':'거래처·건물 관리하기 →'; ?>
+      <div class="cta-box cta-box--work">
+        <div class="cta-box__eyebrow">바로가기</div>
+        <div class="cta-box__title"><?=h($_SESSION['nickname'] ?? '회원')?>님, 관리할 건물을 확인하세요</div>
+        <p class="cta-box__msg"><?=$isBuildingRole?'건물 정보와 소방안전관리 업무를 이어서 관리할 수 있습니다.':'거래처와 건물별 소방안전관리 업무를 이어서 관리할 수 있습니다.'?></p>
         <div class="cta-box__btns">
           <a class="btn btn--primary btn--lg" href="<?=h(work_page())?>"><?=h($workLabel)?></a>
         </div>
@@ -957,6 +987,25 @@ footer a:hover{color:var(--fg)}
       <button class="btn btn--primary btn--lg" id="openAuth2">회원가입 · 로그인</button>
     </div>
   <?php endif; ?>
+
+  <section class="service-guide" aria-labelledby="serviceGuideTitle">
+    <div class="service-guide__head">
+      <div class="service-guide__eyebrow">소방안전관리 업무 흐름</div>
+      <h2 id="serviceGuideTitle">건물 등록 한 번으로<br>필요한 소방 업무를 이어갑니다</h2>
+      <p class="service-guide__lead">건물 기본정보를 반복해서 입력하지 않아도 소방계획서 작성부터 교육·훈련과 업무수행 기록까지 하나의 흐름으로 관리할 수 있습니다.</p>
+    </div>
+    <div class="service-flow">
+      <article class="service-step"><span class="service-step__num"></span><h3>건물 등록</h3><p>건축물 정보와 소방시설 현황을 한 번 입력합니다.</p></article>
+      <article class="service-step"><span class="service-step__num"></span><h3>자위소방대</h3><p>건물 조직에 맞게 역할과 편성표를 구성합니다.</p></article>
+      <article class="service-step"><span class="service-step__num"></span><h3>업무수행기록</h3><p>점검과 조치 내용을 남겨 업무수행 근거를 보관합니다.</p></article>
+      <article class="service-step"><span class="service-step__num"></span><h3>교육·훈련</h3><p>계획부터 실시 결과까지 빠짐없이 기록합니다.</p></article>
+      <article class="service-step"><span class="service-step__num"></span><h3>소방계획서</h3><p>등록한 정보를 바탕으로 법정서식을 작성하고 관리합니다.</p></article>
+    </div>
+    <div class="service-guide__result">
+      <div><b>서류 작성이 아니라, 계속 이어지는 업무 관리</b><span>건물별 기록이 연결되어 필요할 때 바로 확인하고 출력할 수 있습니다.</span></div>
+      <?php if (is_logged_in()): ?><a class="btn" href="<?=h(work_page())?>">건물 관리 시작하기 →</a><?php else: ?><button class="btn" type="button" id="openAuth3">무료로 시작하기 →</button><?php endif; ?>
+    </div>
+  </section>
 </main>
 
 <!-- FOOTER -->
@@ -1138,7 +1187,7 @@ $oldRole = (string)($oldSignup['role'] ?? '');
   })();
 
   const authModal = document.getElementById('authModal');
-  const openAuthBtns = [document.getElementById('openAuth'), document.getElementById('openAuth2')];
+  const openAuthBtns = [document.getElementById('openAuth'), document.getElementById('openAuth2'), document.getElementById('openAuth3')];
   const closeAuth = document.getElementById('closeAuth');
 
   function switchAuthTab(tab){
