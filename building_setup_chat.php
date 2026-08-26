@@ -489,6 +489,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .grade-guide__result{font-size:16px;font-weight:850;letter-spacing:-.02em;margin-bottom:3px}.grade-guide__hint{font-size:11.5px;color:var(--mut2);margin-bottom:11px}
 .opt--recommended{width:100%;justify-content:center;padding:11px 16px;border-radius:10px;background:var(--brand);border-color:var(--brand);color:#fff;font-weight:800;box-shadow:0 7px 16px rgba(37,99,235,.18)}
 .opt--recommended:hover{background:var(--brand2);border-color:var(--brand2);color:#fff}.grade-alts{margin-top:8px}.grade-alts__label{width:100%;font-size:11px;color:var(--mut);margin-bottom:1px}
+.choice-prompt{display:flex;align-items:center;gap:9px;margin:5px 0 10px;padding:9px 11px;border:1px solid #dbe5f3;border-radius:10px;background:#f8faff;font-size:12px;color:var(--mut2)}
+.choice-prompt__badge{flex:0 0 auto;padding:3px 8px;border-radius:999px;background:#dbeafe;color:var(--brand2);font-size:10.5px;font-weight:850}
+.choice-prompt__text{font-weight:700;color:var(--fg)}
 .inrow{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
 .inrow input{flex:1;min-width:180px;padding:11px 14px;border:1px solid var(--bd2);
   border-radius:11px;background:#fff;font-size:14.8px;font-family:inherit}
@@ -500,6 +503,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .subrow{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
 .btn--manager{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8;font-weight:700}.btn--manager:hover{background:#dbeafe;border-color:#93c5fd;color:#1d4ed8}
 .btn--manager::before{content:'✓';display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#2563eb;color:#fff;font-size:10px}
+.btn--back{border-color:#ddd6fe;background:#f5f3ff;color:#6d28d9;font-weight:700}.btn--back:hover{background:#ede9fe;border-color:#c4b5fd;color:#5b21b6}
 .lookup-loading{display:flex;align-items:flex-start;gap:12px;min-width:min(420px,100%)}
 .lookup-spinner{flex:0 0 24px;width:24px;height:24px;border:3px solid #dbeafe;border-top-color:var(--brand);border-radius:50%;animation:lookupSpin .75s linear infinite}
 .lookup-loading b{display:block;font-size:13.5px}.lookup-loading span{display:block;margin-top:2px;font-size:11.5px;color:var(--mut2);line-height:1.55}
@@ -837,7 +841,7 @@ function gradeAnswer(grade, why){
   guide.innerHTML='<div class="grade-guide__label">자동 계산 결과</div><div class="grade-guide__result">'+esc(grade)+'</div><div class="grade-guide__hint">아래 파란 버튼을 눌러 저장하고 다음 단계로 이동하세요.</div>';
   var btn = document.createElement('button');
   btn.className='opt opt--recommended'; btn.type='button';
-  btn.textContent = grade + '으로 저장하고 계속하기 →';
+  btn.textContent = '계산된 ' + grade + ' 선택';
   btn.onclick = function(){ submit({field:'grade'}, grade, {}, grade); };
   guide.appendChild(btn); b.appendChild(guide);
   var w = document.createElement('div'); w.className='opts grade-alts';
@@ -943,7 +947,7 @@ function ask(s){
   bot(md(s.q), s.hint||'');
   var b = box();
   /* 각 입력 UI가 모두 그려진 뒤 맨 아래에 검토요청 버튼을 붙인다. */
-  if (s.type !== 'lookup') Promise.resolve().then(function(){ addYeohubReview(s, b); });
+  if (s.type !== 'lookup') Promise.resolve().then(function(){ addBack(s, b); addYeohubReview(s, b); });
 
   if (s.type === 'lookup'){
     var wrap = document.createElement('div');
@@ -1220,6 +1224,10 @@ function ask(s){
       b.appendChild(note);
     }
 
+    if (s.field === 'grade'){
+      var choose=document.createElement('div'); choose.className='choice-prompt';
+      choose.innerHTML='<span class="choice-prompt__badge">선택 필요</span><span class="choice-prompt__text">소방안전관리 등급을 선택해 주세요</span>'; b.appendChild(choose);
+    }
     var w=document.createElement('div'); w.className='opts';
     s.options.forEach(function(o){
       var btn=document.createElement('button'); btn.className='opt'; btn.type='button';
@@ -1372,6 +1380,7 @@ function ask(s){
   inp.type = (s.type==='number') ? 'number' : 'text';
   if (s.type==='number'){ inp.min='0'; inp.inputMode='numeric'; }
   inp.placeholder = s.ph||'';
+  inp.value = String(SAVED[s.field]||'');
   r.appendChild(inp);
   if (s.unit){ var u=document.createElement('span'); u.className='unit'; u.textContent=s.unit; r.appendChild(u); }
   b.appendChild(r);
@@ -1500,6 +1509,21 @@ function addSkip(s, b){
   sk.textContent='건너뛰기';
   sk.onclick=function(){ clearBox(); me('(건너뜀)'); step++; next(); };
   row.appendChild(sk);
+}
+
+/* 저장된 값은 지우지 않고 이전 질문을 다시 열어 수정합니다. */
+function addBack(s,b){
+  if(step<=0 || !b || !b.isConnected || b.querySelector('.btn--back')) return;
+  var row=b.querySelector('.subrow');
+  if(!row){ row=document.createElement('div'); row.className='subrow'; b.appendChild(row); }
+  var back=document.createElement('button'); back.className='btn btn--sm btn--back'; back.type='button';
+  back.textContent='이전 답변 수정';
+  back.onclick=function(){
+    clearBox(); step=Math.max(0,step-1);
+    bot(md('이전 답변을 다시 보여드릴게요. 새로 입력하면 기존 내용이 바뀝니다.'));
+    setTimeout(function(){ ask(STEPS[step]); },180);
+  };
+  row.appendChild(back);
 }
 
 /* 모르는 항목은 함께 찾아본다 */
