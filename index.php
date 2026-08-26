@@ -480,6 +480,10 @@ a:hover{color:#1e40af}
 .cta-box--work .cta-box__eyebrow::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.1)}
 .cta-box--work .cta-box__title{font-size:22px;font-weight:850;letter-spacing:-.035em;line-height:1.35}
 .cta-box--work .cta-box__msg{margin-top:-11px;font-size:13.5px}.cta-box--work .btn--primary{padding:13px 22px;font-size:14px;box-shadow:0 8px 18px rgba(37,99,235,.18)}
+.hero .cta-box--work{max-width:520px;margin-top:22px;padding:18px 20px;border-radius:16px;gap:10px;box-shadow:0 12px 30px rgba(30,64,175,.09)}
+.hero .cta-box--work .cta-box__title{font-size:17px;line-height:1.4}
+.hero .cta-box--work .cta-box__msg{margin-top:-4px;font-size:12.5px;line-height:1.65}
+.hero .cta-box--work .btn--primary{padding:10px 17px;font-size:13px;border-radius:9px}
 .service-guide{position:relative;margin-top:72px;padding:52px 46px 42px;border:1px solid #dce5f1;border-radius:26px;overflow:hidden;background:linear-gradient(155deg,#fff 0%,#f8faff 58%,#f2f6fc 100%);box-shadow:0 24px 60px rgba(30,41,59,.07)}
 .service-guide::before{content:'';position:absolute;width:360px;height:360px;border-radius:50%;right:-160px;top:-210px;background:radial-gradient(circle,rgba(37,99,235,.13),rgba(37,99,235,0) 70%);pointer-events:none}
 .service-guide__head{position:relative;text-align:left;max-width:720px;margin:0 0 36px}
@@ -748,6 +752,17 @@ footer a:hover{color:var(--fg)}
         <div class="alert <?= is_admin() ? 'alert--ok' : 'alert--warn' ?>"
              style="max-width:400px;margin:16px 0 0"><?=h($notice)?></div>
       <?php endif; ?>
+      <?php if (is_logged_in() && !is_admin()): ?>
+        <?php $isBuildingRole=(($_SESSION['role'] ?? 'agency') === 'building'); $workLabel=$isBuildingRole?'건물 관리하기':'거래처·건물 관리하기'; ?>
+        <div class="cta-box cta-box--work">
+          <div class="cta-box__eyebrow">바로가기</div>
+          <div class="cta-box__title"><?=h($_SESSION['nickname'] ?? '회원')?>님, 관리할 건물을 확인하세요</div>
+          <p class="cta-box__msg"><?=$isBuildingRole?'건물 정보와 소방안전관리 업무를 이어서 관리할 수 있습니다.':'거래처와 건물별 소방안전관리 업무를 이어서 관리할 수 있습니다.'?></p>
+          <div class="cta-box__btns">
+            <a class="btn btn--primary" href="<?=h(work_page())?>"><?=h($workLabel)?></a>
+          </div>
+        </div>
+      <?php endif; ?>
     </div>
 
     <!-- 홍보 슬라이드: 서비스 5가지 -->
@@ -960,8 +975,7 @@ footer a:hover{color:var(--fg)}
 
 <!-- MAIN -->
 <main class="main">
-  <?php if (is_logged_in()): ?>
-    <?php if (is_admin()): ?>
+  <?php if (is_admin()): ?>
       <div class="cta-box">
         <p class="cta-box__msg">관리자 <span class="accent">메모</span>에서 목표·프로세스·할 일을 관리하세요.</p>
         <div class="cta-box__btns">
@@ -970,18 +984,7 @@ footer a:hover{color:var(--fg)}
           <a class="btn btn--lg btn--admin" href="/fire_evac_sim.php">👥 시뮬레이터 →</a>
         </div>
       </div>
-    <?php else: ?>
-      <?php $isBuildingRole=(($_SESSION['role'] ?? 'agency') === 'building'); $workLabel=$isBuildingRole?'건물 관리하기 →':'거래처·건물 관리하기 →'; ?>
-      <div class="cta-box cta-box--work">
-        <div class="cta-box__eyebrow">바로가기</div>
-        <div class="cta-box__title"><?=h($_SESSION['nickname'] ?? '회원')?>님, 관리할 건물을 확인하세요</div>
-        <p class="cta-box__msg"><?=$isBuildingRole?'건물 정보와 소방안전관리 업무를 이어서 관리할 수 있습니다.':'거래처와 건물별 소방안전관리 업무를 이어서 관리할 수 있습니다.'?></p>
-        <div class="cta-box__btns">
-          <a class="btn btn--primary btn--lg" href="<?=h(work_page())?>"><?=h($workLabel)?></a>
-        </div>
-      </div>
-    <?php endif; ?>
-  <?php else: ?>
+  <?php elseif (!is_logged_in()): ?>
     <div class="cta-box">
       <p class="cta-box__msg">지금 가입하고 <span class="accent">업무페이지</span>를 시작해보세요.</p>
       <button class="btn btn--primary btn--lg" id="openAuth2">회원가입 · 로그인</button>

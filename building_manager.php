@@ -1,6 +1,5 @@
 <?php
 // building_manager.php — 건물 소방안전관리자 전용 페이지
-// 2026 8월 26일 8시 26분 v1
 declare(strict_types=1);
 
 ini_set('session.cookie_httponly', '1');
@@ -709,6 +708,8 @@ a.pstep:hover{background:#f2f6fd}
         $s2 = $hasRoster;                                    // 자위소방대 편성표
         $s3 = ($doneWorkLog === true);                       // 매월 기록
         $s4 = ($doneTrain === true && $doneJawi === true);    // 연간 훈련·교육
+        /* 연간 업무는 자위소방대 교육부터 시작하고, 완료 후 소방훈련으로 이어집니다. */
+        $annualLink = ($doneJawi === true) ? '/train.php' : '/jawi.php';
         $nowStep = !$s1 ? 1 : (!$s2 ? 2 : (!$s3 ? 3 : (!$s4 ? 4 : 5)));
       ?>
       <?php
@@ -753,7 +754,7 @@ a.pstep:hover{background:#f2f6fd}
 
       <?php stepNudge(4, $nowStep, '올해 훈련·교육을 기록하세요'); ?>
       <!-- ④ 연간 훈련·교육 -->
-      <a class="pstep <?= $s4 ? 'pstep--done' : ($nowStep===4 ? 'pstep--now' : '') ?><?= $nowStep===4 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/train.php'))?>">
+      <a class="pstep <?= $s4 ? 'pstep--done' : ($nowStep===4 ? 'pstep--now' : '') ?><?= $nowStep===4 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url($annualLink))?>">
         <span class="no"><?= $s4 ? '✓' : '4' ?></span><span class="pstep__label">연간 훈련·교육</span>
         <?php $yearDone = (int)($doneTrain === true) + (int)($doneJawi === true); ?>
         <?php if ($s4): ?><span class="ptag ptag--done">완료</span>
@@ -763,8 +764,8 @@ a.pstep:hover{background:#f2f6fd}
       </a>
       <?php if ($hasBi && !$s4): ?>
         <div class="psub">
-          <span class="psub__i <?= $doneTrain === true ? 'is-ok' : '' ?>"><?= $doneTrain === true ? '✓' : '·' ?> 소방훈련·교육</span>
           <span class="psub__i <?= $doneJawi === true ? 'is-ok' : '' ?>"><?= $doneJawi === true ? '✓' : '·' ?> 자위소방대 교육</span>
+          <span class="psub__i <?= $doneTrain === true ? 'is-ok' : '' ?>"><?= $doneTrain === true ? '✓' : '·' ?> 소방훈련·교육</span>
         </div>
       <?php endif; ?>
 
@@ -873,6 +874,29 @@ a.pstep:hover{background:#f2f6fd}
                       </a>
                     </div>
 
+                    <!-- ── 매월 반복 · 매년 업무보다 먼저 확인 ── -->
+                    <div class="sec <?= $hasBi ? '' : 'sec--dim' ?>">
+                      <span class="sec__chip chip-month">매월</span>
+                      <span class="sec__t">정기 기록</span>
+                      <span class="sec__d">월 1회 이상 · 매달 반복되는 핵심 업무</span>
+                      <?php if (!$hasBi): ?><span class="sec__lock">🔒 기본정보 입력 후 진행하세요</span><?php endif; ?>
+                    </div>
+                    <div class="grid <?= $hasBi ? '' : 'grid--dim' ?>">
+                      <a class="card card--link" href="<?=h($url('/work_log.php'))?>">
+                        <div class="card__top">
+                          <span class="badge">별지 제12호</span>
+                          <?php if ($doneWorkLog === true): ?>
+                            <span class="due due--ok">✓ <?=h($mon)?> 완료</span>
+                          <?php else: ?>
+                            <span class="due due--need"><?=h($mon)?> 작성 대상</span>
+                          <?php endif; ?>
+                          <span class="card__arrow">→</span>
+                        </div>
+                        <h3>업무수행 기록표</h3>
+                        <p class="card__sub">소방안전관리자 업무 수행 기록표 · 월 1회 이상 작성</p>
+                      </a>
+                    </div>
+
                     <!-- ── 매년 반복 ── -->
                 
 
@@ -973,29 +997,6 @@ a.pstep:hover{background:#f2f6fd}
                             <div class="cardprog__t cardprog__t--ok"><b>100%</b> 사진까지 모두 채웠습니다</div>
                           </div>
                         <?php endif; ?>
-                      </a>
-                    </div>
-
-                    <!-- ── 매월 반복 ── -->
-                    <div class="sec <?= $hasBi ? '' : 'sec--dim' ?>">
-                      <span class="sec__chip chip-month">매월</span>
-                      <span class="sec__t">정기 기록</span>
-                      <span class="sec__d">월 1회 이상 · 매달 반복되는 핵심 업무</span>
-                      <?php if (!$hasBi): ?><span class="sec__lock">🔒 기본정보 입력 후 진행하세요</span><?php endif; ?>
-                    </div>
-                    <div class="grid <?= $hasBi ? '' : 'grid--dim' ?>">
-                      <a class="card card--link" href="<?=h($url('/work_log.php'))?>">
-                        <div class="card__top">
-                          <span class="badge">별지 제12호</span>
-                          <?php if ($doneWorkLog === true): ?>
-                            <span class="due due--ok">✓ <?=h($mon)?> 완료</span>
-                          <?php else: ?>
-                            <span class="due due--need"><?=h($mon)?> 작성 대상</span>
-                          <?php endif; ?>
-                          <span class="card__arrow">→</span>
-                        </div>
-                        <h3>업무수행 기록표</h3>
-                        <p class="card__sub">소방안전관리자 업무 수행 기록표 · 월 1회 이상 작성</p>
                       </a>
                     </div>
 
