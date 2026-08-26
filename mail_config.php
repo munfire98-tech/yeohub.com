@@ -15,7 +15,6 @@ use PHPMailer\PHPMailer\Exception;
 
 // ─────────────────────────────────────────────
 //  ↓↓↓ 여기 API 키만 넣으세요 ↓↓↓
-<?php
 
 $apiKey = require __DIR__ . '/mail_secret.php';   // ← re_로 시작하는 키
 //  ↑↑↑ 여기 API 키만 넣으세요 ↑↑↑
