@@ -299,10 +299,10 @@ require __DIR__ . '/_header.php';
 .badge span{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block}
 .page-head h1{font-size:clamp(24px,3.5vw,34px);font-weight:700;letter-spacing:-.5px;margin-bottom:8px}
 .page-head p{color:var(--mut2);font-size:15px}
-.wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.wrap{max-width:1120px;margin:0 auto;padding:22px 24px 40px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;
-  padding:20px 22px;display:flex;flex-direction:column;gap:8px;min-height:136px}
+  padding:15px 17px;display:flex;flex-direction:column;gap:6px;min-height:104px}
 .card h3{font-size:16px;font-weight:700;line-height:1.4}
 .card--link{color:inherit;transition:.15s}
 .card--link h3{color:var(--brand2)}
@@ -375,49 +375,44 @@ require __DIR__ . '/_header.php';
 .subs__btn:hover{filter:brightness(1.08)}
 
 /* ── Pro 기능 카드: 미구독은 어둡게, 구독 중은 밝게 ── */
-.prolock{margin-top:16px;background:#111827;border:1px solid #293548;color:#e5e7eb;
-  border-radius:14px;padding:17px 19px;box-shadow:0 6px 18px rgba(15,23,42,.18)}
-.prolock__hd{display:flex;align-items:center;gap:11px;flex-wrap:wrap;
-  padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,.12)}
-.prolock__badge{flex-shrink:0;font-size:10px;font-weight:900;letter-spacing:.06em;
-  padding:4px 9px;border-radius:6px;background:#fbbf24;color:#3b2500;
-  border:1px solid #f59e0b}
-.prolock__ttx{flex:1;min-width:0}
-.prolock__ttx b{display:block;font-size:14px;font-weight:800;color:#fff;line-height:1.4}
-.prolock__ttx small{display:block;font-size:11.5px;color:#94a3b8;margin-top:3px}
-.prolock__btn{flex-shrink:0;background:#fff;color:#111827;border-radius:9px;
-  padding:9px 16px;font-size:12.5px;font-weight:800;text-decoration:none;white-space:nowrap}
-.prolock__btn:hover{background:#f1f5f9;color:#111827}
+/* ── Pro 기능 카드 (우측 패널 · 진행 현황 아래) ────────────
+   폭이 좁으므로 세로로 쌓습니다. 글자는 읽기 편한 크기를 유지합니다. */
+.prolock{margin-top:12px;background:#fff;border:1px solid var(--bd);color:var(--fg);
+  border-radius:16px;padding:16px 17px;box-shadow:0 4px 16px rgba(15,30,60,.06)}
+.prolock__hd{display:block;padding-bottom:13px;margin-bottom:13px;
+  border-bottom:1px solid var(--bd)}
+.prolock__badge{display:inline-block;font-size:11px;font-weight:900;letter-spacing:.05em;
+  padding:4px 10px;border-radius:7px;background:#fff7ed;color:#b45309;
+  border:1px solid #f6d8a8;margin-bottom:9px}
+.prolock__ttx b{display:block;font-size:15px;font-weight:800;color:var(--fg);line-height:1.45}
+.prolock__ttx small{display:block;font-size:12.5px;color:var(--mut2);margin-top:4px;line-height:1.6}
+.prolock__btn{display:block;text-align:center;margin-top:11px;
+  background:var(--brand);color:#fff;border-radius:10px;
+  padding:11px;font-size:14px;font-weight:800;text-decoration:none;transition:.14s}
+.prolock__btn:hover{filter:brightness(1.08);color:#fff}
 
-.prolock__list{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:9px}
-.prolock__i{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none;
-  background:#1f2937;border:1px solid #334155;border-radius:10px;
-  padding:12px 13px;transition:.14s}
-.prolock__i:hover{background:#263449;border-color:#475569;transform:translateY(-1px)}
-.prolock__ic{font-size:16px;flex-shrink:0;line-height:1.35}
+.prolock__list{display:flex;flex-direction:column;gap:0;
+  border:1px solid var(--bd);border-radius:11px;overflow:hidden}
+.prolock__i{display:flex;align-items:center;gap:11px;text-decoration:none;
+  background:#fff;padding:13px 14px;min-height:60px;transition:.14s}
+.prolock__i+.prolock__i{border-top:1px solid var(--bd)}
+.prolock__i:hover{background:#f4f8ff}
+.prolock__ic{width:34px;height:34px;flex-shrink:0;display:inline-flex;
+  align-items:center;justify-content:center;border-radius:10px;
+  background:#eef4ff;font-size:17px;line-height:1}
 .prolock__i > div{flex:1;min-width:0}
-.prolock__i b{display:block;font-size:12.5px;font-weight:700;color:#f8fafc;line-height:1.45}
-.prolock__i small{display:block;font-size:11px;color:#94a3b8;margin-top:3px;line-height:1.55}
-.prolock__go{flex-shrink:0;font-size:13px;color:#64748b;font-weight:700}
-.prolock__i:hover .prolock__go{color:#bfdbfe}
+.prolock__i b{display:block;font-size:13.5px;font-weight:700;color:var(--fg);line-height:1.4}
+.prolock__i small{display:block;font-size:11.5px;color:var(--mut2);margin-top:2px;line-height:1.5}
+.prolock__go{flex-shrink:0;font-size:15px;color:var(--mut);font-weight:700}
+.prolock__i:hover .prolock__go{color:var(--brand2)}
 
-/* 구독 중 — 밝은 카드와 초록색 완료 표시로 전환합니다 */
-.prolock--on{background:#fff;border-color:#bbf7d0;color:var(--fg);
-  box-shadow:0 6px 18px rgba(21,128,61,.10)}
-.prolock--on .prolock__hd{border-bottom-color:var(--bd)}
+/* 구독 중 — 초록 계열 강조만 다릅니다 */
+.prolock--on{border-color:#bbf7d0;box-shadow:0 4px 16px rgba(21,128,61,.08)}
 .prolock--on .prolock__badge{background:#f0fdf4;color:#15803d;border-color:#bbf7d0}
-.prolock--on .prolock__ttx b{color:var(--fg)}
-.prolock--on .prolock__ttx small{color:var(--mut)}
 .prolock--on .prolock__btn{background:#ecfdf5;color:#047857;border:1px solid #bbf7d0}
 .prolock--on .prolock__btn:hover{background:#dcfce7;border-color:#86efac;color:#047857;filter:none}
-.prolock--on .prolock__list{gap:0;border:1px solid var(--bd);border-radius:10px;overflow:hidden}
-.prolock--on .prolock__i{background:#fff;border:0;border-radius:0;padding:14px 16px;min-height:68px}
-.prolock--on .prolock__i+.prolock__i{border-left:1px solid var(--bd)}
-.prolock--on .prolock__i:hover{background:#f8fbff;transform:none}
-.prolock--on .prolock__ic{width:32px;height:32px;display:inline-flex;align-items:center;
-  justify-content:center;border-radius:8px;background:#f1f5f9;font-size:16px;line-height:1}
-.prolock--on .prolock__i b{color:var(--fg)}
-.prolock--on .prolock__i small{color:var(--mut2)}
+.prolock--on .prolock__ic{background:#f0fdf4}
+@media(max-width:760px){.prolock{margin-top:14px}}
 .prolock--on .prolock__go{color:var(--mut);transition:transform .14s,color .14s}
 .prolock--on .prolock__i:hover .prolock__go{color:var(--brand2);transform:translateX(2px)}
 
@@ -474,10 +469,14 @@ require __DIR__ . '/_header.php';
 .rqbtns .rqgo:disabled{background:#e8edf5;color:#8a94a6;cursor:default;filter:none}
 
 /* -- 진행 현황 (헤더 우측 패널) -- */
-.page-head__inner{display:flex;gap:28px;align-items:flex-start}
+/* 헤더를 낮춰 본문이 한 화면에 들어오게 합니다 */
+.page-head__inner{display:flex;gap:24px;align-items:flex-start;padding:24px 24px 20px!important}
+.page-head h1{font-size:26px!important;margin-bottom:5px!important}
+.page-head p{font-size:14px!important}
+.page-head__label{margin-bottom:9px!important}
 .ph-left{flex:1;min-width:0}
 /* Pro 배너와 진행 현황을 한 덩어리로 묶어 세로로 쌓습니다 */
-.rightcol{width:236px;flex-shrink:0;display:flex;flex-direction:column}
+.rightcol{width:290px;flex-shrink:0;display:flex;flex-direction:column}
 @media(max-width:760px){.rightcol{width:100%}}
 
 /* ── Pro 구독 안내 (진행 현황 위) ── */
@@ -519,21 +518,26 @@ require __DIR__ . '/_header.php';
 .pro--wait{background:#111827}
 @media(max-width:760px){.pro{width:100%}}
 
-.prog{width:236px;flex-shrink:0;background:#fff;border:1px solid var(--bd);border-radius:14px;
-  padding:14px 16px;box-shadow:0 4px 14px rgba(15,30,60,.05)}
-.prog__t{font-size:12px;font-weight:800;color:var(--mut2);letter-spacing:.03em;margin-bottom:10px}
-.pstep{display:flex;align-items:center;gap:9px;padding:8px 4px;font-size:13px;font-weight:700;
-  color:var(--mut2);text-decoration:none;border-radius:8px;transition:.12s}
+/* ── 진행 현황 ──────────────────────────────────────────────
+   나이가 있으신 분들도 편하게 보실 수 있도록
+   글자·번호·누르는 영역을 넉넉히 잡았습니다. */
+.prog{width:290px;flex-shrink:0;background:#fff;border:1px solid var(--bd);border-radius:16px;
+  padding:20px 20px;box-shadow:0 4px 16px rgba(15,30,60,.06)}
+.prog__t{font-size:15px;font-weight:800;color:var(--fg);letter-spacing:0;margin-bottom:14px;
+  padding-bottom:12px;border-bottom:1px solid var(--bd)}
+.pstep{display:flex;align-items:center;gap:12px;padding:14px 6px;font-size:15px;font-weight:700;
+  color:var(--mut2);text-decoration:none;border-radius:10px;transition:.12s;min-height:56px}
 a.pstep:hover{background:#f2f6fd}
-.pstep .no{width:20px;height:20px;border-radius:50%;background:#e8edf5;color:var(--mut2);
-  display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
-.pstep__label{min-width:0;flex:1}
+.pstep .no{width:30px;height:30px;border-radius:50%;background:#e8edf5;color:var(--mut2);
+  display:inline-flex;align-items:center;justify-content:center;font-size:14px;
+  font-weight:800;flex-shrink:0}
+.pstep__label{min-width:0;flex:1;line-height:1.45}
 .pstep--done{color:#15803d}
 .pstep--done .no{background:#22c55e;color:#fff}
 .pstep--now{color:var(--brand2)}
-.pstep--now .no{background:var(--brand);color:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+.pstep--now .no{background:var(--brand);color:#fff;box-shadow:0 0 0 4px rgba(37,99,235,.16)}
 .pstep+.pstep{border-top:1px dashed var(--bd)}
-.ptag{margin-left:auto;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;flex-shrink:0;white-space:nowrap}
+.ptag{margin-left:auto;font-size:12px;font-weight:800;padding:4px 11px;border-radius:999px;flex-shrink:0;white-space:nowrap}
 .ptag--done{background:#f0fdf4;color:#15803d}
 .ptag--no{background:#fef2f2;color:#dc2626}
 .ptag--wait{background:#eef1f6;color:#8a94a6}
@@ -541,8 +545,8 @@ a.pstep:hover{background:#f2f6fd}
 .ptag--always{background:#faf5ff;color:#7e22ce}
 .ptag--review{background:#fef3c7;color:#b45309}
 .ptag--admin{background:#e0f2fe;color:#0369a1}
-.prog__hint{font-size:11px;color:var(--mut);margin-top:10px;text-align:center}
-.prog__start{font-size:11.5px;font-weight:800;color:var(--brand2);text-align:center;
+.prog__hint{font-size:13px;color:var(--mut2);margin-top:14px;text-align:center;line-height:1.6}
+.prog__start{font-size:13.5px;font-weight:800;color:var(--brand2);text-align:center;
   margin:2px 0 6px;animation:startNudge 1.8s ease-in-out infinite}
 @keyframes startNudge{0%,100%{transform:translateY(0)}50%{transform:translateY(2px)}}
 .pstep--first{background:#eff6ff;border-radius:10px;padding-left:8px;padding-right:8px;
@@ -568,7 +572,7 @@ a.pstep:hover{background:#f2f6fd}
 @media(max-width:560px){.todo .btn2{margin-left:0;width:100%;text-align:center}}
 
 /* -- 주기별 섹션 -- */
-.sec{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:28px 0 12px}
+.sec{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:18px 0 9px}
 .sec__chip{font-size:11px;font-weight:800;padding:4px 11px;border-radius:999px;letter-spacing:.02em}
 .chip-first{background:#eef2ff;color:var(--brand2)}
 .chip-month{background:#f0fdf4;color:#15803d}
@@ -588,8 +592,8 @@ a.pstep:hover{background:#f2f6fd}
 .card--next{box-shadow:0 0 0 2px rgba(190,18,60,.16);background:linear-gradient(180deg,#fff,#fff6f8)}
 .card--wait{opacity:.62}
 .ptag--part{background:#eff6ff;color:#1d4ed8}
-.psub{display:flex;gap:12px;flex-wrap:wrap;padding:2px 0 6px 30px;font-size:11.5px;color:var(--mut)}
-.psub--why{display:block;padding:0 4px 8px 30px;line-height:1.55}
+.psub{display:flex;gap:12px;flex-wrap:wrap;padding:2px 0 8px 42px;font-size:13px;color:var(--mut2);line-height:1.6}
+.psub--why{display:block;padding:0 4px 10px 42px;line-height:1.65}
 .psub__i.is-ok{color:#15803d;font-weight:700}
 .cardprog{margin-top:11px;padding-top:11px;border-top:1px dashed var(--bd)}
 .cardprog__bar{height:5px;background:#eef2f7;border-radius:3px;overflow:hidden}
@@ -620,85 +624,117 @@ a.pstep:hover{background:#f2f6fd}
 /* 안내가 가리키는 진행 현황 패널을 잠깐 강조합니다 */
 .prog.gd-hi{box-shadow:0 0 0 4px rgba(37,99,235,.35),0 4px 14px rgba(15,30,60,.05);
   border-color:var(--brand);transition:box-shadow .3s,border-color .3s}
+
+/* ── 한 화면 업무 관제판 ────────────────────────────────── */
+.dashboard-shell{max-width:1120px;margin:0 auto;padding:18px 24px 40px;
+  display:grid;grid-template-columns:minmax(0,1fr) 290px;column-gap:24px;align-items:start}
+.dashboard-shell .page-head,.dashboard-shell .page-head__inner{display:contents}
+.dashboard-shell .ph-left{grid-column:1;grid-row:1;padding:2px 0 14px}
+.dashboard-shell .rightcol{grid-column:2;grid-row:1 / span 2;width:290px}
+.dashboard-shell .wrap{grid-column:1;grid-row:2;max-width:none;width:100%;margin:0;padding:0;
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+
+.dashboard-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px}
+.dashboard-head__copy{min-width:0}
+.dashboard-head .badge{margin-bottom:8px}
+.dashboard-head h1{margin:0 0 4px!important}
+.dashboard-head p{margin:0}
+.plan-link{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+  min-height:36px;padding:8px 13px;border:1px solid var(--bd2);border-radius:8px;
+  background:#fff;color:var(--mut2);font-size:12px;font-weight:800;text-decoration:none}
+.plan-link:hover{border-color:var(--brand);color:var(--brand2)}
+.plan-link--on{border-color:#bbf7d0;background:#f0fdf4;color:#047857}
+.plan-link--wait{background:#f8fafc;color:#64748b}
+
+/* 현재 해야 할 일 하나만 강하게 보여줍니다. */
+.mission{grid-column:1 / -1;display:flex;align-items:center;gap:18px;min-height:78px;
+  padding:14px 16px;border-radius:12px;background:#111827;color:#fff}
+.mission__copy{flex:1;min-width:0}
+.mission__label{display:block;margin-bottom:5px;color:#93c5fd;font-size:10px;
+  font-weight:900;letter-spacing:0}
+.mission__text{display:block;font-size:14px;line-height:1.45}
+.mission__text b{color:#fff}
+.mission__btn{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+  min-height:38px;padding:9px 14px;border-radius:8px;background:#fff;color:#111827;
+  font-size:12.5px;font-weight:800;text-decoration:none;white-space:nowrap}
+.mission__btn:hover{background:#eff6ff;color:#1d4ed8}
+.mission--error{background:#7f1d1d}
+
+.ops-head{grid-column:1 / -1;display:flex;align-items:baseline;gap:9px;margin-top:5px;padding:3px 1px}
+.ops-head b{font-size:14px;color:var(--fg)}
+.ops-head span{font-size:11.5px;color:var(--mut2)}
+.dashboard-shell .wrap>.section,.dashboard-shell .wrap>.todo{grid-column:1 / -1}
+.dashboard-shell .sec{display:none}
+.dashboard-shell .grid{display:contents}
+.dashboard-shell .grid--dim>.card{opacity:.5}
+
+/* 실제 업무 여섯 개를 동일한 크기의 3 x 2 카드로 정리합니다. */
+.dashboard-shell .card{min-height:110px;padding:12px 13px;gap:5px;border-radius:10px;
+  background:#fff;box-shadow:none}
+.dashboard-shell .card--setup,.dashboard-shell .card--next{background:#fff}
+.dashboard-shell .card h3{font-size:14px;line-height:1.35}
+.dashboard-shell .card__top{gap:6px}
+.dashboard-shell .card__sub{font-size:11.5px;line-height:1.4;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.dashboard-shell .card .badge,.dashboard-shell .setup-badge,
+.dashboard-shell .due{font-size:10px;padding:3px 7px}
+.dashboard-shell .cardprog{margin-top:7px;padding-top:7px}
+.dashboard-shell .cardprog__t{font-size:10.5px;margin-top:4px;line-height:1.35;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* PRO 기능은 별도 카드 대신 가로 실행 도구로 둡니다. */
+.protools{grid-column:1 / -1;margin-top:5px;border:1px solid var(--bd);
+  border-radius:10px;background:#fff;overflow:hidden}
+.protools__head{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:9px 12px;border-bottom:1px solid var(--bd)}
+.protools__head b{font-size:11px;color:var(--fg)}
+.protools__head span{font-size:10.5px;color:var(--mut2)}
+.protools__list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.protool{display:flex;align-items:center;gap:8px;min-width:0;padding:10px 12px;
+  color:var(--fg);text-decoration:none;transition:background .14s}
+.protool+.protool{border-left:1px solid var(--bd)}
+.protool:hover{background:#f8fbff}
+.protool__ic{font-size:15px;flex-shrink:0}
+.protool b{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.protool__go{margin-left:auto;color:var(--mut);font-size:12px}
+
+@media(max-width:900px){
+  .dashboard-shell{grid-template-columns:1fr;padding:18px 20px 40px}
+  .dashboard-shell .ph-left{grid-column:1;grid-row:1}
+  .dashboard-shell .wrap{grid-column:1;grid-row:2;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dashboard-shell .rightcol{grid-column:1;grid-row:3;width:100%;margin-top:14px}
+  .dashboard-shell .prog{width:100%}
+}
+@media(max-width:620px){
+  .dashboard-head{align-items:flex-start}
+  .dashboard-head p{display:none}
+  .dashboard-shell .wrap{grid-template-columns:1fr}
+  .mission{align-items:flex-start;flex-direction:column;gap:11px}
+  .mission__btn{width:100%}
+  .protools__head{align-items:flex-start;flex-direction:column;gap:2px}
+  .protools__list{grid-template-columns:1fr}
+  .protool+.protool{border-left:0;border-top:1px solid var(--bd)}
+}
 </style>
 
+<div class="dashboard-shell">
 <header class="page-head">
   <div class="page-head__inner">
     <div class="ph-left">
-      <div class="badge"><span></span> 건물 소방안전관리자</div>
-      <h1>건물 소방안전관리</h1>
-      <p>담당 건물의 점검 일정과 안전 관리 현황을 한 곳에서 확인하세요.</p>
-
-
-
-      <!-- Pro 기능 — 구독 여부에 따라 안내 문구와 링크만 달라집니다 -->
-      <div class="prolock<?= $isPro ? ' prolock--on' : '' ?>">
-        <div class="prolock__hd">
-          <span class="prolock__badge"><?= $isPro ? '✓ PRO' : 'PRO' ?></span>
-          <div class="prolock__ttx">
-            <b><?= $isPro ? 'Settings' : '구독하면 이 기능이 열립니다' ?></b>
-          </div>
+      <div class="dashboard-head">
+        <div class="dashboard-head__copy">
+          <div class="badge"><span></span> 건물 소방안전관리자</div>
+          <h1>건물 소방안전관리</h1>
+          <p>필요한 업무와 진행 상태를 한 화면에서 확인하세요.</p>
         </div>
-
-        <div class="prolock__list">
-          <?php
-            /* 구독 중이면 각 기능으로, 아니면 구독 페이지로 보냅니다 */
-            $go = fn(string $path) => $url($isPro ? $path : '/subscribe_page.php');
-          ?>
-          <a class="prolock__i" href="<?=h($go('/ar.php'))?>">
-            <span class="prolock__ic">🔥</span>
-            <div><b>피난 시뮬레이션</b><small>대피 경로 설정</small></div>
-            <span class="prolock__go">→</span>
-          </a>
-          <a class="prolock__i" href="<?=h($go('/notifications.php'))?>">
-            <span class="prolock__ic">🔔</span>
-            <div><b>자동알림</b><small>업무,교육,훈련일정,알림</small></div>
-            <span class="prolock__go">→</span>
-          </a>
-          <a class="prolock__i" href="<?=h($go('/print_all.php'))?>">
-            <span class="prolock__ic">🖨</span>
-            <div><b>서류 전체 인쇄</b><small>작성한 서류를 모아서 한 번에</small></div>
-            <span class="prolock__go">→</span>
-          </a>
-        </div>
+        <a class="plan-link<?= $isPro ? ' plan-link--on' : ($proStatus === 'pending' ? ' plan-link--wait' : '') ?>"
+           href="<?=h($url('/subscribe_page.php'))?>">
+          <?= $isPro ? 'PRO 관리' : ($proStatus === 'pending' ? 'PRO 신청 확인' : 'PRO 구독') ?>
+        </a>
       </div>
     </div>
 
     <div class="rightcol">
-    <!-- Pro 구독 안내 (진행 현황 위) -->
-    <?php if ($isPro): ?>
-      <div class="pro pro--on">
-        <div class="pro__row">
-          <span class="pro__badge pro__badge--on">PRO</span>
-          <span class="pro__t">Pro 모드</span>
-          <span class="pro__dot" title="이용 중"></span>
-        </div>
-        <a class="pro__btn pro__btn--on" href="<?=h($url('/subscribe_page.php'))?>">
-          구독관리
-        </a>
-      </div>
-
-    <?php elseif ($proStatus === 'pending'): ?>
-      <div class="pro pro--wait">
-        <div class="pro__row">
-          <span class="pro__badge pro__badge--wait">PRO</span>
-          <span class="pro__t">Pro 모드</span>
-        </div>
-        <p class="pro__d">신청이 접수되었습니다.<br>준비가 끝나면 알려드립니다.</p>
-        <a class="pro__btn pro__btn--wait" href="<?=h($url('/subscribe_page.php'))?>">신청 내역 보기</a>
-        <div class="pro__price">결제 준비 중</div>
-      </div>
-
-    <?php else: ?>
-      <div class="pro">
-        <div class="pro__row">
-          <span class="pro__badge">PRO</span>
-          <span class="pro__t">Pro 모드</span>
-        </div>
-        <a class="pro__btn" href="<?=h($url('/subscribe_page.php'))?>">구독하기 →</a>
-      </div>
-    <?php endif; ?>
-
     <aside class="prog">
       <div class="prog__t">진행 현황</div>
       <?php
@@ -815,33 +851,74 @@ a.pstep:hover{background:#f2f6fd}
                     <?php endif; ?>
 
                     <?php if (!$hasUser): ?>
-                    <div class="todo todo--need">
-                      <span>⚠️ 로그인 정보를 확인할 수 없어 내용을 불러오지 못했습니다. 다시 로그인해 주세요.
-                        같은 화면이 계속 나오면 관리자에게 알려주세요.</span>
+                    <div class="mission mission--error">
+                      <div class="mission__copy">
+                        <span class="mission__label">SYSTEM CHECK</span>
+                        <span class="mission__text">로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.</span>
+                      </div>
                     </div>
                     <?php elseif (!$hasBi): ?>
-                    <div class="todo todo--need">
-                      <span>⚠️ 먼저 <b>건물 기본정보</b>를 입력하세요. 한 번만 입력하면 아래 모든 서식에 자동으로 채워집니다.</span>
-                      <a class="btn2" href="<?=h($url('/building_setup_chat.php'))?>">💬 우측 상단의 진행현황을 확인하세요 →</a>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">NEXT ACTION</span>
+                        <span class="mission__text"><b>건물 기본정보</b>를 입력하세요. 한 번 입력하면 모든 서식에 반영됩니다.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/building_setup_chat.php'))?>">기본정보 입력</a>
                     </div>
                     <?php elseif (!$biDone): ?>
-                    <div class="todo todo--need">
-                      <span>📝 기본정보가 <b><?=$biProg['percent']?>%</b> 채워졌습니다.
-                        <b><?=h(implode(', ', array_slice($biProg['missing'], 0, 3)))?><?= count($biProg['missing']) > 3 ? ' 외' : '' ?></b>
-                        을(를) 채우면 다른 서식이 자동으로 완성됩니다.</span>
-                      <a class="btn2" href="<?=h($url('/building_setup_chat.php'))?>">💬 이어서 입력하기 →</a>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">NEXT ACTION · <?=$biProg['percent']?>%</span>
+                        <span class="mission__text"><b><?=h(implode(', ', array_slice($biProg['missing'], 0, 3)))?><?= count($biProg['missing']) > 3 ? ' 외' : '' ?></b> 항목을 이어서 입력하세요.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/building_setup_chat.php'))?>">이어서 입력</a>
+                    </div>
+                    <?php elseif (!$hasRoster): ?>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">NEXT ACTION</span>
+                        <span class="mission__text"><b>자위소방대 편성표</b>를 먼저 만드세요. 이후 교육·훈련 기록에서 명단을 불러옵니다.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/fire_plan_jawi.php'))?>">편성표 만들기</a>
                     </div>
                     <?php elseif ($doneWorkLog !== true): ?>
-                    <div class="todo todo--ok">
-                      <span>📅 이번 달 할 일 — <b><?=h($mon)?> 업무수행 기록표</b>를 작성하세요. 월 1회 이상 작성해야 합니다.</span>
-                      <a class="btn2" href="<?=h($url('/work_log.php'))?>"><?=h($mon)?> 기록표 작성 →</a>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">NEXT ACTION · <?=h($mon)?></span>
+                        <span class="mission__text"><b>업무수행 기록표</b>를 작성하세요. 매월 1회 이상 작성해야 합니다.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/work_log.php'))?>">기록표 작성</a>
+                    </div>
+                    <?php elseif ($doneJawi !== true): ?>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">NEXT ACTION · 연간 업무</span>
+                        <span class="mission__text"><b>자위소방대 교육·훈련 기록부</b>를 작성하세요.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/jawi.php'))?>">교육·훈련 기록</a>
+                    </div>
+                    <?php elseif ($doneTrain !== true): ?>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">NEXT ACTION · 연간 업무</span>
+                        <span class="mission__text"><b>소방훈련·교육 기록부</b>를 작성하면 올해 교육·훈련 업무가 완료됩니다.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/train.php'))?>">훈련 기록 작성</a>
                     </div>
                     <?php else: ?>
-                    <div class="todo todo--ok">
-                      <span>✅ <?=h($mon)?> 정기 업무를 모두 마쳤습니다. 소방계획서는 여유 있게 이어서 관리하세요.</span>
-                      <a class="btn2" href="<?=h($url('/fire_plan.php'))?>">소방계획서 열기 →</a>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">ALL ROUTINE TASKS COMPLETE</span>
+                        <span class="mission__text">정기 업무가 완료되었습니다. <b>소방계획서</b>를 상시 관리하세요.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/fire_plan.php'))?>">소방계획서 열기</a>
                     </div>
                     <?php endif; ?>
+
+                    <div class="ops-head">
+                      <b>업무</b>
+                      <span>상태를 확인하고 바로 실행하세요</span>
+                    </div>
 
                     <!-- ── STEP 1 · 처음 한 번 ── -->
                     <div class="sec">
@@ -884,7 +961,7 @@ a.pstep:hover{background:#f2f6fd}
                     <div class="grid <?= $hasBi ? '' : 'grid--dim' ?>">
                       <a class="card card--link" href="<?=h($url('/work_log.php'))?>">
                         <div class="card__top">
-                          <span class="badge">별지 제12호</span>
+                          <span class="badge">매월 · 별지 제12호</span>
                           <?php if ($doneWorkLog === true): ?>
                             <span class="due due--ok">✓ <?=h($mon)?> 완료</span>
                           <?php else: ?>
@@ -907,20 +984,12 @@ a.pstep:hover{background:#f2f6fd}
                       <?php if (!$hasBi): ?><span class="sec__lock">🔒 기본정보 입력 후 진행하세요</span><?php endif; ?>
                     </div>
 
-                    <?php if ($hasBi && !$hasRoster): ?>
-                    <div class="todo todo--need" style="margin-bottom:12px">
-                      <span>🧯 <b>자위소방대 편성표</b>부터 만들어 주세요.
-                        누가 어떤 임무를 맡는지 정해두면, 아래 교육·훈련 기록부에서 그 명단을 그대로 불러 씁니다.</span>
-                      <a class="btn2" href="<?=h($url('/fire_plan_jawi.php'))?>">편성표 만들기 →</a>
-                    </div>
-                    <?php endif; ?>
-
                     <div class="grid <?= $hasBi ? '' : 'grid--dim' ?>">
 
                       <!-- ① 편성표 — 나머지의 출발점 -->
                       <a class="card card--link card--roster<?= $hasRoster ? '' : ' card--next' ?>" href="<?=h($url('/fire_plan_jawi.php'))?>">
                         <div class="card__top">
-                          <span class="badge badge--roster">1단계 · 편성표</span>
+                          <span class="badge badge--roster">매년 · 1단계</span>
                           <?php if ($hasRoster): ?>
                             <span class="due due--ok">✓ 편성 <?=$rosterCount?>건</span>
                           <?php else: ?>
@@ -938,7 +1007,7 @@ a.pstep:hover{background:#f2f6fd}
                       <!-- ② 자위소방대 교육·훈련 (편성표 기반) -->
                       <a class="card card--link<?= $hasRoster ? '' : ' card--wait' ?>" href="<?=h($url('/jawi.php'))?>">
                         <div class="card__top">
-                          <span class="badge">2단계 · 별지 제13호</span>
+                          <span class="badge">매년 · 2단계</span>
                           <?php if ($doneJawi === true): ?><span class="due due--ok">✓ 올해 완료</span>
                           <?php elseif (!$hasRoster): ?><span class="due due--wait">편성표 먼저</span><?php endif; ?>
                           <span class="card__arrow">→</span>
@@ -972,7 +1041,7 @@ a.pstep:hover{background:#f2f6fd}
                       <!-- ③ 소방훈련·교육 (별도 서식) -->
                       <a class="card card--link" href="<?=h($url('/train.php'))?>">
                         <div class="card__top">
-                          <span class="badge">별지 제28호,29호</span>
+                          <span class="badge">매년 · 별지 제28·29호</span>
                           <?php if ($doneTrain === true): ?><span class="due due--ok">✓ 올해 완료</span><?php endif; ?>
                           <span class="card__arrow">→</span>
                         </div>
@@ -1010,23 +1079,35 @@ a.pstep:hover{background:#f2f6fd}
                     <div class="grid <?= $hasBi ? '' : 'grid--dim' ?>">
                       <a class="card card--link" href="<?=h($url('/fire_plan.php'))?>">
                         <div class="card__top">
-                          <span class="badge badge--plan">시행령 제27조</span>
+                          <span class="badge badge--plan">상시 · 시행령 제27조</span>
                           <span class="card__arrow">→</span>
                         </div>
                         <h3>소방계획서</h3>
                         <p class="card__sub">법정 15개 항목에 따라 작성하고 관리합니다 · 천천히 수정해 나가는 문서</p>
                       </a>
 
-                      <div class="card card--soon">
-                        <div class="card__top">
-                          <span class="tag-soon">준비 중</span>
-                        </div>
-                        <h3>이행계획서 · 이행완료 보고서</h3>
-                        <p class="card__sub">점검 결과에 따른 조치 계획과 완료 보고를 관리합니다</p>
-                      </div>
                     </div>
 
+                    <section class="protools" aria-label="PRO 도구">
+                      <div class="protools__head">
+                        <b>PRO TOOLS</b>
+                        <span><?= $isPro ? '모든 기능을 이용할 수 있습니다' : '구독하면 세 기능이 열립니다' ?></span>
+                      </div>
+                      <div class="protools__list">
+                        <a class="protool" href="<?=h($proLink('/ar.php'))?>">
+                          <span class="protool__ic">🔥</span><b>피난 시뮬레이션</b><span class="protool__go">→</span>
+                        </a>
+                        <a class="protool" href="<?=h($proLink('/notifications.php'))?>">
+                          <span class="protool__ic">🔔</span><b>자동알림</b><span class="protool__go">→</span>
+                        </a>
+                        <a class="protool" href="<?=h($proLink('/print_all.php'))?>">
+                          <span class="protool__ic">🖨</span><b>서류 전체 인쇄</b><span class="protool__go">→</span>
+                        </a>
+                      </div>
+                    </section>
+
                   </main>
+</div>
 
 <!-- 피난 시뮬레이션 배정 신청 — 기본정보를 불러와 확인·수정 -->
 <div class="rqov" id="rqov" onclick="if(event.target===this)closeEvacReq()">
