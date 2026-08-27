@@ -6,6 +6,7 @@
    남은 것만 하나씩 여쭤봅니다.
 
      · 건물 기본정보 (building_info)  → 항목1 일반현황 대부분
+     · 공통 피난계획                    → 항목5 피난경로·집결지
      · 자위소방대 편성표 (_jawi.json) → 항목9 조직·임무, 항목14 초기대응
      · 업무수행 기록표 기본값          → 항목13 업무수행 기록·유지
      · 소방훈련·교육 기록              → 항목11 훈련·교육 계획
@@ -31,6 +32,7 @@ if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php')
 
 require_once __DIR__ . '/fire_plan_db.php';
 require_once __DIR__ . '/building_info.php';
+require_once __DIR__ . '/evacuation_plan_common.php';
 
 $USAGES = fp_usages();
 
@@ -178,6 +180,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['act'] ?? '') ==
 }
 
 $s1    = fp_get_section($planId, '1');
+$savedEvac = fp_get_section($planId, '5');
+$commonEvac = epc_load();
+$commonEvacStatus = epc_status($commonEvac);
+$AUTOEVAC = epc_missing_patch($savedEvac, epc_to_fire_section($commonEvac));
 $state = fp_progress_of($plan);
 $nick  = $_SESSION['nickname'] ?? '사용자';
 $CSRF  = fp_csrf();
@@ -376,6 +382,11 @@ a{text-decoration:none;color:inherit} button{font:inherit;color:inherit;cursor:p
       <b><?=h($AUTO1['name'] ?? '미입력')?></b>
       <?= isset($AUTO1['addr']) ? ' · ' . h($AUTO1['addr']) : '' ?>
       <?= isset($AUTO1['grade']) ? ' · ' . h($AUTO1['grade']) : '' ?></div>
+    <div class="srow">· 공통 피난계획 —
+      <?php if ($commonEvacStatus['has_content']): ?>
+        <b><?= (int)$commonEvacStatus['floor_count'] ?>개 층</b>
+        <?= $commonEvacStatus['updated'] !== '' ? ' · 최근 수정 ' . h(substr((string)$commonEvacStatus['updated'],0,16)) : '' ?>
+      <?php else: ?>아직 없음<?php endif; ?></div>
     <div class="srow">· 자위소방대 편성표 —
       <?= $TEAM['found'] ? '<b>' . (int)$TEAM['total'] . '명</b> · ' . h($TEAM['summary']) : '아직 없음' ?></div>
     <div class="srow">· 업무수행 기록표 기본값 —
@@ -393,6 +404,9 @@ var PLANID = <?=json_encode($planId)?>;
 var NICK   = <?=json_encode($nick, JSON_UNESCAPED_UNICODE)?>;
 var S1     = <?=json_encode($s1, JSON_UNESCAPED_UNICODE)?>;
 var AUTO1  = <?=json_encode($AUTO1, JSON_UNESCAPED_UNICODE)?>;
+var SAVED_EVAC = <?=json_encode($savedEvac, JSON_UNESCAPED_UNICODE)?>;
+var AUTOEVAC = <?=json_encode($AUTOEVAC, JSON_UNESCAPED_UNICODE)?>;
+var COMMON_EVAC_STATUS = <?=json_encode($commonEvacStatus, JSON_UNESCAPED_UNICODE)?>;
 var AUTOMEMO = <?=json_encode($AUTOMEMO, JSON_UNESCAPED_UNICODE)?>;
 var TEAM   = <?=json_encode($TEAM, JSON_UNESCAPED_UNICODE)?>;
 var USAGES = <?=json_encode($USAGES, JSON_UNESCAPED_UNICODE)?>;
@@ -490,7 +504,8 @@ function need(s){
   return true;
 }
 function filled(s){
-  if (s.code) return false;                     // 다른 항목은 매번 묻습니다
+  if (s.code === '5') return String(SAVED_EVAC[s.field]||AUTOEVAC[s.field]||'').trim() !== '';
+  if (s.code) return false;
   return String(SAVED[s.id]||'').trim() !== '';
 }
 
@@ -501,6 +516,7 @@ function start(){
 
   var got = [];
   if (Object.keys(AUTO1).length) got.push('건물 기본정보');
+  if (COMMON_EVAC_STATUS.has_content) got.push('공통 피난계획');
   if (TEAM.found) got.push('자위소방대 편성표');
   if (AUTOMEMO['13']) got.push('업무수행 기록표 기본값');
   if (AUTOMEMO['11']) got.push('훈련·교육 기록');
@@ -523,12 +539,14 @@ function prefill(){
   var memoCodes = Object.keys(AUTOMEMO);
   var jobs = [];
   if (Object.keys(patch1).length) jobs.push(['1', patch1]);
+  if (Object.keys(AUTOEVAC).length) jobs.push(['5', AUTOEVAC]);
   memoCodes.forEach(function(c){ jobs.push([c, {memo:AUTOMEMO[c]}]); });
 
   if (!jobs.length){ go(); return; }
 
   var lines = [];
   if (Object.keys(patch1).length) lines.push('항목1 일반현황 — ' + Object.keys(patch1).length + '칸');
+  if (Object.keys(AUTOEVAC).length) lines.push('항목5 공통 피난계획');
   if (AUTOMEMO['9'])  lines.push('항목9 자위소방대 조직·임무');
   if (AUTOMEMO['11']) lines.push('항목11 소방훈련·교육 계획');
   if (AUTOMEMO['13']) lines.push('항목13 업무수행 기록·유지');
@@ -538,6 +556,7 @@ function prefill(){
   (function next(){
     if (i >= jobs.length){
       for (var k2 in patch1) SAVED[k2] = patch1[k2];
+      for (var k3 in AUTOEVAC) SAVED_EVAC[k3] = AUTOEVAC[k3];
       bot(md('**채워 넣었습니다.**\n\n' + lines.map(function(l){ return '· ' + l; }).join('\n') +
              '\n\n내용은 나중에 «표에서 편집»으로 고칠 수 있습니다.'));
       setTimeout(go, 500);
@@ -557,6 +576,7 @@ function put(s, value, label){
   clearBox(); me(label || value);
   if (s.code){                       // 항목1이 아닌 다른 섹션에 저장
     var p = {}; p[s.field] = value;
+    if (s.code === '5') SAVED_EVAC[s.field] = value;
     save(s.code, p, function(){ step++; go(); });
     return;
   }

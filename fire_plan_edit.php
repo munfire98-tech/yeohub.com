@@ -18,7 +18,11 @@ $role = $_SESSION['role'] ?? 'agency';
 if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
 
 require_once __DIR__ . '/fire_plan_db.php';
+require_once __DIR__ . '/evacuation_plan_common.php';
 $nick = $_SESSION['nickname'] ?? '사용자';
+$commonEvac = epc_load();
+$commonEvacStatus = epc_status($commonEvac);
+$commonFireData = epc_to_fire_section($commonEvac);
 
 /* ── 계획서 로드 (소유권 확인) ── */
 $plan = fp_load_plan((string)($_GET['id'] ?? ''));
@@ -40,6 +44,20 @@ if (!in_array($cur, $allCodes, true)) $cur = '1';
 $savedMsg = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   fp_csrf_check();
+
+  if ($cur === '5' && ($_POST['act'] ?? '') === 'sync_common_evac') {
+    if ($commonEvacStatus['has_content']) {
+      $currentEvac = fp_get_section($planId, '5');
+      $data = epc_apply_common($currentEvac, $commonFireData);
+      $any = trim((string)($data['floor_exit'] ?? '')) !== ''
+          || trim((string)($data['route'] ?? '')) !== ''
+          || !empty($data['evac'])
+          || trim((string)($data['assembly'] ?? '')) !== '';
+      fp_save_section($planId, '5', $data, $any);
+      header("Location: /fire_plan_edit.php?id=$planId&s=5&common_synced=1"); exit;
+    }
+    header("Location: /fire_plan_edit.php?id=$planId&s=5&common_missing=1"); exit;
+  }
 
   if ($cur === '1') {
     $chk = function(string $k): array {   // 체크박스 그룹
@@ -147,6 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       'weak_loc'  => trim((string)($_POST['weak_loc'] ?? '')),
       'weak_plan' => trim((string)($_POST['weak_plan'] ?? '')),
       'assembly'  => trim((string)($_POST['assembly'] ?? '')),
+      'common_updated' => trim((string)($_POST['common_updated'] ?? '')),
     ];
     $any = $data['floor_exit']!=='' || $data['route']!=='' || $data['evac'] || $data['assembly']!=='';
     fp_save_section($planId, '5', $data, $any);
@@ -196,10 +215,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   header("Location: /fire_plan_edit.php?id=$planId&s=$cur&saved=1"); exit;
 }
 if (!empty($_GET['saved'])) $savedMsg = '저장되었습니다 ✓';
+if (!empty($_GET['common_synced'])) $savedMsg = '공통 피난계획을 반영했습니다 ✓';
+if (!empty($_GET['common_missing'])) $savedMsg = '먼저 공통 피난계획을 작성해 주세요.';
 
 /* ── 화면 데이터 ── */
 $s1   = fp_get_section($planId, '1');
-$curData = ($cur === '1') ? $s1 : fp_get_section($planId, $cur);
+$section5Stored = fp_get_section($planId, '5');
+$commonAppliedAt = trim((string)($section5Stored['common_updated'] ?? ''));
+$commonUpdateAvailable = $commonEvacStatus['has_content']
+  && $commonEvacStatus['updated'] !== ''
+  && $commonAppliedAt < (string)$commonEvacStatus['updated'];
+$curData = ($cur === '1') ? $s1 : ($cur === '5' ? $section5Stored : fp_get_section($planId, $cur));
+if ($cur === '5' && $commonEvacStatus['has_content']) {
+  $curData = epc_merge_empty($curData, $commonFireData);
+}
 
 $stateMap = [];
 foreach (($plan['sections'] ?? []) as $code => $sec) {
@@ -343,6 +372,14 @@ table.ft .flow{margin-top:6px}
 .jm-task{flex:1;min-width:80px}
 .jawi-del{width:30px;height:34px;flex-shrink:0;border:1px solid var(--bd2);background:#fff;border-radius:7px;color:var(--mut);cursor:pointer;font-size:13px}
 .jawi-del:hover{border-color:#dc2626;color:#dc2626}
+.common-evac{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px;
+  padding:14px 15px;border:1px solid #bbdfc8;border-radius:10px;background:#f7fcf8}
+.common-evac.is-update{border-color:#f2cf91;background:#fffbeb}
+.common-evac__text{flex:1;min-width:220px}
+.common-evac__title{font-size:13.5px;font-weight:800;color:#166534;margin-bottom:2px}
+.common-evac.is-update .common-evac__title{color:#92400e}
+.common-evac__meta{font-size:12px;color:var(--mut2);line-height:1.6}
+.common-evac__actions{display:flex;gap:7px;flex-wrap:wrap}
 @media(max-width:640px){
   .jawi-member{flex-wrap:wrap}
   .jm-name,.jm-tel{width:calc(50% - 3px)}
@@ -723,7 +760,34 @@ table.ft .flow{margin-top:6px}
 
       <?php elseif ($cur === '5'): ?>
         <?php $EV=$curData['evac']??[]; ?>
+        <div class="common-evac <?= $commonUpdateAvailable ? 'is-update' : '' ?>">
+          <div class="common-evac__text">
+            <?php if (!$commonEvacStatus['has_content']): ?>
+              <div class="common-evac__title">공통 피난계획이 아직 없습니다</div>
+              <div class="common-evac__meta">층별 대피경로와 집결지를 먼저 설정해 주세요.</div>
+            <?php elseif ($commonUpdateAvailable): ?>
+              <div class="common-evac__title">최신 공통 피난계획을 반영할 수 있습니다</div>
+              <div class="common-evac__meta">최근 수정 <?=h(substr((string)$commonEvacStatus['updated'],0,16))?> · 적용하면 아래 공통 항목이 최신 내용으로 바뀝니다.</div>
+            <?php else: ?>
+              <div class="common-evac__title">공통 피난계획 반영됨</div>
+              <div class="common-evac__meta">이 계획서에는 현재 공통 피난계획이 반영되어 있습니다.</div>
+            <?php endif; ?>
+          </div>
+          <div class="common-evac__actions">
+            <a class="btn btn--sm" href="/evacuation_plan_chat.php?return=<?=rawurlencode('/fire_plan_edit.php?id='.$planId.'&s=5')?>">
+              <?= $commonEvacStatus['has_content'] ? '공통계획 검토·수정' : '공통계획 작성' ?>
+            </a>
+            <?php if ($commonEvacStatus['has_content']): ?>
+              <button class="btn btn--sm <?= $commonUpdateAvailable ? 'btn--primary' : '' ?>" type="submit"
+                name="act" value="sync_common_evac"
+                onclick="return confirm('공통 피난계획의 최신 내용으로 아래 공통 항목을 반영할까요?');">
+                <?= $commonUpdateAvailable ? '최신 내용 적용' : '다시 적용' ?>
+              </button>
+            <?php endif; ?>
+          </div>
+        </div>
         <p class="desc">소방청 <b>제3장 피난계획</b> 기준입니다. 피난경로와 화재안전취약자 대책을 정합니다.</p>
+        <input type="hidden" name="common_updated" value="<?=h($curData['common_updated'] ?? '')?>">
         <table class="ft">
           <tr><th class="lb1">피난층</th>
             <td><input type="text" name="floor_exit" value="<?=h($curData['floor_exit'] ?? '')?>" placeholder="예: 지상 1층 (주출입구 2개소)"></td></tr>

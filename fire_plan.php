@@ -18,8 +18,12 @@ $role = $_SESSION['role'] ?? 'agency';
 if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
 
 require_once __DIR__ . '/fire_plan_db.php';
+require_once __DIR__ . '/evacuation_plan_common.php';
 $nick   = $_SESSION['nickname'] ?? '사용자';
 $usages = fp_usages();
+$commonEvac = epc_load();
+$commonEvacStatus = epc_status($commonEvac);
+$commonEvacUrl = '/evacuation_plan_chat.php?return=' . rawurlencode('/fire_plan.php');
 
 /* 삭제 처리 */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'delete') {
@@ -101,6 +105,7 @@ a{text-decoration:none}
 .empty{text-align:center;color:var(--mut2);padding:48px 20px}
 
 /* ── 연도별 보유 현황 ── */
+.yearcov{margin-bottom:16px}
 .yearcov__hd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .yearcov__law{font-size:12px;color:var(--mut2)}
 .yearcov__law b{color:var(--fg)}
@@ -137,10 +142,27 @@ a{text-decoration:none}
 .tag--use{background:#eef2ff;color:var(--brand2)}
 .tag--draft{background:#fff7ed;color:#b45309}
 .tag--done{background:#ecfdf5;color:#047857}
+.tag--sync{background:#fff7ed;color:#b45309;margin-left:5px}
 .prog{width:150px}
 .prog__bar{height:7px;border-radius:99px;background:#e9edf4;overflow:hidden}
 .prog__bar i{display:block;height:100%;background:var(--brand);border-radius:99px}
 .prog__txt{font-size:11.5px;color:var(--mut2);margin-top:3px}
+
+/* ── 건물 공통 피난계획 ── */
+.common-evac{margin-bottom:16px;display:flex;align-items:center;gap:18px}
+.common-evac__mark{flex:0 0 46px;width:46px;height:46px;border-radius:10px;background:#ecfdf5;
+  color:#047857;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800}
+.common-evac__main{flex:1;min-width:0}
+.common-evac__head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:4px}
+.common-evac__head h2{font-size:17px}
+.common-evac__state{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;
+  background:#f1f5f9;color:var(--mut2)}
+.common-evac__state.is-ready{background:#ecfdf5;color:#047857}
+.common-evac__state.is-writing{background:#fff7ed;color:#b45309}
+.common-evac__desc{font-size:13px;color:var(--mut2)}
+.common-evac__meta{margin-top:5px;font-size:12px;color:var(--mut)}
+.common-evac__actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:680px){.common-evac{align-items:flex-start;flex-wrap:wrap}.common-evac__actions{width:100%}.common-evac__actions .btn{flex:1;justify-content:center}}
 
 /* ── 법령 근거 안내 (접이식) ── */
 .law{margin-bottom:24px;border:1px solid var(--bd);border-radius:14px;background:
@@ -349,6 +371,35 @@ details[open] .law__chev{transform:rotate(180deg)}
     </div>
   </details>
 
+  <section class="card common-evac">
+    <div class="common-evac__mark" aria-hidden="true">↗</div>
+    <div class="common-evac__main">
+      <div class="common-evac__head">
+        <h2>공통 피난계획</h2>
+        <?php if ($commonEvacStatus['ready']): ?>
+          <span class="common-evac__state is-ready">사용 가능</span>
+        <?php elseif ($commonEvacStatus['has_content']): ?>
+          <span class="common-evac__state is-writing">작성 중</span>
+        <?php else: ?>
+          <span class="common-evac__state">작성 전</span>
+        <?php endif; ?>
+      </div>
+      <div class="common-evac__desc">이 건물의 층별 대피경로와 집결지를 소방계획서에 공통으로 사용합니다.</div>
+      <?php if ($commonEvacStatus['has_content']): ?>
+        <div class="common-evac__meta">
+          <?= (int)$commonEvacStatus['floor_count'] ?>개 층
+          <?php if ((int)$commonEvacStatus['occupants'] > 0): ?> · 최대 <?= (int)$commonEvacStatus['occupants'] ?>명<?php endif; ?>
+          <?php if ($commonEvacStatus['updated'] !== ''): ?> · 최근 수정 <?=h(substr((string)$commonEvacStatus['updated'], 0, 16))?><?php endif; ?>
+        </div>
+      <?php endif; ?>
+    </div>
+    <div class="common-evac__actions">
+      <a class="btn <?= $commonEvacStatus['has_content'] ? '' : 'btn--primary' ?>" href="<?=h($commonEvacUrl)?>">
+        <?= $commonEvacStatus['has_content'] ? '검토·수정' : '피난계획 작성' ?>
+      </a>
+    </div>
+  </section>
+
   <!-- ── 연도별 보유 현황 ──
        소방계획은 매년 새로 만들고, 만든 문서는 2년간 보관해야 합니다.
        그래서 올해·작년 것이 있는지 한눈에 보이게 합니다. -->
@@ -435,6 +486,13 @@ details[open] .law__chev{transform:rotate(180deg)}
             <span class="tag tag--use"><?=h($u['nm'])?></span>
             <?php if (($p['status'] ?? '')==='done'): ?><span class="tag tag--done">완료</span>
             <?php else: ?><span class="tag tag--draft">작성중</span><?php endif; ?>
+            <?php
+              $planEvac = fp_get_section((string)$p['id'], '5');
+              $needsCommonEvac = $commonEvacStatus['has_content']
+                && $commonEvacStatus['updated'] !== ''
+                && (string)($planEvac['common_updated'] ?? '') < (string)$commonEvacStatus['updated'];
+            ?>
+            <?php if ($needsCommonEvac): ?><span class="tag tag--sync">피난계획 반영 필요</span><?php endif; ?>
           </div>
           <div class="plan__meta">
             최근 수정 <?=h(substr((string)($p['updated_at'] ?? ''),0,16))?>
@@ -446,6 +504,7 @@ details[open] .law__chev{transform:rotate(180deg)}
           <div class="prog__txt">작성 진행률 <?=$pct?>%</div>
         </div>
         <a class="btn" href="/fire_plan_chat.php?id=<?=h($p['id'])?>">💬 문답</a>
+        <?php if ($needsCommonEvac): ?><a class="btn" href="/fire_plan_edit.php?id=<?=h($p['id'])?>&s=5">피난계획 적용</a><?php endif; ?>
         <a class="btn" href="/fire_plan_edit.php?id=<?=h($p['id'])?>">이어쓰기</a>
         <form method="post" onsubmit="return confirm('이 계획서를 삭제할까요? 되돌릴 수 없습니다.')">
           <input type="hidden" name="act" value="delete">
