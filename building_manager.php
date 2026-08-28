@@ -715,6 +715,121 @@ a.pstep:hover{background:#f2f6fd}
   .protools__list{grid-template-columns:1fr}
   .protool+.protool{border-left:0;border-top:1px solid var(--bd)}
 }
+
+/* ── 화면 위계·클릭 유도 보완 ───────────────────────────── */
+.dashboard-shell{column-gap:28px}
+.dashboard-shell .wrap{gap:12px}
+.dashboard-shell .card{
+  position:relative;min-height:136px;padding:17px 18px 15px;border-radius:14px;
+  border-color:#e2e8f0;box-shadow:0 1px 2px rgba(15,23,42,.03);
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease
+}
+.dashboard-shell .card--link:hover{
+  transform:translateY(-2px);border-color:#a9c4f5;
+  box-shadow:0 10px 26px rgba(30,64,175,.09)
+}
+.dashboard-shell .card h3{font-size:15px;letter-spacing:-.18px;margin-top:2px}
+.dashboard-shell .card__sub{font-size:12px;line-height:1.55;-webkit-line-clamp:2}
+.dashboard-shell .card__top{min-height:25px}
+.dashboard-shell .card__arrow{
+  margin-left:auto;display:inline-flex;align-items:center;justify-content:center;
+  min-height:27px;padding:4px 9px;border-radius:7px;background:#eff6ff;
+  color:#1d4ed8;font-size:0;font-weight:800
+}
+.dashboard-shell .card__arrow::after{content:'열기';font-size:10.5px}
+.dashboard-shell .card--link:hover .card__arrow{background:#2563eb;color:#fff}
+.dashboard-shell .card--next{
+  border-color:#f1b8ca;box-shadow:0 0 0 3px rgba(190,18,60,.07)
+}
+.dashboard-shell .card--wait{opacity:.72;background:#f8fafc}
+.dashboard-shell .due--ok::first-letter{font-size:0}
+
+.mission{border:1px solid #253249;box-shadow:0 8px 22px rgba(15,23,42,.10)}
+.mission__label{letter-spacing:.08em}
+.mission__btn{padding-left:18px;padding-right:18px}
+
+.prog{border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(15,30,60,.06)}
+.prog__start{animation:none;text-align:left;margin:5px 7px 3px;font-size:11.5px;color:#1d4ed8}
+.pstep--first{box-shadow:none;border:1px solid #bfdbfe;background:#eff6ff}
+
+.protools{margin-top:7px;border-radius:12px;background:#fbfcfe}
+.protools__head{padding:10px 13px}
+.protool{padding:11px 13px;color:var(--mut2)}
+.protool:hover{background:#fff;color:var(--fg)}
+.protool__go{font-size:0}
+.protool__go::after{content:'열기';font-size:10px;font-weight:800;color:#64748b}
+
+@media(max-width:620px){
+  .dashboard-shell .card{min-height:122px;padding:15px 16px}
+  .dashboard-shell .card__arrow{min-height:26px}
+}
+
+/* ── Notion형 좌측 업무 사이드바 ─────────────────────────── */
+.dashboard-shell{
+  max-width:1280px;grid-template-columns:272px minmax(0,1fr);
+  column-gap:34px;padding:20px 28px 56px
+}
+.dashboard-shell .ph-left{grid-column:2;grid-row:1;padding:5px 0 18px}
+.dashboard-shell .rightcol{
+  grid-column:1;grid-row:1 / span 2;width:272px;min-height:calc(100vh - 96px);
+  padding:15px 12px;border:1px solid #e5e7eb;border-radius:16px;
+  background:#f7f8fa
+}
+.dashboard-shell .wrap{
+  grid-column:2;grid-row:2;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px
+}
+.dashboard-shell .prog{
+  position:sticky;top:76px;width:100%;padding:5px;background:transparent;
+  border:0;border-radius:0;box-shadow:none
+}
+.dashboard-shell .prog__t{
+  margin:0 6px 9px;padding:7px 8px 12px;font-size:12px;letter-spacing:.02em;
+  color:#64748b;border-bottom:1px solid #e5e7eb
+}
+.dashboard-shell .pstep{
+  min-height:48px;padding:9px 9px;gap:10px;border:0!important;border-radius:8px;
+  font-size:13px;font-weight:650
+}
+.dashboard-shell .pstep+.pstep{margin-top:2px}
+.dashboard-shell .pstep:hover{background:#eceef2}
+.dashboard-shell .pstep .no{width:26px;height:26px;font-size:11px;background:#e5e7eb}
+.dashboard-shell .pstep--done .no{background:#dcfce7;color:#15803d}
+.dashboard-shell .pstep--now,.dashboard-shell .pstep--first{
+  background:#e8eefc;border:0!important;box-shadow:none;color:#1d4ed8
+}
+.dashboard-shell .pstep--now .no{background:#2563eb;color:#fff;box-shadow:none}
+.dashboard-shell .ptag{font-size:10px;padding:3px 7px}
+.dashboard-shell .psub{padding:3px 8px 7px 44px;gap:6px;font-size:10.5px;flex-direction:column}
+.dashboard-shell .prog__start{
+  margin:7px 7px 4px;padding:0;color:#2563eb;font-size:10.5px;font-weight:800
+}
+.dashboard-shell .prog__hint{
+  margin:12px 7px 3px;padding-top:12px;border-top:1px solid #e5e7eb;
+  text-align:left;font-size:10.5px;line-height:1.5
+}
+.dashboard-head{min-height:60px}
+.ops-head{margin-top:2px;padding:4px 1px}
+/* 업무 실행 메뉴를 좌측으로 옮겼으므로 본문의 중복 카드 목록은 감춥니다. */
+.dashboard-shell .wrap>.ops-head,
+.dashboard-shell .wrap>.sec,
+.dashboard-shell .wrap>.grid{display:none}
+.dashboard-shell .wrap>.mission{margin-bottom:4px}
+.dashboard-shell .wrap>.protools{margin-top:10px}
+
+@media(max-width:940px){
+  .dashboard-shell{grid-template-columns:230px minmax(0,1fr);column-gap:22px;padding:18px 20px 44px}
+  .dashboard-shell .rightcol{grid-column:1;grid-row:1 / span 2;width:230px}
+  .dashboard-shell .ph-left{grid-column:2;grid-row:1}
+  .dashboard-shell .wrap{grid-column:2;grid-row:2;grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:720px){
+  .dashboard-shell{display:flex;flex-direction:column;padding:16px 18px 42px}
+  .dashboard-shell .ph-left{order:1;width:100%}
+  .dashboard-shell .rightcol{order:2;width:100%;min-height:0;padding:10px;margin:0 0 16px}
+  .dashboard-shell .prog{position:static}
+  .dashboard-shell .wrap{order:3;width:100%;grid-template-columns:1fr}
+  .dashboard-shell .pstep{min-height:46px}
+}
 </style>
 
 <div class="dashboard-shell">
@@ -736,24 +851,22 @@ a.pstep:hover{background:#f2f6fd}
 
     <div class="rightcol">
     <aside class="prog">
-      <div class="prog__t">진행 현황</div>
+      <div class="prog__t">소방안전관리 업무</div>
       <?php
-        /* 순서: 기본정보 → 자위소방대 편성 → 매월 기록 → 연간 훈련·교육 → 소방계획서
-           (편성표를 먼저 만들어 두면 매월 기록·훈련 기록이 그 명단을 불러 씁니다) */
+        /* 좌측 업무 메뉴: 각 기록을 합치지 않고 실제 작성 화면 단위로 보여줍니다. */
         $s1 = $biDone;
-        $s2 = $hasRoster;                                    // 자위소방대 편성표
-        $s3 = ($doneWorkLog === true);                       // 매월 기록
-        $s4 = ($doneTrain === true && $doneJawi === true);    // 연간 훈련·교육
-        /* 연간 업무는 자위소방대 교육부터 시작하고, 완료 후 소방훈련으로 이어집니다. */
-        $annualLink = ($doneJawi === true) ? '/train.php' : '/jawi.php';
-        $nowStep = !$s1 ? 1 : (!$s2 ? 2 : (!$s3 ? 3 : (!$s4 ? 4 : 5)));
+        $s2 = $hasRoster;
+        $s3 = ($doneWorkLog === true);
+        $s4 = ($doneJawi === true);
+        $s5 = ($doneTrain === true);
+        $nowStep = !$s1 ? 1 : (!$s2 ? 2 : (!$s3 ? 3 : (!$s4 ? 4 : (!$s5 ? 5 : 7))));
       ?>
       <?php
         /* 현재 해야 할 단계 바로 위에 클릭 유도 문구를 띄웁니다.
            기존 '여기부터 시작하세요'와 같은 방식이되, 진행에 따라 위치가 내려갑니다. */
         function stepNudge(int $step, int $nowStep, string $text): void {
           if ($step !== $nowStep) return;
-          echo '<div class="prog__start">👇click ' . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . '</div>';
+          echo '<div class="prog__start">현재 단계 · ' . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . '</div>';
         }
       ?>
 
@@ -788,31 +901,38 @@ a.pstep:hover{background:#f2f6fd}
         <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
       </a>
 
-      <?php stepNudge(4, $nowStep, '올해 훈련·교육을 기록하세요'); ?>
-      <!-- ④ 연간 훈련·교육 -->
-      <a class="pstep <?= $s4 ? 'pstep--done' : ($nowStep===4 ? 'pstep--now' : '') ?><?= $nowStep===4 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url($annualLink))?>">
-        <span class="no"><?= $s4 ? '✓' : '4' ?></span><span class="pstep__label">연간 훈련·교육</span>
-        <?php $yearDone = (int)($doneTrain === true) + (int)($doneJawi === true); ?>
+      <?php stepNudge(4, $nowStep, '자위소방대 교육을 기록하세요'); ?>
+      <!-- ④ 자위소방대 교육·훈련 -->
+      <a class="pstep <?= $s4 ? 'pstep--done' : ($nowStep===4 ? 'pstep--now' : '') ?><?= $nowStep===4 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/jawi.php'))?>">
+        <span class="no"><?= $s4 ? '✓' : '4' ?></span><span class="pstep__label">자위소방대 교육</span>
         <?php if ($s4): ?><span class="ptag ptag--done">완료</span>
         <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
-        <?php elseif ($yearDone > 0): ?><span class="ptag ptag--part"><?=$yearDone?>/2</span>
         <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
       </a>
-      <?php if ($hasBi && !$s4): ?>
-        <div class="psub">
-          <span class="psub__i <?= $doneJawi === true ? 'is-ok' : '' ?>"><?= $doneJawi === true ? '✓' : '·' ?> 자위소방대 교육</span>
-          <span class="psub__i <?= $doneTrain === true ? 'is-ok' : '' ?>"><?= $doneTrain === true ? '✓' : '·' ?> 소방훈련·교육</span>
-        </div>
-      <?php endif; ?>
 
-      <?php stepNudge(5, $nowStep, '소방계획서를 확인하세요'); ?>
-      <!-- ⑤ 소방계획서 -->
-      <a class="pstep <?= $nowStep===5 ? 'pstep--now' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/fire_plan.php'))?>">
-        <span class="no">5</span><span class="pstep__label">소방계획서</span>
+      <?php stepNudge(5, $nowStep, '소방훈련·교육을 기록하세요'); ?>
+      <!-- ⑤ 소방훈련·교육 -->
+      <a class="pstep <?= $s5 ? 'pstep--done' : ($nowStep===5 ? 'pstep--now' : '') ?><?= $nowStep===5 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/train.php'))?>">
+        <span class="no"><?= $s5 ? '✓' : '5' ?></span><span class="pstep__label">소방훈련·교육</span>
+        <?php if ($s5): ?><span class="ptag ptag--done">완료</span>
+        <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
+        <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
+      </a>
+
+      <!-- ⑥ 피난계획 -->
+      <a class="pstep <?= $hasBi ? '' : 'pstep--lock' ?>" href="<?=h($url('/evacuation_plan_chat.php'))?>">
+        <span class="no">6</span><span class="pstep__label">피난계획</span>
         <span class="ptag ptag--always">상시</span>
       </a>
 
-      <div class="prog__hint"><?= $hasBi ? '항목을 누르면 바로 이동합니다' : '기본정보를 입력하면 나머지 단계가 열립니다' ?></div>
+      <?php stepNudge(7, $nowStep, '소방계획서를 확인하세요'); ?>
+      <!-- ⑦ 소방계획서 -->
+      <a class="pstep <?= $nowStep===7 ? 'pstep--now pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/fire_plan.php'))?>">
+        <span class="no">7</span><span class="pstep__label">소방계획서</span>
+        <span class="ptag ptag--always">상시</span>
+      </a>
+
+      <div class="prog__hint"><?= $hasBi ? '업무를 선택하면 작성 화면으로 바로 이동합니다' : '기본정보를 입력하면 나머지 업무가 열립니다' ?></div>
     </aside>
     </div>
   </div>
