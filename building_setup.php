@@ -419,7 +419,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 
     <!-- 4. 집결지 -->
     <section class="sec">
-      <div class="sec__t"><span class="n">4</span> 집결지 <small>화재 시 대피 후 모이는 장소</small></div>
+      <div class="sec__t"><span class="n">4</span> 집결지, 소방차 진입로 <small>화재 시 대피 후 모이는 장소, 소방차 진입로 </small></div>
       <div class="row">
         <div class="fld" style="flex:1 1 100%">
           <label>집결지 이름</label>
@@ -435,14 +435,21 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
       <!-- 좌표는 숨겨서 함께 저장합니다(지도는 이 좌표로 매번 새로 그립니다) -->
       <input type="hidden" name="assembly_lat" id="asmLat" value="<?=h($asmLat)?>">
       <input type="hidden" name="assembly_lng" id="asmLng" value="<?=h($asmLng)?>">
+      <input type="hidden" name="fire_engine_route" id="fireEngineRoute" value="<?=h((string)($d['fire_engine_route'] ?? ''))?>">
 
       <?php if ($asmLat !== '' && $asmLng !== ''): ?>
         <div id="asmMap" style="width:100%;height:240px;border:1px solid var(--bd);
              border-radius:10px;margin-top:10px;background:#eef2f7"></div>
         <div class="hint" style="margin-top:8px">
-          지도를 눌러 위치를 옮길 수 있습니다.
+          기본 상태에서는 지도를 눌러 집결지를 옮길 수 있습니다.
           <span id="asmSaved" style="color:var(--ok);font-weight:700;display:none">위치가 바뀌었습니다 — 아래 저장을 눌러주세요.</span>
         </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn" type="button" id="routeEditBtn">소방차 진입로 그리기</button>
+          <button class="btn" type="button" id="routeUndoBtn" style="display:none">마지막 점 취소</button>
+          <button class="btn" type="button" id="routeResetBtn" style="display:none">진입로 지우기</button>
+        </div>
+        <div class="hint" id="routeHint" style="margin-top:8px"></div>
       <?php else: ?>
         <div class="hint" style="margin-top:10px">
           아직 지도에서 위치를 찍지 않았습니다.
@@ -518,6 +525,21 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
     var pos = new kakao.maps.LatLng(lat, lng);
     var map = new kakao.maps.Map(el, { center: pos, level: 3 });
     var marker = new kakao.maps.Marker({ map: map, position: pos });
+    var routeMode = false, routeLine = null, routeDots = [], route = [];
+    try { var parsed=JSON.parse(document.getElementById('fireEngineRoute').value||'[]'); if(Array.isArray(parsed)) route=parsed; } catch(e){}
+    function drawRoute(){
+      if(routeLine) routeLine.setMap(null);
+      routeDots.forEach(function(x){x.setMap(null);}); routeDots=[];
+      var path=route.filter(function(p){return p&&isFinite(p.lat)&&isFinite(p.lng);})
+        .map(function(p){return new kakao.maps.LatLng(Number(p.lat),Number(p.lng));});
+      if(path.length){
+        routeLine=new kakao.maps.Polyline({map:map,path:path,strokeWeight:6,strokeColor:'#dc2626',strokeOpacity:.9});
+        path.forEach(function(p){routeDots.push(new kakao.maps.Circle({map:map,center:p,radius:3,strokeWeight:2,strokeColor:'#fff',fillColor:'#dc2626',fillOpacity:1}));});
+      }
+      document.getElementById('fireEngineRoute').value=path.length?JSON.stringify(route):'';
+      var hint=document.getElementById('routeHint');
+      hint.textContent=routeMode?'도로에서 건물 입구 방향으로 차례대로 누르세요. 완료되면 아래 저장을 누릅니다.':(path.length?'소방차 진입로 '+path.length+'개 지점이 저장되어 있습니다.':'아직 소방차 진입로를 표시하지 않았습니다.');
+    }
 
     // 건물 위치도 같이 보여주면 거리 감이 잡힙니다.
     var bLat = parseFloat(<?=json_encode((string)($d['bd_lat'] ?? ''))?>);
@@ -532,12 +554,18 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
     }
 
     kakao.maps.event.addListener(map, 'click', function(e){
+      if(routeMode){route.push({lat:e.latLng.getLat(),lng:e.latLng.getLng()});drawRoute();return;}
       marker.setPosition(e.latLng);
       document.getElementById('asmLat').value = e.latLng.getLat();
       document.getElementById('asmLng').value = e.latLng.getLng();
       var s = document.getElementById('asmSaved');
       if (s) s.style.display = 'inline';
     });
+    var editBtn=document.getElementById('routeEditBtn'), undoBtn=document.getElementById('routeUndoBtn'), resetBtn=document.getElementById('routeResetBtn');
+    editBtn.onclick=function(){routeMode=!routeMode;editBtn.textContent=routeMode?'진입로 그리기 완료':'소방차 진입로 그리기';undoBtn.style.display=resetBtn.style.display=routeMode?'':'none';drawRoute();};
+    undoBtn.onclick=function(){route.pop();drawRoute();};
+    resetBtn.onclick=function(){route=[];drawRoute();};
+    drawRoute();
   });
 })();
 </script>

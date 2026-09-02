@@ -631,6 +631,9 @@ var STEPS = [
   { field:'__assembly', q:'화재 시 모일 집결지는 어디인가요?', type:'assembly', skip:true,
     hint:'대피한 사람들이 모여서 인원을 확인하는 장소입니다. 건물에서 안전하게 떨어져 있고, 소방차 진입에 방해되지 않는 곳이 좋습니다. 검색해서 고르면 위치까지 저장됩니다.' },
 
+  { field:'fire_engine_route', q:'소방차가 건물로 들어오는 길도 표시해 둘까요?', type:'fire_route', skip:true,
+    hint:'도로의 진입 시작점부터 건물 입구 방향으로 차례대로 눌러주세요. 실제 도로를 따라 여러 점을 찍으면 진입선이 저장됩니다.' },
+
   { field:'use', q:'건물을 주로 어떤 용도로 쓰나요?', type:'choice',
     options:['업무시설(사무실)','판매시설(상가·매장)','숙박시설','공장·창고','의료시설','교육연구시설','복합용도','그 밖'],
     dontknow:'use' },
@@ -1181,6 +1184,83 @@ function ask(s){
       }, 300);
     });
 
+    return;
+  }
+
+  if (s.type === 'fire_route'){
+    var bLat = parseFloat(SAVED.bd_lat || '') || null;
+    var bLng = parseFloat(SAVED.bd_lng || '') || null;
+    var aLat = parseFloat(SAVED.assembly_lat || '') || null;
+    var aLng = parseFloat(SAVED.assembly_lng || '') || null;
+    var route = [];
+    try {
+      var oldRoute = JSON.parse(SAVED.fire_engine_route || '[]');
+      if (Array.isArray(oldRoute)) route = oldRoute.filter(function(p){ return p && isFinite(p.lat) && isFinite(p.lng); });
+    } catch(e){}
+
+    var mapWrap=document.createElement('div');
+    mapWrap.style.cssText='border:1px solid var(--bd2);border-radius:11px;overflow:hidden;margin-bottom:9px';
+    var mapEl=document.createElement('div');
+    mapEl.style.cssText='width:100%;height:300px;background:#eef2f7';
+    mapWrap.appendChild(mapEl); b.appendChild(mapWrap);
+
+    var tip=document.createElement('div');
+    tip.style.cssText='font-size:12.5px;color:var(--mut);line-height:1.7;margin-bottom:11px';
+    b.appendChild(tip);
+    var actions=document.createElement('div'); actions.className='subrow';
+    var undo=document.createElement('button'); undo.type='button'; undo.className='btn btn--sm'; undo.textContent='마지막 점 취소';
+    var reset=document.createElement('button'); reset.type='button'; reset.className='btn btn--sm'; reset.textContent='다시 그리기';
+    var saveBtn=document.createElement('button'); saveBtn.type='button'; saveBtn.className='btn btn--primary btn--sm'; saveBtn.textContent='진입로 저장';
+    var skip=document.createElement('button'); skip.type='button'; skip.className='btn btn--sm'; skip.textContent='나중에 할게요';
+    actions.appendChild(undo); actions.appendChild(reset); actions.appendChild(saveBtn); actions.appendChild(skip); b.appendChild(actions);
+
+    var mapObj=null, line=null, dots=[];
+    function redrawRoute(){
+      if (!mapObj) return;
+      if (line) line.setMap(null);
+      dots.forEach(function(x){x.setMap(null);}); dots=[];
+      var path=route.map(function(p){return new kakao.maps.LatLng(Number(p.lat),Number(p.lng));});
+      if (path.length){
+        line=new kakao.maps.Polyline({map:mapObj,path:path,strokeWeight:6,strokeColor:'#dc2626',strokeOpacity:.9,strokeStyle:'solid'});
+        path.forEach(function(pos,i){
+          dots.push(new kakao.maps.Circle({map:mapObj,center:pos,radius:i===0?5:3,
+            strokeWeight:2,strokeColor:'#fff',strokeOpacity:1,fillColor:'#dc2626',fillOpacity:1}));
+        });
+      }
+      tip.innerHTML = path.length
+        ? '<b style="color:#dc2626">'+path.length+'개 지점</b>으로 진입선을 그렸습니다. 계속 누르거나 저장하세요.'
+        : '<b>① 도로의 진입 시작점</b>을 누르고, <b>② 건물 입구 방향</b>으로 차례대로 눌러주세요.';
+      saveBtn.disabled=path.length<2;
+    }
+    undo.onclick=function(){route.pop();redrawRoute();};
+    reset.onclick=function(){route=[];redrawRoute();};
+    skip.onclick=function(){clearBox();me('소방차 진입로는 나중에 표시할게요');step++;next();};
+    saveBtn.onclick=function(){
+      if(route.length<2){tip.textContent='진입로는 두 지점 이상 찍어주세요.';return;}
+      var encoded=JSON.stringify(route);
+      saveBtn.disabled=true; saveBtn.textContent='저장 중…';
+      save({fire_engine_route:encoded},function(ok){
+        if(!ok){saveBtn.disabled=false;saveBtn.textContent='진입로 저장';return;}
+        SAVED.fire_engine_route=encoded;
+        clearBox();me('소방차 진입로 저장 완료 · '+route.length+'개 지점');
+        step++;next();
+      });
+    };
+    loadKakaoMap(function(){
+      var center=new kakao.maps.LatLng(bLat||aLat||37.5665,bLng||aLng||126.9780);
+      mapObj=new kakao.maps.Map(mapEl,{center:center,level:3});
+      if(bLat&&bLng){
+        var bp=new kakao.maps.LatLng(bLat,bLng);
+        new kakao.maps.Circle({map:mapObj,center:bp,radius:7,strokeWeight:2,strokeColor:'#2563eb',fillColor:'#2563eb',fillOpacity:1});
+        new kakao.maps.CustomOverlay({map:mapObj,position:bp,yAnchor:2.1,content:'<div style="background:#2563eb;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px">건물</div>'});
+      }
+      if(aLat&&aLng){
+        var ap=new kakao.maps.LatLng(aLat,aLng);
+        new kakao.maps.CustomOverlay({map:mapObj,position:ap,yAnchor:1.5,content:'<div style="background:#15803d;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px">집결지</div>'});
+      }
+      kakao.maps.event.addListener(mapObj,'click',function(e){route.push({lat:e.latLng.getLat(),lng:e.latLng.getLng()});redrawRoute();});
+      redrawRoute();
+    },function(){mapWrap.style.display='none';tip.textContent='지도를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';saveBtn.disabled=true;});
     return;
   }
 
@@ -1771,7 +1851,7 @@ function finish(){
               '<span class="sum__v'+(v?'':' none')+'">'+esc(v||'아직 비어 있음')+'</span></div>';
     });
     html += '<div class="doneRow">' +
-      '<a class="btn btn--pri" href="<?=h($url('/building_manager.php'))?>">메인으로 →</a>' +
+    '<a class="btn btn--pri" target="_top" href="<?=h($url('/building_manager.php'))?>">메인으로 →</a>' +
       '<a class="btn" href="<?=h($url('/building_setup.php'))?>">표에서 자세히 고치기</a>' +
       '<a class="btn" href="<?=h($url('/work_log.php'))?>">이번 달 기록표 쓰러 가기</a></div>';
     d.innerHTML=html;

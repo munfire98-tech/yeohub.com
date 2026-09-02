@@ -188,6 +188,9 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>자위소방대 편성표</title>
+<script>
+  if (window.self !== window.top) document.documentElement.classList.add('is-embedded');
+</script>
 <style>
   :root{
     --red:#c0392b; --red-d:#a53024; --navy:#3a5572; --ink:#1f2430;
@@ -404,17 +407,26 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
     background:#f8fafc;border:1px dashed #ccd6e4;border-radius:9px;padding:10px 12px}
   .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
 
+  /* 명단 작성은 하단 '수정' 버튼의 팝업에서만 진행합니다. 데이터 입력 요소는 저장 호환을 위해 유지합니다. */
+  #p2{display:none!important}
+
   /* ══ 처음 방문 가이드 모달 ══ */
   .guide-mask{position:fixed;inset:0;background:rgba(20,26,40,.5);z-index:900;
     display:none;align-items:center;justify-content:center;padding:18px;
     backdrop-filter:blur(2px)}
   .guide-mask.show{display:flex}
   .guide-card{background:#fff;border-radius:18px;max-width:440px;width:100%;
-    max-height:88vh;overflow-y:auto;padding:26px 24px 20px;position:relative;
+    max-height:88vh;overflow:hidden;padding:0;position:relative;
     box-shadow:0 24px 60px rgba(16,24,40,.28);animation:guideIn .22s ease-out}
+  .guide-stage{padding:26px 24px 20px;max-height:88vh;overflow-y:auto}
+  .guide-stage.is-leaving{animation:guideLeave .16s ease-in both}
+  .guide-stage.is-entering{animation:guideNext .24s ease-out both}
+  @keyframes guideLeave{to{opacity:0;transform:translateX(-24px)}}
+  @keyframes guideNext{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
   @keyframes guideIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
   .guide-x{position:absolute;top:14px;right:14px;width:30px;height:30px;border:0;
-    background:#f1f3f7;color:#8a94a6;border-radius:9px;font-size:14px;cursor:pointer}
+    background:#f1f3f7;color:#8a94a6;border-radius:9px;font-size:14px;cursor:pointer;
+    z-index:20;pointer-events:auto}
   .guide-x:hover{background:#e6e9ef;color:#2b3446}
   .guide-hd{text-align:center;margin-bottom:18px}
   .guide-emoji{font-size:32px;display:block;margin-bottom:8px}
@@ -460,6 +472,63 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
   .guide-foot--single .btn{min-width:220px;justify-content:center}
   @media (max-width:480px){ .guide-foot{flex-direction:column-reverse;align-items:stretch}
     .guide-foot .btn{width:100%;justify-content:center} }
+
+  /* 가이드 다음 화면: 다른 요소 없이 명단 입력에만 집중 */
+  .guide-roster{display:none}
+  .guide-roster__top{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  .guide-back{width:34px;height:34px;flex:0 0 34px;border:1px solid #dbe2ec;border-radius:10px;
+    background:#fff;color:var(--navy);cursor:pointer;font-size:18px}
+  .guide-roster__title{min-width:0;flex:1}
+  .guide-roster__title h3{font-size:18px;font-weight:800;color:#12213a;letter-spacing:-.3px}
+  .guide-roster__title p{font-size:12px;color:var(--mut);margin-top:2px}
+  .guide-roster__count{font-size:12px;font-weight:800;color:var(--navy);background:#eef4fb;
+    border-radius:999px;padding:5px 10px;white-space:nowrap}
+  .guide-input{width:100%;min-height:220px!important;resize:none!important;border:1.5px solid #cfd8e6!important;
+    border-radius:13px!important;padding:15px!important;font-size:14px!important;line-height:1.8!important;
+    background:#fbfcfe!important}
+  .guide-input:focus{background:#fff!important;border-color:var(--navy)!important}
+  .guide-roster__help{font-size:11.5px;color:var(--mut);margin:9px 2px 16px;line-height:1.6}
+  .guide-roster__action{width:100%;justify-content:center;padding:12px 18px;font-size:14px}
+  .guide-roster__action:disabled{background:#cbd2dc;box-shadow:none;cursor:not-allowed}
+  .guide-save{display:none;text-align:center}
+  .guide-save__icon{width:58px;height:58px;margin:4px auto 14px;border-radius:18px;
+    display:flex;align-items:center;justify-content:center;background:#eef4fb;color:var(--navy);
+    font-size:27px;font-weight:800}
+  .guide-save h3{font-size:19px;font-weight:800;color:#12213a;letter-spacing:-.35px}
+  .guide-save p{font-size:12.5px;color:var(--mut);margin:6px 0 18px;line-height:1.65}
+  .guide-save__summary{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    background:#f8fafc;border:1px solid #e1e7ef;border-radius:12px;padding:13px 15px;
+    margin-bottom:16px;text-align:left}
+  .guide-save__summary span{font-size:12px;color:var(--mut)}
+  .guide-save__summary b{font-size:15px;color:var(--navy)}
+  .guide-save__buttons{display:flex;gap:8px}
+  .guide-save__buttons .btn{flex:1;justify-content:center}
+  .guide-assign{display:none;padding:22px 20px 18px}
+  .guide-card:has(.guide-assign[style*="block"]){max-width:680px}
+  .assign-head{padding:0 38px 13px 2px;border-bottom:1px solid #e8edf3;margin-bottom:13px}
+  .assign-head h3{font-size:18px;font-weight:800;color:#12213a}
+  .assign-head p{font-size:12px;color:var(--mut);margin-top:3px}
+  .assign-command{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  .assign-command div{background:#f4f7fb;border:1px solid #e0e6ef;border-radius:10px;padding:10px 12px}
+  .assign-command small{display:block;font-size:10.5px;color:var(--mut)}
+  .assign-command b{font-size:13.5px;color:var(--navy)}
+  .assign-command button{margin-top:7px;border:1px solid #cfd8e5;background:#fff;border-radius:7px;
+    padding:5px 8px;font-size:10.5px;color:var(--navy);cursor:pointer;font-family:inherit}
+  .assign-groups{display:grid;grid-template-columns:1fr 1fr;gap:9px;max-height:48vh;overflow-y:auto;padding:1px}
+  .assign-group{border:1px solid #dfe5ed;border-radius:11px;background:#fafbfd;overflow:hidden}
+  .assign-group__hd{display:flex;justify-content:space-between;padding:8px 10px;background:#eef3f8;color:var(--navy);font-size:12.5px;font-weight:800}
+  .assign-person{padding:9px 10px;background:#fff;border-top:1px solid #edf0f4}
+  .assign-person__name{font-size:12.5px;font-weight:750}
+  .assign-person__role{display:flex;gap:5px;margin-top:7px}
+  .assign-person__role button{flex:1;border:1px solid #bfd0e5;background:#f4f8fd;border-radius:7px;
+    padding:5px 4px;font-size:10.5px;color:var(--navy);cursor:pointer;font-family:inherit;font-weight:700}
+  .assign-person__move{display:flex;gap:5px;margin-top:7px}
+  .assign-person__move button{flex:1;border:1px solid #dbe2eb;background:#fff;border-radius:7px;padding:5px 4px;font-size:10.5px;color:#56627a;cursor:pointer;font-family:inherit}
+  .assign-empty{padding:13px 10px;text-align:center;color:#9aa3b2;font-size:11px;background:#fff}
+  .assign-actions{display:flex;gap:8px;margin-top:14px}
+  .assign-actions .btn{flex:1;justify-content:center}
+  @media(max-width:560px){.assign-groups{grid-template-columns:1fr;max-height:52vh}}
+  .guide-save.is-saved .guide-save__icon{background:#ecfdf3;color:#15803d}
 
   /* ── 실시간 미리보기: 지금 적은 게 어떻게 인식되는지 즉시 확인 ── */
   .live-preview{margin-top:10px;padding:11px 13px;border-radius:10px;
@@ -598,6 +667,24 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
   .print-head hr{border:none;border-top:2px solid #2b2b2b;margin:6px 0}
   .print-meta{display:flex;justify-content:space-between;font-weight:700;font-size:12px;margin:4px 2px 8px}
   .print-sign{text-align:right;font-size:12px;margin-top:18px;line-height:2}
+
+  /* iframe 안에서는 작업에 필요한 내용만 표시합니다 */
+  .is-embedded body{padding-bottom:76px;background:#f5f7fa}
+  .is-embedded .appbar,
+  .is-embedded .side,
+  .is-embedded .lead,
+  .is-embedded .savedone{display:none!important}
+  .is-embedded .layout{display:block;max-width:960px;padding:12px;margin:0 auto}
+  .is-embedded .card{margin-bottom:12px;border-radius:10px;box-shadow:none}
+  .is-embedded .card__hd{padding:10px 13px}
+  .is-embedded .card__bd{padding:13px}
+  .is-embedded .savebar{padding:9px 12px}
+  .is-embedded .savebar .meta{display:none}
+  @media(max-width:620px){
+    .is-embedded .layout{padding:8px}
+    .is-embedded .card__bd{padding:11px}
+    .is-embedded .savebar .btn{flex:1;padding-left:8px;padding-right:8px}
+  }
 </style>
 </head>
 <body>
@@ -608,7 +695,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
     <span class="status" id="statusChip">🆕 새 편성표</span>
     <span class="sp"></span>
     <nav class="appnav" aria-label="바로가기">
-      <a class="appnav__ic" href="/building_manager.php" title="건물 관리">
+      <a class="appnav__ic" href="/building_manager.php" target="_top" title="건물 관리">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h1M11 8h1M7 12h1M11 12h1M7 16h1M11 16h1M17 14h1M17 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </a>
       <a class="appnav__ic" href="/notifications.php" title="알림">
@@ -618,7 +705,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/><path d="M16 14h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </a>
     </nav>
-    <a class="back" href="<?=h($JW_BACK[0])?>"><?=h($JW_BACK[1])?></a>
+    <a class="back" href="<?=h($JW_BACK[0])?>" target="_top"><?=h($JW_BACK[1])?></a>
   </div>
 </div>
 
@@ -695,7 +782,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
         <b>편성표를 저장했습니다</b>
         <small>건물 관리 페이지에서 남은 항목을 이어서 진행하실 수 있습니다.</small>
       </div>
-      <a class="savedone__btn" href="/building_manager.php">건물 관리로 →</a>
+      <a class="savedone__btn" href="/building_manager.php" target="_top">건물 관리로 →</a>
     </div>
 
     <!-- ① 대상물 -->
@@ -727,7 +814,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
       <div class="card__hd">
         <span class="stepno wait" id="sn2">2</span>
         <h2>명단 적기<span class="sub">한 줄에 한 명 — <b>이름 · 전화번호 · 직급</b> 순서로</span></h2>
-        <button class="btn btn-ghost btn-sm" type="button" onclick="openGuide()" title="예시 다시 보기">❓ 어떻게 적나요?</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="openGuide()" title="명단 입력·수정">명단 적기</button>
         <button class="btn btn-ghost btn-sm" type="button" id="foldBtn" onclick="toggleFold()">접기</button>
       </div>
 
@@ -827,8 +914,9 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
 
 <div class="savebar no-print">
   <span class="meta" id="editingHint" aria-live="polite"></span>
+  <button class="btn btn-ghost" id="guideOpenBtn" type="button" onclick="openGuide()">수정</button>
   <button class="btn btn-navy" id="savePlanBtn" type="button" onclick="saveplan()">💾 저장</button>
-  <a class="btn btn-success savebar__next" id="buildingManagerBtn" href="/building_manager.php" hidden>🏢 건물 관리로</a>
+  <a class="btn btn-success savebar__next" id="buildingManagerBtn" href="/building_manager.php" target="_top" hidden>🏢 건물 관리로</a>
   <button class="btn btn-primary" type="button" onclick="window.print()">🖨️ 인쇄 / PDF</button>
 </div>
 <div class="toast no-print" id="toast"></div>
@@ -985,15 +1073,191 @@ function renderLivePreview(lines){
 }
 
 /* ── 처음 방문 가이드 모달 — 페이지에 올 때마다 뜹니다(명단이 비어 있으면) ── */
-function openGuide(){
-  document.getElementById('guideMask').classList.add('show');
+async function openGuide(){
+  await loadLatestForGuide();
+  const mask = document.getElementById('guideMask');
+  mask.classList.add('show');
+  const hasRoster = !!((document.getElementById('bulkInput')||{}).value || '').trim();
+  if (hasRoster) showGuideRoster(false);
+  else showGuideIntro(false);
 }
 function closeGuide(focusInput){
-  document.getElementById('guideMask').classList.remove('show');
+  const mask=document.getElementById('guideMask');
+  if(mask) mask.classList.remove('show');
   if (focusInput) {
     const ta = document.getElementById('bulkInput');
     if (ta) { document.getElementById('p2').scrollIntoView({behavior:'smooth', block:'start'}); ta.focus(); }
   }
+}
+function showGuideIntro(animate){
+  const intro = document.getElementById('guideIntro');
+  const roster = document.getElementById('guideRoster');
+  const save = document.getElementById('guideSave');
+  const assign = document.getElementById('guideAssign');
+  document.querySelector('#guideMask .guide-card').style.maxWidth='440px';
+  roster.style.display = 'none';
+  save.style.display = 'none';
+  assign.style.display = 'none';
+  intro.style.display = 'block';
+  intro.classList.remove('is-leaving','is-entering');
+  if (animate) { void intro.offsetWidth; intro.classList.add('is-entering'); }
+}
+function fillGuideRoster(){
+  const source = document.getElementById('bulkInput');
+  const input = document.getElementById('guideBulkInput');
+  input.value = source ? source.value : '';
+  const title = document.getElementById('guideRosterTitle');
+  const action = document.getElementById('guideAssignBtn');
+  if (title) title.textContent = currentPlanId ? '저장된 명단을 수정하세요' : '근무자 명단만 적어주세요';
+  if (action) action.textContent = currentPlanId ? '수정한 명단으로 다시 편성하기' : '이 명단으로 자동 편성하기';
+  updateGuideRoster();
+}
+function showGuideRoster(animate){
+  const intro = document.getElementById('guideIntro');
+  const roster = document.getElementById('guideRoster');
+  const save = document.getElementById('guideSave');
+  const assign = document.getElementById('guideAssign');
+  document.querySelector('#guideMask .guide-card').style.maxWidth='440px';
+  intro.style.display = 'none';
+  save.style.display = 'none';
+  assign.style.display = 'none';
+  roster.style.display = 'block';
+  roster.classList.remove('is-entering');
+  if (animate) { void roster.offsetWidth; roster.classList.add('is-entering'); }
+  fillGuideRoster();
+}
+function openGuideRoster(){
+  const intro = document.getElementById('guideIntro');
+  const roster = document.getElementById('guideRoster');
+  intro.classList.add('is-leaving');
+  window.setTimeout(function(){
+    document.querySelector('#guideMask .guide-card').style.maxWidth='440px';
+    intro.style.display = 'none';
+    intro.classList.remove('is-leaving');
+    roster.style.display = 'block';
+    roster.classList.remove('is-entering');
+    void roster.offsetWidth;
+    roster.classList.add('is-entering');
+    fillGuideRoster();
+    const input = document.getElementById('guideBulkInput');
+    window.setTimeout(function(){ input.focus(); }, 80);
+  }, 150);
+}
+function updateGuideRoster(){
+  const input = document.getElementById('guideBulkInput');
+  const lines = input.value.split(/\n/).map(s=>s.trim()).filter(Boolean);
+  const count = document.getElementById('guideRosterCount');
+  const btn = document.getElementById('guideAssignBtn');
+  count.textContent = lines.length + '명';
+  btn.disabled = lines.length === 0;
+}
+function assignFromGuide(){
+  const input = document.getElementById('guideBulkInput');
+  const source = document.getElementById('bulkInput');
+  if (!input.value.trim()) { input.focus(); return; }
+  source.value = input.value;
+  source.dispatchEvent(new Event('input', {bubbles:true}));
+  autoAssign(true);
+  showGuideAssignment();
+}
+function showGuideAssignment(){
+  document.getElementById('guideIntro').style.display='none';
+  document.getElementById('guideRoster').style.display='none';
+  document.getElementById('guideSave').style.display='none';
+  const stage=document.getElementById('guideAssign');
+  document.querySelector('#guideMask .guide-card').style.maxWidth='680px';
+  GROUP_TEMPLATES.forEach(function(t){
+    if(!model.groups.some(function(g){return g.name===t.name;})) model.groups.push({name:t.name,members:[]});
+  });
+  model.groups.sort(function(a,b){
+    return GROUP_TEMPLATES.findIndex(function(t){return t.name===a.name;})-GROUP_TEMPLATES.findIndex(function(t){return t.name===b.name;});
+  });
+  stage.style.display='block';
+  stage.classList.remove('is-entering'); void stage.offsetWidth; stage.classList.add('is-entering');
+  renderGuideAssignment();
+}
+function renderGuideAssignment(){
+  document.getElementById('assignCommand').innerHTML=
+    '<div><small>대장</small><b>'+esc(model.cmd.name||'미지정')+'</b><br><button type="button" onclick="swapGuideLeaders()">부대장과 교체</button></div>'+
+    '<div><small>부대장</small><b>'+esc(model.deputy.name||'미지정')+'</b><br><button type="button" onclick="swapGuideLeaders()">대장과 교체</button></div>';
+  document.getElementById('assignGroups').innerHTML=model.groups.map(function(g,gi){
+    const people=g.members.length?g.members.map(function(m,mi){
+      const up=gi>0?'<button type="button" onclick="moveGuideMember('+gi+','+mi+','+(gi-1)+')">↑ '+esc(model.groups[gi-1].name)+'</button>':'';
+      const down=gi<model.groups.length-1?'<button type="button" onclick="moveGuideMember('+gi+','+mi+','+(gi+1)+')">↓ '+esc(model.groups[gi+1].name)+'</button>':'';
+      return '<div class="assign-person"><div class="assign-person__name">'+esc(m.name)+'</div>'+
+        '<div class="assign-person__role"><button type="button" onclick="promoteGuideMember('+gi+','+mi+',\'cmd\')">대장으로</button><button type="button" onclick="promoteGuideMember('+gi+','+mi+',\'deputy\')">부대장으로</button></div>'+
+        '<div class="assign-person__move">'+up+down+'</div></div>';
+    }).join(''):'<div class="assign-empty">배치된 인원 없음</div>';
+    return '<section class="assign-group"><div class="assign-group__hd"><span>'+esc(g.name)+'</span><span>'+g.members.length+'명</span></div>'+people+'</section>';
+  }).join('');
+}
+function swapGuideLeaders(){
+  const oldCmd=model.cmd;
+  model.cmd={...model.deputy,task:CMD_TASK};
+  model.deputy={...oldCmd,task:DEP_TASK};
+  finalAction='save'; render(); renderGuideAssignment();
+}
+function promoteGuideMember(gi,mi,role){
+  if(!model.groups[gi]||!model.groups[gi].members[mi])return;
+  const selected=model.groups[gi].members.splice(mi,1)[0];
+  const previous=model[role];
+  model[role]={...selected,task:role==='cmd'?CMD_TASK:DEP_TASK};
+  if(previous&&previous.name){
+    const tmpl=GROUP_TEMPLATES.find(function(x){return x.name===model.groups[gi].name;});
+    previous.task=tmpl&&tmpl.tasks.length?tmpl.tasks[model.groups[gi].members.length%tmpl.tasks.length]:previous.task;
+    model.groups[gi].members.push(previous);
+  }
+  finalAction='save'; render(); renderGuideAssignment();
+}
+function moveGuideMember(fromGi,mi,toGi){
+  if(!model.groups[fromGi]||!model.groups[toGi]||!model.groups[fromGi].members[mi])return;
+  const person=model.groups[fromGi].members.splice(mi,1)[0];
+  const tmpl=GROUP_TEMPLATES.find(function(x){return x.name===model.groups[toGi].name;});
+  if(tmpl&&tmpl.tasks.length) person.task=tmpl.tasks[model.groups[toGi].members.length%tmpl.tasks.length];
+  model.groups[toGi].members.push(person);
+  finalAction='save'; render(); renderGuideAssignment();
+}
+function prepareGuideSave(){
+  document.querySelector('#guideMask .guide-card').style.maxWidth='440px';
+  document.getElementById('guideAssign').style.display='none';
+  const save=document.getElementById('guideSave');
+  save.style.display='block'; save.classList.remove('is-saved','is-entering'); void save.offsetWidth; save.classList.add('is-entering');
+  const total=(model.cmd.name?1:0)+(model.deputy.name?1:0)+model.groups.reduce(function(n,g){return n+g.members.length;},0);
+  document.getElementById('guideSaveCount').textContent=total+'명';
+  document.getElementById('guideSaveTitle').textContent=currentPlanId?'수정 편성을 저장할까요?':'이 편성으로 저장할까요?';
+  document.getElementById('guideSaveText').textContent='활동반 배치를 확인했습니다. 저장하면 편성표에 바로 반영됩니다.';
+  const btn=document.getElementById('guideSaveBtn'); btn.disabled=false;
+  btn.textContent=currentPlanId?'수정된 편성표 저장하기':'편성표 저장하기'; btn.onclick=saveFromGuide;
+}
+async function saveFromGuide(){
+  const btn = document.getElementById('guideSaveBtn');
+  btn.disabled = true; btn.textContent = '저장 중…';
+  const ok = await saveplan();
+  btn.disabled = false;
+  if (!ok) { btn.textContent = '다시 저장하기'; return; }
+  const box = document.getElementById('guideSave');
+  box.classList.add('is-saved');
+  document.getElementById('guideSaveIcon').textContent = '✓';
+  document.getElementById('guideSaveTitle').textContent = '저장되었습니다';
+  document.getElementById('guideSaveText').textContent = '다음에 열면 저장된 명단을 바로 확인하고 수정할 수 있습니다.';
+  btn.textContent = '완료';
+  btn.onclick = function(){ closeGuide(false); };
+}
+async function loadLatestForGuide(){
+  if (currentPlanId || ((document.getElementById('bulkInput')||{}).value || '').trim()) return;
+  try{
+    let fd = new FormData(); fd.append('csrf',CSRF); fd.append('action','fire_list');
+    const listRes = await fetch(location.pathname,{method:'POST',body:fd}).then(r=>r.json());
+    const first = listRes && listRes.list && listRes.list[0];
+    if (!first || !first.id) return;
+    fd = new FormData(); fd.append('csrf',CSRF); fd.append('action','fire_load'); fd.append('plan_id',first.id);
+    const loadRes = await fetch(location.pathname,{method:'POST',body:fd}).then(r=>r.json());
+    if (loadRes && loadRes.plan) {
+      currentPlanId = first.id;
+      applyPlan(loadRes.plan);
+      setEditingHint();
+    }
+  }catch(e){}
 }
 document.addEventListener('DOMContentLoaded', function(){
   const hasData = document.getElementById('bulkInput') &&
@@ -1101,7 +1365,7 @@ function updateProgress(hasSite, hasText, hasPeople){
   }
 }
 
-function autoAssign(){
+function autoAssign(fromGuide){
   const lines = document.getElementById('bulkInput').value.split(/\n/).map(s=>s.trim()).filter(Boolean);
   if(lines.length === 0){ toast("붙여넣은 이름이 없습니다."); return; }
   const people = lines.map(parseLine).filter(p=>p && p.name);
@@ -1120,7 +1384,7 @@ function autoAssign(){
     model.groups[gi].members.push({ name:p.name, tel:p.tel, dept:p.dept||"", task });
     si++;
   });
-  model.groups = model.groups.filter(g=>g.members.length>0);
+  if (!fromGuide) model.groups = model.groups.filter(g=>g.members.length>0);
   rosterChanged = false;
   finalAction = 'save';
   hideSavedDone();
@@ -1133,8 +1397,10 @@ function autoAssign(){
     nh.classList.add('done');
     nh.innerHTML = '✓ 배치했습니다. 아래 <b>③편성표</b>에서 확인·수정하고 <b>💾 저장</b>을 누르세요';
   }
-  toast(people.length + "명 자동 배치 완료 — 표에서 수정하세요.");
-  document.getElementById('p3').scrollIntoView({behavior:'smooth', block:'start'});
+  if (!fromGuide) {
+    toast(people.length + "명 자동 배치 완료 — 표에서 수정하세요.");
+    document.getElementById('p3').scrollIntoView({behavior:'smooth', block:'start'});
+  }
 }
 
 function clearAll(){
@@ -1369,8 +1635,9 @@ async function saveplan(){
       markSteps();      // 저장되면 3단계가 '저장됨'으로 바뀝니다
       loadList();
       showSavedDone(); // 저장 후 다음에 할 일을 안내합니다
-    } else toast("저장 실패: "+(res.msg||""));
-  }catch(e){ toast("네트워크 오류"); }
+      return true;
+    } else { toast("저장 실패: "+(res.msg||"")); return false; }
+  }catch(e){ toast("네트워크 오류"); return false; }
 }
 
 /* 저장이 끝나면 안내를 남기고, 하단의 '건물 관리로' 버튼을 강조합니다. */
@@ -1467,6 +1734,8 @@ function setEditingHint(){
     chip.textContent="🆕 새 편성표"; chip.className="status";
   }
   document.querySelectorAll('.plan-card').forEach(c=>c.classList.toggle('active', c.dataset.id===currentPlanId));
+  const guideBtn=document.getElementById('guideOpenBtn');
+  if(guideBtn) guideBtn.textContent=currentPlanId?'명단 수정하기':'명단 적기';
   updateFinalActions();
 }
 
@@ -1556,9 +1825,10 @@ document.addEventListener('keydown', function(e){
 </script>
 <?php require_once __DIR__ . '/admin_quickmemo_widget.php'; ?>
 <!-- ══ 처음 방문 가이드 모달 ══ -->
-<div class="guide-mask no-print" id="guideMask">
-  <div class="guide-card">
-    <button class="guide-x" type="button" onclick="closeGuide()" aria-label="닫기">✕</button>
+<div class="guide-mask no-print" id="guideMask" onclick="if(event.target===this)closeGuide(false)">
+  <div class="guide-card" onclick="event.stopPropagation()">
+    <button class="guide-x" type="button" onclick="event.stopPropagation();closeGuide(false);return false" aria-label="닫기">✕</button>
+    <div class="guide-stage" id="guideIntro">
     <div class="guide-hd">
       <span class="guide-emoji">📋</span>
       <h3>자위소방대 편성표, 이렇게 만들어요</h3>
@@ -1599,9 +1869,55 @@ document.addEventListener('keydown', function(e){
     </div>
 
     <div class="guide-foot guide-foot--single">
-      <button class="btn btn-primary" type="button" onclick="closeGuide(true)">
-        확인했어요, 명단 적으러 가기
+      <button class="btn btn-primary" type="button" onclick="openGuideRoster()">
+        명단 적으러 가기
       </button>
+    </div>
+    </div>
+
+    <div class="guide-stage guide-roster" id="guideRoster">
+      <div class="guide-roster__top">
+        <button class="guide-back" type="button" onclick="showGuideIntro(true)" aria-label="안내로 돌아가기">‹</button>
+        <div class="guide-roster__title">
+          <h3 id="guideRosterTitle">근무자 명단만 적어주세요</h3>
+          <p>한 줄에 한 명씩 입력하면 자동으로 편성합니다.</p>
+        </div>
+        <span class="guide-roster__count" id="guideRosterCount">0명</span>
+      </div>
+      <textarea class="guide-input" id="guideBulkInput" oninput="updateGuideRoster()"
+        placeholder="홍길동   010-1234-5678   지점장&#10;김철수   010-2222-3333   차장&#10;이영희"></textarea>
+      <div class="guide-roster__help">
+        이름만 입력해도 됩니다. 첫 번째는 대장, 두 번째는 부대장, 나머지는 활동조에 배치됩니다.
+      </div>
+      <button class="btn btn-primary guide-roster__action" id="guideAssignBtn" type="button"
+        onclick="assignFromGuide()" disabled>이 명단으로 자동 편성하기</button>
+    </div>
+
+    <div class="guide-stage guide-save" id="guideSave">
+      <div class="guide-save__icon" id="guideSaveIcon">✓</div>
+      <h3 id="guideSaveTitle">명단을 편성했습니다</h3>
+      <p id="guideSaveText">저장을 누르면 이 명단이 자위소방대 편성표에 반영됩니다.</p>
+      <div class="guide-save__summary">
+        <span>편성할 전체 인원</span>
+        <b id="guideSaveCount">0명</b>
+      </div>
+      <div class="guide-save__buttons">
+        <button class="btn btn-ghost" type="button" onclick="showGuideRoster(true)">명단 수정</button>
+        <button class="btn btn-primary" id="guideSaveBtn" type="button" onclick="saveFromGuide()">편성표 저장하기</button>
+      </div>
+    </div>
+
+    <div class="guide-stage guide-assign" id="guideAssign">
+      <div class="assign-head">
+        <h3>활동반 인원을 조정하세요</h3>
+        <p>이름 아래 버튼으로 바로 위·아래 활동반으로 이동할 수 있습니다.</p>
+      </div>
+      <div class="assign-command" id="assignCommand"></div>
+      <div class="assign-groups" id="assignGroups"></div>
+      <div class="assign-actions">
+        <button class="btn btn-ghost" type="button" onclick="showGuideRoster(true)">명단 다시 수정</button>
+        <button class="btn btn-primary" type="button" onclick="prepareGuideSave()">이 배치로 저장하기</button>
+      </div>
     </div>
   </div>
 </div>
