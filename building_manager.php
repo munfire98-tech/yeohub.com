@@ -930,11 +930,39 @@ a.pstep:hover{background:#f2f6fd}
   color:#475569;font-size:9.5px;font-weight:750;white-space:nowrap;box-shadow:0 2px 8px rgba(71,85,105,.08)}
 .building-basement-label b{color:#1e3a5f;font-size:10.5px}
 .building-basement-label small{color:#94a3b8;font-size:8.5px}
+.building-layer{position:absolute;z-index:5;pointer-events:none}
+/* 2단계: 자위소방대가 편성되면 건물 앞에 대원들이 배치됩니다. */
+.building-crew{left:8px;bottom:29px;display:flex;align-items:flex-end;gap:4px;padding:18px 7px 4px;
+  border-radius:9px;background:rgba(255,255,255,.86);box-shadow:0 3px 10px rgba(15,23,42,.08)}
+.building-crew::before{content:'자위소방대';position:absolute;left:7px;top:4px;color:#b91c1c;font-size:7.5px;font-weight:900;white-space:nowrap}
+.building-person{position:relative;width:10px;height:20px;border-radius:4px 4px 3px 3px;background:#ef4444}
+.building-person::before{content:'';position:absolute;left:1px;top:-7px;width:8px;height:8px;border-radius:50%;background:#f1c7a5}
+.building-person::after{content:'';position:absolute;left:0;top:-8px;width:10px;height:4px;border-radius:6px 6px 2px 2px;background:#dc2626}
+.building-person:nth-child(2){height:23px;background:#2563eb}.building-person:nth-child(2)::after{background:#1d4ed8}
+.building-person:nth-child(3){height:19px;background:#f97316}.building-person:nth-child(3)::after{background:#ea580c}
+/* 3단계: 월간 기록 완료 표식 */
+.building-inspection{right:8px;top:88px;width:66px;padding:7px 6px;border-radius:8px;background:rgba(255,255,255,.9);
+  border:1px solid #bfdbfe;color:#1d4ed8;text-align:center;box-shadow:0 3px 10px rgba(37,99,235,.08)}
+.building-inspection b{display:block;font-size:8.5px;line-height:1.3}.building-inspection span{display:block;margin-top:2px;color:#64748b;font-size:7px}
+.building-inspection::before{content:'✓';display:flex;align-items:center;justify-content:center;width:16px;height:16px;margin:0 auto 3px;
+  border-radius:50%;background:#2563eb;color:#fff;font-size:9px;font-weight:900}
+/* 4단계: 피난 유도선과 집결지 */
+.building-evac-route{left:18%;right:10%;bottom:21px;height:15px;border-bottom:2px dashed #22c55e;z-index:3}
+.building-evac-route::before{content:'피난 유도';position:absolute;left:32%;bottom:4px;padding:2px 5px;border-radius:5px;
+  background:#ecfdf5;color:#15803d;font-size:7.5px;font-weight:850;white-space:nowrap}
+.building-evac-route::after{content:'집결';position:absolute;right:-4px;bottom:-9px;width:25px;height:25px;border-radius:50%;
+  background:#22c55e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:900;box-shadow:0 0 0 4px rgba(34,197,94,.15)}
+/* 5단계: 연간 훈련 완료 */
+.building-safety-seal{left:8px;top:24px;width:54px;padding:7px 5px;border-radius:10px;background:#0f766e;color:#fff;
+  text-align:center;box-shadow:0 5px 14px rgba(15,118,110,.18)}
+.building-safety-seal::before{content:'✓';display:block;font-size:15px;font-weight:900;line-height:1}
+.building-safety-seal b{display:block;margin-top:3px;font-size:7.5px;line-height:1.25}.building-safety-seal small{display:block;color:#ccfbf1;font-size:6.5px}
 .building-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;
   color:#64748b;font-size:13px;line-height:1.7;z-index:4}
 .building-empty a{display:inline-block;margin-top:8px;color:var(--brand2);font-weight:800}
 @media(max-width:820px){.building-board{grid-template-columns:1fr;gap:8px}.building-scene{min-height:300px}}
 @media(max-width:520px){.building-board{padding:22px 18px}.building-board__copy h2{font-size:19px}.building-scene{padding-left:5px;padding-right:5px}}
+@media(max-width:520px){.building-crew{left:1px}.building-inspection{right:1px}.building-safety-seal{left:1px}}
 
 /* 시각화와 다음 실행을 하나의 작업 카드로 묶습니다. */
 .building-workspace{grid-column:1/-1;display:flex;flex-direction:column}
@@ -948,6 +976,7 @@ a.pstep:hover{background:#f2f6fd}
 
 /* ── AI 업무 도우미 팝업 ────────────────────────────────── */
 .building-workspace .building-board{border-radius:18px;border-bottom:1px solid var(--bd)}
+
 .safety-ai-launch{position:fixed;right:24px;bottom:24px;z-index:420;display:inline-flex;align-items:center;gap:9px;
   min-height:50px;padding:11px 17px;border:0;border-radius:15px;background:#111827;color:#fff;
   box-shadow:0 12px 32px rgba(15,23,42,.25);font:inherit;font-size:13px;font-weight:800;cursor:pointer}

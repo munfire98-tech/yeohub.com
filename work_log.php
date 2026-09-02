@@ -86,6 +86,22 @@ function worklog_note_progress(array $fixed): array {
   return ['filled'=>$filled, 'total'=>count($labels), 'percent'=>(int)round($filled / count($labels) * 100), 'missing'=>$missing];
 }
 
+/* 2급 대상물 업무수행 기록표 기본 확인문구.
+   스프링클러가 없는 건물에는 관련 점검 문구를 넣지 않습니다. */
+function worklog_note_defaults(string $sprinkler, string $hydrant = 'no'): array {
+  $fireParts = ['소화기 비치 및 압력 상태 확인'];
+  if ($sprinkler === 'yes') $fireParts[] = '스프링클러 헤드 훼손·누수·살수 장애물 여부 확인';
+  if ($hydrant === 'yes') $fireParts[] = '옥내소화전함 주변 적치물 및 사용 가능 상태 확인';
+  $fireParts[] = '자동화재탐지설비 감지기·수신기 정상 상태 확인';
+  $fire = implode(', ', $fireParts);
+  return [
+    'note_sobang' => $fire,
+    'note_pinan'  => '피난통로·비상구 적치물 여부, 유도등 점등 상태, 방화문 폐쇄 및 자동폐쇄장치 정상 여부 확인',
+    'note_hwagi'  => '보일러실·전기실 등 화기취급 장소 주변 가연물 정리 상태와 화기 사용 후 안전조치 여부 확인',
+    'note_etc'    => '소방안전관리 업무수행 중 특이사항 및 관계인 전달사항 확인',
+  ];
+}
+
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
 $CSRF = $_SESSION['csrf'];
 
@@ -101,31 +117,49 @@ $url = function(string $path) use ($adminQuery): string {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_fixed') {
   if (!hash_equals($CSRF, $_POST['csrf'] ?? '')) { http_response_code(403); exit('CSRF'); }
-  // 건물 코드: 이미 있으면 그대로 유지, 처음이면 새로 발급
-  $bcode = $fixed['bcode'] ?? '';
-  if ($bcode === '') $bcode = issue_building_code();
-  $keep = $fixed;   // 폼에 없는 항목은 기존 값을 지킨다
-  $pick = function(string $k) use ($keep) {
-    return array_key_exists($k, $_POST) ? trim((string)$_POST[$k]) : (string)($keep[$k] ?? '');
-  };
-  $fixed = [
-    'bcode'    => $bcode,
-    'sangho'   => $pick('sangho'),
-    'grade'    => in_array($_POST['grade'] ?? '', ['특급','1급','2급','3급'], true) ? $_POST['grade'] : '',
-    'address'  => $pick('address'),
-    'floor_b'  => $pick('floor_b'),
-    'floor_a'  => $pick('floor_a'),
-    'area_t'   => $pick('area_t'),
-    'area_f'   => $pick('area_f'),
-    'dongsu'   => $pick('dongsu'),
-    'performer'=> $pick('performer'),
-    'note_sobang' => $pick('note_sobang'),
-    'note_pinan'  => $pick('note_pinan'),
-    'note_hwagi'  => $pick('note_hwagi'),
-    'note_etc'    => $pick('note_etc'),
-  ];
-  save_json($FIXED_FILE, $fixed);
-  $saved = '건물 정보가 저장되었습니다.';
+  $applyDefaults = (string)($_POST['apply_defaults'] ?? '');
+  if ($applyDefaults === 'quick') {
+    $sprinklerChoice = ($_POST['has_sprinkler'] ?? '') === 'yes' ? 'yes' : 'no';
+    $hydrantChoice = ($_POST['has_hydrant'] ?? '') === 'yes' ? 'yes' : 'no';
+    $fixed = sync_worklog_fixed_with_basic($fixed);
+    $fixed['sprinkler'] = $sprinklerChoice;
+    $fixed['hydrant'] = $hydrantChoice;
+    $fixed['facility_setup_done'] = '1';
+    foreach (worklog_note_defaults($sprinklerChoice, $hydrantChoice) as $key => $value) $fixed[$key] = $value;
+    save_json($FIXED_FILE, $fixed);
+    header('Location: ' . $url('/work_log.php?setup=done'));
+    exit;
+  } else {
+    // 건물 코드: 이미 있으면 그대로 유지, 처음이면 새로 발급
+    $bcode = $fixed['bcode'] ?? '';
+    if ($bcode === '') $bcode = issue_building_code();
+    $keep = $fixed;   // 폼에 없는 항목은 기존 값을 지킨다
+    $pick = function(string $k) use ($keep) {
+      return array_key_exists($k, $_POST) ? trim((string)$_POST[$k]) : (string)($keep[$k] ?? '');
+    };
+    $postedGrade = in_array($_POST['grade'] ?? '', ['특급','1급','2급','3급'], true) ? (string)$_POST['grade'] : '';
+    $fixed = [
+      'bcode'    => $bcode,
+      'sangho'   => $pick('sangho'),
+      'grade'    => $postedGrade !== '' ? $postedGrade : $pick('grade'),
+      'address'  => $pick('address'),
+      'floor_b'  => $pick('floor_b'),
+      'floor_a'  => $pick('floor_a'),
+      'area_t'   => $pick('area_t'),
+      'area_f'   => $pick('area_f'),
+      'dongsu'   => $pick('dongsu'),
+      'performer'=> $pick('performer'),
+      'sprinkler'=> $pick('sprinkler'),
+      'hydrant'=> $pick('hydrant'),
+      'facility_setup_done'=> $pick('facility_setup_done'),
+      'note_sobang' => $pick('note_sobang'),
+      'note_pinan'  => $pick('note_pinan'),
+      'note_hwagi'  => $pick('note_hwagi'),
+      'note_etc'    => $pick('note_etc'),
+    ];
+    save_json($FIXED_FILE, $fixed);
+    $saved = '확인내용 기본값이 저장되었습니다.';
+  }
 }
 
 $fixed = sync_worklog_fixed_with_basic($fixed);
@@ -133,7 +167,11 @@ save_json($FIXED_FILE, $fixed);
 $noteProg = worklog_note_progress($fixed);
 $biProg = bi_progress();
 $biDone = $biProg['filled'] >= $biProg['total'];
-$setupComplete = $biDone && $noteProg['filled'] >= $noteProg['total'];
+$sprinkler = (string)($fixed['sprinkler'] ?? '');
+$sprinklerSet = in_array($sprinkler, ['yes', 'no'], true);
+$hydrant = (string)($fixed['hydrant'] ?? '');
+$setupComplete = $noteProg['filled'] >= $noteProg['total'] && !empty($fixed['facility_setup_done']);
+$showQuickSetup = empty($fixed['facility_setup_done']);
 
 $worklogReviewPending = 0;
 $worklogReviewResolvedRecent = false;
@@ -167,6 +205,9 @@ $existing = [];
 foreach (glob($BASE . '/m*.json') ?: [] as $f) {
   if (preg_match('/m(\d{4})-(\d{2})\.json$/', $f, $m)) $existing[$m[1].'-'.$m[2]] = true;
 }
+$currentMonthKey = date('Y-m');
+$currentMonthLabel = date('Y년 n월');
+$currentMonthDone = isset($existing[$currentMonthKey]);
 
 // 최근 24개월을 연도별로 그룹핑 (DateTime 대신 기본 함수 사용 — 서버 호환성)
 $byYear = [];
@@ -183,16 +224,6 @@ for ($i = 0; $i < 24; $i++) {
 }
 
 $nick = $_SESSION['nickname'] ?? '사용자';
-
-/* 알림 미확인 개수 — 종 아이콘의 빨간 점에 씁니다 */
-$unreadCount = 0;
-if ($uidKey !== '') {
-  $__nf = __DIR__ . '/data/notifications/' . $uidKey . '.json';
-  if (is_file($__nf)) {
-    $__nl = json_decode((string)@file_get_contents($__nf), true);
-    if (is_array($__nl)) { foreach ($__nl as $__n) { if (empty($__n['read'])) $unreadCount++; } }
-  }
-}
 $hasFixed = !empty($fixed['sangho']);
 ?>
 <!doctype html>
@@ -210,39 +241,6 @@ a{text-decoration:none}
 .nav__inner{max-width:1120px;margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px}
 .nav__brand{font-weight:800;font-size:22px;color:var(--fg);letter-spacing:.5px}
 .nav__right{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--mut2)}
-
-/* ── 계정 아이콘 (건물관리 · 결제 · 알림 · 프로필) — 다른 페이지와 같은 모양 ── */
-.nw-icons{display:flex;align-items:center;gap:6px}
-.nw-icobtn{position:relative;display:flex;align-items:center;justify-content:center;
-  width:38px;height:38px;border-radius:10px;border:1px solid transparent;background:transparent;
-  color:var(--mut2);cursor:pointer;font-family:inherit;transition:.14s;text-decoration:none}
-.nw-icobtn:hover{background:var(--bg);border-color:var(--bd)}
-.nw-icobtn svg{width:19px;height:19px}
-.nw-dot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;
-  background:#ef4444;border:1.5px solid #fff}
-.nw-profile{position:relative}
-.nw-avatar{width:36px;height:36px;border-radius:50%;border:0;cursor:pointer;font-family:inherit;
-  background:linear-gradient(135deg,var(--brand),var(--accent));color:#fff;font-size:13px;font-weight:800;
-  display:flex;align-items:center;justify-content:center;transition:.14s}
-.nw-avatar:hover{filter:brightness(1.06)}
-.nw-avatar.admin{background:linear-gradient(135deg,#f59e0b,#ea580c)}
-.nw-pop{position:absolute;top:calc(100% + 10px);right:0;width:220px;background:var(--card);
-  border:1px solid var(--bd);border-radius:14px;box-shadow:0 14px 34px rgba(16,24,38,.14);
-  padding:8px;z-index:90;display:none}
-.nw-pop.show{display:block}
-.nw-pop__head{padding:11px 12px 12px;border-bottom:1px solid var(--bd)}
-.nw-pop__name{font-size:14px;font-weight:800;color:var(--fg)}
-.nw-pop__sub{font-size:11.5px;color:var(--mut);margin-top:2px}
-.nw-pop__list{padding:6px 0 0}
-.nw-pop__item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:9px;
-  border:0;background:transparent;color:var(--fg);font-size:13px;font-weight:600;font-family:inherit;
-  cursor:pointer;text-align:left;text-decoration:none}
-.nw-pop__item:hover{background:var(--bg)}
-.nw-pop__item svg{width:16px;height:16px;color:var(--mut2);flex-shrink:0}
-.nw-pop__item--danger{color:#dc2626}
-.nw-pop__item--danger svg{color:#dc2626}
-.nw-pop__div{height:1px;background:var(--bd);margin:6px 2px}
-@media(max-width:680px){ .nw-pop{right:-8px} }
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:9px;border:1px solid var(--bd2);background:#fff;color:var(--fg);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
 .btn:hover{border-color:var(--brand);color:var(--brand2)}
 .btn--primary{background:var(--brand);border-color:var(--brand);color:#fff}
@@ -260,7 +258,22 @@ a{text-decoration:none}
 .badge span{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block}
 .page-head h1{font-size:clamp(24px,3.5vw,32px);font-weight:700;letter-spacing:-.5px;margin-bottom:8px}
 .page-head p{color:var(--mut2);font-size:15px}
-.wrap{max-width:1120px;margin:0 auto;padding:28px 24px 80px}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 24px 80px;display:flex;flex-direction:column}
+.setup-overview{display:none}
+.setup-card{display:flex;align-items:center;gap:12px;min-width:0;background:#fff;border:1px solid var(--bd);
+  border-radius:12px;padding:14px 16px;color:var(--fg);transition:.15s}
+.setup-card:hover{border-color:#93b4ed;box-shadow:0 7px 18px rgba(37,99,235,.07)}
+.setup-card__icon{width:36px;height:36px;flex:0 0 36px;border-radius:9px;background:#eef4ff;
+  color:var(--brand2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
+.setup-card__text{flex:1;min-width:0}
+.setup-card__text b{display:block;font-size:13.5px}
+.setup-card__text small{display:block;font-size:11.5px;color:var(--mut2);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.setup-card__state{flex-shrink:0;font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px;
+  background:#f0fdf4;color:#15803d}
+.setup-card__state.needs{background:#fff7ed;color:#c2410c}
+.monthly-section{order:1}
+.setup-details{order:3}
 .section{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:24px;margin-bottom:20px}
 .section h2{font-size:17px;font-weight:700;margin-bottom:4px}
 .section .desc{color:var(--mut2);font-size:13px;margin-bottom:18px}
@@ -290,16 +303,58 @@ a{text-decoration:none}
 .mcard .todo{color:var(--mut)}
 .mtoolbar{display:flex;justify-content:flex-end;margin-top:6px}
 .mtoolbar a{font-size:12px;color:var(--brand2);font-weight:600}
+.monthguide{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#fff7ed;
+  border:1px solid #fdba74;border-radius:12px;padding:14px 16px;margin-bottom:20px;color:#9a3412}
+.monthguide__month{display:inline-flex;align-items:center;justify-content:center;min-width:50px;height:50px;
+  border-radius:10px;background:#fff;border:1px solid #fed7aa;font-size:15px;font-weight:800;color:#c2410c}
+.monthguide__text{flex:1;min-width:220px}
+.monthguide__text b{display:block;font-size:14px;color:#9a3412}
+.monthguide__text small{display:block;font-size:12px;color:#b45309;margin-top:2px}
+.btn--month{background:#ea580c;border-color:#ea580c;color:#fff;white-space:nowrap;
+  box-shadow:0 0 0 4px rgba(234,88,12,.16);animation:monthNudge 1.5s ease-in-out infinite}
+.btn--month:hover{background:#c2410c;border-color:#c2410c;color:#fff}
+@keyframes monthNudge{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@media(prefers-reduced-motion:reduce){.btn--month{animation:none}}
+.mcard--attention{border:2px solid #f59e0b;background:#fffbeb;
+  box-shadow:0 8px 20px rgba(217,119,6,.10)}
+.mcard--attention:hover{border-color:#ea580c;box-shadow:0 10px 24px rgba(217,119,6,.16)}
+.mcard--attention .todo{color:#c2410c;font-weight:800}
+.mcard--attention .mtoolbar a{display:inline-flex;background:#ea580c;color:#fff;
+  border-radius:8px;padding:6px 10px;font-weight:800}
+.current-tag{display:inline-flex;vertical-align:middle;margin-left:6px;padding:2px 7px;border-radius:999px;
+  background:#ffedd5;color:#c2410c;font-size:10px;font-weight:800}
 @media(max-width:680px){.nav__inner{padding:0 16px}.page-head__inner{padding:32px 20px 26px}}
+@media(max-width:680px){.setup-overview{grid-template-columns:1fr}}
+@media(max-width:560px){.monthguide .btn{width:100%;justify-content:center}.monthguide__text{min-width:0}}
 .notehd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:22px 0 4px;padding-top:18px;border-top:1px solid var(--bd)}
 .notehd h3{font-size:15px;font-weight:800}
 .noteprog{font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:999px;background:#fff7ed;color:#b45309}
 .noteprog.is-done{background:#f0fdf4;color:#15803d}
-.noteguide{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#eff6ff;
-  border:1px solid #bfdbfe;border-radius:12px;padding:14px 16px;margin:14px 0;
-  font-size:13.5px;color:#1e40af;line-height:1.65}
-.noteguide > div:last-of-type{flex:1;min-width:200px}
-.noteguide .btn{white-space:nowrap}
+.sprinkler-setup{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#f7faff;
+  border:1px solid #cfe0fb;border-radius:12px;padding:15px 16px;margin:14px 0 18px}
+.sprinkler-setup__text{flex:1;min-width:230px}
+.sprinkler-setup__text b{display:block;font-size:14px;color:#1e3a5f}
+.sprinkler-setup__text small{display:block;font-size:12px;color:var(--mut2);margin-top:3px;line-height:1.55}
+.grade-chip{display:inline-flex;margin-right:6px;padding:2px 8px;border-radius:999px;background:#dcfce7;
+  color:#15803d;font-size:11px;font-weight:800;vertical-align:1px}
+.sprinkler-options{display:flex;gap:8px;flex-wrap:wrap}
+.sprinkler-choice{border:1px solid #b9cbe5;background:#fff;color:#244564;border-radius:9px;
+  padding:9px 13px;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit}
+.sprinkler-choice:hover{border-color:var(--brand);color:var(--brand2);background:#eef5ff}
+.sprinkler-choice.is-selected{background:var(--brand);border-color:var(--brand);color:#fff;
+  box-shadow:0 0 0 3px rgba(37,99,235,.13)}
+.month-titlebar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px}
+.month-titlebar h2{margin:0}.settings-jump{padding:7px 11px;font-size:12px;white-space:nowrap}
+.quick-mask{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
+  padding:20px;background:rgba(15,23,42,.56);backdrop-filter:blur(3px)}
+.quick-card{width:min(460px,100%);padding:25px;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.28)}
+.quick-card h2{font-size:21px;margin-bottom:7px}.quick-card>p{color:var(--mut2);font-size:13px;line-height:1.65;margin-bottom:20px}
+.quick-q{padding:15px 0;border-top:1px solid var(--bd)}.quick-q__head{display:flex;align-items:center;justify-content:space-between;gap:15px;font-weight:750}
+.quick-choices{display:flex;gap:6px}.quick-choice{position:relative}.quick-choice input{position:absolute;opacity:0}
+.quick-choice span{display:inline-flex;min-width:55px;justify-content:center;padding:8px 12px;border:1px solid var(--bd2);border-radius:9px;background:#f8fafc;color:var(--mut2);font-size:13px;cursor:pointer}
+.quick-choice input:checked+span{border-color:var(--brand);background:#eff6ff;color:var(--brand2);font-weight:800}
+.quick-submit{width:100%;justify-content:center;margin-top:17px;padding:11px}
+@media(max-width:560px){.sprinkler-options,.sprinkler-choice{width:100%}.sprinkler-choice{justify-content:center}}
 .notegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
 .notefield{display:flex;flex-direction:column;gap:5px}
 .notefield label{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px}
@@ -314,68 +369,14 @@ a{text-decoration:none}
 
 <nav class="nav">
   <div class="nav__inner">
-    <a class="nav__brand" href="/index.php">소방계획서.com<?php if (is_admin()): ?> <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:#fff7ed;color:#b45309">관리자</span><?php endif; ?></a>
+    <a class="nav__brand" href="/index.php">YEOHUB</a>
     <div class="nav__right">
-      <div class="nw-icons">
-        <a class="nw-icobtn" href="<?=h($url('/building_manager.php'))?>" title="건물 관리">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h1M11 8h1M7 12h1M11 12h1M7 16h1M11 16h1M17 14h1M17 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        </a>
-        <a class="nw-icobtn" href="/subscribe_page.php" title="결제·구독">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/><path d="M16 14h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        </a>
-        <a class="nw-icobtn" href="/notifications.php" title="알림">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 18a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          <?php if ($unreadCount > 0): ?><span class="nw-dot"></span><?php endif; ?>
-        </a>
-        <div class="nw-profile" id="navProfile">
-          <button type="button" class="nw-avatar<?= is_admin() ? ' admin' : '' ?>" id="navAvatarBtn"
-            onclick="document.getElementById('navPop').classList.toggle('show')">
-            <?=h(mb_substr($nick, 0, 1))?>
-          </button>
-          <div class="nw-pop" id="navPop">
-            <div class="nw-pop__head">
-              <div class="nw-pop__name"><?=h($nick)?>님</div>
-              <div class="nw-pop__sub"><?= is_admin() ? '관리자' : '건물 소방안전관리자' ?></div>
-            </div>
-            <div class="nw-pop__list">
-              <a class="nw-pop__item" href="<?=h($url('/building_manager.php'))?>">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-                건물 관리
-              </a>
-              <a class="nw-pop__item" href="/settings.php">
-                <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1-1.56 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34H9a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87V9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-                내 정보
-              </a>
-              <a class="nw-pop__item" href="/subscribe_page.php">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/></svg>
-                결제·구독
-              </a>
-              <a class="nw-pop__item" href="/notifications.php">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-                알림
-              </a>
-              <div class="nw-pop__div"></div>
-              <a class="nw-pop__item nw-pop__item--danger" href="/?logout=1&csrf=<?=h($CSRF)?>"
-                 onclick="return confirm('로그아웃할까요?');">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                로그아웃
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
+      <span><?=h($nick)?>님</span>
+      <a class="btn" href="<?=h($url('/building_manager.php'))?>">← 메인</a>
+      <a class="btn" href="/logout.php">로그아웃</a>
     </div>
   </div>
 </nav>
-
-<script>
-  /* 프로필 드롭다운: 바깥을 누르면 닫힘 */
-  document.addEventListener('click', function(e){
-    var wrap = document.getElementById('navProfile');
-    var pop  = document.getElementById('navPop');
-    if (wrap && pop && !wrap.contains(e.target)) pop.classList.remove('show');
-  });
-</script>
 
 <header class="page-head">
   <div class="page-head__inner">
@@ -389,14 +390,35 @@ a{text-decoration:none}
 <main class="wrap">
 
   <?php if ($saved): ?><div class="toast"><?=h($saved)?></div><?php endif; ?>
+  <?php if (($_GET['setup'] ?? '') === 'done'): ?><div class="toast">소방시설 기본값을 저장했습니다.</div><?php endif; ?>
 
-  <details class="section" <?= $setupComplete ? '' : 'open' ?>>
+  <div class="setup-overview">
+    <a class="setup-card" href="#buildingSetup" onclick="return openSetup('buildingSetup')">
+      <span class="setup-card__icon">건물</span>
+      <span class="setup-card__text">
+        <b>건물정보</b>
+        <small><?=h(trim((string)($fixed['sangho'] ?? '')) ?: '대상물명 미입력')?> · <?=h(trim((string)($fixed['grade'] ?? '')) ?: '등급 미입력')?></small>
+      </span>
+      <span class="setup-card__state <?= $biDone ? '' : 'needs' ?>"><?= $biDone ? '완료' : '확인 필요' ?></span>
+    </a>
+    <a class="setup-card" href="#defaultSetup" onclick="return openSetup('defaultSetup')">
+      <span class="setup-card__icon">기본</span>
+      <span class="setup-card__text">
+        <b>확인내용 기본값</b>
+        <small>
+          <?php if ($sprinklerSet): ?>스프링클러 <?= $sprinkler === 'yes' ? '있음' : '없음' ?> · <?=$noteProg['filled']?>/<?=$noteProg['total']?> 저장
+          <?php else: ?>스프링클러 여부만 확인하면 자동 저장<?php endif; ?>
+        </small>
+      </span>
+      <?php $defaultsComplete = $sprinklerSet && $noteProg['filled'] >= $noteProg['total']; ?>
+      <span class="setup-card__state <?= $defaultsComplete ? '' : 'needs' ?>"><?= $defaultsComplete ? '완료' : '확인 필요' ?></span>
+    </a>
+  </div>
+
+  <details class="section setup-details" id="setupDetails">
     <summary style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer;list-style:none">
     <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0">
-      건물 정보 (한 번만 저장하면 매월 자동 입력)
-      <?php if (!empty($fixed['bcode'])): ?>
-        <span class="bcode-badge"><?=h($fixed['bcode'])?></span>
-      <?php endif; ?>
+      소방시설 기본값 수정
       <?php if ($worklogReviewPending > 0): ?>
         <span class="bcode-badge" style="background:#fef3c7;border-color:#fde68a;color:#b45309">확인요청 <?=$worklogReviewPending?>건</span>
       <?php elseif ($worklogReviewResolvedRecent): ?>
@@ -407,25 +429,10 @@ a{text-decoration:none}
       <?php endif; ?>
     </h2>
     <span style="margin-left:auto;font-size:12px;color:var(--mut2);font-weight:700">
-      <?= $setupComplete ? '펼쳐보기' : '확인 필요' ?>
+      펼쳐보기
     </span>
     </summary>
-    <div class="desc">
-      상호·소재지·등급·규모·수행자는 <b>건물 기본정보</b>에서 자동으로 가져옵니다.
-      여기서는 업무수행 기록표에 매월 반복해서 들어갈 확인내용 기본값만 설정합니다.
-      <?php if (!empty($fixed['bcode'])): ?> 건물 고유번호는 <b><?=h($fixed['bcode'])?></b>입니다.<?php endif; ?>
-    </div>
-    <?php if (!$biDone): ?>
-      <div class="warn">건물 기본정보가 아직 완성되지 않았습니다. 누락: <?=h(implode(', ', $biProg['missing']))?></div>
-    <?php endif; ?>
-    <div class="grid" style="margin-bottom:16px">
-      <div class="field"><label>상호</label><input value="<?=h($fixed['sangho'] ?? '')?>" readonly></div>
-      <div class="field"><label>수행자</label><input value="<?=h($fixed['performer'] ?? '')?>" readonly></div>
-      <div class="field"><label>등급</label><input value="<?=h($fixed['grade'] ?? '')?>" readonly></div>
-      <div class="field"><label>소재지</label><input value="<?=h($fixed['address'] ?? '')?>" readonly></div>
-      <div class="field"><label>규모</label><input value="지하 <?=h($fixed['floor_b'] ?? '')?>층 · 지상 <?=h($fixed['floor_a'] ?? '')?>층 · <?=h($fixed['dongsu'] ?? '')?>동" readonly></div>
-      <div class="field"><label>면적</label><input value="연면적 <?=h($fixed['area_t'] ?? '')?>㎡ · 바닥면적 <?=h($fixed['area_f'] ?? '')?>㎡" readonly></div>
-    </div>
+    <div class="desc">매월 기록에 자동으로 들어갈 문구입니다. 시설이나 점검 방법이 바뀌었을 때만 수정하세요.</div>
     <form method="post" id="noteForm">
       <input type="hidden" name="action" value="save_fixed">
       <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
@@ -442,29 +449,21 @@ a{text-decoration:none}
         <?php endif; ?>
       </div>
 
-      <?php if ($noteProg['filled'] < $noteProg['total']): ?>
-        <div class="noteguide">
-          <div>💬</div>
-          <div><b>무엇을 적을지 모르시겠나요?</b>
-            질문에 답하면서 하나씩 채울 수 있습니다. 항목마다 실무에서 쓰는 예시 문구를 골라 넣으시면 됩니다.</div>
-          <a class="btn btn--primary" href="<?=h($url('/work_log_setup_chat.php'))?>">문답으로 채우기 →</a>
-        </div>
-      <?php endif; ?>
-
       <div class="desc" style="margin-bottom:14px">
         매월 기록표에 <b>자동으로 채워질 문장</b>입니다. 한 번 적어두면 매달 그대로 들어가고,
         그 달에 특별한 일이 있으면 그때만 고치시면 됩니다.
       </div>
 
       <?php
+        $noteSamples = worklog_note_defaults($sprinkler === 'yes' ? 'yes' : 'no', $hydrant === 'yes' ? 'yes' : 'no');
         $noteFields = [
-          'note_sobang' => ['소방시설', '소화기·옥내소화전·자동화재탐지설비 등을 점검한 내용',
-            '소화기 압력 및 설치 위치 확인, 옥내소화전함 주변 적치물 없음, 자동화재탐지설비 수신기 정상 작동 확인'],
+          'note_sobang' => ['소방시설', '소화기·스프링클러 등 건물에 설치된 소방시설을 점검한 내용',
+            $noteSamples['note_sobang']],
           'note_pinan' => ['피난방화시설', '비상구·피난통로·유도등·방화문 상태를 확인한 내용',
-            '피난통로 및 비상구 적치물 없음 확인, 유도등 점등 상태 정상, 방화문 폐쇄 상태 및 자동폐쇄장치 정상 확인'],
+            $noteSamples['note_pinan']],
           'note_hwagi' => ['화기취급감독', '불을 쓰는 곳과 그 주변을 살핀 내용',
-            '보일러실·전기실 주변 가연물 정리 상태 확인, 지정 흡연구역 외 흡연 여부 점검, 화기 사용 후 뒷정리 확인'],
-          'note_etc' => ['기타사항', '위에 해당하지 않는 확인 사항', '특이사항 없음'],
+            $noteSamples['note_hwagi']],
+          'note_etc' => ['기타사항', '위에 해당하지 않는 확인 사항', $noteSamples['note_etc']],
         ];
       ?>
       <div class="notegrid">
@@ -485,9 +484,6 @@ a{text-decoration:none}
 
       <div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:18px;align-items:center">
         <button class="btn btn--primary" type="submit">확인내용 기본값 저장</button>
-        <a class="btn" href="<?=h($url('/work_log_setup_chat.php'))?>">💬 문답으로 채우기</a>
-        <a class="btn" href="<?=h($url('/building_setup_chat.php'))?>">건물 기본정보 수정</a>
-        <a class="btn" href="<?=h($url('/building_setup.php'))?>">표로 자세히 수정</a>
       </div>
     </form>
 
@@ -500,14 +496,39 @@ a{text-decoration:none}
       el.value = NOTE_SAMPLES[key] || '';
       el.focus();
     }
+    function openSetup(targetId){
+      var details = document.getElementById('setupDetails');
+      if (details) details.open = true;
+      window.setTimeout(function(){
+        var target = document.getElementById(targetId);
+        if (target) target.scrollIntoView({behavior:'smooth', block:'start'});
+      }, 0);
+      return false;
+    }
     </script>
   </details>
 
-  <div class="section">
-    <h2>월별 기록 (최근 2년)</h2>
+  <div class="section monthly-section">
+    <div class="month-titlebar">
+      <h2>월별 기록 (최근 2년)</h2>
+      <button class="btn settings-jump" type="button" onclick="openDefaultSettings()">⚙ 기본값 수정</button>
+    </div>
     <div class="desc">작성할 달을 선택하세요. 작성 완료된 달은 초록색으로 표시됩니다. 연도별로 한 번에 인쇄·PDF 저장할 수 있습니다.</div>
     <?php if (!$hasFixed): ?>
-      <div class="warn">먼저 위 <b>건물 정보</b>를 저장하면 월별 기록 작성이 훨씬 편해집니다.</div>
+      <div class="warn">상단 <b>건물정보</b> 카드에서 상세 설정을 열어 기본정보를 먼저 확인해 주세요.</div>
+    <?php endif; ?>
+
+    <?php if (!$currentMonthDone): ?>
+      <div class="monthguide" role="status">
+        <span class="monthguide__month"><?=h(date('n'))?>월</span>
+        <div class="monthguide__text">
+          <b><?=h($currentMonthLabel)?> 업무 수행 기록이 아직 없습니다.</b>
+          <small>이번 달 점검 내용을 작성하고 저장해 주세요.</small>
+        </div>
+        <a class="btn btn--month" href="<?=h($url('/work_log_form.php?month=' . rawurlencode($currentMonthKey)))?>">
+          이번 달 업무 수행 작성하기 →
+        </a>
+      </div>
     <?php endif; ?>
 
     <?php foreach ($byYear as $year => $list): $year = (string)$year; ?>
@@ -522,14 +543,23 @@ a{text-decoration:none}
           <?php endif; ?>
         </div>
         <div class="months">
-          <?php foreach ($list as $mo): ?>
-            <div class="mcard">
-              <div class="mlabel"><?=h($mo['label'])?></div>
+          <?php foreach ($list as $mo):
+            $isCurrentMonth = $mo['key'] === $currentMonthKey;
+            $needsCurrentMonth = $isCurrentMonth && !$mo['done'];
+          ?>
+            <div class="mcard<?= $needsCurrentMonth ? ' mcard--attention' : '' ?>"<?= $isCurrentMonth ? ' aria-current="date"' : '' ?>>
+              <div class="mlabel"><?=h($mo['label'])?><?php if ($isCurrentMonth): ?><span class="current-tag">이번 달</span><?php endif; ?></div>
               <div class="mstat">
-                <?php if ($mo['done']): ?><span class="done">✓ 작성 완료</span><?php else: ?><span class="todo">미작성</span><?php endif; ?>
+                <?php if ($mo['done']): ?>
+                  <span class="done">✓ 작성 완료</span>
+                <?php elseif ($needsCurrentMonth): ?>
+                  <span class="todo">업무 수행 필요</span>
+                <?php else: ?>
+                  <span class="todo">미작성</span>
+                <?php endif; ?>
               </div>
               <div class="mtoolbar">
-                <a href="<?=h($url('/work_log_form.php?month=' . rawurlencode($mo['key'])))?>"><?= $mo['done'] ? '수정/인쇄 →' : '작성하기 →' ?></a>
+                <a href="<?=h($url('/work_log_form.php?month=' . rawurlencode($mo['key'])))?>"><?= $mo['done'] ? '수정/인쇄 →' : ($needsCurrentMonth ? '이번 달 작성하기 →' : '작성하기 →') ?></a>
               </div>
             </div>
           <?php endforeach; ?>
@@ -537,6 +567,36 @@ a{text-decoration:none}
       </div>
     <?php endforeach; ?>
   </div>
+
+  <?php if ($showQuickSetup): ?>
+    <div class="quick-mask" role="dialog" aria-modal="true" aria-labelledby="quickSetupTitle">
+      <form class="quick-card" method="post">
+        <input type="hidden" name="action" value="save_fixed">
+        <input type="hidden" name="apply_defaults" value="quick">
+        <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
+        <h2 id="quickSetupTitle">소방시설 기본 설정</h2>
+        <p>두 가지만 알려주세요. 월별 기록에 사용할 점검 문구를 자동으로 준비합니다.</p>
+        <div class="quick-q"><div class="quick-q__head"><span>스프링클러가 있습니까?</span><span class="quick-choices">
+          <label class="quick-choice"><input type="radio" name="has_sprinkler" value="yes" required><span>있음</span></label>
+          <label class="quick-choice"><input type="radio" name="has_sprinkler" value="no"><span>없음</span></label>
+        </span></div></div>
+        <div class="quick-q"><div class="quick-q__head"><span>옥내소화전이 있습니까?</span><span class="quick-choices">
+          <label class="quick-choice"><input type="radio" name="has_hydrant" value="yes" required><span>있음</span></label>
+          <label class="quick-choice"><input type="radio" name="has_hydrant" value="no"><span>없음</span></label>
+        </span></div></div>
+        <button class="btn btn--primary quick-submit" type="submit">기본값 저장하고 월별 기록 보기</button>
+      </form>
+    </div>
+  <?php endif; ?>
+
+  <script>
+  function openDefaultSettings(){
+    var box = document.getElementById('setupDetails');
+    if (!box) return;
+    box.open = true;
+    box.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+  </script>
 
 </main>
 
