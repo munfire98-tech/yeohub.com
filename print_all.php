@@ -64,13 +64,21 @@ if (is_dir($wlBase)) {
 // 2) 소방계획서
 $plans = function_exists('fp_list_plans') ? fp_list_plans() : [];
 
-// 3) 자위소방대 편성표
+// 3) 자위소방대 편성표 — fire_plan_jawi.php가 저장하는 별도 목록
+$formations = [];
+$formationFile = __DIR__ . '/data/fireplan/' . $uidKey . '/_jawi.json';
+if (is_file($formationFile)) {
+  $formationRaw = json_decode((string)@file_get_contents($formationFile), true);
+  if (is_array($formationRaw)) $formations = $formationRaw;
+}
+
+// 4) 자위소방대 교육·훈련 결과 기록
 $jawis = function_exists('jw_list') ? jw_list() : [];
 
-// 4) 훈련·교육 기록
+// 5) 훈련·교육 기록
 $trains = function_exists('tr_list') ? tr_list() : [];
 
-$totalDocs = array_sum($wlYears) + count($plans) + count($jawis) + count($trains);
+$totalDocs = array_sum($wlYears) + count($plans) + count($formations) + count($jawis) + count($trains);
 
 $PAGE_TITLE = '전체 인쇄';
 $NAV_MODE = 'account';
@@ -188,11 +196,42 @@ require __DIR__ . '/_header.php';
       <span class="pa-sec__t">자위소방대 편성표</span>
       <span class="pa-sec__d">대장·부대장·활동조 편성</span>
     </div>
-    <?php if (!$jawis): ?>
+    <?php if (!$formations): ?>
       <div class="pa-empty">
         아직 작성한 편성표가 없습니다.
         <a href="<?=h($url('/fire_plan_jawi.php'))?>">편성표 만들러 가기 →</a>
       </div>
+    <?php else: ?>
+      <div class="pa-list">
+        <?php foreach ($formations as $j): ?>
+          <div class="pa-item">
+            <div>
+              <div class="pa-item__t"><?=h($j['site_name'] ?? '(대상물명 없음)')?></div>
+              <div class="pa-item__d">
+                편성 인원 <?php
+                  $formationCount = (!empty($j['cmd'][0]) ? 1 : 0) + (!empty($j['deputy'][0]) ? 1 : 0);
+                  foreach ((array)($j['groups'] ?? []) as $fg) $formationCount += count((array)($fg['members'] ?? []));
+                  echo number_format($formationCount);
+                ?>명 · 최종 저장 <?=h($j['saved'] ?? '-')?>
+              </div>
+            </div>
+            <a class="pa-item__btn" target="_blank"
+               href="<?=h($url('/fire_plan_jawi.php?print_id=' . rawurlencode((string)($j['id'] ?? ''))))?>">🖨 편성표 인쇄</a>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
+  </section>
+
+  <!-- 4) 자위소방대 교육·훈련 결과 -->
+  <section class="pa-sec">
+    <div class="pa-sec__head">
+      <span class="pa-chip chip-jw">연간</span>
+      <span class="pa-sec__t">자위소방대 교육·훈련 결과</span>
+      <span class="pa-sec__d">별지 제13호서식 교육·훈련 실시 결과</span>
+    </div>
+    <?php if (!$jawis): ?>
+      <div class="pa-empty">아직 작성한 자위소방대 교육·훈련 결과가 없습니다.</div>
     <?php else: ?>
       <div class="pa-list">
         <?php foreach ($jawis as $j): ?>
@@ -202,14 +241,14 @@ require __DIR__ . '/_header.php';
               <div class="pa-item__d">최종 수정 <?=h($j['updated_at'] ?? '-')?></div>
             </div>
             <a class="pa-item__btn" target="_blank"
-               href="<?=h($url('/jawi_print.php?id=' . rawurlencode((string)($j['id'] ?? ''))))?>">🖨 인쇄</a>
+               href="<?=h($url('/jawi_print.php?id=' . rawurlencode((string)($j['id'] ?? ''))))?>">🖨 결과 기록 인쇄</a>
           </div>
         <?php endforeach; ?>
       </div>
     <?php endif; ?>
   </section>
 
-  <!-- 4) 훈련·교육 기록 -->
+  <!-- 5) 훈련·교육 기록 -->
   <section class="pa-sec">
     <div class="pa-sec__head">
       <span class="pa-chip chip-tr">연간</span>

@@ -923,6 +923,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
 
 <script>
 const CSRF = <?=json_encode($CSRF)?>;
+const PRINT_PLAN_ID = <?=json_encode(preg_replace('/[^0-9A-Za-z]/', '', (string)($_GET['print_id'] ?? '')))?>;
 let currentPlanId = null;   // 현재 불러와 수정 중인 편성표 id (null이면 신규)
 let finalAction = '';       // autoAssign 뒤 save, 저장 성공 뒤 building
 let rosterChanged = false;  // 명단을 고친 뒤 다시 자동 배치해야 하는 상태
@@ -1262,7 +1263,7 @@ async function loadLatestForGuide(){
 document.addEventListener('DOMContentLoaded', function(){
   const hasData = document.getElementById('bulkInput') &&
                   document.getElementById('bulkInput').value.trim() !== '';
-  if (!hasData) openGuide();
+  if (!hasData && !PRINT_PLAN_ID) openGuide();
 });
 
 /* ② 카드 접기/펴기
@@ -1779,6 +1780,11 @@ function toast(msg){
 render();
 setEditingHint();
 loadList();
+if (PRINT_PLAN_ID) {
+  loadPlan(PRINT_PLAN_ID).then(function(){
+    window.setTimeout(function(){ window.print(); }, 650);
+  });
+}
 
 /* ── 입력에 반응해 안내를 갱신합니다 ── */
 (function(){
