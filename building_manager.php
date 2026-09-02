@@ -297,6 +297,13 @@ $buildingFloorHeight = $isHighRise
   ? 18
   : max(8, min(31, (int)floor((310 - $buildingFixedHeight) / max(1, $floorVisualAbove))));
 
+/* 지도에서 실제로 설정한 핵심 안전자산 */
+$fireRouteRaw = $bi['fire_engine_route'] ?? '';
+$fireRoutePoints = is_array($fireRouteRaw) ? $fireRouteRaw : json_decode((string)$fireRouteRaw, true);
+$hasFireRoute = is_array($fireRoutePoints) && count($fireRoutePoints) >= 2;
+$hasAssemblyPoint = trim((string)($bi['assembly_lat'] ?? '')) !== ''
+  && trim((string)($bi['assembly_lng'] ?? '')) !== '';
+
 if (empty($_SESSION['safety_ai_csrf'])) $_SESSION['safety_ai_csrf'] = bin2hex(random_bytes(24));
 $safetyAiCsrf = (string)$_SESSION['safety_ai_csrf'];
 $aiCompleted = [];
@@ -960,6 +967,45 @@ a.pstep:hover{background:#f2f6fd}
 .building-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;
   color:#64748b;font-size:13px;line-height:1.7;z-index:4}
 .building-empty a{display:inline-block;margin-top:8px;color:var(--brand2);font-weight:800}
+
+/* 완료된 실제 안전설정만 보여주는 핵심 카드 */
+.safety-assets{display:grid;gap:9px;margin-top:20px}
+.safety-assets__label{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  color:#64748b;font-size:10.5px;font-weight:800;letter-spacing:.03em}
+.safety-assets__label strong{color:#1e3a5f;font-size:11px}
+.safety-asset{display:flex;align-items:center;gap:11px;padding:12px;border:1px solid #dbe7f4;
+  border-radius:11px;background:rgba(255,255,255,.82);color:#1e3a5f;text-decoration:none;
+  box-shadow:0 3px 12px rgba(37,99,235,.05);transition:.15s}
+.safety-asset:hover{border-color:#93b4ef;background:#fff;transform:translateY(-1px)}
+.safety-asset__icon{width:34px;height:34px;flex:0 0 34px;border-radius:10px;background:#e8f1ff;
+  display:flex;align-items:center;justify-content:center;color:#2563eb;font-size:16px}
+.safety-asset__copy{min-width:0;flex:1}.safety-asset__copy b{display:block;font-size:12.5px}
+.safety-asset__copy small{display:block;margin-top:2px;color:#64748b;font-size:10.5px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}.safety-asset__ok{color:#16a34a;font-size:10.5px;font-weight:900}
+.safety-asset--empty{border-style:dashed;background:rgba(248,250,252,.75);box-shadow:none}
+.safety-asset--empty .safety-asset__icon{background:#f1f5f9;color:#94a3b8}
+.protection-state{display:flex;align-items:center;gap:8px;margin-top:11px;color:#64748b;font-size:11px;font-weight:750}
+.protection-state__dots{display:flex;gap:4px}.protection-state__dots i{width:16px;height:4px;border-radius:999px;background:#dbe3ed}
+.protection-state__dots i.is-on{background:#60a5fa;box-shadow:0 0 7px rgba(59,130,246,.35)}
+.protection-state.is-complete{color:#047857}.protection-state.is-complete .protection-state__dots i{background:#34d399}
+
+/* 업무가 채워질수록 건물 외곽의 보호광만 강해집니다. */
+.building-skyline[class*="protection-"]::before{content:'';position:absolute;inset:-16px -20px -9px;
+  z-index:-1;border-radius:42% 42% 18px 18px;border:1px solid rgba(96,165,250,.28);
+  background:radial-gradient(ellipse at 50% 58%,rgba(147,197,253,.12),transparent 68%);
+  opacity:var(--protect-opacity,.15);box-shadow:0 0 var(--protect-blur,10px) rgba(59,130,246,.28);
+  transition:opacity .45s ease,box-shadow .45s ease}
+.building-skyline.protection-0{--protect-opacity:0}
+.building-skyline.protection-1{--protect-opacity:.18;--protect-blur:10px}
+.building-skyline.protection-2{--protect-opacity:.3;--protect-blur:15px}
+.building-skyline.protection-3{--protect-opacity:.46;--protect-blur:21px}
+.building-skyline.protection-4{--protect-opacity:.65;--protect-blur:28px}
+.building-skyline.protection-5{--protect-opacity:.9;--protect-blur:38px}
+.building-skyline.protection-5::before{border-color:rgba(52,211,153,.48);
+  background:radial-gradient(ellipse at 50% 58%,rgba(110,231,183,.18),rgba(147,197,253,.08) 55%,transparent 72%);
+  box-shadow:0 0 38px rgba(16,185,129,.3);animation:protectedGlow 2.8s ease-in-out infinite}
+@keyframes protectedGlow{50%{opacity:.72;box-shadow:0 0 48px rgba(16,185,129,.38)}}
+@media(prefers-reduced-motion:reduce){.building-skyline.protection-5::before{animation:none}}
 @media(max-width:820px){.building-board{grid-template-columns:1fr;gap:8px}.building-scene{min-height:300px}}
 @media(max-width:520px){.building-board{padding:22px 18px}.building-board__copy h2{font-size:19px}.building-scene{padding-left:5px;padding-right:5px}}
 @media(max-width:520px){.building-crew{left:1px}.building-inspection{right:1px}.building-safety-seal{left:1px}}
@@ -1425,14 +1471,7 @@ a.pstep:hover{background:#f2f6fd}
                       $buildChecks = [$s1, $s2, $s3, $s4, $s5];
                       $buildStage = 0;
                       foreach ($buildChecks as $check) { if ($check) $buildStage++; }
-                      $stageRows = [
-                        ['건물 형태', '기본정보·층수', $s1],
-                        ['관리 골조', '자위소방대 편성', $s2],
-                        ['안전관리', '매월 기록', $s3],
-                        ['피난 체계', '자위소방대 교육', $s4],
-                        ['훈련 완성', '소방훈련·교육', $s5],
-                      ];
-                      $firstPendingFound = false;
+                      $safetyAssetCount = ($hasFireRoute ? 1 : 0) + ($hasAssemblyPoint ? 1 : 0) + ($s2 ? 1 : 0);
                     ?>
                     <section class="building-board" aria-labelledby="buildingBoardTitle">
                       <div class="building-board__head">
@@ -1487,26 +1526,48 @@ a.pstep:hover{background:#f2f6fd}
                         </div>
                       </nav>
                       <div class="building-board__copy">
-                        <div class="building-board__eyebrow">BUILDING SAFETY MODEL</div>
+                        <div class="building-board__eyebrow">SAFETY ASSETS</div>
                         <p><?php if ($hasBi): ?>
-                          입력된 지상 <?=max(0,$floorAbove)?>층<?= $floorBelow > 0 ? ' · 지하 '.(int)$floorBelow.'층' : '' ?>을 기준으로 만든 건물입니다.<br>
-                          업무를 완료할수록 골조와 안전 요소가 채워집니다.
+                          실제로 설정한 핵심 안전자산입니다.<br>업무가 완성될수록 건물의 보호광이 선명해집니다.
                         <?php else: ?>
-                          기본정보에 층수를 입력하면 실제 건물 규모에 맞는 형태가 여기에 나타납니다.
+                          기본정보를 입력하면 건물과 안전자산이 이곳에 나타납니다.
                         <?php endif; ?></p>
 
-                        <div class="build-stages" aria-label="건물 안전관리 구성 단계">
-                          <?php foreach ($stageRows as $idx => $row):
-                            [$stageTitle, $stageDesc, $stageDone] = $row;
-                            $isNow = !$stageDone && !$firstPendingFound;
-                            if ($isNow) $firstPendingFound = true;
-                          ?>
-                            <div class="build-stage<?= $stageDone ? ' is-done' : ($isNow ? ' is-now' : '') ?>">
-                              <span class="build-stage__dot"><?= $stageDone ? '✓' : (string)($idx+1) ?></span>
-                              <b><?=h($stageTitle)?></b>
-                              <span><?=h($stageDone ? '완료' : $stageDesc)?></span>
-                            </div>
-                          <?php endforeach; ?>
+                        <div class="safety-assets" aria-label="설정된 핵심 안전자산">
+                          <div class="safety-assets__label"><strong>핵심 안전자산</strong><span><?=$safetyAssetCount?>개 설정</span></div>
+                          <?php if ($hasFireRoute): ?>
+                            <a class="safety-asset" href="<?=h($url('/building_setup.php'))?>">
+                              <span class="safety-asset__icon">🚒</span>
+                              <span class="safety-asset__copy"><b>소방차 진입로 확보</b><small><?=count($fireRoutePoints)?>개 지점으로 진입 경로 설정</small></span>
+                              <span class="safety-asset__ok">✓ 설정</span>
+                            </a>
+                          <?php endif; ?>
+                          <?php if ($hasAssemblyPoint): ?>
+                            <a class="safety-asset" href="<?=h($url('/building_setup.php'))?>">
+                              <span class="safety-asset__icon">◎</span>
+                              <span class="safety-asset__copy"><b>비상 집결지 지정</b><small><?=h((string)($bi['assembly_kind'] ?? '') ?: '집결 위치 저장 완료')?></small></span>
+                              <span class="safety-asset__ok">✓ 설정</span>
+                            </a>
+                          <?php endif; ?>
+                          <?php if ($s2): ?>
+                            <a class="safety-asset" href="<?=h($url('/fire_plan_jawi.php'))?>">
+                              <span class="safety-asset__icon">👥</span>
+                              <span class="safety-asset__copy"><b>자위소방대 편성 완료</b><small>화재 초기대응 조직과 담당 임무 준비</small></span>
+                              <span class="safety-asset__ok">✓ 편성</span>
+                            </a>
+                          <?php endif; ?>
+                          <?php if ($safetyAssetCount === 0): ?>
+                            <a class="safety-asset safety-asset--empty" href="<?=h($url('/building_setup.php'))?>">
+                              <span class="safety-asset__icon">＋</span>
+                              <span class="safety-asset__copy"><b>첫 안전자산 설정하기</b><small>소방차 진입로와 비상 집결지를 지정하세요</small></span>
+                            </a>
+                          <?php endif; ?>
+                          <div class="protection-state<?= $buildStage >= 5 ? ' is-complete' : '' ?>">
+                            <span><?= $buildStage >= 5 ? '안전관리 보호 활성화' : '건물 보호 단계 '.$buildStage.'/5' ?></span>
+                            <span class="protection-state__dots" aria-hidden="true">
+                              <?php for ($i=1; $i<=5; $i++): ?><i class="<?= $i <= $buildStage ? 'is-on' : '' ?>"></i><?php endfor; ?>
+                            </span>
+                          </div>
                         </div>
                       </div>
 
@@ -1518,7 +1579,7 @@ a.pstep:hover{background:#f2f6fd}
                           </div>
                           <div class="building-skyline"><div class="building-ground"></div></div>
                         <?php else: ?>
-                          <div class="building-skyline stage-<?=$buildStage?><?= $isHighRise ? ' is-high-rise' : '' ?>" style="--floor-h:<?=$buildingFloorHeight?>px">
+                          <div class="building-skyline stage-<?=$buildStage?> protection-<?=$buildStage?><?= $isHighRise ? ' is-high-rise' : '' ?>" style="--floor-h:<?=$buildingFloorHeight?>px">
                             <?php if ($isHighRise): ?><span class="building-height-label"><?=$floorAbove?>F</span><?php endif; ?>
                             <div class="building-roof<?= $buildStage >= 5 ? ' is-built' : '' ?>"></div>
                             <?php if ($isHighRise): ?>
