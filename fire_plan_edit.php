@@ -40,6 +40,47 @@ foreach ($sections as $ch) {
 }
 if (!in_array($cur, $allCodes, true)) $cur = '1';
 
+/* 최신 자위소방대 편성표로 '조직 및 임무' 문구를 만듭니다. */
+$jawiMemo = '';
+$jawiTotal = 0;
+$jawiKey = function_exists('fp_user_key') ? fp_user_key() : '';
+if ($jawiKey !== '') {
+  $jawiFile = __DIR__ . '/data/fireplan/' . $jawiKey . '/_jawi.json';
+  if (is_file($jawiFile)) {
+    $jawiRows = json_decode((string)@file_get_contents($jawiFile), true);
+    $jawiLatest = (is_array($jawiRows) && $jawiRows) ? ($jawiRows[0] ?? null) : null;
+    if (is_array($jawiLatest)) {
+      $jawiLines = [];
+      $chief = trim((string)($jawiLatest['cmd']['name'] ?? ''));
+      $deputy = trim((string)($jawiLatest['deputy']['name'] ?? ''));
+      if ($chief !== '') { $jawiLines[] = '자위소방대장 : ' . $chief; $jawiTotal++; }
+      if ($deputy !== '') { $jawiLines[] = '부대장 : ' . $deputy; $jawiTotal++; }
+      foreach ((array)($jawiLatest['groups'] ?? []) as $group) {
+        if (!is_array($group)) continue;
+        $groupName = trim((string)($group['name'] ?? '')) ?: '활동조';
+        $names = []; $tasks = [];
+        foreach ((array)($group['members'] ?? []) as $member) {
+          if (!is_array($member)) continue;
+          $name = trim((string)($member['name'] ?? ''));
+          if ($name === '') continue;
+          $names[] = $name; $jawiTotal++;
+          $task = trim((string)($member['task'] ?? ''));
+          if ($task !== '' && !in_array($task, $tasks, true)) $tasks[] = $task;
+        }
+        if (!$names) continue;
+        $line = $groupName . '(' . count($names) . '명) : ' . implode(', ', $names);
+        if ($tasks) $line .= "\n  임무 : " . implode(' / ', $tasks);
+        $jawiLines[] = $line;
+      }
+      if ($jawiLines) {
+        $jawiMemo = "자위소방대는 다음과 같이 편성하며, 화재 발생 시 각 조는 지정된 임무를 수행한다.\n\n"
+          . implode("\n", $jawiLines)
+          . "\n\n편성 변경 시 자위소방대 편성표를 갱신하고 본 소방계획서에 반영한다.";
+      }
+    }
+  }
+}
+
 /* ── 저장 처리 ── */
 $savedMsg = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -57,6 +98,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       header("Location: /fire_plan_edit.php?id=$planId&s=5&common_synced=1"); exit;
     }
     header("Location: /fire_plan_edit.php?id=$planId&s=5&common_missing=1"); exit;
+  }
+
+  if ($cur === '9' && ($_POST['act'] ?? '') === 'sync_jawi') {
+    fp_save_section($planId, '9', ['memo'=>$jawiMemo], $jawiMemo !== '');
+    header("Location: /fire_plan_edit.php?id=$planId&s=9&jawi_synced=1"); exit;
   }
 
   if ($cur === '1') {
@@ -217,6 +263,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (!empty($_GET['saved'])) $savedMsg = '저장되었습니다 ✓';
 if (!empty($_GET['common_synced'])) $savedMsg = '공통 피난계획을 반영했습니다 ✓';
 if (!empty($_GET['common_missing'])) $savedMsg = '먼저 공통 피난계획을 작성해 주세요.';
+if (!empty($_GET['jawi_synced'])) $savedMsg = '최신 자위소방대 편성 내용을 반영했습니다 ✓';
 
 /* ── 화면 데이터 ── */
 $s1   = fp_get_section($planId, '1');
@@ -856,17 +903,24 @@ table.ft .flow{margin-top:6px}
         </table>
 
       <?php elseif ($cur === '9'): ?>
-        <div class="placeholder-note">
-          📋 자위소방대 편성과 대원별 임무입니다. 인원이 자주 바뀌므로 <b>전용 편성표 페이지</b>에서 관리합니다.
-        </div>
-        <div style="text-align:center;padding:30px 20px;background:#fff8f5;border:1px solid #f3d0c0;border-radius:12px;margin-top:8px">
-          <div style="font-size:40px;margin-bottom:10px">🧯</div>
-          <p style="font-size:14px;color:var(--mut2);margin-bottom:16px">
-            이름·연락처를 붙여넣으면 대장·부대장·활동조로 자동 배치됩니다.<br>편성표는 인쇄·PDF 저장도 됩니다.
-          </p>
-          <a class="btn btn--primary" href="/fire_plan_jawi.php" style="text-decoration:none">자위소방대 편성표 열기 →</a>
-        </div>
-        <textarea name="memo" style="margin-top:14px" placeholder="편성표 외에 자위소방대 관련 메모가 있으면 입력하세요… (선택)"><?=h($curData['memo'] ?? '')?></textarea>
+        <?php if ($jawiMemo !== ''): ?>
+          <div class="placeholder-note">
+            📋 최신 자위소방대 편성표 <b><?=$jawiTotal?>명</b>의 조직과 임무를 불러왔습니다.
+            편성표가 변경되면 아래 버튼으로 다시 반영하세요.
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px">
+            <button class="btn btn--primary" type="submit" name="act" value="sync_jawi">최신 편성표 다시 반영</button>
+            <a class="btn" href="/fire_plan_jawi.php" style="text-decoration:none">편성표 확인·수정</a>
+          </div>
+          <?php $jawiCurrentMemo = trim((string)($curData['memo'] ?? '')) !== '' ? (string)$curData['memo'] : $jawiMemo; ?>
+          <textarea name="memo" rows="14" placeholder="자위소방대 조직 및 임무"><?=h($jawiCurrentMemo)?></textarea>
+        <?php else: ?>
+          <div class="placeholder-note">먼저 자위소방대 편성표를 작성하면 조직과 임무 문구가 자동으로 만들어집니다.</div>
+          <div style="text-align:center;padding:26px 20px;background:#fff8f5;border:1px solid #f3d0c0;border-radius:12px;margin-top:8px">
+            <a class="btn btn--primary" href="/fire_plan_jawi.php" style="text-decoration:none">자위소방대 편성표 만들기 →</a>
+          </div>
+          <textarea name="memo" rows="8" style="margin-top:14px" placeholder="직접 내용을 입력할 수도 있습니다."><?=h($curData['memo'] ?? '')?></textarea>
+        <?php endif; ?>
 
       <?php else: ?>
         <?php

@@ -304,6 +304,27 @@ $hasFireRoute = is_array($fireRoutePoints) && count($fireRoutePoints) >= 2;
 $hasAssemblyPoint = trim((string)($bi['assembly_lat'] ?? '')) !== ''
   && trim((string)($bi['assembly_lng'] ?? '')) !== '';
 
+/* 피난계획 화면과 같은 저장 파일·완료 기준을 사용합니다. */
+$evacuationPlan = [];
+$biFile = function_exists('bi_file') ? bi_file() : '';
+$evacuationPlanFile = $biFile !== '' ? dirname($biFile) . '/evacuation_plan.json' : '';
+if ($evacuationPlanFile !== '' && is_file($evacuationPlanFile)) {
+  $evacuationRaw = json_decode((string)@file_get_contents($evacuationPlanFile), true);
+  if (is_array($evacuationRaw)) $evacuationPlan = $evacuationRaw;
+}
+$evacuationFloors = is_array($evacuationPlan['floors'] ?? null) ? $evacuationPlan['floors'] : [];
+$evacuationGroups = is_array($evacuationPlan['floor_groups'] ?? null) ? $evacuationPlan['floor_groups'] : [];
+foreach ($evacuationGroups as $group) {
+  $groupPlan = is_array($group['plan'] ?? null) ? $group['plan'] : [];
+  if (!$groupPlan) continue;
+  foreach ((array)($group['floors'] ?? []) as $floorKey) {
+    $evacuationFloors[$floorKey] = array_merge((array)($evacuationFloors[$floorKey] ?? []), $groupPlan);
+  }
+}
+$hasEvacuationPlan = !empty($evacuationFloors)
+  || trim((string)($evacuationPlan['alarm_method'] ?? '')) !== ''
+  || trim((string)($evacuationPlan['assembly_confirmed'] ?? '')) !== '';
+
 if (empty($_SESSION['safety_ai_csrf'])) $_SESSION['safety_ai_csrf'] = bin2hex(random_bytes(24));
 $safetyAiCsrf = (string)$_SESSION['safety_ai_csrf'];
 $aiCompleted = [];
@@ -313,13 +334,15 @@ if ($hasRoster) $aiCompleted[] = '자위소방대 편성'; else $aiPending[] = '
 if ($doneWorkLog === true) $aiCompleted[] = '이번 달 업무수행 기록'; else $aiPending[] = '이번 달 업무수행 기록';
 if ($doneJawi === true) $aiCompleted[] = '자위소방대 교육'; else $aiPending[] = '자위소방대 교육';
 if ($doneTrain === true) $aiCompleted[] = '소방훈련·교육'; else $aiPending[] = '소방훈련·교육';
+if ($hasEvacuationPlan) $aiCompleted[] = '피난계획'; else $aiPending[] = '피난계획';
 
 $s1 = $biDone;
 $s2 = $hasRoster;
 $s3 = ($doneWorkLog === true);
 $s4 = ($doneJawi === true);
 $s5 = ($doneTrain === true);
-$nowStep = !$s1 ? 1 : (!$s2 ? 2 : (!$s3 ? 3 : (!$s4 ? 4 : (!$s5 ? 5 : 7))));
+$s6 = $hasEvacuationPlan;
+$nowStep = !$s1 ? 1 : (!$s2 ? 2 : (!$s3 ? 3 : (!$s4 ? 4 : (!$s5 ? 5 : (!$s6 ? 6 : 7)))));
 
 if (!$hasBi) {
   $aiNextTask = '건물 기본정보 입력'; $aiNextAction = '기본정보 입력'; $aiNextUrl = $url('/building_setup_chat.php');
@@ -333,6 +356,8 @@ if (!$hasBi) {
   $aiNextTask = '자위소방대 교육·훈련 기록'; $aiNextAction = '교육 기록'; $aiNextUrl = $url('/jawi.php');
 } elseif ($doneTrain !== true) {
   $aiNextTask = '소방훈련·교육 기록'; $aiNextAction = '훈련 기록'; $aiNextUrl = $url('/train.php');
+} elseif (!$hasEvacuationPlan) {
+  $aiNextTask = '피난계획 작성'; $aiNextAction = '피난계획 작성'; $aiNextUrl = $url('/evacuation_plan.php');
 } else {
   $aiNextTask = '소방계획서 상시 관리'; $aiNextAction = '계획서 확인'; $aiNextUrl = $url('/fire_plan.php');
 }
@@ -1290,7 +1315,8 @@ a.pstep:hover{background:#f2f6fd}
         $s3 = ($doneWorkLog === true);
         $s4 = ($doneJawi === true);
         $s5 = ($doneTrain === true);
-        $nowStep = !$s1 ? 1 : (!$s2 ? 2 : (!$s3 ? 3 : (!$s4 ? 4 : (!$s5 ? 5 : 7))));
+        $s6 = $hasEvacuationPlan;
+        $nowStep = !$s1 ? 1 : (!$s2 ? 2 : (!$s3 ? 3 : (!$s4 ? 4 : (!$s5 ? 5 : (!$s6 ? 6 : 7)))));
       ?>
       <?php
         /* 현재 해야 할 단계 바로 위에 클릭 유도 문구를 띄웁니다.
@@ -1351,9 +1377,12 @@ a.pstep:hover{background:#f2f6fd}
       </a>
 
       <!-- ⑥ 피난계획 -->
-      <a class="pstep <?= $hasBi ? '' : 'pstep--lock' ?>" href="<?=h($url('/evacuation_plan_chat.php'))?>">
-        <span class="no">6</span><span class="pstep__label">피난계획</span>
-        <span class="ptag ptag--always">상시</span>
+      <?php stepNudge(6, $nowStep, '피난계획을 작성하세요'); ?>
+      <a class="pstep <?= $s6 ? 'pstep--done' : ($nowStep===6 ? 'pstep--now' : '') ?><?= $nowStep===6 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/evacuation_plan.php'))?>">
+        <span class="no"><?= $s6 ? '✓' : '6' ?></span><span class="pstep__label">피난계획</span>
+        <?php if ($s6): ?><span class="ptag ptag--done">완료</span>
+        <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
+        <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
       </a>
 
       <?php stepNudge(7, $nowStep, '소방계획서를 확인하세요'); ?>
@@ -1457,6 +1486,14 @@ a.pstep:hover{background:#f2f6fd}
                       </div>
                       <a class="mission__btn" href="<?=h($url('/train.php'))?>">훈련 기록 작성</a>
                     </div>
+                    <?php elseif (!$hasEvacuationPlan): ?>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">지금 할 일 · 피난 안전</span>
+                        <span class="mission__text"><b>피난계획</b>을 작성해 층별 대피방법과 집결 절차를 준비하세요.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/evacuation_plan.php'))?>">피난계획 작성</a>
+                    </div>
                     <?php else: ?>
                     <div class="mission">
                       <div class="mission__copy">
@@ -1471,7 +1508,8 @@ a.pstep:hover{background:#f2f6fd}
                       $buildChecks = [$s1, $s2, $s3, $s4, $s5];
                       $buildStage = 0;
                       foreach ($buildChecks as $check) { if ($check) $buildStage++; }
-                      $safetyAssetCount = ($hasFireRoute ? 1 : 0) + ($hasAssemblyPoint ? 1 : 0) + ($s2 ? 1 : 0);
+                      $safetyAssetCount = ($hasFireRoute ? 1 : 0) + ($hasAssemblyPoint ? 1 : 0)
+                        + ($s2 ? 1 : 0) + ($s6 ? 1 : 0);
                     ?>
                     <section class="building-board" aria-labelledby="buildingBoardTitle">
                       <div class="building-board__head">
@@ -1505,8 +1543,8 @@ a.pstep:hover{background:#f2f6fd}
                           <a class="building-task<?= $s5 ? ' is-done' : ($nowStep===5 ? ' is-now' : '') ?>" href="<?=h($url('/train.php'))?>">
                             <span class="building-task__no"><?= $s5 ? '✓' : '5' ?></span><span>소방훈련·교육</span><small><?= $s5 ? '완료' : '연간' ?></small>
                           </a>
-                          <a class="building-task" href="<?=h($url('/evacuation_plan_chat.php'))?>">
-                            <span class="building-task__no">6</span><span>피난계획</span><small>상시</small>
+                          <a class="building-task<?= $s6 ? ' is-done' : ($nowStep===6 ? ' is-now' : '') ?>" href="<?=h($url('/evacuation_plan.php'))?>">
+                            <span class="building-task__no"><?= $s6 ? '✓' : '6' ?></span><span>피난계획</span><small><?= $s6 ? '완료' : '미진행' ?></small>
                           </a>
                           <a class="building-task<?= $nowStep===7 ? ' is-now' : '' ?>" href="<?=h($url('/fire_plan.php'))?>">
                             <span class="building-task__no">7</span><span>소방계획서</span><small>상시</small>
@@ -1554,6 +1592,13 @@ a.pstep:hover{background:#f2f6fd}
                               <span class="safety-asset__icon">👥</span>
                               <span class="safety-asset__copy"><b>자위소방대 편성 완료</b><small>화재 초기대응 조직과 담당 임무 준비</small></span>
                               <span class="safety-asset__ok">✓ 편성</span>
+                            </a>
+                          <?php endif; ?>
+                          <?php if ($s6): ?>
+                            <a class="safety-asset" href="<?=h($url('/evacuation_plan.php'))?>">
+                              <span class="safety-asset__icon">↗</span>
+                              <span class="safety-asset__copy"><b>피난계획 수립 완료</b><small>층별 대피방법과 상황 전파·집결 절차 준비</small></span>
+                              <span class="safety-asset__ok">✓ 계획</span>
                             </a>
                           <?php endif; ?>
                           <?php if ($safetyAssetCount === 0): ?>

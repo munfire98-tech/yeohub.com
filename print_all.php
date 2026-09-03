@@ -45,40 +45,132 @@ $url = function (string $path) use ($adminQuery): string {
   return $path . (strpos($path, '?') === false ? '?' : '&') . $adminQuery;
 };
 
+/* 예전 화면마다 회원 폴더 접두어가 달랐던 자료도 같은 회원 범위에서 찾습니다. */
+$uidCandidates = [$uidKey];
+$memberId = preg_replace('/[^A-Za-z0-9_-]/', '_', trim((string)($_SESSION['member_id'] ?? '')));
+$kakaoId  = preg_replace('/[^A-Za-z0-9_-]/', '_', trim((string)($_SESSION['kakao_id'] ?? '')));
+if ($memberId !== '') { $uidCandidates[] = $memberId; $uidCandidates[] = 'm_' . $memberId; }
+if ($kakaoId  !== '') { $uidCandidates[] = 'kakao_' . $kakaoId; $uidCandidates[] = 'u_' . $kakaoId; }
+/* 각 문서 모듈이 실제로 계산한 키도 포함합니다. 구버전은 app_user_key와 다를 수 있습니다. */
+if (function_exists('fp_user_key')) $uidCandidates[] = (string)fp_user_key();
+if (function_exists('tr_user_key')) $uidCandidates[] = (string)tr_user_key();
+if (function_exists('jw_user_key')) $uidCandidates[] = (string)jw_user_key();
+$uidCandidates = array_values(array_unique(array_filter($uidCandidates)));
+
+/* 색인이 비어 있거나 오래됐어도 실제 JSON 파일에서 목록을 복구합니다. */
+function pa_json_files(string $dir): array {
+  if (!is_dir($dir)) return [];
+  $out = [];
+  foreach (glob($dir . '/*.json') ?: [] as $file) {
+    if (strpos(basename($file), '_') === 0 || basename($file) === 'building.json') continue;
+    $row = json_decode((string)@file_get_contents($file), true);
+    if (is_array($row)) $out[] = $row;
+  }
+  return $out;
+}
+
 /* ── 자료 모으기 ───────────────────────────────────────── */
 
-// 1) 업무수행 기록표 — 연도별로 몇 건 작성했는지
-$safeKey  = preg_replace('/[^A-Za-z0-9_]/', '_', $uidKey);
-$wlBase   = __DIR__ . '/data/worklog/' . $safeKey;
+// 1) 건물 기본정보
+$buildingInfo = function_exists('bi_load') ? bi_load() : [];
+$hasBuildingInfo = trim((string)($buildingInfo['name'] ?? '')) !== ''
+                || trim((string)($buildingInfo['address'] ?? '')) !== '';
+$evacPlan = [];
+if (function_exists('bi_file')) {
+  $biPath = bi_file();
+  $evacPath = $biPath !== '' ? dirname($biPath) . '/evacuation_plan.json' : '';
+  if ($evacPath !== '' && is_file($evacPath)) {
+    $evacRaw = json_decode((string)@file_get_contents($evacPath), true);
+    if (is_array($evacRaw)) $evacPlan = $evacRaw;
+  }
+}
+$evacFloors = is_array($evacPlan['floors'] ?? null) ? $evacPlan['floors'] : [];
+$evacGroups = is_array($evacPlan['floor_groups'] ?? null) ? $evacPlan['floor_groups'] : [];
+foreach ($evacGroups as $group) {
+  $groupPlan = is_array($group['plan'] ?? null) ? $group['plan'] : [];
+  if (!$groupPlan) continue;
+  foreach ((array)($group['floors'] ?? []) as $floorKey) {
+    $evacFloors[$floorKey] = array_merge((array)($evacFloors[$floorKey] ?? []), $groupPlan);
+  }
+}
+$hasEvacPlan = !empty($evacFloors)
+  || trim((string)($evacPlan['alarm_method'] ?? '')) !== ''
+  || trim((string)($evacPlan['assembly_confirmed'] ?? '')) !== '';
+
+// 2) 업무수행 기록표 — 연도별로 몇 건 작성했는지
+$safeKey  = preg_replace('/[^A-Za-z0-9_-]/', '_', $uidKey);
 $wlYears  = [];
-if (is_dir($wlBase)) {
+foreach ($uidCandidates as $candidateKey) {
+  $wlBase = __DIR__ . '/data/worklog/' . $candidateKey;
+  if (!is_dir($wlBase)) continue;
   foreach (glob($wlBase . '/m*.json') ?: [] as $f) {
     if (preg_match('/m(\d{4})-\d{2}\.json$/', basename($f), $m)) {
       $y = $m[1];
       $wlYears[$y] = ($wlYears[$y] ?? 0) + 1;
     }
   }
-  krsort($wlYears);
 }
+krsort($wlYears);
 
 // 2) 소방계획서
 $plans = function_exists('fp_list_plans') ? fp_list_plans() : [];
+{
+  foreach ($uidCandidates as $candidateKey) foreach (pa_json_files(__DIR__ . '/data/fireplan/' . $candidateKey) as $p) {
+    $id = preg_replace('/[^0-9A-Za-z]/', '', (string)($p['id'] ?? ''));
+    if ($id === '') continue;
+    $plans[] = ['id'=>$id, 'title'=>($p['building_name'] ?? '(제목 없음)'),
+      'building_name'=>($p['building_name'] ?? ''), 'updated_at'=>($p['updated_at'] ?? '')];
+  }
+}
 
 // 3) 자위소방대 편성표 — fire_plan_jawi.php가 저장하는 별도 목록
 $formations = [];
-$formationFile = __DIR__ . '/data/fireplan/' . $uidKey . '/_jawi.json';
-if (is_file($formationFile)) {
+foreach ($uidCandidates as $candidateKey) {
+  $formationFile = __DIR__ . '/data/fireplan/' . $candidateKey . '/_jawi.json';
+  if (!is_file($formationFile)) continue;
   $formationRaw = json_decode((string)@file_get_contents($formationFile), true);
-  if (is_array($formationRaw)) $formations = $formationRaw;
+  if (is_array($formationRaw)) $formations = array_merge($formations, $formationRaw);
 }
 
 // 4) 자위소방대 교육·훈련 결과 기록
 $jawis = function_exists('jw_list') ? jw_list() : [];
+{
+  foreach ($uidCandidates as $candidateKey) foreach (pa_json_files(__DIR__ . '/data/jawi/' . $candidateKey) as $r) {
+    $d = (array)($r['data'] ?? []); $id = preg_replace('/[^0-9A-Za-z]/', '', (string)($r['id'] ?? ''));
+    if ($id === '') continue;
+    $jawis[] = ['id'=>$id, 'title'=>(trim((string)($d['site_name'] ?? '')) ?: '(대상명 미입력)'),
+      'updated_at'=>($r['updated_at'] ?? '')];
+  }
+}
 
 // 5) 훈련·교육 기록
 $trains = function_exists('tr_list') ? tr_list() : [];
+{
+  foreach ($uidCandidates as $candidateKey) foreach (pa_json_files(__DIR__ . '/data/train/' . $candidateKey) as $r) {
+    $d = (array)($r['data'] ?? []); $id = preg_replace('/[^0-9A-Za-z]/', '', (string)($r['id'] ?? ''));
+    if ($id === '') continue;
+    $trains[] = ['id'=>$id, 'title'=>(trim((string)($d['t_name'] ?? '')) ?: '(대상명 미입력)'),
+      'edu_date'=>($d['edu_date'] ?? $d['fire_date'] ?? ''), 'updated_at'=>($r['updated_at'] ?? '')];
+  }
+}
 
-$totalDocs = array_sum($wlYears) + count($plans) + count($formations) + count($jawis) + count($trains);
+$paUnique = function(array $rows): array {
+  $out=[];
+  foreach ($rows as $row) {
+    $id=(string)($row['id'] ?? '');
+    if ($id === '' || isset($out[$id])) continue;
+    $out[$id]=$row;
+  }
+  return array_values($out);
+};
+$plans=$paUnique($plans); $formations=$paUnique($formations); $jawis=$paUnique($jawis); $trains=$paUnique($trains);
+
+$paSort = function(array &$rows): void {
+  usort($rows, fn($a,$b)=>strcmp((string)($b['updated_at'] ?? $b['saved'] ?? ''), (string)($a['updated_at'] ?? $a['saved'] ?? '')));
+};
+$paSort($plans); $paSort($formations); $paSort($jawis); $paSort($trains);
+
+$totalDocs = ($hasBuildingInfo ? 1 : 0) + ($hasEvacPlan ? 1 : 0) + array_sum($wlYears) + count($plans) + count($formations) + count($jawis) + count($trains);
 
 $PAGE_TITLE = '전체 인쇄';
 $NAV_MODE = 'account';
@@ -93,6 +185,8 @@ require __DIR__ . '/_header.php';
 .pa-sec__head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .pa-chip{font-size:11px;font-weight:800;padding:4px 11px;border-radius:999px;letter-spacing:.02em}
 .chip-wl{background:#f0fdf4;color:#15803d}
+.chip-bi{background:#eff6ff;color:#1d4ed8}
+.chip-ev{background:#ecfdf3;color:#047857}
 .chip-fp{background:#eef2ff;color:var(--brand2)}
 .chip-jw{background:#fff1f2;color:#be123c}
 .chip-tr{background:#fefce8;color:#a16207}
@@ -133,7 +227,53 @@ require __DIR__ . '/_header.php';
     <b>대상을 "PDF로 저장"</b>으로 고르시면 파일로 보관하실 수 있습니다.
   </div>
 
-  <!-- 1) 업무수행 기록표 -->
+  <!-- 1) 건물 기본정보 -->
+  <section class="pa-sec">
+    <div class="pa-sec__head">
+      <span class="pa-chip chip-bi">기본</span>
+      <span class="pa-sec__t">건물 기본정보</span>
+      <span class="pa-sec__d">대상물·건물 규모·안전관리자·집결지·소방차 진입로</span>
+    </div>
+    <?php if (!$hasBuildingInfo): ?>
+      <div class="pa-empty">
+        아직 저장된 건물 기본정보가 없습니다.
+        <a href="<?=h($url('/building_setup.php'))?>">기본정보 입력하러 가기 →</a>
+      </div>
+    <?php else: ?>
+      <div class="pa-list">
+        <div class="pa-item">
+          <div>
+            <div class="pa-item__t"><?=h((string)($buildingInfo['name'] ?? '(대상물명 없음)'))?></div>
+            <div class="pa-item__d">
+              <?=h((string)($buildingInfo['address'] ?? ''))?>
+              <?php if (!empty($buildingInfo['updated'])): ?> · 최종 수정 <?=h((string)$buildingInfo['updated'])?><?php endif; ?>
+            </div>
+          </div>
+          <a class="pa-item__btn" target="_top"
+             href="<?=h($url('/building_setup.php?print=1'))?>">🖨 기본정보 인쇄</a>
+        </div>
+      </div>
+    <?php endif; ?>
+  </section>
+
+  <!-- 피난 대피계획 -->
+  <section class="pa-sec">
+    <div class="pa-sec__head">
+      <span class="pa-chip chip-ev">피난</span>
+      <span class="pa-sec__t">피난 대피계획</span>
+      <span class="pa-sec__d">동일 피난구간별 대피방법·담당자·집결지</span>
+    </div>
+    <?php if (!$hasEvacPlan): ?>
+      <div class="pa-empty">아직 저장된 피난 대피계획이 없습니다. <a href="<?=h($url('/evacuation_plan_chat.php'))?>">피난계획 작성하러 가기 →</a></div>
+    <?php else: ?>
+      <div class="pa-list"><div class="pa-item"><div>
+        <div class="pa-item__t"><?=h((string)($buildingInfo['name'] ?? '건물'))?> 피난 대피계획</div>
+        <div class="pa-item__d">설정 층 <?=count($evacFloors)?>개 · 최종 수정 <?=h((string)($evacPlan['updated'] ?? '-'))?></div>
+      </div><a class="pa-item__btn" target="_top" href="<?=h($url('/evacuation_plan_chat.php?print=1'))?>">🖨 피난계획 인쇄</a></div></div>
+    <?php endif; ?>
+  </section>
+
+  <!-- 2) 업무수행 기록표 -->
   <section class="pa-sec">
     <div class="pa-sec__head">
       <span class="pa-chip chip-wl">매월</span>
@@ -150,11 +290,11 @@ require __DIR__ . '/_header.php';
         <?php foreach ($wlYears as $y => $cnt): ?>
           <div class="pa-item">
             <div>
-              <div class="pa-item__t"><?=h($y)?>년 기록표</div>
+              <div class="pa-item__t"><?=h((string)$y)?>년 기록표</div>
               <div class="pa-item__d"><?=$cnt?>개월분 작성됨</div>
             </div>
-            <a class="pa-item__btn" target="_blank"
-               href="<?=h($url('/work_log_print.php?year=' . $y))?>">🖨 <?=h($y)?>년 전체 인쇄</a>
+            <a class="pa-item__btn" target="_top"
+               href="<?=h($url('/work_log_print.php?year=' . (string)$y))?>">🖨 <?=h((string)$y)?>년 전체 인쇄</a>
           </div>
         <?php endforeach; ?>
       </div>
@@ -178,10 +318,10 @@ require __DIR__ . '/_header.php';
         <?php foreach ($plans as $p): ?>
           <div class="pa-item">
             <div>
-              <div class="pa-item__t"><?=h($p['title'] ?? '(제목 없음)')?></div>
+              <div class="pa-item__t"><?=h($p['title'] ?? $p['building_name'] ?? '(제목 없음)')?></div>
               <div class="pa-item__d">최종 수정 <?=h($p['updated_at'] ?? '-')?></div>
             </div>
-            <a class="pa-item__btn" target="_blank"
+            <a class="pa-item__btn" target="_top"
                href="<?=h($url('/fire_plan_print.php?id=' . rawurlencode((string)($p['id'] ?? ''))))?>">🖨 인쇄</a>
           </div>
         <?php endforeach; ?>
@@ -215,7 +355,7 @@ require __DIR__ . '/_header.php';
                 ?>명 · 최종 저장 <?=h($j['saved'] ?? '-')?>
               </div>
             </div>
-            <a class="pa-item__btn" target="_blank"
+            <a class="pa-item__btn" target="_top"
                href="<?=h($url('/fire_plan_jawi.php?print_id=' . rawurlencode((string)($j['id'] ?? ''))))?>">🖨 편성표 인쇄</a>
           </div>
         <?php endforeach; ?>
@@ -240,7 +380,7 @@ require __DIR__ . '/_header.php';
               <div class="pa-item__t"><?=h($j['title'] ?? '(제목 없음)')?></div>
               <div class="pa-item__d">최종 수정 <?=h($j['updated_at'] ?? '-')?></div>
             </div>
-            <a class="pa-item__btn" target="_blank"
+            <a class="pa-item__btn" target="_top"
                href="<?=h($url('/jawi_print.php?id=' . rawurlencode((string)($j['id'] ?? ''))))?>">🖨 결과 기록 인쇄</a>
           </div>
         <?php endforeach; ?>
@@ -271,7 +411,7 @@ require __DIR__ . '/_header.php';
                 최종 수정 <?=h($t['updated_at'] ?? '-')?>
               </div>
             </div>
-            <a class="pa-item__btn" target="_blank"
+            <a class="pa-item__btn" target="_top"
                href="<?=h($url('/train_print.php?id=' . rawurlencode((string)($t['id'] ?? ''))))?>">🖨 인쇄</a>
           </div>
         <?php endforeach; ?>

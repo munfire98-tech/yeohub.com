@@ -71,7 +71,8 @@ if ($fpKey !== '') {
   $jf = __DIR__ . '/data/fireplan/' . $fpKey . '/_jawi.json';
   if (is_file($jf)) {
     $ja = json_decode((string)@file_get_contents($jf), true);
-    $jp = (is_array($ja) && $ja) ? ($ja[count($ja)-1] ?? null) : null;
+    /* fire_plan_jawi.php는 최신 편성표를 배열 맨 앞에 저장합니다. */
+    $jp = (is_array($ja) && $ja) ? ($ja[0] ?? null) : null;
     if (is_array($jp)) {
       $n = 0; $lines = []; $groups = []; $early = []; $earlyN = 0;
       $cn = trim((string)($jp['cmd']['name'] ?? ''));
