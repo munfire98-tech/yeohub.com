@@ -1,0 +1,37 @@
+<?php
+declare(strict_types=1);
+ini_set('session.cookie_httponly','1');
+if(PHP_VERSION_ID>=70300) session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']);
+session_start();
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');header('Pragma: no-cache');
+function h($v):string{return htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
+function epv_admin():bool{return(!empty($_SESSION['is_admin'])&&$_SESSION['is_admin'])||(!empty($_SESSION['ID_OK'])&&$_SESSION['ID_OK']==1);}
+if(!epv_admin()&&empty($_SESSION['is_user'])){header('Location: /index.php');exit;}
+if(!epv_admin()&&($_SESSION['role']??'agency')!=='building'){header('Location: /clients_mini.php');exit;}
+require_once __DIR__.'/building_info.php';
+$viewKey=function_exists('app_user_key')?app_user_key():'';
+$adminView=epv_admin()&&trim((string)($_GET['uid']??''))!==''&&$viewKey!=='';
+$uidQuery=$adminView?'uid='.rawurlencode($viewKey):'';
+$url=function(string $path)use($uidQuery):string{return $uidQuery===''?$path:$path.(strpos($path,'?')===false?'?':'&').$uidQuery;};
+$building=bi_load();$bi=bi_file();$file=$bi===''?'':dirname($bi).'/evacuation_plan.json';
+$plan=[];$token=trim((string)($_GET['plan_token']??''));$handoff=[];
+if(preg_match('/^[a-f0-9]{32}$/',$token)){$candidate=$_SESSION['evacuation_plan_handoff'][$token]??[];if(is_array($candidate)&&(int)($candidate['at']??0)>=time()-1800&&is_array($candidate['plan']??null))$handoff=$candidate['plan'];}
+if($handoff){
+ $plan=$handoff;
+ if($file!==''){$dir=dirname($file);if(is_dir($dir)||@mkdir($dir,0775,true))@file_put_contents($file,json_encode($plan,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT),LOCK_EX);}
+ if($viewKey!=='')$_SESSION['evacuation_plan_cache'][$viewKey]=$plan;
+}elseif($file!==''&&is_file($file)){$raw=json_decode((string)@file_get_contents($file),true);if(is_array($raw))$plan=$raw;}if(!$plan&&$viewKey!==''){$cached=$_SESSION['evacuation_plan_cache'][$viewKey]??[];if(is_array($cached))$plan=$cached;}
+$tokenPart=preg_match('/^[a-f0-9]{32}$/',$token)?'&plan_token='.rawurlencode($token):'';
+$floors=is_array($plan['floors']??null)?$plan['floors']:[];$groups=is_array($plan['floor_groups']??null)?$plan['floor_groups']:[];
+foreach($groups as$g){$gp=is_array($g['plan']??null)?$g['plan']:[];if(!$gp)continue;foreach((array)($g['floors']??[])as$fk)$floors[$fk]=array_merge((array)($floors[$fk]??[]),$gp);}
+if(!$groups)foreach(array_keys($floors)as$k)$groups[]=['name'=>(string)($floors[$k]['label']??$k),'floors'=>[$k]];
+$hasPlan=!empty($floors)||trim((string)($plan['alarm_method']??''))!==''||trim((string)($plan['assembly_confirmed']??''))!=='';
+$emptyMessage=$bi===''?'로그인 사용자 정보를 확인할 수 없습니다. 다시 로그인한 뒤 작성해주세요.':($file!==''&&is_file($file)?'저장 파일은 있으나 내용이 비어 있습니다. 작성 화면에서 다시 저장해주세요.':'아직 저장된 피난계획이 없습니다.');
+?><!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>피난 대피계획</title><style>
+:root{--blue:#2563eb;--ink:#172033;--mut:#667085;--line:#dfe6ef}*{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:var(--ink);font-family:Pretendard,"Noto Sans KR",system-ui,sans-serif}.wrap{max-width:980px;margin:auto;padding:24px 18px 70px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.back,.sub{font-size:13px;color:var(--mut);text-decoration:none}.hero,.card,.empty,.mini{background:#fff;border:1px solid var(--line);box-shadow:0 12px 35px rgba(16,24,40,.05)}.hero{border-radius:20px;padding:25px;margin-bottom:14px;display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.eyebrow{font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--blue)}h1{font-size:30px;letter-spacing:-.045em;margin:7px 0 8px}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid #ccd6e4;border-radius:10px;background:#fff;color:#344054;padding:10px 14px;font-size:13px;font-weight:750;text-decoration:none}.primary{background:var(--blue);border-color:var(--blue);color:#fff}.overview{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}.mini{border-radius:14px;padding:15px}.mini span,.row span{display:block;font-size:11px;color:var(--mut);margin-bottom:5px}.mini b{font-size:14px}.card{border-radius:18px;padding:21px;margin-bottom:11px}.card h2{font-size:17px;margin:0 0 4px}.applied{font-size:12px;color:var(--blue);margin-bottom:15px}.rows{display:grid;grid-template-columns:1fr 1fr;gap:11px 18px}.row p{font-size:13px;line-height:1.6;margin:0}.wide{grid-column:1/-1}.empty{text-align:center;border-radius:20px;padding:60px 20px}.empty h2{margin:7px 0 9px}.empty p{color:var(--mut);font-size:13px;margin:0 0 20px}@media(max-width:700px){.hero{display:block}.hero .actions{margin-top:18px}.overview{grid-template-columns:1fr 1fr}.rows{grid-template-columns:1fr}.wide{grid-column:auto}}
+</style></head><body><main class="wrap"><div class="top"><a class="back" href="<?=h($url('/building_manager.php'))?>">건물 관리로 돌아가기</a></div>
+<?php if(!$hasPlan):?><section class="empty"><div class="eyebrow">EVACUATION PLAN</div><h2><?=h($emptyMessage)?></h2><p>건축물 층수를 기준으로 같은 대피방법을 사용하는 층을 묶어 작성할 수 있습니다.</p><a class="btn primary" href="<?=h($url('/evacuation_plan_chat.php?return=/evacuation_plan.php'))?>">피난계획 작성하기</a></section>
+<?php else:?><section class="hero"><div><div class="eyebrow">EVACUATION PLAN</div><h1><?=h($building['name']??'건물')?> 피난 대피계획</h1><div class="sub"><?=h($building['address']??'')?> · 지상 <?=number_format((int)($building['floor_a']??0))?>층 / 지하 <?=number_format((int)($building['floor_b']??0))?>층</div></div><div class="actions"><a class="btn" href="<?=h($url('/evacuation_plan_chat.php?return=/evacuation_plan.php'.$tokenPart))?>">내용 수정</a><a class="btn primary" target="_top" href="<?=h($url('/evacuation_plan_chat.php?print=1'.$tokenPart))?>">인쇄·PDF</a></div></section>
+<section class="overview"><div class="mini"><span>상황 전파</span><b><?=h($plan['alarm_method']??'-')?></b></div><div class="mini"><span>119 신고</span><b><?=h($plan['reporter']??'-')?></b></div><div class="mini"><span>피난 지휘</span><b><?=h($plan['controller']??'-')?></b></div><div class="mini"><span>최종 집결지</span><b><?=h($plan['assembly_confirmed']??'-')?></b></div></section>
+<?php foreach($groups as$g):$keys=array_values((array)($g['floors']??[]));$key=(string)($keys[0]??'');$r=(array)($floors[$key]??[]);if($key==='')continue;?><section class="card"><h2><?=h($g['name']??($r['label']??$key))?></h2><div class="applied">적용층 · <?=h(implode(', ',$keys))?></div><div class="rows"><div class="row"><span>층 용도 / 최대 재실 인원</span><p><?=h($r['use']??'-')?> · <?=number_format((int)($r['occupants']??0))?>명</p></div><div class="row"><span>피난약자</span><p><?=h($r['vulnerable']??'-')?></p></div><div class="row wide"><span>주 대피경로</span><p><?=h($r['primary_route']??'-')?></p></div><div class="row wide"><span>대체 대피경로</span><p><?=h($r['alternate_route']??'-')?></p></div><div class="row"><span>피난유도 담당</span><p><?=h($r['guide']??'-')?></p></div><div class="row"><span>잔류자 확인</span><p><?=h($r['checker']??'-')?></p></div></div></section><?php endforeach;?>
+<section class="card"><h2>인원 확인 및 주의사항</h2><div class="rows"><div class="row wide"><span>집결지 인원 확인</span><p><?=h($plan['headcount_method']??'-')?></p></div><div class="row wide"><span>특별 주의사항</span><p><?=h($plan['special_notes']??'-')?></p></div></div></section><?php endif;?></main></body></html>
