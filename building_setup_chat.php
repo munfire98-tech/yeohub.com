@@ -443,15 +443,28 @@ button{font:inherit;color:inherit;cursor:pointer}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border-radius:9px;
   border:1px solid var(--bd2);background:#fff;font-size:13px;font-weight:600;transition:.15s}
 .btn:hover{border-color:var(--brand);color:var(--brand2)}
-.btn--pri{background:var(--brand);border-color:var(--brand);color:#fff}
-.btn--pri:hover{background:var(--brand2);color:#fff}
+.btn--pri,.btn--primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn--pri:hover,.btn--primary:hover{background:var(--brand2);color:#fff}
 .btn--sm{padding:6px 12px;font-size:12.5px}
 /* 다음에 눌러야 할 버튼을 살짝 강조합니다 */
-.btn--nudge{box-shadow:0 0 0 3px rgba(34,197,94,.25);animation:nudgePulse 1.6s ease-in-out infinite}
+.btn--nudge{background:#15803d!important;border-color:#15803d!important;color:#fff!important;
+  box-shadow:0 0 0 4px rgba(34,197,94,.22),0 8px 20px rgba(21,128,61,.2);
+  animation:nudgePulse 1.6s ease-in-out infinite}
 @keyframes nudgePulse{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
 @media(prefers-reduced-motion:reduce){.btn--nudge{animation:none}}
 /* 집결지 장소 유형 — 고른 버튼을 강조 */
 .btn.is-on{background:var(--brand);border-color:var(--brand);color:#fff}
+.map-wrap{position:relative;border:1px solid var(--bd2);border-radius:11px;overflow:hidden;margin-bottom:8px}
+.map-gesture{position:absolute;z-index:3;top:10px;left:50%;transform:translateX(-50%);
+  pointer-events:none;width:max-content;max-width:calc(100% - 20px);text-align:center;line-height:1.4;
+  background:rgba(17,24,39,.82);color:#fff;border-radius:999px;padding:5px 10px;
+  font-size:11.5px;font-weight:700;box-shadow:0 4px 12px rgba(15,23,42,.18)}
+.save-guide{display:none;margin:10px 0 0;padding:10px 12px;border:1px solid #bbf7d0;
+  border-radius:10px;background:#f0fdf4;color:#166534;font-size:12.5px;font-weight:700}
+.save-guide.is-show{display:block;animation:pop .22s ease both}
+.example-box{margin:0 0 10px;padding:11px 13px;border:1px solid #dbe5f2;border-radius:11px;
+  background:#f8fafc;color:var(--mut2);font-size:12.5px;line-height:1.7}
+.example-box b{color:var(--fg)}
 
 /* 진행 막대 */
 .prog{position:sticky;top:56px;z-index:45;background:#fff;border-bottom:1px solid var(--bd)}
@@ -629,10 +642,13 @@ var STEPS = [
     hint:'도로명 주소로 적어주세요. 동·호수까지는 필요 없습니다.' },
 
   { field:'__assembly', q:'화재 시 모일 집결지는 어디인가요?', type:'assembly', skip:true,
-    hint:'대피한 사람들이 모여서 인원을 확인하는 장소입니다. 건물에서 안전하게 떨어져 있고, 소방차 진입에 방해되지 않는 곳이 좋습니다. 검색해서 고르면 위치까지 저장됩니다.' },
+    hint:'대피한 사람들이 모여서 인원을 확인하는 장소입니다. 건물에서 안전하게 떨어져 있고, 소방차 진입에 방해되지 않는 곳이 좋습니다.' },
 
   { field:'fire_engine_route', q:'소방차가 건물로 들어오는 길도 표시해 둘까요?', type:'fire_route', skip:true,
     hint:'도로의 진입 시작점부터 건물 입구 방향으로 차례대로 눌러주세요. 실제 도로를 따라 여러 점을 찍으면 진입선이 저장됩니다.' },
+
+  { field:'fire_engine_route_note', q:'진입로에 특이사항이나 더 추가할 내용이 있을까요?', type:'route_note', skip:true,
+    hint:'현장에 도착한 소방대가 미리 알아야 할 진입 제한이나 장애물이 있다면 남겨주세요.' },
 
   { field:'use', q:'건물을 주로 어떤 용도로 쓰나요?', type:'choice',
     options:['업무시설(사무실)','판매시설(상가·매장)','숙박시설','공장·창고','의료시설','교육연구시설','복합용도','그 밖'],
@@ -983,7 +999,6 @@ function ask(s){
 
   if (s.type === 'assembly'){
     /* 집결지 — 지도를 눌러 위치를 찍습니다.
-       지도가 안 뜨는 환경(키 미설정 등)에서는 아래 검색창으로도 지정할 수 있습니다.
        ★ 저장은 반드시 save() 를 통해야 서버에 반영됩니다(answers 변수는 쓰이지 않습니다). */
     var aLat = parseFloat(SAVED.bd_lat || '') || null;
     var aLng = parseFloat(SAVED.bd_lng || '') || null;
@@ -995,26 +1010,18 @@ function ask(s){
 
     // 지도 자리
     var mapWrap = document.createElement('div');
-    mapWrap.style.cssText='border:1px solid var(--bd2);border-radius:11px;overflow:hidden;margin-bottom:8px';
+    mapWrap.className='map-wrap';
     var mapEl = document.createElement('div');
     mapEl.style.cssText='width:100%;height:280px;background:#eef2f7';
-    mapWrap.appendChild(mapEl); b.appendChild(mapWrap);
+    var mapHelp = document.createElement('div');
+    mapHelp.className='map-gesture';
+    mapHelp.textContent='마우스 휠·손가락으로 확대하고, 드래그로 이동할 수 있어요';
+    mapWrap.appendChild(mapEl); mapWrap.appendChild(mapHelp); b.appendChild(mapWrap);
 
     var tip = document.createElement('div');
     tip.style.cssText='font-size:12.5px;color:var(--mut);margin:0 0 12px';
     tip.innerHTML = '<b>①</b> 지도를 눌러 집결지 위치를 찍어주세요.';
     b.appendChild(tip);
-
-    // 장소 검색(지도가 안 뜰 때 대비 + 편의)
-    var searchWrap = document.createElement('div');
-    searchWrap.style.position = 'relative';
-    var sinp = document.createElement('input');
-    sinp.type='text'; sinp.autocomplete='off';
-    sinp.placeholder='장소를 검색해서 찾을 수도 있습니다 (예: ○○공원)';
-    sinp.style.cssText='width:100%;padding:10px 13px;border:1px solid var(--bd2);border-radius:10px;font-size:13.5px;font-family:inherit';
-    var slist = document.createElement('div');
-    slist.style.cssText='position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--bd);border-radius:11px;box-shadow:0 8px 24px rgba(16,24,40,.12);z-index:30;max-height:240px;overflow:auto;display:none';
-    searchWrap.appendChild(sinp); searchWrap.appendChild(slist); b.appendChild(searchWrap);
 
     // 장소 유형
     var kindLabel = document.createElement('div');
@@ -1129,59 +1136,9 @@ function ask(s){
       }
       kakao.maps.event.addListener(mapObj, 'click', function(e){ setMarker(e.latLng); });
     }, function(){
-      // 지도를 못 불러온 경우 — 검색만으로도 지정할 수 있게 안내
+      // 지도를 못 불러온 경우에도 집결지 이름은 직접 저장할 수 있습니다.
       mapWrap.style.display = 'none';
-      tip.textContent = '지도를 불러오지 못했습니다. 아래에서 장소를 검색하거나 직접 적어주세요.';
-    });
-
-    // ── 검색으로 지정 ──
-    var asmTimer=null;
-    sinp.addEventListener('input', function(){
-      clearTimeout(asmTimer);
-      var kw=sinp.value.trim();
-      if(kw.length<2){ slist.style.display='none'; return; }
-      asmTimer=setTimeout(function(){
-        var fd=new FormData(); fd.append('act','search'); fd.append('csrf',CSRF); fd.append('keyword',kw);
-        fetch(location.pathname+location.search,{method:'POST',body:fd,credentials:'same-origin'})
-          .then(function(r){return r.json();})
-          .then(function(j){
-            slist.innerHTML='';
-            var rs=(j&&j.results)||[];
-            if(!rs.length){
-              slist.style.display='block';
-              slist.innerHTML='<div style="padding:10px 13px;color:var(--mut)">검색 결과가 없습니다.</div>';
-              return;
-            }
-            rs.forEach(function(a){
-              var d=document.createElement('div');
-              d.style.cssText='padding:10px 13px;cursor:pointer;border-bottom:1px solid #f0f2f6';
-              d.innerHTML='<div style="font-weight:700">'+esc(a.place)+'</div>'+
-                          '<div style="font-size:11.5px;color:var(--mut);margin-top:2px">'+esc(a.road||a.jibun||'')+'</div>';
-              d.onmouseover=function(){ d.style.background='#f3f6fb'; };
-              d.onmouseout=function(){ d.style.background='#fff'; };
-              d.onclick=function(){
-                slist.style.display='none';
-                sinp.value = a.place;
-                if (!kindInput.value.trim()) kindInput.value = a.place;
-                var la = parseFloat(a.lat||''), ln = parseFloat(a.lng||'');
-                if (la && ln){
-                  if (mapObj){
-                    var pos = new kakao.maps.LatLng(la, ln);
-                    mapObj.setCenter(pos);
-                    setMarker(pos);
-                  } else {
-                    picked.lat = la; picked.lng = ln;
-                    tip.textContent = '집결지 위치가 지정되었습니다: ' + a.place;
-                    tip.style.color = 'var(--mut)';
-                  }
-                }
-              };
-              slist.appendChild(d);
-            });
-            slist.style.display='block';
-          })
-          .catch(function(){ slist.style.display='none'; });
-      }, 300);
+      tip.textContent = '지도를 불러오지 못했습니다. 아래에 집결지 이름을 직접 적어주세요.';
     });
 
     return;
@@ -1198,11 +1155,12 @@ function ask(s){
       if (Array.isArray(oldRoute)) route = oldRoute.filter(function(p){ return p && isFinite(p.lat) && isFinite(p.lng); });
     } catch(e){}
 
-    var mapWrap=document.createElement('div');
-    mapWrap.style.cssText='border:1px solid var(--bd2);border-radius:11px;overflow:hidden;margin-bottom:9px';
+    var mapWrap=document.createElement('div'); mapWrap.className='map-wrap';
     var mapEl=document.createElement('div');
     mapEl.style.cssText='width:100%;height:300px;background:#eef2f7';
-    mapWrap.appendChild(mapEl); b.appendChild(mapWrap);
+    var mapHelp=document.createElement('div'); mapHelp.className='map-gesture';
+    mapHelp.textContent='마우스 휠·손가락으로 확대하고, 드래그로 이동할 수 있어요';
+    mapWrap.appendChild(mapEl); mapWrap.appendChild(mapHelp); b.appendChild(mapWrap);
 
     var tip=document.createElement('div');
     tip.style.cssText='font-size:12.5px;color:var(--mut);line-height:1.7;margin-bottom:11px';
@@ -1213,6 +1171,9 @@ function ask(s){
     var saveBtn=document.createElement('button'); saveBtn.type='button'; saveBtn.className='btn btn--primary btn--sm'; saveBtn.textContent='진입로 저장';
     var skip=document.createElement('button'); skip.type='button'; skip.className='btn btn--sm'; skip.textContent='나중에 할게요';
     actions.appendChild(undo); actions.appendChild(reset); actions.appendChild(saveBtn); actions.appendChild(skip); b.appendChild(actions);
+    var saveGuide=document.createElement('div'); saveGuide.className='save-guide';
+    saveGuide.innerHTML='진입선을 그렸습니다. 이제 초록색 <b>진입로 저장</b> 버튼을 눌러 완료해 주세요.';
+    b.appendChild(saveGuide);
 
     var mapObj=null, line=null, dots=[];
     function redrawRoute(){
@@ -1228,13 +1189,15 @@ function ask(s){
         });
       }
       tip.innerHTML = path.length
-        ? '<b style="color:#dc2626">'+path.length+'개 지점</b>으로 진입선을 그렸습니다. 계속 누르거나 저장하세요.'
+        ? '<b style="color:#dc2626">'+path.length+'개 지점</b>으로 진입선을 그렸습니다. '+(path.length<2?'건물 방향으로 한 지점을 더 눌러주세요.':'경로를 확인한 뒤 아래에서 저장해 주세요.')
         : '<b>① 도로의 진입 시작점</b>을 누르고, <b>② 건물 입구 방향</b>으로 차례대로 눌러주세요.';
       saveBtn.disabled=path.length<2;
+      saveBtn.classList.toggle('btn--nudge',path.length>=2);
+      saveGuide.classList.toggle('is-show',path.length>=2);
     }
     undo.onclick=function(){route.pop();redrawRoute();};
     reset.onclick=function(){route=[];redrawRoute();};
-    skip.onclick=function(){clearBox();me('소방차 진입로는 나중에 표시할게요');step++;next();};
+    skip.onclick=function(){clearBox();me('소방차 진입로는 나중에 표시할게요');step+=2;next();};
     saveBtn.onclick=function(){
       if(route.length<2){tip.textContent='진입로는 두 지점 이상 찍어주세요.';return;}
       var encoded=JSON.stringify(route);
@@ -1261,6 +1224,48 @@ function ask(s){
       kakao.maps.event.addListener(mapObj,'click',function(e){route.push({lat:e.latLng.getLat(),lng:e.latLng.getLng()});redrawRoute();});
       redrawRoute();
     },function(){mapWrap.style.display='none';tip.textContent='지도를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';saveBtn.disabled=true;});
+    return;
+  }
+
+  if (s.type === 'route_note'){
+    var ex=document.createElement('div'); ex.className='example-box';
+    ex.innerHTML='<b>이런 내용을 남길 수 있어요</b><br>'+ 
+      '정문 진입로 폭이 좁음 · 후문으로 대형 소방차 진입 · 높이 제한 3.5m · '+
+      '출입 차단기 있음 · 불법 주정차 시 진입 곤란 · 야간에는 관리실 연락 필요';
+    b.appendChild(ex);
+
+    var ta=document.createElement('textarea');
+    ta.rows=4; ta.value=SAVED.fire_engine_route_note||'';
+    ta.placeholder='예: 정문은 회전 공간이 좁아 대형차는 후문으로 진입해야 합니다.';
+    ta.style.cssText='width:100%;resize:vertical;padding:11px 14px;border:1px solid var(--bd2);border-radius:11px;font-size:14px;line-height:1.6;font-family:inherit';
+    b.appendChild(ta);
+
+    var noteRow=document.createElement('div'); noteRow.className='subrow';
+    var noteSave=document.createElement('button'); noteSave.type='button'; noteSave.className='btn btn--pri btn--sm'; noteSave.textContent='특이사항 저장';
+    var noteNone=document.createElement('button'); noteNone.type='button'; noteNone.className='btn btn--sm'; noteNone.textContent='특이사항 없음 · 다음';
+    noteRow.appendChild(noteSave); noteRow.appendChild(noteNone); b.appendChild(noteRow);
+
+    ta.addEventListener('input',function(){noteSave.classList.toggle('btn--nudge',ta.value.trim()!=='');});
+    if(ta.value.trim()) noteSave.classList.add('btn--nudge');
+    noteSave.onclick=function(){
+      var note=ta.value.trim();
+      if(!note){ta.focus();return;}
+      noteSave.disabled=true; noteSave.textContent='저장 중…';
+      save({fire_engine_route_note:note},function(ok){
+        if(!ok){noteSave.disabled=false;noteSave.textContent='특이사항 저장';return;}
+        SAVED.fire_engine_route_note=note;
+        clearBox();me('진입로 특이사항: '+note);step++;next();
+      });
+    };
+    noteNone.onclick=function(){
+      noteNone.disabled=true;
+      save({fire_engine_route_note:''},function(ok){
+        if(!ok){noteNone.disabled=false;return;}
+        SAVED.fire_engine_route_note='';
+        clearBox();me('진입로 특이사항은 없습니다');step++;next();
+      });
+    };
+    ta.focus();
     return;
   }
 
@@ -1844,6 +1849,7 @@ function finish(){
       ['대표자', SAVED.rep], ['전화번호', SAVED.tel]
     ];
     if (SAVED.assembly_kind) rows.push(['집결지', SAVED.assembly_kind]);
+    if (SAVED.fire_engine_route_note) rows.push(['진입로 특이사항', SAVED.fire_engine_route_note]);
     var html='<h2>건물 기본정보</h2>';
     rows.forEach(function(r){
       var v=String(r[1]||'').trim();

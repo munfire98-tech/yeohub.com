@@ -313,7 +313,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 
     <!-- 2-1. 건축물대장 상세 (자동조회) -->
     <section class="sec">
-      <div class="sec__t"><span class="n">2</span> 건축물대장 상세
+      <div class="sec__t"><span class="n">3</span> 건축물대장 상세
         <small><?= trim((string)($d['bd_looked'] ?? '')) !== '' ? ('자동조회 '.h($d['bd_looked'])) : '검색으로 자동 채움' ?></small></div>
       <div class="row">
         <div class="fld"><label>구조</label>
@@ -423,7 +423,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 
     <!-- 3. 소방안전관리자 -->
     <section class="sec">
-      <div class="sec__t"><span class="n">3</span> 소방안전관리자 <small>28호 · 13호</small></div>
+      <div class="sec__t"><span class="n">4</span> 소방안전관리자 <small>28호 · 13호</small></div>
       <table class="mgr">
         <thead>
           <tr><th style="width:34px"></th><th>성명</th><th>선임일자</th>
@@ -451,7 +451,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 
     <!-- 4. 집결지 -->
     <section class="sec">
-      <div class="sec__t"><span class="n">4</span> 집결지, 소방차 진입로 <small>화재 시 대피 후 모이는 장소, 소방차 진입로 </small></div>
+      <div class="sec__t"><span class="n">5</span> 집결지, 소방차 진입로 <small>화재 시 대피 후 모이는 장소, 소방차 진입로 </small></div>
       <div class="row">
         <div class="fld" style="flex:1 1 100%">
           <label>집결지 이름</label>
@@ -488,6 +488,18 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
           <a href="/building_setup_chat.php">대화형 입력</a>에서 지도를 눌러 지정할 수 있습니다.
         </div>
       <?php endif; ?>
+
+      <div class="row" style="margin-top:16px">
+        <div class="fld fld--wide">
+          <label>소방차 진입로 특이사항</label>
+          <textarea name="fire_engine_route_note" rows="4"
+                    placeholder="예: 정문은 회전 공간이 좁아 대형 소방차는 후문으로 진입해야 합니다."
+                    style="padding:10px 12px;border:1px solid var(--bd2);border-radius:9px;font-size:14px;line-height:1.6;font-family:inherit;background:#fff;color:var(--fg);resize:vertical"><?=$v('fire_engine_route_note')?></textarea>
+          <div class="hint">
+            예: 진입로 폭이 좁음 · 후문으로 진입 · 높이 제한 3.5m · 출입 차단기 있음 · 야간 관리실 연락 필요
+          </div>
+        </div>
+      </div>
     </section>
 
   </form>

@@ -82,6 +82,7 @@ function bi_blank(): array {
     'assembly_lng'  => '', // 집결지 경도
     'assembly_kind' => '', // 어떤 곳인지 (예: 주차장, 앞 공터)
     'fire_engine_route' => '', // 소방차 진입 경로 좌표 JSON [{lat,lng}, ...]
+    'fire_engine_route_note' => '', // 소방차 진입 시 현장 특이사항
     // ── 건축물대장 상세 (자동조회로 채워짐) ─────────────────
     'bd_struct'   => '',   // 구조 (strctCdNm, 예: 철근콘크리트구조)
     'bd_struct_etc'=> '',  // 기타구조 (etcStrct)
