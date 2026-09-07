@@ -2,12 +2,14 @@
 // train_db.php — 소방훈련·교육 실시 결과 기록부 (별지 제28호서식) 데이터 처리
 declare(strict_types=1);
 
+require_once __DIR__ . '/user_key.php';
+
 /* 관리자가 이 회원 화면을 대리로 볼 때 위에 알림 띠를 붙입니다 */
 @include_once __DIR__ . '/_imp.php';
 
 /* 사용자 키: 회원가입 → member_id / 카카오 → kakao_카카오id */
 function tr_user_key(): string {
-  return $_SESSION['member_id'] ?? ('kakao_' . ($_SESSION['kakao_id'] ?? 'guest'));
+  return app_user_key();
 }
 function tr_dir(): string {
   $dir = __DIR__ . '/data/train/' . tr_user_key();

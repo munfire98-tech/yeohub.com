@@ -1554,6 +1554,9 @@ a.pstep:hover{background:#f2f6fd}
                             <a class="building-task building-task--pro" href="<?=h($url('/ar.php'))?>">
                               <span class="building-task__no">P1</span><span>피난 시뮬레이션</span><small>PRO</small>
                             </a>
+                             <a class="building-task building-task--pro" href="<?=h($url('/ar.php'))?>">
+                              <span class="building-task__no">P1</span><span> 소방교육 자료 </span><small>PRO</small>
+                            </a>
                             <a class="building-task building-task--pro" href="<?=h($url('/notifications.php'))?>">
                               <span class="building-task__no">P2</span><span>자동 업무 알림</span><small>PRO</small>
                             </a>

@@ -638,7 +638,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
   }
 
   /* ══ 인쇄 ══ */
-  .print-only{display:none}
+  .print-only,.print-cell-value{display:none}
   @media print{
     @page{ margin:14mm 12mm; }
     .no-print{display:none!important}
@@ -648,16 +648,28 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
     .card{border:none;box-shadow:none;border-radius:0;margin:0;overflow:visible}
     .card__bd{padding:0}
     .print-only{display:block!important}
-    .org table{font-size:12px}
-    .org th,.org td{padding:4px 6px}
-    .org input[type=text]{font-size:12px;border:none;background:none}
+    html,body{width:100%;max-width:100%;overflow:visible}
+    .layout,.main,.card,.card__bd,.org{width:100%;max-width:100%;min-width:0}
+    .org table{display:table!important;width:100%!important;table-layout:fixed;font-size:10.5px}
+    .org thead{display:table-header-group!important}
+    .org tbody{display:table-row-group!important}
+    .org tr{display:table-row!important;width:auto!important;border:0!important;margin:0!important}
+    .org th,.org td{display:table-cell!important;width:auto;padding:3.5px 4px;white-space:normal!important;word-break:keep-all;overflow-wrap:anywhere;overflow:visible!important;text-align:inherit}
+    .org td[data-l]::before{display:none!important;content:none!important}
+    .org td.role-cell{text-align:center!important;white-space:normal!important}
+    .org input[type=text]{display:none!important}
+    .print-cell-value{display:block!important;max-width:100%;font-size:10.5px;line-height:1.35;white-space:normal;word-break:keep-all;overflow-wrap:anywhere}
+    .grp-row .gname{min-width:0;max-width:none;width:auto}
+    .grp-row .print-cell-value{color:#fff;font-weight:700}
+    .print-meta{gap:8mm}.print-meta span{min-width:0;white-space:normal;overflow-wrap:anywhere}
     .print-sign{page-break-inside:avoid}
     /* 조직도는 새 쪽에서 시작 — 편성표와 섞이지 않게 */
     #p4{page-break-before:always}
     .org-note{display:none}
     .chart{max-width:100%}
     .cbox,.crow,.cwide{page-break-inside:avoid}
-    .ctab{font-size:11px}
+    .ctab{width:100%;table-layout:fixed;font-size:10px}
+    .ctab th,.ctab td{white-space:normal;word-break:keep-all;overflow-wrap:anywhere;padding:3px 4px}
     .org table{page-break-inside:auto}
     .org tr{page-break-inside:avoid}
   }
@@ -889,7 +901,6 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
         </div>
 
         <div class="print-only print-sign">
-          작성일 : <span id="pmDate"></span><br>
           소방안전관리자 : <span id="pmMgr"></span> &nbsp;(서명 또는 인)
         </div>
       </div>
@@ -1808,6 +1819,19 @@ if (PRINT_PLAN_ID) {
 document.addEventListener('keydown', function(e){
   if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); saveplan(); }
 });
+
+/* 인쇄 시 한 줄 input을 줄바꿈 가능한 일반 텍스트로 변환합니다. */
+function preparePrintCellValues(){
+  document.querySelectorAll('.print-cell-value').forEach(function(el){ el.remove(); });
+  document.querySelectorAll('.org input[type="text"]').forEach(function(input){
+    const span=document.createElement('span');
+    span.className='print-cell-value';
+    span.textContent=input.value.trim()||'-';
+    input.insertAdjacentElement('afterend',span);
+  });
+}
+window.addEventListener('beforeprint',preparePrintCellValues);
+window.addEventListener('afterprint',function(){document.querySelectorAll('.print-cell-value').forEach(function(el){el.remove();});});
 
 /* ── 저장하지 않고 나가려 하면 알려줍니다 ── */
 (function(){
