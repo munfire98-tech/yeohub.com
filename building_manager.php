@@ -1272,7 +1272,7 @@ a.pstep:hover{background:#f2f6fd}
     <section class="safety-ai safety-ai--rail" aria-labelledby="safetyAiTitle">
       <div class="safety-ai__head">
         <div class="safety-ai__title" id="safetyAiTitle">
-          <span class="safety-ai__mark">AI</span>
+          <span class="safety-ai__mark">HUB</span>
           소방안전관리 업무 도우미
         </div>
         <span class="safety-ai__mode" id="safetyAiMode">현재 상태 분석 완료</span>
@@ -1675,7 +1675,7 @@ a.pstep:hover{background:#f2f6fd}
                       <div class="one-stop__head">
                         <button class="one-stop__back" type="button" onclick="closeOneStop()">현황으로 돌아가기</button>
                         <div class="one-stop__copy">
-                          <div class="one-stop__eyebrow">AI 업무 도우미 · 원스톱 작성</div>
+                          <div class="one-stop__eyebrow">HUB 업무 도우미 · 원스톱 작성</div>
                           <div class="one-stop__title" id="oneStopTitle">업무 작성</div>
                         </div>
                         <span class="one-stop__state" id="oneStopState">작성 내용을 자동으로 불러옵니다</span>

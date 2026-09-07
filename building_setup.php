@@ -170,6 +170,34 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
   backdrop-filter:blur(10px);border-top:1px solid var(--bd);padding:12px 20px;
   display:flex;justify-content:center;gap:10px;z-index:40}
 .savebar .btn{padding:12px 30px;font-size:14.5px}
+.print-head{display:none}
+
+@media print{
+  @page{size:A4;margin:12mm}
+  html,body{background:#fff!important;color:#111!important;font-size:11px}
+  body{padding:0!important}
+  .nav,.head,.savebar,.reset-sec,.no-print,.toast,.hint .btn,#routeEditBtn,#routeUndoBtn,#routeResetBtn{display:none!important}
+  .wrap{max-width:none!important;margin:0!important;padding:0!important}
+  .print-head{display:block;margin-bottom:8mm;padding-bottom:4mm;border-bottom:2px solid #111;text-align:center}
+  .print-head h1{font-size:22px;letter-spacing:.12em;margin-bottom:3px}
+  .print-head p{font-size:10.5px;color:#555}
+  .sec{box-shadow:none!important;border:1px solid #777!important;border-radius:0!important;
+    padding:5mm!important;margin:0 0 5mm!important;break-inside:avoid;page-break-inside:avoid}
+  .sec__t{font-size:14px!important;margin-bottom:4mm!important;padding-bottom:2mm!important;border-bottom:1px solid #aaa}
+  .sec__t .n{background:#222!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .sec__t small{color:#555!important}
+  .row{gap:3mm!important}
+  .fld label{font-size:10px!important;color:#444!important}
+  input,select,textarea{border:0!important;border-bottom:1px solid #999!important;border-radius:0!important;
+    background:#fff!important;box-shadow:none!important;padding:2mm 1mm!important;color:#111!important;
+    -webkit-text-fill-color:#111!important;opacity:1!important}
+  input[type=radio],input[type=checkbox]{-webkit-appearance:auto;appearance:auto;border:initial!important}
+  table{break-inside:avoid;page-break-inside:avoid}
+  th,td{border-color:#777!important;padding:2mm!important}
+  #asmMap{height:72mm!important;border:1px solid #777!important;break-inside:avoid;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #routeHint{display:block!important;color:#444!important}
+}
 
 @media(max-width:640px){
   .nav__in,.head__in,.wrap{padding-left:14px;padding-right:14px}
@@ -205,6 +233,10 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 </header>
 
 <main class="wrap">
+  <div class="print-head">
+    <h1>건물 소방안전관리 기본정보</h1>
+    <p><?=h((string)($d['name'] ?? ''))?> · 출력일 <?=h(date('Y.m.d'))?></p>
+  </div>
   <?php if ($saved): ?>
     <div class="toast">✓ 저장되었습니다. 이제 각 서식에서 자동으로 불러옵니다.</div>
   <?php elseif (!empty($saveErr)): ?>
@@ -217,7 +249,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
       ✕ <?= h($resetMsg ?? '초기화하지 못했습니다. data 폴더 쓰기 권한을 확인해 주세요.') ?></div>
   <?php endif; ?>
 
-  <div class="info">
+  <div class="info no-print">
     <div>💡</div>
     <div>여기 입력한 정보는 <b>별지 제12호(업무수행 기록표)</b>, <b>제28호(훈련·교육 기록부)</b>,
       <b>제13호(자위소방대 교육·훈련)</b>, <b>소방계획서</b>에서 함께 사용됩니다.
@@ -461,7 +493,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
   </form>
 
   <!-- 기본정보 초기화 -->
-  <section class="sec" style="border-color:#fecaca;background:#fffafa">
+  <section class="sec reset-sec" style="border-color:#fecaca;background:#fffafa">
     <div class="sec__t"><span class="n" style="background:#dc2626">↺</span> 기본정보 초기화
       <small>다른 건물로 새로 시작하거나, 처음 상태를 확인할 때</small></div>
 
@@ -493,7 +525,8 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 </main>
 
 <div class="savebar">
-  <a class="btn" href="<?=h($url('/building_manager.php'))?>">취소</a>
+  <a class="btn" target="_top" href="<?=h($url('/building_manager.php'))?>">취소</a>
+  <button class="btn" type="button" onclick="window.print()">인쇄 / PDF</button>
   <button class="btn btn--primary" onclick="document.getElementById('biForm').requestSubmit()">저장</button>
 </div>
 
@@ -568,6 +601,14 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
     drawRoute();
   });
 })();
+</script>
+<?php endif; ?>
+<?php if (($_GET['print'] ?? '') === '1'): ?>
+<script>
+/* 전체 인쇄 목록에서 들어오면 지도 타일과 진입선이 그려질 시간을 준 뒤 인쇄창을 엽니다. */
+window.addEventListener('load', function(){
+  window.setTimeout(function(){ window.print(); }, 900);
+});
 </script>
 <?php endif; ?>
 </body>
