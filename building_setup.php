@@ -181,7 +181,8 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
   .print-head{display:block;margin-bottom:8mm;padding-bottom:4mm;border-bottom:2px solid #111;text-align:center}
   .print-head h1{font-size:22px;letter-spacing:.12em;margin-bottom:3px}
   .print-head p{font-size:10.5px;color:#555}
-  .sec{box-shadow:none!important;border:1px solid #777!important;border-radius:0!important;
+  .sec{box-shadow:none!important;border:1px solid #777!important;border-right-width:2px!important;border-radius:0!important;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
     padding:5mm!important;margin:0 0 5mm!important;break-inside:avoid;page-break-inside:avoid}
   .sec__t{font-size:14px!important;margin-bottom:4mm!important;padding-bottom:2mm!important;border-bottom:1px solid #aaa}
   .sec__t .n{background:#222!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -199,7 +200,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
   #routeHint{display:block!important;color:#444!important}
 }
 
-@media(max-width:640px){
+@media screen and (max-width:640px){
   .nav__in,.head__in,.wrap{padding-left:14px;padding-right:14px}
   .head h1{font-size:22px}
   .sec{padding:18px 15px}
