@@ -217,6 +217,123 @@ foreach ($mgrs as $m) {
   $t = trim((string)($m['tel'] ?? ''));
   if ($t !== '') $mgrTels[$n] = $t;
 }
+
+/* ── 최신 자위소방대 편성표 + 겸임 상태 ───────────────────
+   예전 저장 형식({name:...})과 현재 형식([name,tel,task,dept])을 모두 읽고,
+   같은 사람이 여러 역할에 있으면 겸임자로 판단합니다. */
+$JAWI_TEAM = [
+  'found'=>false, 'total'=>0, 'fields'=>[], 'attend'=>[], 'summary'=>'',
+  'init_total'=>0, 'init_desc'=>'', 'init_names'=>[], 'roles'=>[],
+  'has_concurrent'=>false, 'concurrent_names'=>[], 'saved'=>'',
+];
+$JAWI_MEMBERS = [];
+$jwKey = function_exists('jw_user_key') ? jw_user_key() : '';
+if ($jwKey !== '') {
+  $jwFile = __DIR__ . '/data/fireplan/' . $jwKey . '/_jawi.json';
+  $jwPlans = is_file($jwFile) ? json_decode((string)@file_get_contents($jwFile), true) : [];
+  $jwPlan = null; $jwLatestTs = -1;
+  if (is_array($jwPlans)) {
+    foreach ($jwPlans as $cand) {
+      if (!is_array($cand)) continue;
+      $ts = strtotime((string)($cand['saved'] ?? ($cand['created'] ?? ''))) ?: 0;
+      if ($jwPlan === null || $ts > $jwLatestTs) { $jwPlan=$cand; $jwLatestTs=$ts; }
+    }
+  }
+  if (is_array($jwPlan)) {
+    $readMember = static function($m): array {
+      if (!is_array($m)) return ['name'=>'','tel'=>'','dept'=>'','task'=>'','concurrent'=>false];
+      return [
+        'name'=>trim((string)($m['name'] ?? ($m[0] ?? ''))),
+        'tel'=>trim((string)($m['tel'] ?? ($m[1] ?? ''))),
+        'task'=>trim((string)($m['task'] ?? ($m[2] ?? ''))),
+        'dept'=>trim((string)($m['dept'] ?? ($m[3] ?? ''))),
+        'concurrent'=>!empty($m['concurrent']),
+      ];
+    };
+    $personKey = static function(array $m): string {
+      $name = function_exists('mb_strtolower') ? mb_strtolower($m['name']) : strtolower($m['name']);
+      $tel = preg_replace('/\D+/', '', $m['tel']);
+      return ($name !== '' || $tel !== '') ? ($name.'|'.$tel) : '';
+    };
+    $roles=[]; $fields=[]; $fieldPeople=[]; $initPeople=[]; $initLines=[];
+    $addRole = static function(string $role, array $m, bool $early=false) use (&$roles, $personKey): void {
+      $key=$personKey($m); if($key==='')return;
+      $roles[]=[
+        'role'=>$role,'name'=>$m['name'],'tel'=>$m['tel'],'dept'=>$m['dept'],'task'=>$m['task'],
+        'key'=>$key,'early'=>$early,'explicit_concurrent'=>$m['concurrent'],
+      ];
+    };
+
+    $cmd=$readMember($jwPlan['cmd'] ?? []);
+    $dep=$readMember($jwPlan['deputy'] ?? []);
+    $addRole('대장',$cmd);
+    $addRole('부대장',$dep);
+    if($cmd['name']!==''){
+      $fields['jawi_chief']=$cmd['name'];
+      if($cmd['tel']!=='')$fields['jawi_chief_tel']=$cmd['tel'];
+    }
+    if($dep['name']!=='')$fields['jawi_vice']='1';
+
+    foreach((array)($jwPlan['groups'] ?? []) as $g){
+      $gname=trim((string)($g['name'] ?? '')) ?: '활동반';
+      $field=function_exists('jw_group_field') ? jw_group_field($gname) : '';
+      $early=function_exists('jw_is_early_group') ? jw_is_early_group($gname) : false;
+      $groupPeople=[];
+      foreach((array)($g['members'] ?? []) as $raw){
+        $mem=$readMember($raw); $pk=$personKey($mem); if($pk==='')continue;
+        $addRole($gname,$mem,$early);
+        $groupPeople[$pk]=true;
+        if($field!=='')$fieldPeople[$field][$pk]=true;
+        if($early)$initPeople[$pk]=$mem['name'];
+      }
+      if($early && $groupPeople)$initLines[]=$gname.' '.count($groupPeople).'명';
+    }
+    foreach($fieldPeople as $field=>$persons)$fields[$field]=(string)count($persons);
+
+    if($roles){
+      $counts=[]; $people=[];
+      foreach($roles as $r){
+        $counts[$r['key']]=($counts[$r['key']] ?? 0)+1;
+        if(!isset($people[$r['key']]))$people[$r['key']]=[
+          'name'=>$r['name'],'tel'=>$r['tel'],'dept'=>$r['dept'],'roles'=>[]
+        ];
+        if(!in_array($r['role'],$people[$r['key']]['roles'],true))$people[$r['key']]['roles'][]=$r['role'];
+      }
+      $concurrent=[];
+      foreach($roles as &$r){
+        $r['concurrent']=$r['explicit_concurrent'] || (($counts[$r['key']] ?? 0)>1);
+        if($r['concurrent'])$concurrent[$r['name']]=true;
+        unset($r['key'],$r['early'],$r['explicit_concurrent']);
+      }
+      unset($r);
+
+      $attend=[];
+      foreach($people as $p){
+        $isConcurrent=count($p['roles'])>1;
+        $attend[]=[
+          'role'=>implode('·',$p['roles']).($isConcurrent?' (겸임)':''),
+          'name'=>$p['name'],'ok'=>'',
+        ];
+      }
+      $lines=array_map(static function(array $r): string {
+        return $r['role'].' '.$r['name'].($r['concurrent']?'(겸임)':'');
+      },$roles);
+      $fields['jawi_total']=(string)count($people);
+      if($initPeople){
+        $fields['init_total']=(string)count($initPeople);
+        $fields['init_org']=implode(', ',$initLines).'으로 편성'.($concurrent?' (겸임 포함)':'');
+      }
+      $JAWI_TEAM=[
+        'found'=>true,'total'=>count($people),'fields'=>$fields,'attend'=>$attend,
+        'summary'=>implode(' · ',$lines),'init_total'=>count($initPeople),
+        'init_desc'=>implode(' · ',$initLines),'init_names'=>array_values($initPeople),
+        'roles'=>$roles,'has_concurrent'=>!empty($concurrent),
+        'concurrent_names'=>array_keys($concurrent),'saved'=>(string)($jwPlan['saved'] ?? ''),
+      ];
+      $JAWI_MEMBERS=$attend;
+    }
+  }
+}
 ?>
 <!doctype html>
 <html lang="ko">
@@ -281,6 +398,25 @@ button{font:inherit;color:inherit;cursor:pointer}
 .inrow input:focus,.inrow textarea:focus{outline:none;border-color:var(--brand);
   box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 .subrow{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
+.team-check{background:#fff;border:1px solid #cfd9e8;border-radius:14px;overflow:hidden;
+  box-shadow:0 10px 28px rgba(32,55,88,.08);margin-bottom:11px}
+.team-check__head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;
+  padding:14px 15px;background:linear-gradient(135deg,#eff6ff,#f8fbff);border-bottom:1px solid #dbe5f1}
+.team-check__head b{display:block;font-size:15px;color:#17243a}
+.team-check__head small{display:block;margin-top:2px;color:var(--mut);font-size:11.5px}
+.team-check__count{flex-shrink:0;padding:4px 9px;border-radius:999px;background:#1d4ed8;color:#fff;font-size:11.5px;font-weight:800}
+.team-check__alert{margin:11px 13px 0;padding:9px 11px;border:1px solid #f4d58d;border-radius:9px;
+  background:#fff8e7;color:#7a5100;font-size:12px;font-weight:700}
+.team-check__list{padding:7px 13px 3px;max-height:330px;overflow-y:auto}
+.team-check__row{display:grid;grid-template-columns:minmax(90px,130px) 1fr;gap:10px;
+  align-items:center;padding:8px 2px;border-bottom:1px solid #edf1f6;font-size:12.5px}
+.team-check__row:last-child{border-bottom:0}
+.team-check__role{color:var(--mut2);font-weight:700}
+.team-check__person{font-weight:750;color:#17243a}
+.team-check__dual{display:inline-block;margin-left:5px;padding:2px 6px;border-radius:999px;
+  background:#fff1c7;color:#875800;font-size:10px;font-weight:800;vertical-align:1px}
+.team-check__task{display:block;color:var(--mut);font-size:11px;font-weight:400;line-height:1.45;margin-top:2px}
+@media(max-width:560px){.team-check__row{grid-template-columns:86px 1fr}}
 
 .dtrow{display:flex;gap:8px;flex-wrap:wrap}
 .dtrow input{padding:11px 13px;border:1px solid var(--bd2);border-radius:11px;
@@ -364,8 +500,8 @@ var SAVED = <?=json_encode($d, JSON_UNESCAPED_UNICODE)?>;
 var AUTO  = <?=json_encode($autoBase, JSON_UNESCAPED_UNICODE)?>;
 var MGRS  = <?=json_encode($mgrNames, JSON_UNESCAPED_UNICODE)?>;
 var MGR_TEL = <?=json_encode($mgrTels, JSON_UNESCAPED_UNICODE)?>;
-var LEGACY = <?=json_encode(jw_legacy_members(), JSON_UNESCAPED_UNICODE)?>;
-var TEAM   = <?=json_encode(jw_legacy_summary(), JSON_UNESCAPED_UNICODE)?>;
+var LEGACY = <?=json_encode($JAWI_MEMBERS, JSON_UNESCAPED_UNICODE)?>;
+var TEAM   = <?=json_encode($JAWI_TEAM, JSON_UNESCAPED_UNICODE)?>;
 var NICK  = <?=json_encode($nick, JSON_UNESCAPED_UNICODE)?>;
 var BNAME = <?=json_encode((string)($bi['name'] ?? ''), JSON_UNESCAPED_UNICODE)?>;
 
@@ -522,30 +658,51 @@ function start(){
   /* 편성표를 만들어 두셨으면 그것부터 가져올지 물어봅니다.
      대장·조별 인원·참석자 명단이 한 번에 채워집니다. */
   var already = (SAVED.jawi_total||'') !== '' || (SAVED.jawi_chief||'') !== '';
-  if (TEAM && TEAM.found && !already) {
-    typing(function(){ askTeamImport(); });
+  if (TEAM && TEAM.found) {
+    typing(function(){ askTeamImport(already); });
     return;
   }
   bump(); go();
 }
 
 /* 편성표에서 한 번에 가져오기 */
-function askTeamImport(){
+function askTeamImport(already){
   var initLine = (TEAM.init_total > 0)
     ? '\n\n**초기대응체계** ' + TEAM.init_total + '명 — ' + TEAM.init_desc
     : '';
   bot(md('**자위소방대 편성표를 만들어 두셨네요.**\n\n' +
-    TEAM.summary + initLine + '\n\n' +
-    '이대로 가져오면 **대장·조별 인원·총원·초기대응체계·참석자 명단**이 한 번에 채워집니다. ' +
-    '가져온 뒤에도 하나씩 고칠 수 있습니다.'));
+    '아래에서 가장 최근 편성표와 **겸임 상태**를 먼저 확인해 주세요.' + initLine + '\n\n' +
+    (already
+      ? '현재 교육 기록에는 이미 편성 정보가 있습니다. 최신 편성표를 다시 반영하거나 기존 내용으로 계속할 수 있습니다.'
+      : '확인 후 가져오면 **대장·조별 인원·실제 총원·초기대응체계·참석자 명단**이 한 번에 채워집니다.')));
 
   var b = box();
+  var card = document.createElement('section'); card.className='team-check';
+  var saved = TEAM.saved ? String(TEAM.saved).slice(0,16) : '';
+  var html='<div class="team-check__head"><div><b>최신 자위소방대 편성</b>'+ 
+    '<small>'+(saved?'마지막 저장 '+esc(saved):'저장된 편성표')+'</small></div>'+ 
+    '<span class="team-check__count">실제 '+esc(TEAM.total)+'명</span></div>';
+  if(TEAM.has_concurrent){
+    html+='<div class="team-check__alert">겸임 편성 · '+esc((TEAM.concurrent_names||[]).join(', '))+
+      ' 님이 두 가지 이상의 역할을 맡습니다.</div>';
+  }
+  html+='<div class="team-check__list">';
+  (TEAM.roles||[]).forEach(function(r){
+    html+='<div class="team-check__row"><span class="team-check__role">'+esc(r.role)+'</span>'+ 
+      '<span class="team-check__person">'+esc(r.name)+(r.concurrent?'<span class="team-check__dual">겸임</span>':'')+
+      (r.task?'<small class="team-check__task">'+esc(r.task)+'</small>':'')+'</span></div>';
+  });
+  html+='</div>';
+  card.innerHTML=html; b.appendChild(card);
+
   var w = document.createElement('div'); w.className='opts';
 
   var yes = document.createElement('button');
   yes.className='opt'; yes.type='button';
   yes.style.cssText='background:var(--brand);border-color:var(--brand);color:#fff';
-  yes.textContent = '📋 편성표에서 ' + TEAM.total + '명 가져오기';
+  yes.textContent = already
+    ? '📋 최신 겸임 편성 다시 반영'
+    : '📋 확인 완료 · ' + TEAM.total + '명 가져오기';
   yes.onclick = function(){
     clearBox();
     me('편성표에서 가져오기');
@@ -562,8 +719,8 @@ function askTeamImport(){
   w.appendChild(yes);
 
   var no = document.createElement('button');
-  no.className='opt'; no.type='button'; no.textContent = '직접 입력할게요';
-  no.onclick = function(){ clearBox(); me('직접 입력할게요'); bump(); go(); };
+  no.className='opt'; no.type='button'; no.textContent = already ? '기존 교육 기록으로 계속' : '직접 입력할게요';
+  no.onclick = function(){ clearBox(); me(already?'기존 교육 기록으로 계속할게요':'직접 입력할게요'); bump(); go(); };
   w.appendChild(no);
 
   b.appendChild(w);

@@ -239,35 +239,93 @@ foreach ($mgrs as $m) { $n = trim((string)($m['name'] ?? '')); if ($n !== '') $m
    fire_plan_jawi.php 로 만든 편성표(_jawi.json)에는
    대장·부대장·활동조가 들어 있습니다.
    훈련교관(대장)과 참석대상 인원을 여기서 미리 채웁니다. */
-$TEAM = ['found' => false, 'total' => 0, 'chief' => '', 'summary' => '', 'names' => []];
+$TEAM = [
+  'found' => false, 'total' => 0, 'chief' => '', 'summary' => '', 'names' => [],
+  'roles' => [], 'has_concurrent' => false, 'concurrent_names' => [],
+  'plan_id' => '', 'saved' => '',
+];
 if (function_exists('app_user_key')) {
   $tk = app_user_key();
   if ($tk !== '') {
     $tf = __DIR__ . '/data/fireplan/' . $tk . '/_jawi.json';
     if (is_file($tf)) {
       $ta = json_decode((string)@file_get_contents($tf), true);
-      $tp = (is_array($ta) && $ta) ? ($ta[count($ta) - 1] ?? null) : null;
+      /* 신규 편성표는 배열 앞쪽에 저장됩니다. 그래도 순서를 단정하지 않고
+         saved 시각을 비교해 가장 최근에 저장한 편성표를 고릅니다. */
+      $tp = null; $latestTs = -1;
+      if (is_array($ta)) {
+        foreach ($ta as $cand) {
+          if (!is_array($cand)) continue;
+          $ts = strtotime((string)($cand['saved'] ?? ($cand['created'] ?? ''))) ?: 0;
+          if ($tp === null || $ts > $latestTs) { $tp = $cand; $latestTs = $ts; }
+        }
+      }
       if (is_array($tp)) {
-        $names = []; $lines = [];
-        $cn = trim((string)($tp['cmd']['name'] ?? ''));
-        if ($cn !== '') { $names[] = $cn; $TEAM['chief'] = $cn; $lines[] = '대장 ' . $cn; }
-        $dn = trim((string)($tp['deputy']['name'] ?? ''));
-        if ($dn !== '') { $names[] = $dn; $lines[] = '부대장 ' . $dn; }
+        /* 예전 연관배열({name:...})과 현재 숫자배열([name,tel,task,dept])을 모두 읽습니다. */
+        $readMember = static function($m): array {
+          if (!is_array($m)) return ['name'=>'','tel'=>'','dept'=>'','task'=>'','concurrent'=>false];
+          return [
+            'name' => trim((string)($m['name'] ?? ($m[0] ?? ''))),
+            'tel'  => trim((string)($m['tel']  ?? ($m[1] ?? ''))),
+            'task' => trim((string)($m['task'] ?? ($m[2] ?? ''))),
+            'dept' => trim((string)($m['dept'] ?? ($m[3] ?? ''))),
+            'concurrent' => !empty($m['concurrent']),
+          ];
+        };
+        $personKey = static function(array $m): string {
+          $name = function_exists('mb_strtolower') ? mb_strtolower($m['name']) : strtolower($m['name']);
+          $tel = preg_replace('/\D+/', '', $m['tel']);
+          return ($name !== '' || $tel !== '') ? ($name.'|'.$tel) : '';
+        };
+
+        $roles = [];
+        $addRole = static function(string $role, array $m) use (&$roles, $personKey): void {
+          $key = $personKey($m);
+          if ($key === '') return;
+          $roles[] = [
+            'role'=>$role, 'name'=>$m['name'], 'tel'=>$m['tel'], 'dept'=>$m['dept'],
+            'task'=>$m['task'], 'key'=>$key, 'explicit_concurrent'=>$m['concurrent'],
+          ];
+        };
+
+        $cmd = $readMember($tp['cmd'] ?? []);
+        $dep = $readMember($tp['deputy'] ?? []);
+        $addRole('대장', $cmd);
+        $addRole('부대장', $dep);
+        if ($cmd['name'] !== '') $TEAM['chief'] = $cmd['name'];
         foreach ((array)($tp['groups'] ?? []) as $g) {
           $gn = trim((string)($g['name'] ?? ''));
-          $cnt = 0;
           foreach ((array)($g['members'] ?? []) as $m2) {
-            $nm = trim((string)($m2['name'] ?? ''));
-            if ($nm === '') continue;
-            $names[] = $nm; $cnt++;
+            $addRole($gn !== '' ? $gn : '활동반', $readMember($m2));
           }
-          if ($cnt > 0) $lines[] = $gn . ' ' . $cnt . '명';
         }
-        if ($names) {
+
+        if ($roles) {
+          $counts = []; $people = [];
+          foreach ($roles as $r) {
+            $counts[$r['key']] = ($counts[$r['key']] ?? 0) + 1;
+            if (!isset($people[$r['key']])) $people[$r['key']] = $r['name'];
+          }
+          $concurrent = [];
+          foreach ($roles as &$r) {
+            $r['concurrent'] = $r['explicit_concurrent'] || (($counts[$r['key']] ?? 0) > 1);
+            unset($r['explicit_concurrent'], $r['key']);
+            if ($r['concurrent']) $concurrent[$r['name']] = true;
+          }
+          unset($r);
+
+          $lines = array_map(static function(array $r): string {
+            return $r['role'].' '.$r['name'].($r['concurrent'] ? '(겸임)' : '');
+          }, $roles);
           $TEAM['found']   = true;
-          $TEAM['total']   = count($names);
-          $TEAM['names']   = $names;
+          $TEAM['total']   = count($people);
+          $TEAM['names']   = array_values($people);
+          $TEAM['roles']   = $roles;
+          $TEAM['has_concurrent'] = !empty($concurrent);
+          $TEAM['concurrent_names'] = array_keys($concurrent);
           $TEAM['summary'] = implode(' · ', $lines);
+          $TEAM['plan_id'] = (string)($tp['id'] ?? '');
+          $TEAM['saved']   = (string)($tp['saved'] ?? '');
         }
       }
     }
@@ -349,6 +407,28 @@ button{font:inherit;color:inherit;cursor:pointer}
 .inrow input:focus,.inrow textarea:focus{outline:none;border-color:var(--brand);
   box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 .subrow{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
+
+/* 훈련 시작 전 최신 자위소방대 편성과 겸임 상태를 확인합니다. */
+.team-check{background:#fff;border:1px solid #cfd9e8;border-radius:14px;overflow:hidden;
+  box-shadow:0 10px 28px rgba(32,55,88,.08)}
+.team-check__head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;
+  padding:15px 16px;background:linear-gradient(135deg,#eff6ff,#f8fbff);border-bottom:1px solid #dbe5f1}
+.team-check__head b{display:block;font-size:15px;color:#17243a}
+.team-check__head small{display:block;margin-top:2px;color:var(--mut);font-size:11.5px}
+.team-check__count{flex-shrink:0;padding:4px 9px;border-radius:999px;background:#1d4ed8;color:#fff;font-size:11.5px;font-weight:800}
+.team-check__alert{margin:12px 14px 0;padding:9px 11px;border:1px solid #f4d58d;border-radius:9px;
+  background:#fff8e7;color:#7a5100;font-size:12px;font-weight:700}
+.team-check__list{padding:8px 14px 3px;max-height:330px;overflow-y:auto}
+.team-check__row{display:grid;grid-template-columns:minmax(90px,130px) 1fr;gap:10px;
+  align-items:center;padding:8px 2px;border-bottom:1px solid #edf1f6;font-size:12.5px}
+.team-check__row:last-child{border-bottom:0}
+.team-check__role{color:var(--mut2);font-weight:700}
+.team-check__person{font-weight:750;color:#17243a}
+.team-check__dual{display:inline-block;margin-left:5px;padding:2px 6px;border-radius:999px;
+  background:#fff1c7;color:#875800;font-size:10px;font-weight:800;vertical-align:1px}
+.team-check__task{display:block;color:var(--mut);font-size:11px;font-weight:400;line-height:1.45;margin-top:2px}
+.team-check__actions{display:flex;gap:8px;flex-wrap:wrap;padding:13px 14px 15px;border-top:1px solid #edf1f6;margin-top:6px}
+@media(max-width:560px){.team-check__row{grid-template-columns:86px 1fr}}
 
 .dtrow{display:flex;gap:8px;flex-wrap:wrap}
 .dtrow input{padding:11px 13px;border:1px solid var(--bd2);border-radius:11px;
@@ -462,6 +542,39 @@ function typing(cb){ var x=bot('<span class="typing"><i></i><i></i><i></i></span
 function clearBox(){ var a=document.getElementById('ansBox'); if(a) a.remove(); }
 function box(){ clearBox(); var d=document.createElement('div');
   d.className='answer'; d.id='ansBox'; chat.appendChild(d); down(); return d; }
+
+/* 최신 자위소방대 편성표를 훈련 작성 전에 한 번 확인합니다. */
+function showTeamConfirm(){
+  var b=box();
+  var roles=(TEAM&&TEAM.roles)||[];
+  var saved=(TEAM&&TEAM.saved)?String(TEAM.saved).slice(0,16):'';
+  var html='<section class="team-check">'+
+    '<div class="team-check__head"><div><b>자위소방대 편성을 확인해 주세요</b>'+ 
+    '<small>가장 최근에 저장한 편성표'+(saved?' · '+esc(saved):'')+'</small></div>'+ 
+    '<span class="team-check__count">실제 '+esc(TEAM.total)+'명</span></div>';
+
+  if(TEAM.has_concurrent){
+    html+='<div class="team-check__alert">겸임 편성 · '+esc((TEAM.concurrent_names||[]).join(', '))+
+      ' 님이 두 가지 이상의 임무를 맡습니다.</div>';
+  }
+
+  html+='<div class="team-check__list">';
+  roles.forEach(function(r){
+    html+='<div class="team-check__row"><span class="team-check__role">'+esc(r.role)+'</span>'+ 
+      '<span class="team-check__person">'+esc(r.name)+(r.concurrent?'<span class="team-check__dual">겸임</span>':'')+
+      (r.task?'<small class="team-check__task">'+esc(r.task)+'</small>':'')+'</span></div>';
+  });
+  html+='</div><div class="team-check__actions">'+ 
+    '<button class="btn btn--pri" type="button" id="teamConfirmBtn">이 편성으로 훈련 작성 시작</button>'+ 
+    '<a class="btn" href="/fire_plan_jawi.php" target="_top">편성표 다시 확인</a>'+ 
+    '</div></section>';
+  b.innerHTML=html;
+  document.getElementById('teamConfirmBtn').onclick=function(){
+    clearBox(); me(TEAM.has_concurrent?'겸임 편성을 확인했습니다':'자위소방대 편성을 확인했습니다');
+    bump(); go();
+  };
+  down();
+}
 
 /* ── 저장 ── */
 function save(patch, done){
@@ -616,9 +729,11 @@ function start(){
   }
   if (TEAM && TEAM.found) {
     msg += '\n\n자위소방대 편성표(**' + TEAM.total + '명**)도 있어서, ' +
-           '참석대상 인원과 교관은 눌러서 바로 넣으실 수 있습니다.';
+           (TEAM.has_concurrent ? '**겸임 상태를 먼저 확인한 뒤** ' : '편성을 먼저 확인한 뒤 ') +
+           '참석대상 인원과 교관을 바로 넣으실 수 있습니다.';
   }
   bot(md(msg));
+  if (TEAM && TEAM.found) { showTeamConfirm(); return; }
   bump(); go();
 }
 
@@ -796,9 +911,9 @@ function ask(s){
     if (TEAM && TEAM.found) {
       var extra = '';
       if (s.id === 'fire_result')
-        extra = '자위소방대 ' + TEAM.total + '명이 편성표대로 각자 맡은 임무를 수행함';
+        extra = '자위소방대 ' + TEAM.total + '명이 ' + (TEAM.has_concurrent?'겸임 ':'') + '편성표대로 각자 맡은 임무를 수행함';
       else if (s.id === 'edu_content')
-        extra = '자위소방대 편성표에 따른 조별 임무와 초기대응 절차 교육';
+        extra = '자위소방대 ' + (TEAM.has_concurrent?'겸임 ':'') + '편성표에 따른 조별 임무와 초기대응 절차 교육';
       if (extra && samples.indexOf(extra) === -1) samples.unshift(extra);
     }
     samples.forEach(function(sm){
