@@ -277,12 +277,15 @@ tr.noterow td{vertical-align:top}
 
   /* 한 장에 맞추기 — 열 폭은 위에서 퍼센트(합 100%)로 고정해 두었으니
      여기서는 내용이 그 폭을 절대 못 벗어나게 안전장치만 겁니다. */
-  html,body{width:100%;overflow-x:hidden}
-  .sheet{font-size:10.5px}
+  html,body{width:100%;overflow-x:visible}
+  .sheet{font-size:10.5px;overflow:visible}
   .title{font-size:18px;letter-spacing:3px;margin:2px 0 4px}
   .law,.guide{font-size:9px;margin-bottom:3px}
-  table.f{table-layout:fixed !important;width:100% !important;
-    border:1px solid #333 !important}
+  /* Chrome 인쇄/PDF는 폭 100% 표의 우측 테두리 절반을 출력 영역 밖으로 잘라
+     좌측보다 가늘게 보이게 합니다. 오른쪽에 1px 여백을 남겨 양쪽 외곽선을 동일하게 표시합니다. */
+  table.f{table-layout:fixed !important;width:calc(100% - 1px) !important;
+    margin-right:1px !important;border:1px solid #333 !important}
+  table.f tr>td:last-child,table.f tr>th:last-child{border-right:1px solid #333 !important}
   table.f tr,table.f td,table.f th{page-break-inside:avoid !important;break-inside:avoid !important}
   table.f td,table.f th{padding:3px 5px;font-size:10.5px;line-height:1.25;
     overflow:hidden;word-break:break-all}
