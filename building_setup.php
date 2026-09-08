@@ -137,9 +137,10 @@ a{text-decoration:none}
 .row+.row{margin-top:13px}
 .fld{display:flex;flex-direction:column;gap:5px}
 .fld label{font-size:12px;color:var(--mut2);font-weight:600}
-.fld input{padding:10px 12px;border:1px solid var(--bd2);border-radius:9px;
+.fld input,.fld textarea{padding:10px 12px;border:1px solid var(--bd2);border-radius:9px;
   font-size:14px;font-family:inherit;background:#f8fafc;color:var(--fg)}
-.fld input:focus{outline:none;border-color:var(--brand);background:#fff;
+.fld textarea{resize:vertical;line-height:1.5}
+.fld input:focus,.fld textarea:focus{outline:none;border-color:var(--brand);background:#fff;
   box-shadow:0 0 0 3px rgba(37,99,235,.08)}
 .fld--wide{grid-column:1/-1}
 
@@ -171,6 +172,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
   display:flex;justify-content:center;gap:10px;z-index:40}
 .savebar .btn{padding:12px 30px;font-size:14.5px}
 .print-head{display:none}
+.print-value{display:none}
 
 @media print{
   @page{size:A4;margin:12mm}
@@ -192,6 +194,11 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
   input,select,textarea{border:0!important;border-bottom:1px solid #999!important;border-radius:0!important;
     background:#fff!important;box-shadow:none!important;padding:2mm 1mm!important;color:#111!important;
     -webkit-text-fill-color:#111!important;opacity:1!important}
+  input::placeholder,textarea::placeholder{color:transparent!important;-webkit-text-fill-color:transparent!important}
+  input.print-empty,textarea.print-empty{visibility:hidden!important}
+  textarea[name="bd_use_etc"]{display:none!important}
+  .print-value--use{display:block!important;min-height:8mm;padding:2mm 1mm;border-bottom:1px solid #999;
+    color:#111;line-height:1.55;white-space:normal;overflow-wrap:anywhere}
   input[type=radio],input[type=checkbox]{-webkit-appearance:auto;appearance:auto;border:initial!important}
   table{break-inside:avoid;page-break-inside:avoid}
   th,td{border-color:#777!important;padding:2mm!important}
@@ -336,7 +343,8 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
         <div class="fld"><label>주용도 (원문)</label>
           <input type="text" name="bd_use_main" value="<?=$v('bd_use_main')?>" placeholder="예: 공동주택"></div>
         <div class="fld"><label>기타용도</label>
-          <input type="text" name="bd_use_etc" value="<?=$v('bd_use_etc')?>"></div>
+          <textarea name="bd_use_etc" rows="2"><?=$v('bd_use_etc')?></textarea>
+          <div class="print-value print-value--use"><?=$v('bd_use_etc')?></div></div>
         <div class="fld"><label>사용승인일</label>
           <input type="text" name="bd_use_apr" value="<?=$v('bd_use_apr')?>" placeholder="예: 2013.08.14"></div>
       </div>
@@ -496,7 +504,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
           <textarea name="fire_engine_route_note" rows="4"
                     placeholder="예: 정문은 회전 공간이 좁아 대형 소방차는 후문으로 진입해야 합니다."
                     style="padding:10px 12px;border:1px solid var(--bd2);border-radius:9px;font-size:14px;line-height:1.6;font-family:inherit;background:#fff;color:var(--fg);resize:vertical"><?=$v('fire_engine_route_note')?></textarea>
-          <div class="hint">
+          <div class="hint no-print">
             예: 진입로 폭이 좁음 · 후문으로 진입 · 높이 제한 3.5m · 출입 차단기 있음 · 야간 관리실 연락 필요
           </div>
         </div>
@@ -616,6 +624,21 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 })();
 </script>
 <?php endif; ?>
+<script>
+/* 인쇄/PDF에는 사용자가 실제로 입력한 값만 표시합니다. */
+(function(){
+  function markEmptyPrintFields(){
+    document.querySelectorAll('input:not([type=hidden]):not([type=radio]):not([type=checkbox]), textarea').forEach(function(el){
+      el.classList.toggle('print-empty', el.value.trim() === '');
+    });
+  }
+  function clearEmptyPrintFields(){
+    document.querySelectorAll('.print-empty').forEach(function(el){ el.classList.remove('print-empty'); });
+  }
+  window.addEventListener('beforeprint', markEmptyPrintFields);
+  window.addEventListener('afterprint', clearEmptyPrintFields);
+})();
+</script>
 <?php if (($_GET['print'] ?? '') === '1'): ?>
 <script>
 /* 전체 인쇄 목록에서 들어오면 지도 타일과 진입선이 그려질 시간을 준 뒤 인쇄창을 엽니다. */
