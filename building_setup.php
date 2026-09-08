@@ -110,6 +110,12 @@ a{text-decoration:none}
 .btn:hover{border-color:var(--brand);color:var(--brand2)}
 .btn--primary{background:var(--brand);border-color:var(--brand);color:#fff}
 .btn--primary:hover{background:var(--brand2);color:#fff}
+.btn--success{background:#16a34a;border-color:#16a34a;color:#fff}
+.btn--success:hover{background:#15803d;border-color:#15803d;color:#fff}
+.btn--nudge{box-shadow:0 0 0 4px rgba(22,163,74,.24),0 2px 8px rgba(22,163,74,.22);
+  animation:nudgePulse 1.5s ease-in-out infinite}
+@keyframes nudgePulse{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@media(prefers-reduced-motion:reduce){.btn--nudge{animation:none}}
 
 .head{border-bottom:1px solid var(--bd);background:linear-gradient(180deg,#fbfcff,#eef3fb)}
 .head__in{max-width:880px;margin:0 auto;padding:36px 20px 30px}
@@ -121,6 +127,17 @@ a{text-decoration:none}
 .wrap{max-width:880px;margin:0 auto;padding:24px 20px 100px}
 .toast{background:#ecfdf5;border:1px solid #a7f3d0;color:#047857;
   border-radius:10px;padding:12px 15px;font-size:13.5px;margin-bottom:18px}
+.savedone{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:#f6fdf8;border:1px solid #bfe6cb;border-radius:14px;
+  padding:14px 16px;margin-bottom:18px;box-shadow:0 8px 24px rgba(16,24,40,.06)}
+.savedone__ic{font-size:20px;flex-shrink:0}
+.savedone__tx{flex:1;min-width:0}
+.savedone__tx b{display:block;font-size:14px;font-weight:800;color:#15803d}
+.savedone__tx small{display:block;font-size:12px;color:var(--mut);margin-top:3px;line-height:1.6}
+.savedone__btn{flex-shrink:0;background:#16a34a;color:#fff;border-radius:10px;
+  padding:10px 17px;font-size:13px;font-weight:700;white-space:nowrap}
+.savedone__btn:hover{filter:brightness(1.08);color:#fff}
+@media(max-width:560px){.savedone__btn{width:100%;text-align:center}}
 .info{display:flex;gap:11px;background:#f0f7ff;border:1px solid #cfe0ff;border-radius:12px;
   padding:14px 16px;margin-bottom:20px;font-size:13px;color:var(--brand2);line-height:1.7}
 
@@ -171,6 +188,17 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
   backdrop-filter:blur(10px);border-top:1px solid var(--bd);padding:12px 20px;
   display:flex;justify-content:center;gap:10px;z-index:40}
 .savebar .btn{padding:12px 30px;font-size:14.5px}
+.leave-mask{position:fixed;inset:0;z-index:100;background:rgba(20,26,40,.5);display:none;
+  align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(2px)}
+.leave-mask.show{display:flex}
+.leave-card{width:100%;max-width:430px;background:#fff;border-radius:17px;padding:24px;
+  box-shadow:0 24px 60px rgba(16,24,40,.28)}
+.leave-card h3{font-size:18px;color:var(--fg);margin-bottom:7px}
+.leave-card p{font-size:13px;color:var(--mut2);line-height:1.65;margin-bottom:18px}
+.leave-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.leave-actions .btn{justify-content:center;padding:10px 12px}
+.leave-actions .leave-stay{grid-column:1/-1;background:#f8fafc}
+@media(max-width:460px){.leave-actions{grid-template-columns:1fr}.leave-actions .leave-stay{grid-column:auto}}
 .print-head{display:none}
 .print-value{display:none}
 
@@ -228,13 +256,13 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 <nav class="nav">
   <div class="nav__in">
     <a class="brand" href="/index.php">YEOHUB</a>
-    <a class="btn" href="<?=h($url('/building_manager.php'))?>">← 메인</a>
+    <a class="btn js-main-link" href="<?=h($url('/building_manager.php'))?>" target="_top">← 메인</a>
   </div>
 </nav>
 
 <header class="head">
   <div class="head__in">
-    <div class="crumb"><a href="<?=h($url('/building_manager.php'))?>">건물 소방안전관리</a> › 기본정보</div>
+    <div class="crumb"><a class="js-main-link" href="<?=h($url('/building_manager.php'))?>" target="_top">건물 소방안전관리</a> › 기본정보</div>
     <h1>건물 기본정보</h1>
     <p>한 번만 입력하면 업무수행 기록표·훈련 기록부·소방계획서에 자동으로 채워집니다.</p>
   </div>
@@ -246,7 +274,14 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
     <p><?=h((string)($d['name'] ?? ''))?> · 출력일 <?=h(date('Y.m.d'))?></p>
   </div>
   <?php if ($saved): ?>
-    <div class="toast">✓ 저장되었습니다. 이제 각 서식에서 자동으로 불러옵니다.</div>
+    <div class="savedone no-print">
+      <div class="savedone__ic">✅</div>
+      <div class="savedone__tx">
+        <b>건물 기본정보를 저장했습니다</b>
+        <small>입력한 정보가 각 서식에 자동으로 반영됩니다.</small>
+      </div>
+      <a class="savedone__btn js-main-link" href="<?=h($url('/building_manager.php'))?>" target="_top">메인으로 →</a>
+    </div>
   <?php elseif (!empty($saveErr)): ?>
     <div class="toast" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">
       ✕ 저장하지 못했습니다. data 폴더 쓰기 권한을 확인하거나, 다시 로그인 후 시도해 주세요.</div>
@@ -546,12 +581,55 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 </main>
 
 <div class="savebar">
-  <a class="btn" target="_top" href="<?=h($url('/building_manager.php'))?>">취소</a>
+  <a class="btn btn--success<?= $saved ? ' btn--nudge' : '' ?> js-main-link" target="_top"
+    href="<?=h($url('/building_manager.php'))?>">🏠 메인으로</a>
   <button class="btn" type="button" onclick="window.print()">인쇄 / PDF</button>
   <button class="btn btn--primary" onclick="document.getElementById('biForm').requestSubmit()">저장</button>
 </div>
 
+<div class="leave-mask no-print" id="leaveMask" role="dialog" aria-modal="true" aria-labelledby="leaveTitle">
+  <div class="leave-card">
+    <h3 id="leaveTitle">바뀐 정보가 있습니다</h3>
+    <p>저장하지 않고 메인으로 이동하면 지금 수정한 내용이 사라집니다. 어떻게 할까요?</p>
+    <div class="leave-actions">
+      <button class="btn btn--primary" type="button" id="saveAndLeaveBtn">저장 후 이동</button>
+      <button class="btn" type="button" id="leaveWithoutSaveBtn">저장하지 않고 이동</button>
+      <button class="btn leave-stay" type="button" id="stayBtn">계속 수정</button>
+    </div>
+  </div>
+</div>
+
 <script>
+  /* 입력이 바뀐 경우에만 메인 이동 전 저장 여부를 묻습니다. */
+  (function(){
+    var form = document.getElementById('biForm');
+    var mask = document.getElementById('leaveMask');
+    var destination = <?=json_encode($url('/building_manager.php'))?>;
+    window.buildingInfoDirty = false;
+
+    form.addEventListener('input', function(){ window.buildingInfoDirty = true; });
+    form.addEventListener('change', function(){ window.buildingInfoDirty = true; });
+
+    document.querySelectorAll('.js-main-link').forEach(function(link){
+      link.addEventListener('click', function(e){
+        if (!window.buildingInfoDirty) return;
+        e.preventDefault();
+        destination = link.href;
+        mask.classList.add('show');
+      });
+    });
+    document.getElementById('stayBtn').onclick = function(){ mask.classList.remove('show'); };
+    document.getElementById('leaveWithoutSaveBtn').onclick = function(){ window.top.location.href = destination; };
+    document.getElementById('saveAndLeaveBtn').onclick = function(){
+      var action = new URL(window.location.href);
+      action.searchParams.set('after_save', 'main');
+      form.action = action.pathname + action.search;
+      form.requestSubmit();
+    };
+    mask.addEventListener('click', function(e){ if(e.target === mask) mask.classList.remove('show'); });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape') mask.classList.remove('show'); });
+  })();
+
   document.querySelectorAll('[data-seg],[data-tseg]').forEach(function(g){
     g.querySelectorAll('label').forEach(function(lb){
       lb.addEventListener('click', function(){
@@ -608,6 +686,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
     }
 
     kakao.maps.event.addListener(map, 'click', function(e){
+      window.buildingInfoDirty = true;
       if(routeMode){route.push({lat:e.latLng.getLat(),lng:e.latLng.getLng()});drawRoute();return;}
       marker.setPosition(e.latLng);
       document.getElementById('asmLat').value = e.latLng.getLat();
@@ -617,8 +696,8 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
     });
     var editBtn=document.getElementById('routeEditBtn'), undoBtn=document.getElementById('routeUndoBtn'), resetBtn=document.getElementById('routeResetBtn');
     editBtn.onclick=function(){routeMode=!routeMode;editBtn.textContent=routeMode?'진입로 그리기 완료':'소방차 진입로 그리기';undoBtn.style.display=resetBtn.style.display=routeMode?'':'none';drawRoute();};
-    undoBtn.onclick=function(){route.pop();drawRoute();};
-    resetBtn.onclick=function(){route=[];drawRoute();};
+    undoBtn.onclick=function(){route.pop();window.buildingInfoDirty=true;drawRoute();};
+    resetBtn.onclick=function(){route=[];window.buildingInfoDirty=true;drawRoute();};
     drawRoute();
   });
 })();
@@ -639,6 +718,12 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
   window.addEventListener('afterprint', clearEmptyPrintFields);
 })();
 </script>
+<?php if ($saved && ($_GET['after_save'] ?? '') === 'main'): ?>
+<script>
+/* 팝업에서 '저장 후 이동'을 고른 경우 저장 성공을 확인한 뒤 iframe 밖 메인으로 이동합니다. */
+window.top.location.replace(<?=json_encode($url('/building_manager.php'))?>);
+</script>
+<?php endif; ?>
 <?php if (($_GET['print'] ?? '') === '1'): ?>
 <script>
 /* 전체 인쇄 목록에서 들어오면 지도 타일과 진입선이 그려질 시간을 준 뒤 인쇄창을 엽니다. */
