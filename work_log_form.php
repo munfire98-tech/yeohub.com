@@ -327,8 +327,9 @@ textarea.cell{min-height:64px}
   .dwrap{display:block}
   .sign__btn{display:none !important}
   .sign img{height:26px !important;width:auto !important;max-width:95px !important;min-width:50px !important}
+  html,body{width:100%;overflow-x:visible}
   body{background:#fff}
-  .sheet{box-shadow:none;border:0;margin:0;max-width:none;border-radius:0;padding:0}
+  .sheet{box-shadow:none;border:0;margin:0;max-width:none;border-radius:0;padding:0;overflow:visible}
   input.cell:focus,textarea.cell:focus{background:transparent}
   @page{size:A4;margin:12mm}
 
@@ -343,11 +344,16 @@ textarea.cell{min-height:64px}
   table.f{border-collapse:collapse!important;border-spacing:0!important}
   /* ★ border-collapse 에서는 표 맨 가장자리(특히 우측) 선이 인쇄 시 절반만 그려지는 일이
      흔합니다. 표 자체에 바깥 테두리를 명시해 안쪽 선과 같은 굵기로 맞춥니다. */
-  table.f{border:var(--form-line-width) solid var(--form-line-color)!important}
+  /* 폭 100%의 우측 선이 출력 영역 밖에서 반쪽 잘리지 않도록 1px 안쪽에 둡니다. */
+  table.f{width:calc(100% - 1px)!important;margin-right:1px!important;
+    border:var(--form-line-width) solid var(--form-line-color)!important}
   table.f>tbody>tr>td,table.f>tbody>tr>th{
     border-color:var(--form-line-color)!important;
     border-style:solid!important;
     border-width:var(--form-line-width)!important;
+  }
+  table.f>tbody>tr>td:last-child,table.f>tbody>tr>th:last-child{
+    border-right:var(--form-line-width) solid var(--form-line-color)!important;
   }
   table.f--joined{border-top:0!important}
   table.f--joined>tbody>tr:first-child>td,table.f--joined>tbody>tr:first-child>th{border-top-width:0!important}
