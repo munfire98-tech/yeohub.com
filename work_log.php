@@ -102,11 +102,31 @@ function worklog_note_defaults(string $sprinkler, string $hydrant = 'no'): array
   ];
 }
 
+/* 시설 선택이 바뀌면 자동 관리하는 두 문구만 추가·제거합니다.
+   사용자가 직접 작성한 나머지 소방시설 문구는 그대로 보존합니다. */
+function worklog_sync_facility_note(string $note, string $sprinkler, string $hydrant): string {
+  $sprinklerText = '스프링클러 헤드 훼손·누수·살수 장애물 여부 확인';
+  $hydrantText = '옥내소화전함 주변 적치물 및 사용 가능 상태 확인';
+  $parts = preg_split('/\s*,\s*/u', trim($note)) ?: [];
+  $parts = array_values(array_filter(array_map('trim', $parts), static function(string $part) use ($sprinklerText, $hydrantText): bool {
+    return $part !== '' && $part !== $sprinklerText && $part !== $hydrantText;
+  }));
+  if (!$parts) {
+    $parts = ['소화기 비치 및 압력 상태 확인', '자동화재탐지설비 감지기·수신기 정상 상태 확인'];
+  }
+  $facilityParts = [];
+  if ($sprinkler === 'yes') $facilityParts[] = $sprinklerText;
+  if ($hydrant === 'yes') $facilityParts[] = $hydrantText;
+  array_splice($parts, min(1, count($parts)), 0, $facilityParts);
+  return implode(', ', $parts);
+}
+
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
 $CSRF = $_SESSION['csrf'];
 
 $fixed = load_json($FIXED_FILE);
 $saved = '';
+$saveError = '';
 $viewUid = app_user_key();
 $adminView = is_admin() && trim((string)($_GET['uid'] ?? '')) !== '' && $viewUid !== '';
 $adminQuery = $adminView ? ('uid=' . rawurlencode($viewUid)) : '';
@@ -138,6 +158,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
       return array_key_exists($k, $_POST) ? trim((string)$_POST[$k]) : (string)($keep[$k] ?? '');
     };
     $postedGrade = in_array($_POST['grade'] ?? '', ['특급','1급','2급','3급'], true) ? (string)$_POST['grade'] : '';
+    $postedSprinkler = in_array($_POST['sprinkler'] ?? '', ['yes','no'], true) ? (string)$_POST['sprinkler'] : '';
+    $postedHydrant = in_array($_POST['hydrant'] ?? '', ['yes','no'], true) ? (string)$_POST['hydrant'] : '';
     $fixed = [
       'bcode'    => $bcode,
       'sangho'   => $pick('sangho'),
@@ -149,20 +171,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
       'area_f'   => $pick('area_f'),
       'dongsu'   => $pick('dongsu'),
       'performer'=> $pick('performer'),
-      'sprinkler'=> $pick('sprinkler'),
-      'hydrant'=> $pick('hydrant'),
+      'sprinkler'=> $postedSprinkler !== '' ? $postedSprinkler : $pick('sprinkler'),
+      'hydrant'=> $postedHydrant !== '' ? $postedHydrant : $pick('hydrant'),
       'facility_setup_done'=> $pick('facility_setup_done'),
       'note_sobang' => $pick('note_sobang'),
       'note_pinan'  => $pick('note_pinan'),
       'note_hwagi'  => $pick('note_hwagi'),
       'note_etc'    => $pick('note_etc'),
     ];
-    save_json($FIXED_FILE, $fixed);
-    $saved = '확인내용 기본값이 저장되었습니다.';
+    $fixed['note_sobang'] = worklog_sync_facility_note(
+      (string)$fixed['note_sobang'], (string)$fixed['sprinkler'], (string)$fixed['hydrant']
+    );
+    $missing = [];
+    if (!in_array($fixed['sprinkler'], ['yes','no'], true)) $missing[] = '스프링클러';
+    if (!in_array($fixed['hydrant'], ['yes','no'], true)) $missing[] = '옥내소화전';
+    foreach ([
+      'note_sobang'=>'소방시설', 'note_pinan'=>'피난방화시설',
+      'note_hwagi'=>'화기취급감독', 'note_etc'=>'기타사항'
+    ] as $key=>$label) {
+      if (trim((string)($fixed[$key] ?? '')) === '') $missing[] = $label;
+    }
+    if ($missing) {
+      $saveError = implode(', ', $missing) . ' 기본값을 모두 작성해 주세요.';
+      $fixed = $keep;   // 필수값이 비어 있으면 기존 저장본을 보존합니다.
+    } else {
+      save_json($FIXED_FILE, $fixed);
+      $saved = '확인내용 기본값이 저장되었습니다.';
+    }
   }
 }
 
 $fixed = sync_worklog_fixed_with_basic($fixed);
+if (in_array((string)($fixed['sprinkler'] ?? ''), ['yes','no'], true)
+    && in_array((string)($fixed['hydrant'] ?? ''), ['yes','no'], true)) {
+  $fixed['note_sobang'] = worklog_sync_facility_note(
+    (string)($fixed['note_sobang'] ?? ''), (string)$fixed['sprinkler'], (string)$fixed['hydrant']
+  );
+}
 save_json($FIXED_FILE, $fixed);
 $noteProg = worklog_note_progress($fixed);
 $biProg = bi_progress();
@@ -170,8 +215,20 @@ $biDone = $biProg['filled'] >= $biProg['total'];
 $sprinkler = (string)($fixed['sprinkler'] ?? '');
 $sprinklerSet = in_array($sprinkler, ['yes', 'no'], true);
 $hydrant = (string)($fixed['hydrant'] ?? '');
-$setupComplete = $noteProg['filled'] >= $noteProg['total'] && !empty($fixed['facility_setup_done']);
-$showQuickSetup = empty($fixed['facility_setup_done']);
+$hydrantSet = in_array($hydrant, ['yes', 'no'], true);
+$setupComplete = $sprinklerSet && $hydrantSet
+  && $noteProg['filled'] >= $noteProg['total'] && !empty($fixed['facility_setup_done']);
+$showQuickSetup = empty($fixed['facility_setup_done']) || !$sprinklerSet || !$hydrantSet;
+$defaultsLocked = !$setupComplete;
+$missingDefaultLabels = [];
+if (!$sprinklerSet) $missingDefaultLabels[] = '스프링클러';
+if (!$hydrantSet) $missingDefaultLabels[] = '옥내소화전';
+foreach ([
+  'note_sobang'=>'소방시설', 'note_pinan'=>'피난방화시설',
+  'note_hwagi'=>'화기취급감독', 'note_etc'=>'기타사항'
+] as $key=>$label) {
+  if (trim((string)($fixed[$key] ?? '')) === '') $missingDefaultLabels[] = $label;
+}
 
 $worklogReviewPending = 0;
 $worklogReviewResolvedRecent = false;
@@ -273,6 +330,19 @@ a{text-decoration:none}
   background:#f0fdf4;color:#15803d}
 .setup-card__state.needs{background:#fff7ed;color:#c2410c}
 .monthly-section{order:1}
+.monthly-section.is-locked{position:relative;border-color:#f0c36b}
+.monthly-section.is-locked>.month-titlebar,
+.monthly-section.is-locked>.desc,
+.monthly-section.is-locked>.warn,
+.monthly-section.is-locked>.monthguide,
+.monthly-section.is-locked>.yeargroup{opacity:.35;pointer-events:none;user-select:none}
+.defaults-gate{position:relative;z-index:2;display:flex;align-items:center;gap:13px;flex-wrap:wrap;
+  margin-bottom:18px;padding:14px 16px;border:1px solid #f0c36b;border-radius:12px;background:#fffbeb;color:#854d0e}
+.defaults-gate__icon{display:flex;align-items:center;justify-content:center;width:38px;height:38px;flex:0 0 38px;
+  border-radius:10px;background:#fef3c7;font-size:18px}
+.defaults-gate__text{flex:1;min-width:210px}
+.defaults-gate__text b{display:block;font-size:14px}
+.defaults-gate__text small{display:block;margin-top:2px;color:#a16207;font-size:12px}
 .setup-details{order:3}
 .section{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:24px;margin-bottom:20px}
 .section h2{font-size:17px;font-weight:700;margin-bottom:4px}
@@ -288,6 +358,7 @@ a{text-decoration:none}
 .grade{display:flex;align-items:center;gap:6px;padding:9px 14px;border:1px solid var(--bd2);border-radius:9px;font-size:14px;cursor:pointer;background:#f8fafc}
 .grade:has(input:checked){border-color:var(--brand);background:#f0f5ff;color:var(--brand2);font-weight:600}
 .toast{background:#ecfdf5;border:1px solid #a7f3d0;color:#047857;border-radius:9px;padding:10px 14px;font-size:13px;margin-bottom:16px}
+.toast--error{background:#fff7ed;border-color:#fdba74;color:#c2410c}
 .warn{background:#fff7ed;border:1px solid #fed7aa;color:#c2410c;border-radius:9px;padding:12px 14px;font-size:14px;margin-bottom:18px}
 .months{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
 .yeargroup{margin-bottom:26px}
@@ -343,6 +414,18 @@ a{text-decoration:none}
 .sprinkler-choice:hover{border-color:var(--brand);color:var(--brand2);background:#eef5ff}
 .sprinkler-choice.is-selected{background:var(--brand);border-color:var(--brand);color:#fff;
   box-shadow:0 0 0 3px rgba(37,99,235,.13)}
+.facility-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0 4px}
+.facility-check{border:1px solid #d7e1ee;border-radius:12px;background:#f8fbff;padding:13px 14px}
+.facility-check__title{display:block;color:#20334e;font-size:13px;font-weight:800;margin-bottom:9px}
+.facility-check__options{display:flex;gap:7px}
+.facility-auto-note{margin:8px 0 18px;color:#52647c;font-size:12px;line-height:1.55}
+.facility-option{position:relative;flex:1;cursor:pointer}
+.facility-option input{position:absolute;opacity:0;pointer-events:none}
+.facility-option span{display:flex;align-items:center;justify-content:center;padding:8px 10px;border:1px solid var(--bd2);
+  border-radius:8px;background:#fff;color:var(--mut2);font-size:12.5px;font-weight:750;transition:.15s}
+.facility-option input:checked+span{border-color:var(--brand);background:#eaf2ff;color:var(--brand2);
+  box-shadow:0 0 0 2px rgba(37,99,235,.1)}
+.facility-option input:focus-visible+span{outline:2px solid var(--brand);outline-offset:2px}
 .month-titlebar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px}
 .month-titlebar h2{margin:0}.settings-jump{padding:7px 11px;font-size:12px;white-space:nowrap}
 .quick-mask{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
@@ -354,7 +437,7 @@ a{text-decoration:none}
 .quick-choice span{display:inline-flex;min-width:55px;justify-content:center;padding:8px 12px;border:1px solid var(--bd2);border-radius:9px;background:#f8fafc;color:var(--mut2);font-size:13px;cursor:pointer}
 .quick-choice input:checked+span{border-color:var(--brand);background:#eff6ff;color:var(--brand2);font-weight:800}
 .quick-submit{width:100%;justify-content:center;margin-top:17px;padding:11px}
-@media(max-width:560px){.sprinkler-options,.sprinkler-choice{width:100%}.sprinkler-choice{justify-content:center}}
+@media(max-width:560px){.sprinkler-options,.sprinkler-choice{width:100%}.sprinkler-choice{justify-content:center}.facility-checks{grid-template-columns:1fr}}
 .notegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
 .notefield{display:flex;flex-direction:column;gap:5px}
 .notefield label{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px}
@@ -363,7 +446,19 @@ a{text-decoration:none}
 .notefield textarea{padding:11px 13px;border:1px solid var(--bd2);border-radius:9px;font-size:14px;
   font-family:inherit;background:#f8fafc;resize:vertical;min-height:78px;line-height:1.6;width:100%}
 .notefield textarea:focus{outline:none;border-color:var(--brand);background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
-.btn--tiny{align-self:flex-start;padding:5px 11px;font-size:12px}</style>
+.btn--tiny{align-self:flex-start;padding:5px 11px;font-size:12px}
+.page-actions{position:fixed;left:0;right:0;bottom:0;z-index:60;padding:10px 16px;
+  background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border-top:1px solid var(--bd);
+  box-shadow:0 -4px 18px rgba(15,23,42,.08)}
+.page-actions__inner{max-width:1120px;margin:0 auto;display:flex;justify-content:center;align-items:center;gap:9px}
+.page-actions .btn{justify-content:center;min-width:150px;padding:11px 22px;font-size:13.5px}
+.page-actions .btn[disabled]{cursor:not-allowed;color:#9aa3b2;background:#f3f4f6;border-color:#e5e7eb}
+.page-actions .btn--home{background:#16a34a;border-color:#16a34a;color:#fff;
+  box-shadow:0 5px 14px rgba(22,163,74,.18)}
+.page-actions .btn--home:hover{background:#15803d;border-color:#15803d;color:#fff}
+@media(max-width:560px){.page-actions{padding:8px}.page-actions__inner{gap:7px}.page-actions .btn{flex:1;min-width:0;padding:10px 8px;font-size:12.5px}}
+@media print{.page-actions{display:none!important}}
+</style>
 </head>
 <body>
 
@@ -390,6 +485,7 @@ a{text-decoration:none}
 <main class="wrap">
 
   <?php if ($saved): ?><div class="toast"><?=h($saved)?></div><?php endif; ?>
+  <?php if ($saveError): ?><div class="toast toast--error" role="alert"><?=h($saveError)?></div><?php endif; ?>
   <?php if (($_GET['setup'] ?? '') === 'done'): ?><div class="toast">소방시설 기본값을 저장했습니다.</div><?php endif; ?>
 
   <div class="setup-overview">
@@ -410,15 +506,21 @@ a{text-decoration:none}
           <?php else: ?>스프링클러 여부만 확인하면 자동 저장<?php endif; ?>
         </small>
       </span>
-      <?php $defaultsComplete = $sprinklerSet && $noteProg['filled'] >= $noteProg['total']; ?>
+      <?php $defaultsComplete = $setupComplete; ?>
       <span class="setup-card__state <?= $defaultsComplete ? '' : 'needs' ?>"><?= $defaultsComplete ? '완료' : '확인 필요' ?></span>
     </a>
   </div>
 
-  <details class="section setup-details" id="setupDetails">
+  <details class="section setup-details" id="setupDetails" <?= $defaultsLocked && !$showQuickSetup ? 'open' : '' ?>>
     <summary style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer;list-style:none">
     <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0">
-      소방시설 기본값 수정
+      소방시설 기본값 <?= $defaultsLocked ? '작성' : '수정' ?>
+      <?php if ($sprinklerSet): ?>
+        <span class="bcode-badge">스프링클러 <?= $sprinkler === 'yes' ? '있음' : '없음' ?></span>
+      <?php endif; ?>
+      <?php if ($hydrantSet): ?>
+        <span class="bcode-badge">옥내소화전 <?= $hydrant === 'yes' ? '있음' : '없음' ?></span>
+      <?php endif; ?>
       <?php if ($worklogReviewPending > 0): ?>
         <span class="bcode-badge" style="background:#fef3c7;border-color:#fde68a;color:#b45309">확인요청 <?=$worklogReviewPending?>건</span>
       <?php elseif ($worklogReviewResolvedRecent): ?>
@@ -436,6 +538,37 @@ a{text-decoration:none}
     <form method="post" id="noteForm">
       <input type="hidden" name="action" value="save_fixed">
       <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
+      <input type="hidden" name="facility_setup_done" value="1">
+
+      <div class="facility-checks" id="defaultSetup">
+        <div class="facility-check">
+          <span class="facility-check__title">스프링클러</span>
+          <div class="facility-check__options">
+            <label class="facility-option">
+              <input type="radio" name="sprinkler" value="yes" <?= $sprinkler === 'yes' ? 'checked' : '' ?> required>
+              <span>있음</span>
+            </label>
+            <label class="facility-option">
+              <input type="radio" name="sprinkler" value="no" <?= $sprinkler === 'no' ? 'checked' : '' ?>>
+              <span>없음</span>
+            </label>
+          </div>
+        </div>
+        <div class="facility-check">
+          <span class="facility-check__title">옥내소화전</span>
+          <div class="facility-check__options">
+            <label class="facility-option">
+              <input type="radio" name="hydrant" value="yes" <?= $hydrant === 'yes' ? 'checked' : '' ?> required>
+              <span>있음</span>
+            </label>
+            <label class="facility-option">
+              <input type="radio" name="hydrant" value="no" <?= $hydrant === 'no' ? 'checked' : '' ?>>
+              <span>없음</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <p class="facility-auto-note">시설 선택을 바꾸면 아래 <b>소방시설 기본 문구</b>에 해당 점검 내용이 자동으로 추가되거나 빠집니다.</p>
 
       <div class="notehd">
         <h3>확인내용 기본값</h3>
@@ -475,7 +608,7 @@ a{text-decoration:none}
               <?php endif; ?>
             </label>
             <div class="notehint"><?=h($nf[1])?></div>
-            <textarea id="<?=h($key)?>" name="<?=h($key)?>" rows="3"
+            <textarea id="<?=h($key)?>" name="<?=h($key)?>" rows="3" required
                       placeholder="<?=h($nf[2])?>"><?=h((string)($fixed[$key] ?? ''))?></textarea>
             <button type="button" class="btn btn--tiny" onclick="fillNote('<?=h($key)?>')">✍️ 예시 넣기</button>
           </div>
@@ -483,19 +616,52 @@ a{text-decoration:none}
       </div>
 
       <div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:18px;align-items:center">
-        <button class="btn btn--primary" type="submit">확인내용 기본값 저장</button>
+        <button class="btn btn--primary" type="submit">시설 선택과 기본값 저장</button>
       </div>
     </form>
 
     <script>
     var NOTE_SAMPLES = <?=json_encode(array_map(fn($x) => $x[2], $noteFields), JSON_UNESCAPED_UNICODE)?>;
+    var FACILITY_NOTES = {
+      baseFirst: '소화기 비치 및 압력 상태 확인',
+      sprinkler: '스프링클러 헤드 훼손·누수·살수 장애물 여부 확인',
+      hydrant: '옥내소화전함 주변 적치물 및 사용 가능 상태 확인',
+      baseLast: '자동화재탐지설비 감지기·수신기 정상 상태 확인'
+    };
+    function facilityChoice(name){
+      var checked = document.querySelector('input[name="' + name + '"]:checked');
+      return checked ? checked.value : '';
+    }
+    function syncFacilityNote(){
+      var el = document.getElementById('note_sobang');
+      if (!el) return;
+      var parts = el.value.split(/\s*,\s*/).map(function(part){ return part.trim(); }).filter(function(part){
+        return part && part !== FACILITY_NOTES.sprinkler && part !== FACILITY_NOTES.hydrant;
+      });
+      if (!parts.length) parts = [FACILITY_NOTES.baseFirst, FACILITY_NOTES.baseLast];
+      var additions = [];
+      if (facilityChoice('sprinkler') === 'yes') additions.push(FACILITY_NOTES.sprinkler);
+      if (facilityChoice('hydrant') === 'yes') additions.push(FACILITY_NOTES.hydrant);
+      parts.splice.apply(parts, [Math.min(1, parts.length), 0].concat(additions));
+      el.value = parts.join(', ');
+    }
+    function currentSobangSample(){
+      var parts = [FACILITY_NOTES.baseFirst];
+      if (facilityChoice('sprinkler') === 'yes') parts.push(FACILITY_NOTES.sprinkler);
+      if (facilityChoice('hydrant') === 'yes') parts.push(FACILITY_NOTES.hydrant);
+      parts.push(FACILITY_NOTES.baseLast);
+      return parts.join(', ');
+    }
     function fillNote(key){
       var el = document.getElementById(key);
       if (!el) return;
       if (el.value.trim() !== '' && !confirm('이미 적힌 내용을 예시로 바꿀까요?')) return;
-      el.value = NOTE_SAMPLES[key] || '';
+      el.value = key === 'note_sobang' ? currentSobangSample() : (NOTE_SAMPLES[key] || '');
       el.focus();
     }
+    document.querySelectorAll('input[name="sprinkler"], input[name="hydrant"]').forEach(function(input){
+      input.addEventListener('change', syncFacilityNote);
+    });
     function openSetup(targetId){
       var details = document.getElementById('setupDetails');
       if (details) details.open = true;
@@ -508,7 +674,20 @@ a{text-decoration:none}
     </script>
   </details>
 
-  <div class="section monthly-section">
+  <div class="section monthly-section<?= $defaultsLocked ? ' is-locked' : '' ?>">
+    <?php if ($defaultsLocked): ?>
+      <div class="defaults-gate" role="alert">
+        <span class="defaults-gate__icon">⚠</span>
+        <div class="defaults-gate__text">
+          <b>월별 기록 전에 기본값을 먼저 작성해 주세요.</b>
+          <small>
+            <?php if ($missingDefaultLabels): ?>미작성: <?=h(implode(', ', $missingDefaultLabels))?>
+            <?php else: ?>소방시설 기본 설정을 저장하면 월별 기록이 열립니다.<?php endif; ?>
+          </small>
+        </div>
+        <button class="btn btn--primary" type="button" onclick="openDefaultSettings()">기본값 작성하기</button>
+      </div>
+    <?php endif; ?>
     <div class="month-titlebar">
       <h2>월별 기록 (최근 2년)</h2>
       <button class="btn settings-jump" type="button" onclick="openDefaultSettings()">⚙ 기본값 수정</button>
@@ -525,9 +704,13 @@ a{text-decoration:none}
           <b><?=h($currentMonthLabel)?> 업무 수행 기록이 아직 없습니다.</b>
           <small>이번 달 점검 내용을 작성하고 저장해 주세요.</small>
         </div>
-        <a class="btn btn--month" href="<?=h($url('/work_log_form.php?month=' . rawurlencode($currentMonthKey)))?>">
-          이번 달 업무 수행 작성하기 →
-        </a>
+        <?php if ($defaultsLocked): ?>
+          <span class="btn btn--month" aria-disabled="true">기본값 작성 후 이용</span>
+        <?php else: ?>
+          <a class="btn btn--month" href="<?=h($url('/work_log_form.php?month=' . rawurlencode($currentMonthKey)))?>">
+            이번 달 업무 수행 작성하기 →
+          </a>
+        <?php endif; ?>
       </div>
     <?php endif; ?>
 
@@ -536,8 +719,10 @@ a{text-decoration:none}
         <div class="yearhead">
           <h3><?=h($year)?>년</h3>
           <?php $cnt = $doneByYear[$year] ?? 0; ?>
-          <?php if ($cnt > 0): ?>
+          <?php if ($cnt > 0 && !$defaultsLocked): ?>
             <a class="btn btn--primary" href="<?=h($url('/work_log_print.php?year=' . rawurlencode($year)))?>">🖨 <?=$year?>년 전체 인쇄 / PDF (<?=$cnt?>건)</a>
+          <?php elseif ($cnt > 0): ?>
+            <span class="yearempty">기본값 작성 후 인쇄</span>
           <?php else: ?>
             <span class="yearempty">작성된 기록 없음</span>
           <?php endif; ?>
@@ -559,7 +744,11 @@ a{text-decoration:none}
                 <?php endif; ?>
               </div>
               <div class="mtoolbar">
-                <a href="<?=h($url('/work_log_form.php?month=' . rawurlencode($mo['key'])))?>"><?= $mo['done'] ? '수정/인쇄 →' : ($needsCurrentMonth ? '이번 달 작성하기 →' : '작성하기 →') ?></a>
+                <?php if ($defaultsLocked): ?>
+                  <span aria-disabled="true">기본값 작성 후 이용</span>
+                <?php else: ?>
+                  <a href="<?=h($url('/work_log_form.php?month=' . rawurlencode($mo['key'])))?>"><?= $mo['done'] ? '수정/인쇄 →' : ($needsCurrentMonth ? '이번 달 작성하기 →' : '작성하기 →') ?></a>
+                <?php endif; ?>
               </div>
             </div>
           <?php endforeach; ?>
@@ -577,12 +766,12 @@ a{text-decoration:none}
         <h2 id="quickSetupTitle">소방시설 기본 설정</h2>
         <p>두 가지만 알려주세요. 월별 기록에 사용할 점검 문구를 자동으로 준비합니다.</p>
         <div class="quick-q"><div class="quick-q__head"><span>스프링클러가 있습니까?</span><span class="quick-choices">
-          <label class="quick-choice"><input type="radio" name="has_sprinkler" value="yes" required><span>있음</span></label>
-          <label class="quick-choice"><input type="radio" name="has_sprinkler" value="no"><span>없음</span></label>
+          <label class="quick-choice"><input type="radio" name="has_sprinkler" value="yes" <?= $sprinkler === 'yes' ? 'checked' : '' ?> required><span>있음</span></label>
+          <label class="quick-choice"><input type="radio" name="has_sprinkler" value="no" <?= $sprinkler === 'no' ? 'checked' : '' ?>><span>없음</span></label>
         </span></div></div>
         <div class="quick-q"><div class="quick-q__head"><span>옥내소화전이 있습니까?</span><span class="quick-choices">
-          <label class="quick-choice"><input type="radio" name="has_hydrant" value="yes" required><span>있음</span></label>
-          <label class="quick-choice"><input type="radio" name="has_hydrant" value="no"><span>없음</span></label>
+          <label class="quick-choice"><input type="radio" name="has_hydrant" value="yes" <?= $hydrant === 'yes' ? 'checked' : '' ?> required><span>있음</span></label>
+          <label class="quick-choice"><input type="radio" name="has_hydrant" value="no" <?= $hydrant === 'no' ? 'checked' : '' ?>><span>없음</span></label>
         </span></div></div>
         <button class="btn btn--primary quick-submit" type="submit">기본값 저장하고 월별 기록 보기</button>
       </form>
@@ -599,6 +788,13 @@ a{text-decoration:none}
   </script>
 
 </main>
+
+<div class="page-actions" role="navigation" aria-label="페이지 작업">
+  <div class="page-actions__inner">
+    <a class="btn btn--home" href="<?=h($url('/building_manager.php'))?>" target="_top">🏠 메인으로</a>
+    <button class="btn btn--primary" type="button" onclick="openDefaultSettings()">⚙ 기본값 수정</button>
+  </div>
+</div>
 
 </body>
 </html>
