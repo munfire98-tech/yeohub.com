@@ -393,7 +393,17 @@ $ACCOUNT_NICK = $_SESSION['nickname'] ?? '사용자';
 $ACCOUNT_IS_ADMIN = is_admin();
 require __DIR__ . '/_header.php';
 ?>
+<script>
+if (window.self !== window.top) document.documentElement.classList.add('subscription-embedded');
+</script>
 <style>
+.subscription-embedded .nav,.subscription-embedded .site-header,
+.subscription-embedded .account-nav,.subscription-embedded .page-head,
+.subscription-embedded footer{display:none!important}
+.subscription-embedded body{padding-top:0!important;margin-top:0!important}
+.subscription-embedded main.wrap{max-width:960px;margin:0 auto;padding:16px}
+.subscription-payment-note{display:none}
+.subscription-embedded .subscription-payment-note{display:block;margin-bottom:12px;font-size:12px;color:var(--mut)}
 /* 구독 페이지 전용 — service.php/blog.php 와 같은 방식: 기존 .wrap/.card/.btn 위에 최소한만 더합니다 */
 .sub-state{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .sub-badge{font-size:12px;font-weight:800;border-radius:999px;padding:5px 13px}
@@ -529,6 +539,7 @@ details.sub-fold{padding:0;overflow:hidden}
 </header>
 
 <main class="wrap">
+  <p class="subscription-payment-note">카드 등록·변경은 전체 화면으로 이동한 뒤 진행합니다.</p>
   <?php if ($flash): ?>
     <div class="sub-flash <?=h($flashType)?>"><?=h($flash)?></div>
   <?php endif; ?>
@@ -603,6 +614,12 @@ details.sub-fold{padding:0;overflow:hidden}
        성공하면 successUrl 로 authKey·customerKey 가 붙어 돌아오고,
        거기서 빌링키를 발급받아 저장합니다. */
     function registerCard(){
+      if (window.self !== window.top) {
+        var fullPage = new URL(window.location.href);
+        fullPage.searchParams.delete('embed');
+        window.top.location.href = fullPage.href;
+        return;
+      }
       var toss = TossPayments(<?=json_encode(tb_client_key())?>);
       toss.requestBillingAuth('카드', {
         customerKey: <?=json_encode(tb_customer_key())?>,

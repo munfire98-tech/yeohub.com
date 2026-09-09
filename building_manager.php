@@ -353,7 +353,7 @@ if (!$hasBi) {
 } elseif ($doneWorkLog !== true) {
   $aiNextTask = date('n').'월 업무수행 기록'; $aiNextAction = '기록 작성'; $aiNextUrl = $url('/work_log.php');
 } elseif ($doneJawi !== true) {
-  $aiNextTask = '자위소방대 교육·훈련 기록'; $aiNextAction = '교육 기록'; $aiNextUrl = $url('/jawi.php');
+  $aiNextTask = '자위소방대 교육·훈련 기록'; $aiNextAction = '교육 기록'; $aiNextUrl = $url('/jawi.php?stay=1');
 } elseif ($doneTrain !== true) {
   $aiNextTask = '소방훈련·교육 기록'; $aiNextAction = '훈련 기록'; $aiNextUrl = $url('/train.php');
 } elseif (!$hasEvacuationPlan) {
@@ -1164,10 +1164,45 @@ a.pstep:hover{background:#f2f6fd}
   border-top:1px dashed #d8d5ec;color:#5b4ca2}
 .building-tasknav__pro-title b{font-size:10.5px;letter-spacing:.03em}
 .building-tasknav__pro-title span{font-size:8.5px;font-weight:800;padding:2px 6px;border-radius:5px;background:#ede9fe;color:#6d28d9}
+.building-tasknav__pro-guide{color:#5b4ca2;font-size:10px;font-weight:600;text-decoration:none;white-space:nowrap}
+.building-tasknav__pro-guide:hover{text-decoration:underline}
+.building-tasknav__pro-guide:focus-visible{outline:2px solid #a78bfa;outline-offset:3px}
+.pro-disclosure{grid-column:1/-1;min-width:0;margin-top:4px;border-top:1px dashed #d8d5ec}
+.pro-disclosure>summary{display:flex;align-items:center;gap:10px;padding:12px 2px;list-style:none;cursor:pointer;color:#5b4ca2;font-size:10.5px;font-weight:700}
+.pro-disclosure>summary::-webkit-details-marker{display:none}
+.pro-disclosure>summary::after{content:'';width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);margin-top:-3px}
+.pro-disclosure[open]>summary::after{transform:rotate(225deg);margin-top:3px}
+.pro-disclosure>summary:focus-visible{outline:2px solid #a78bfa;outline-offset:2px;border-radius:4px}
+.pro-disclosure__footer{display:flex;flex-wrap:wrap;align-items:center;gap:5px 8px;margin:10px 2px 2px;color:#727d8b;font-size:10px;line-height:1.6}
+.pro-mode-link{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid #e5e1ed;border-radius:8px;background:#fff;color:#514568;text-decoration:none;font-size:11px}
+.pro-mode-link__badge{padding:3px 5px;border-radius:4px;background:#f3eff9;color:#69568e;font-size:8px;font-weight:700}
+.pro-mode-link small{margin-left:auto;color:#7c7489;font-size:10px}
+.pro-mode-link:hover{background:#faf9fc;border-color:#cfc5df}
+.pro-mode-link:focus-visible{outline:2px solid #a78bfa;outline-offset:2px}
+.pro-mode-status{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:6px 2px;color:#727d8b;font-size:10px}
+.pro-mode-status span{color:#69568e;font-weight:600}
 .building-task--pro{border-color:#ddd6fe;background:rgba(250,245,255,.84);color:#5b3f99}
 .building-task--pro:hover{border-color:#b9a8ea;background:#faf5ff}
+.pro-preview{grid-column:1/-1;margin-top:6px;border:1px solid #e2e6eb;border-radius:10px;overflow:hidden;background:#fff}
+.pro-preview__hero{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px}
+.pro-preview__badge{display:inline-flex;align-items:center;gap:8px;color:#303746;font-size:12px;font-weight:600}
+.pro-preview__badge b{padding:3px 6px;border:1px solid #e5e1f1;border-radius:5px;background:#f5f3fa;color:#69568e;font-size:9px;line-height:1.2;letter-spacing:.04em}
+.pro-preview__hero p{margin:6px 0 0;color:#697382;font-size:11px;line-height:1.5}
+.pro-preview__cta{flex-shrink:0}
+.pro-preview__cta a{display:flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:7px 11px;border:1px solid #e5e1f1;border-radius:7px;background:#f5f3fa;color:#69568e;font-size:11px;font-weight:600;text-decoration:none}
+.pro-preview__cta a:hover{background:#eeebf6;border-color:#cdc4df}
+.pro-preview summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 16px;padding:11px 0;border-top:1px solid #edf0f3;cursor:pointer;list-style:none;color:#697382;font-size:11px;font-weight:500}
+.pro-preview summary::-webkit-details-marker{display:none}.pro-preview summary::after{content:'';width:5px;height:5px;flex-shrink:0;margin-right:3px;border-right:1px solid #8b93a0;border-bottom:1px solid #8b93a0;transform:rotate(45deg)}.pro-preview details[open] summary::after{transform:rotate(225deg)}
+.pro-preview summary:focus-visible,.pro-preview__cta a:focus-visible{outline:2px solid #60a5fa;outline-offset:-3px}
+.pro-preview__features{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 15px 16px}
+.pro-preview__features div{font-size:12px;color:#465365}
+.pro-preview__features small{display:block;font-size:11px;color:#64748b;margin-top:4px;line-height:1.6}
+@media(max-width:480px){.pro-preview__hero{flex-wrap:wrap}.pro-preview__features{grid-template-columns:1fr}}
 .building-task--pro .building-task__no{background:#ede9fe;color:#6d28d9;font-size:8px}
 .building-task--pro small{color:#7c3aed;font-weight:800}
+.building-task--locked,.building-task--locked:hover{border-color:#e5e7eb;background:#f8f9fb;color:#697382;cursor:default;box-shadow:none;transform:none}
+.building-task--locked .building-task__no{background:#eef0f4;color:#7b8491}
+.building-task--locked small{color:#7b8491;font-weight:600}
 
 @media(max-width:1040px){
   .dashboard-shell{grid-template-columns:290px minmax(0,1fr);column-gap:18px}
@@ -1360,7 +1395,7 @@ a.pstep:hover{background:#f2f6fd}
 
       <?php stepNudge(4, $nowStep, '자위소방대 교육을 기록하세요'); ?>
       <!-- ④ 자위소방대 교육·훈련 -->
-      <a class="pstep <?= $s4 ? 'pstep--done' : ($nowStep===4 ? 'pstep--now' : '') ?><?= $nowStep===4 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/jawi.php'))?>">
+      <a class="pstep <?= $s4 ? 'pstep--done' : ($nowStep===4 ? 'pstep--now' : '') ?><?= $nowStep===4 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
         <span class="no"><?= $s4 ? '✓' : '4' ?></span><span class="pstep__label">자위소방대 교육</span>
         <?php if ($s4): ?><span class="ptag ptag--done">완료</span>
         <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
@@ -1476,7 +1511,7 @@ a.pstep:hover{background:#f2f6fd}
                         <span class="mission__label">지금 할 일 · 연간 업무</span>
                         <span class="mission__text"><b>자위소방대 교육·훈련 기록부</b>를 작성하세요.</span>
                       </div>
-                      <a class="mission__btn" href="<?=h($url('/jawi.php'))?>">교육·훈련 기록</a>
+                      <a class="mission__btn" href="<?=h($url('/jawi.php?stay=1'))?>">교육·훈련 기록</a>
                     </div>
                     <?php elseif ($doneTrain !== true): ?>
                     <div class="mission">
@@ -1537,7 +1572,7 @@ a.pstep:hover{background:#f2f6fd}
                           <a class="building-task<?= $s3 ? ' is-done' : ($nowStep===3 ? ' is-now' : '') ?>" href="<?=h($url('/work_log.php'))?>">
                             <span class="building-task__no"><?= $s3 ? '✓' : '3' ?></span><span>매월 기록</span><small><?= $s3 ? '완료' : h($mon) ?></small>
                           </a>
-                          <a class="building-task<?= $s4 ? ' is-done' : ($nowStep===4 ? ' is-now' : '') ?>" href="<?=h($url('/jawi.php'))?>">
+                          <a class="building-task<?= $s4 ? ' is-done' : ($nowStep===4 ? ' is-now' : '') ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
                             <span class="building-task__no"><?= $s4 ? '✓' : '4' ?></span><span>자위소방대 교육</span><small><?= $s4 ? '완료' : '연간' ?></small>
                           </a>
                           <a class="building-task<?= $s5 ? ' is-done' : ($nowStep===5 ? ' is-now' : '') ?>" href="<?=h($url('/train.php'))?>">
@@ -1563,6 +1598,27 @@ a.pstep:hover{background:#f2f6fd}
                             <a class="building-task building-task--pro" href="<?=h($url('/print_all.php'))?>">
                               <span class="building-task__no">P3</span><span>서류 전체 인쇄</span><small>PRO</small>
                             </a>
+                          <?php else: ?>
+                            <div class="building-tasknav__pro-title"><b>PRO 확장 업무</b><span>PRO로 더 할 수 있어요</span></div>
+                            <div class="building-task building-task--pro building-task--locked" aria-disabled="true">
+                              <span class="building-task__no">P1</span><span>피난 시뮬레이션</span><small>PRO</small>
+                            </div>
+                            <div class="building-task building-task--pro building-task--locked" aria-disabled="true">
+                              <span class="building-task__no">P1</span><span>소방교육 자료</span><small>PRO</small>
+                            </div>
+                            <div class="building-task building-task--pro building-task--locked" aria-disabled="true">
+                              <span class="building-task__no">P2</span><span>자동 업무 알림</span><small>준비 중</small>
+                            </div>
+                            <div class="building-task building-task--pro building-task--locked" aria-disabled="true">
+                              <span class="building-task__no">P3</span><span>서류 전체 인쇄</span><small>PRO</small>
+                            </div>
+                          <?php endif; ?>
+                          <?php if ($isPro): ?>
+                          <div class="pro-mode-status">PRO 업무 모드 <span>· 이용 중</span></div>
+                          <?php else: ?>
+                          <a class="pro-mode-link one-stop-trigger" data-one-stop-title="PRO 업무 모드" href="<?=h($url('/pro_mode.php'))?>">
+                            <span class="pro-mode-link__badge">PRO</span><span>PRO 업무 모드</span><small>알아보기 →</small>
+                          </a>
                           <?php endif; ?>
                         </div>
                       </nav>
@@ -1778,7 +1834,7 @@ a.pstep:hover{background:#f2f6fd}
                       </a>
 
                       <!-- ② 자위소방대 교육·훈련 (편성표 기반) -->
-                      <a class="card card--link<?= $hasRoster ? '' : ' card--wait' ?>" href="<?=h($url('/jawi.php'))?>">
+                      <a class="card card--link<?= $hasRoster ? '' : ' card--wait' ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
                         <div class="card__top">
                           <span class="badge">매년 · 2단계</span>
                           <?php if ($doneJawi === true): ?><span class="due due--ok">✓ 올해 완료</span>
@@ -1946,12 +2002,14 @@ function openOneStop(url, title){
   try { target = new URL(url, window.location.origin); } catch (error) { return; }
   if (target.origin !== window.location.origin) return;
   target.searchParams.set('embed', '1');
+  if (target.pathname === '/subscribe_page.php') title = 'PRO 구독 · 관리';
   const shell = document.querySelector('.dashboard-shell');
   const workspace = document.getElementById('oneStopWorkspace');
   const frame = document.getElementById('oneStopFrame');
   const loading = document.getElementById('oneStopLoading');
   document.getElementById('oneStopTitle').textContent = title || '업무 작성';
-  document.getElementById('oneStopState').textContent = '작성 화면을 불러오는 중입니다';
+  document.getElementById('oneStopState').textContent = target.pathname === '/subscribe_page.php'
+    ? '구독 화면을 불러오는 중입니다' : '작성 화면을 불러오는 중입니다';
   document.getElementById('oneStopExternal').href = target.href;
   loading.classList.remove('is-hidden');
   shell.classList.add('workspace-open');
@@ -1982,6 +2040,14 @@ document.getElementById('oneStopFrame')?.addEventListener('load', function(){
   document.getElementById('oneStopState').textContent = '이 화면에서 작성하고 저장하세요';
   try {
     const doc = frame.contentDocument;
+    if (doc && frame.contentWindow.location.pathname === '/subscribe_page.php') {
+      document.getElementById('oneStopTitle').textContent = 'PRO 구독 · 관리';
+      document.getElementById('oneStopState').textContent = '요금제와 구독 상태를 확인하세요';
+    }
+    if (doc && frame.contentWindow.location.pathname === '/pro_mode.php') {
+      document.getElementById('oneStopTitle').textContent = 'PRO 업무 모드';
+      document.getElementById('oneStopState').textContent = '확장 기능을 살펴보고 구독을 안내받으세요';
+    }
     if (!doc || doc.getElementById('oneStopEmbedStyle')) return;
     const style = doc.createElement('style');
     style.id = 'oneStopEmbedStyle';
@@ -1996,7 +2062,7 @@ document.getElementById('oneStopFrame')?.addEventListener('load', function(){
   } catch (error) { /* 동일 출처가 아니면 원래 화면을 그대로 표시합니다. */ }
 });
 
-document.querySelectorAll('.building-task, .safety-ai__next-link, .one-stop-trigger').forEach(function(link){
+document.querySelectorAll('a.building-task, .safety-ai__next-link, .one-stop-trigger, a[href="/subscribe_page.php"], a[href^="/subscribe_page.php?"]').forEach(function(link){
   link.addEventListener('click', function(event){
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     event.preventDefault();

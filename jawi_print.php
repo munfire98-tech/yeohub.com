@@ -74,9 +74,14 @@ th{background:#f2f4f8;font-weight:700;text-align:center}
 .secline{margin-top:9px}
 @media print{
   .topbar{display:none}
+  html,body{width:100%;overflow-x:visible}
   body{background:#fff;font-size:11px}
-  .sheet{box-shadow:none;margin:0;max-width:none;padding:0;width:auto}
+  .sheet{box-shadow:none;margin:0;max-width:none;padding:0;width:auto;overflow:visible}
   @page{size:A4;margin:12mm}
+  /* 폭 100% 표의 우측 선이 인쇄 영역 밖에서 잘리지 않도록 1px 안쪽에 배치합니다. */
+  table{width:calc(100% - 1px)!important;margin-right:1px!important;
+    border:0.25mm solid #000!important}
+  tr>td:last-child,tr>th:last-child{border-right:0.25mm solid #000!important}
   th,td{font-size:10px;padding:2px 4px}
   .title{font-size:17px}
 }

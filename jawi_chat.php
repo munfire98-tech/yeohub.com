@@ -95,7 +95,7 @@ if (!$rec) {
   <nav class="nav"><div class="nav__in">
     <a class="brand" href="/index.php">소방계획서.com</a>
     <div style="display:flex;gap:8px">
-      <a class="btn" href="/jawi.php?stay=1">← 목록</a>
+      <a class="btn" href="/jawi.php?stay=1" target="_top">← 목록</a>
     </div>
   </div></nav>
 
@@ -131,7 +131,7 @@ if (!$rec) {
       <?php endforeach; ?>
       <?php if (count($picks) > 8): ?>
         <div class="row"><div class="row__m row__d">…외 <?=count($picks) - 8?>건은 목록에서 확인하세요.</div>
-          <a class="btn" href="/jawi.php?stay=1">목록 보기</a></div>
+          <a class="btn" href="/jawi.php?stay=1" target="_top">목록 보기</a></div>
       <?php endif; ?>
     </div>
 
@@ -470,7 +470,7 @@ button{font:inherit;color:inherit;cursor:pointer}
         <button class="btn" type="submit">↺ 처음부터 다시</button>
       </form>
       <a class="btn" href="/jawi_edit.php?id=<?=h(rawurlencode($id))?>">표로 작성</a>
-      <a class="btn" href="/jawi.php?stay=1">← 목록</a>
+      <a class="btn" href="/jawi.php?stay=1" target="_top">← 목록</a>
     </div>
   </div>
 </nav>
@@ -1113,9 +1113,9 @@ function finish(){
             '<span class="sum__v'+(v?'':' none')+'">'+esc(v||'비어 있음')+'</span></div>';
     });
     html+='<div class="doneRow">'+
-      '<a class="btn btn--pri" href="/jawi_print.php?id=<?=h(rawurlencode($id))?>">🖨 인쇄 · PDF 저장</a>'+
-      '<a class="btn" href="/jawi_edit.php?id=<?=h(rawurlencode($id))?>">표에서 다듬기</a>'+
-      '<a class="btn" href="/jawi.php?stay=1">목록으로</a></div>';
+      '<a class="btn btn--pri" href="/jawi.php?stay=1">작성 완료 · 목록으로 →</a>'+
+      '<a class="btn" href="/jawi_print.php?id=<?=h(rawurlencode($id))?>">🖨 인쇄 · PDF 저장</a>'+
+      '<a class="btn" href="/jawi_edit.php?id=<?=h(rawurlencode($id))?>">표에서 다듬기</a></div>';
     d.innerHTML=html;
     chat.appendChild(d); down();
   });

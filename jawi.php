@@ -49,13 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'delete')
 }
 
 $list = jw_list();
-
-/* 기록이 하나뿐이면 굳이 목록을 보여줄 이유가 없으니 바로 그 기록으로 들어갑니다.
-   (?stay=1 을 붙이면 목록에 머무릅니다) */
-if (count($list) === 1 && !isset($_GET['stay']) && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
-  $only = (string)($list[0]['id'] ?? '');
-  if ($only !== '') { header('Location: /jawi_chat.php?id=' . urlencode($only)); exit; }
-}
+/* 기록 수와 관계없이 목록을 먼저 보여줍니다.
+   기존에는 기록이 하나면 jawi_chat.php로 자동 이동해 첫 화면이 달라졌습니다. */
 ?>
 <!doctype html>
 <html lang="ko">
