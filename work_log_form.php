@@ -149,14 +149,21 @@ $url = function(string $path) use ($adminQuery): string {
 :root{--bg:#f5f7fb;--card:#fff;--bd:#e3e8f0;--bd2:#d4dbe6;--fg:#1a2436;--mut2:#56627a;--brand:#2563eb;--brand2:#1d4ed8;--form-line-color:#333;--form-line-width:1px}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:var(--bg);color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,"Apple SD Gothic Neo",sans-serif;line-height:1.5}
+body{padding-bottom:84px}
 a{text-decoration:none}
-.topbar{background:#fff;border-bottom:1px solid var(--bd);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:20}
-.topbar .brand{font-weight:800;font-size:20px;letter-spacing:.5px}
-.topbar .actions{display:flex;gap:8px}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:9px;border:1px solid var(--bd2);background:#fff;color:var(--fg);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
 .btn:hover{border-color:var(--brand);color:var(--brand2)}
 .btn--primary{background:var(--brand);border-color:var(--brand);color:#fff}
 .btn--primary:hover{background:var(--brand2);color:#fff}
+.page-actions{position:fixed;left:0;right:0;bottom:0;z-index:50;padding:10px 16px;
+  background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border-top:1px solid var(--bd);
+  box-shadow:0 -4px 18px rgba(15,23,42,.08)}
+.page-actions__inner{max-width:900px;margin:0 auto;display:flex;align-items:center;justify-content:center;gap:8px}
+.page-actions .btn{justify-content:center;min-width:132px;padding:11px 18px;font-size:13.5px}
+.page-actions .btn--home{background:#16a34a;border-color:#16a34a;color:#fff;box-shadow:0 5px 14px rgba(22,163,74,.18)}
+.page-actions .btn--home:hover{background:#15803d;border-color:#15803d;color:#fff}
+.page-actions .btn--print{background:#1e293b;border-color:#1e293b;color:#fff}
+.page-actions .btn--print:hover{background:#0f172a;border-color:#0f172a;color:#fff}
 .toast{max-width:900px;margin:16px auto 0;background:#ecfdf5;border:1px solid #a7f3d0;color:#047857;border-radius:9px;padding:10px 14px;font-size:13px}
 .hint{max-width:900px;margin:12px auto 0;color:var(--mut2);font-size:13px;padding:0 8px}
 
@@ -235,10 +242,7 @@ textarea.cell{min-height:64px}
 
 /* ── 모바일: 표를 세로 카드로 재배치 ── */
 @media screen and (max-width:640px){
-  .topbar{padding:0 14px;height:auto;min-height:54px;flex-wrap:wrap;gap:8px;padding-top:8px;padding-bottom:8px}
-  .topbar .brand{font-size:18px}
-  .topbar .actions{width:100%;display:grid;grid-template-columns:auto 1fr 1fr;gap:6px}
-  .topbar .actions .btn{justify-content:center;padding:10px 8px;font-size:12.5px}
+  body{padding-bottom:126px}
   .toast,.hint{margin-left:12px;margin-right:12px;font-size:12.5px}
 
   .sheet{margin:12px;padding:16px 14px;border-radius:10px}
@@ -284,6 +288,9 @@ textarea.cell{min-height:64px}
 
   .footnote{font-size:10.5px}
   .paper{display:none}
+  .page-actions{padding:8px}
+  .page-actions__inner{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .page-actions .btn{min-width:0;padding:9px 7px;font-size:12.5px}
 }
 
 /* 수행일자 달력 */
@@ -322,13 +329,13 @@ textarea.cell{min-height:64px}
 @media print{
   :root{--form-line-color:#000;--form-line-width:.25mm}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .topbar,.toast,.hint,.mask{display:none !important}
+  .toast,.hint,.mask,.page-actions{display:none !important}
   .dbtn,.dpop{display:none !important}
   .dwrap{display:block}
   .sign__btn{display:none !important}
   .sign img{height:26px !important;width:auto !important;max-width:95px !important;min-width:50px !important}
   html,body{width:100%;overflow-x:visible}
-  body{background:#fff}
+  body{background:#fff;padding-bottom:0}
   .sheet{box-shadow:none;border:0;margin:0;max-width:none;border-radius:0;padding:0;overflow:visible}
   input.cell:focus,textarea.cell:focus{background:transparent}
   @page{size:A4;margin:12mm}
@@ -377,15 +384,6 @@ textarea.cell{min-height:64px}
 </style>
 </head>
 <body>
-
-<div class="topbar">
-  <a class="brand" href="/index.php">소방계획서.w.l.f</a>
-  <div class="actions">
-    <a class="btn" href="<?=h($url('/work_log.php'))?>">← 목록</a>
-    <button class="btn" id="saveBtn" type="button" onclick="document.getElementById('recform').requestSubmit()">저장</button>
-    <button class="btn btn--primary" type="button" onclick="window.print()">🖨 PDF / 인쇄</button>
-  </div>
-</div>
 
 <?php if ($saved): ?><div class="toast">✓ <?=h($monthLabel)?> 기록이 저장되었습니다. ‘PDF / 인쇄’로 내려받을 수 있습니다.</div><?php endif; ?>
 <div class="hint">칸을 클릭해 입력한 뒤 <b>저장</b>하세요. <b>PDF / 인쇄</b>를 누르고 인쇄 대화상자에서 <b>대상: PDF로 저장</b>을 선택하면 서식이 그대로 저장됩니다. (<?=h($monthLabel)?> 기록)</div>
@@ -577,6 +575,15 @@ textarea.cell{min-height:64px}
 </div>
 </form>
 
+<div class="page-actions no-print" role="navigation" aria-label="업무 수행 기록 작업">
+  <div class="page-actions__inner">
+    <a class="btn btn--home" href="<?=h($url('/building_manager.php'))?>" target="_top">🏠 메인으로</a>
+    <a class="btn" href="<?=h($url('/work_log.php'))?>">목록으로</a>
+    <button class="btn btn--primary js-save-btn" type="button" onclick="document.getElementById('recform').requestSubmit()">저장하기</button>
+    <button class="btn btn--print" type="button" onclick="window.print()">🖨 PDF / 인쇄</button>
+  </div>
+</div>
+
 <!-- 서명 모달 -->
 <div class="mask" id="signMask">
   <div class="modal">
@@ -764,7 +771,7 @@ textarea.cell{min-height:64px}
   var NAMES = { sobang:'소방시설', pinan:'피난방화시설', hwagi:'화기취급감독', etc:'기타사항' };
 
   var bar  = document.getElementById('checkGuide');
-  var save = document.getElementById('saveBtn');
+  var saveButtons = document.querySelectorAll('.js-save-btn');
   if (!bar) return;
 
   function picked(k){
@@ -784,13 +791,13 @@ textarea.cell{min-height:64px}
     if (left.length === 0){
       bar.className = 'ckguide ckguide--done';
       bar.innerHTML = '✅ 네 항목 모두 확인했습니다. 이제 <b>저장</b>을 눌러주세요.';
-      if (save) save.classList.add('btn--nudge');
+      saveButtons.forEach(function(save){ save.classList.add('btn--nudge'); });
     } else {
       bar.className = 'ckguide';
       bar.innerHTML = '점검을 마치셨으면 <b>확인결과</b>에서 <b>양호</b>를 눌러주세요 · ' +
         '남은 항목 <b>' + left.map(function(k){ return NAMES[k]; }).join(' · ') + '</b> ' +
         '<span class="ckguide__n">(' + done.length + '/' + KEYS.length + ')</span>';
-      if (save) save.classList.remove('btn--nudge');
+      saveButtons.forEach(function(save){ save.classList.remove('btn--nudge'); });
     }
   }
 
