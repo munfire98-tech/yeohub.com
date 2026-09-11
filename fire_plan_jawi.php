@@ -382,7 +382,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
   .flow__ar{display:flex;align-items:center;color:#c2cbd9;font-size:15px;padding:0 4px}
   @media (max-width:640px){ .flow__ar{display:none} .flow__i{flex:0 0 100%;min-width:0} }
 
-  /* 명단 입력 안내 (이름·전화·직급 3칸을 눈에 보이게) */
+  /* 명단 입력 안내 (이름·전화·직급/소속 3칸을 눈에 보이게) */
   .rosterhead{display:grid;grid-template-columns:1.1fr 1.4fr 1fr;gap:8px;margin-bottom:6px}
   .rosterhead span{font-size:12px;font-weight:800;color:var(--navy);text-align:center;
     background:#eef2fa;border:1px solid #dbe3f0;border-radius:8px 8px 0 0;padding:7px 4px;
@@ -497,15 +497,32 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
   .guide-roster__title p{font-size:12px;color:var(--mut);margin-top:2px}
   .guide-roster__count{font-size:12px;font-weight:800;color:var(--navy);background:#eef4fb;
     border-radius:999px;padding:5px 10px;white-space:nowrap}
-  .guide-input{width:100%;min-height:220px!important;resize:none!important;border:1.5px solid #cfd8e6!important;
-    border-radius:13px!important;padding:15px!important;font-size:14px!important;line-height:1.8!important;
-    background:#fbfcfe!important}
-  .guide-input:focus{background:#fff!important;border-color:var(--navy)!important}
+  .guide-roster-example{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:11px;padding:9px 11px;
+    border:1px solid #dbe5f1;border-radius:10px;background:#f7faff;color:#5f6e82;font-size:11px}
+  .guide-roster-example b{padding:2px 6px;border-radius:6px;background:#e7effa;color:var(--navy);font-size:10px}
+  .guide-roster-example span{color:#243b57;font-weight:700}
+  .guide-roster-grid{border:1px solid #dbe2ec;border-radius:12px;background:#f8fafc;overflow:hidden}
+  .guide-roster-grid.is-invalid{border-color:#d75b4b;box-shadow:0 0 0 3px rgba(215,91,75,.1)}
+  .guide-roster-columns,.guide-roster-row{display:grid;grid-template-columns:54px minmax(110px,1fr) minmax(150px,1.15fr) minmax(140px,1fr) 34px;gap:7px;align-items:center}
+  .guide-roster-columns{padding:7px 9px;background:#edf2f8;border-bottom:1px solid #dbe2ec;color:#52647b;font-size:10.5px;font-weight:800;text-align:center}
+  .guide-roster-row{padding:7px 9px;border-bottom:1px solid #e7ebf1;background:#fff}
+  .guide-roster-row:last-child{border-bottom:0}
+  .guide-roster-row:focus-within{position:relative;background:#f8fbff;box-shadow:inset 3px 0 0 var(--navy)}
+  .guide-roster-no{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#64748b;font-size:10px;font-weight:800;line-height:1.25}
+  .guide-roster-no b{color:#263f5d;font-size:11px}.guide-roster-no small{font-size:8px;font-weight:700}
+  .guide-roster-field{min-width:0}.guide-roster-field span{display:none}
+  .guide-roster-field input{width:100%;min-width:0;padding:9px 10px;border:1px solid #d6dce6;border-radius:8px;background:#fff;font:inherit;font-size:12.5px;outline:none}
+  .guide-roster-field input:focus{border-color:var(--navy);box-shadow:0 0 0 2px rgba(58,85,114,.1)}
+  .guide-roster-field input::placeholder{color:#a3adbb}
+  .guide-roster-del{width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:#a0a9b6;font-size:16px;cursor:pointer}
+  .guide-roster-del:hover{background:#fff0ee;color:#c0392b}
+  .guide-roster-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px}
+  .guide-roster-add{border:1px dashed #9fb1c7;background:#fff;color:var(--navy);border-radius:9px;padding:8px 11px;font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+  .guide-roster-add:hover{border-color:var(--navy);background:#f7faff}
   .guide-roster__help{font-size:11.5px;color:var(--mut);margin:9px 2px 16px;line-height:1.6}
   .guide-roster__error{display:none;margin:-7px 2px 14px;padding:10px 12px;border-radius:9px;
     background:#fff4f2;border:1px solid #f1c2ba;color:#b42318;font-size:11.5px;line-height:1.55}
   .guide-roster__error.show{display:block}
-  .guide-input.is-invalid{border-color:#d75b4b!important;background:#fffafa!important}
   .guide-roster__action{width:100%;justify-content:center;padding:12px 18px;font-size:14px}
   .guide-roster__action:disabled{background:#cbd2dc;box-shadow:none;cursor:not-allowed}
   .guide-save{display:none;text-align:center}
@@ -521,6 +538,14 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
   .guide-save__summary b{font-size:15px;color:var(--navy)}
   .guide-save__buttons{display:flex;gap:8px}
   .guide-save__buttons .btn{flex:1;justify-content:center}
+  @media (max-width:640px){
+    .guide-roster-columns{display:none}
+    .guide-roster-row{grid-template-columns:42px minmax(0,1fr) 30px;gap:7px;padding:10px 9px}
+    .guide-roster-field{grid-column:2}.guide-roster-field--name{grid-row:1}.guide-roster-field--tel{grid-row:2}.guide-roster-field--dept{grid-row:3}
+    .guide-roster-no{grid-row:1 / 4}.guide-roster-del{grid-column:3;grid-row:1 / 4}
+    .guide-roster-field span{display:block;margin:0 0 3px 2px;color:#64748b;font-size:9.5px;font-weight:750}
+    .guide-roster-field input{font-size:13px}
+  }
   .guide-assign{display:none;padding:22px 20px 18px}
   .guide-card:has(.guide-assign[style*="block"]){max-width:680px}
   .assign-head{padding:0 38px 13px 2px;border-bottom:1px solid #e8edf3;margin-bottom:13px}
@@ -856,7 +881,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
     <section class="card no-print" id="p2">
       <div class="card__hd">
         <span class="stepno wait" id="sn2">2</span>
-        <h2>명단 적기<span class="sub">한 줄에 한 명 — <b>이름 · 전화번호 · 직급</b> 순서로</span></h2>
+        <h2>명단 적기<span class="sub">한 줄에 한 명 — <b>이름 · 전화번호 · 직급/소속</b> 순서로</span></h2>
         <button class="btn btn-ghost btn-sm" type="button" onclick="openGuide()" title="명단 입력·수정">명단 적기</button>
         <button class="btn btn-ghost btn-sm" type="button" id="foldBtn" onclick="toggleFold()">접기</button>
       </div>
@@ -875,7 +900,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
         <div class="rosterhead" aria-hidden="true">
           <span>이름</span>
           <span>전화번호 <small>(없으면 생략)</small></span>
-          <span>직급 <small>(없으면 생략)</small></span>
+          <span>직급/소속 <small>(없으면 생략)</small></span>
         </div>
 
         <label class="fld" for="bulkInput" style="position:absolute;left:-9999px">명단</label>
@@ -1218,10 +1243,132 @@ function showGuideIntro(animate){
   intro.classList.remove('is-leaving','is-entering');
   if (animate) { void intro.offsetWidth; intro.classList.add('is-entering'); }
 }
+const GUIDE_ROSTER_MIN_ROWS = 3;
+const GUIDE_ROSTER_MAX_ROWS = 50;
+function guideRosterPeople(text){
+  return String(text||'').split(/\n/).map(function(line){ return parseLine(line); }).filter(function(person){
+    return person && (person.name || person.tel || person.dept);
+  });
+}
+function guideRosterRole(index){
+  if(index===0) return '대장';
+  if(index===1) return '부대장';
+  return '활동조';
+}
+function guideRosterRowMarkup(person,index){
+  person=person||{name:'',tel:'',dept:''};
+  return '<div class="guide-roster-row" data-guide-roster-row>'+
+    '<span class="guide-roster-no"><b>'+(index+1)+'</b><small>'+guideRosterRole(index)+'</small></span>'+
+    '<label class="guide-roster-field guide-roster-field--name"><span>이름</span><input type="text" maxlength="30" value="'+esc(person.name||'')+'" placeholder="'+(index===0?'홍길동':'이름 입력')+'" aria-label="'+(index+1)+'번째 이름" oninput="guideRosterChanged(this)"></label>'+
+    '<label class="guide-roster-field guide-roster-field--tel"><span>전화번호</span><input type="tel" maxlength="20" inputmode="tel" value="'+esc(person.tel||'')+'" placeholder="010-1234-5678" aria-label="'+(index+1)+'번째 전화번호" oninput="guideRosterChanged(this)" onblur="formatGuideRosterPhone(this)"></label>'+
+    '<label class="guide-roster-field guide-roster-field--dept"><span>직급·소속</span><input type="text" maxlength="50" value="'+esc(person.dept||'')+'" placeholder="시설팀 / 지점장" aria-label="'+(index+1)+'번째 직급 또는 소속" oninput="guideRosterChanged(this)"></label>'+
+    '<button class="guide-roster-del" type="button" onclick="removeGuideRosterRow(this)" aria-label="'+(index+1)+'번째 줄 삭제">×</button></div>';
+}
+function refreshGuideRosterRoles(){
+  document.querySelectorAll('[data-guide-roster-row]').forEach(function(row,index){
+    const no=row.querySelector('.guide-roster-no');
+    if(no) no.innerHTML='<b>'+(index+1)+'</b><small>'+guideRosterRole(index)+'</small>';
+    row.querySelectorAll('input').forEach(function(input){
+      const field=input.closest('.guide-roster-field--name')?'이름':(input.closest('.guide-roster-field--tel')?'전화번호':'직급 또는 소속');
+      input.setAttribute('aria-label',(index+1)+'번째 '+field);
+    });
+    const del=row.querySelector('.guide-roster-del');
+    if(del) del.setAttribute('aria-label',(index+1)+'번째 줄 삭제');
+  });
+}
+function addGuideRosterRow(person,focus){
+  const rows=document.getElementById('guideRosterRows');
+  if(!rows || rows.children.length>=GUIDE_ROSTER_MAX_ROWS) return;
+  rows.insertAdjacentHTML('beforeend',guideRosterRowMarkup(person,rows.children.length));
+  refreshGuideRosterRoles();
+  if(focus){
+    const added=rows.lastElementChild;
+    const input=added&&added.querySelector('.guide-roster-field--name input');
+    if(input) input.focus();
+  }
+}
+function renderGuideRosterRows(people){
+  const rows=document.getElementById('guideRosterRows');
+  if(!rows)return;
+  rows.innerHTML='';
+  const count=Math.min(GUIDE_ROSTER_MAX_ROWS,Math.max(GUIDE_ROSTER_MIN_ROWS,people.length+(people.length?1:0)));
+  for(let i=0;i<count;i++) addGuideRosterRow(people[i]||null,false);
+}
+function guideRosterTextFromRows(){
+  return Array.prototype.slice.call(document.querySelectorAll('[data-guide-roster-row]')).map(function(row){
+    const name=(row.querySelector('.guide-roster-field--name input').value||'').trim();
+    const tel=(row.querySelector('.guide-roster-field--tel input').value||'').trim();
+    const dept=(row.querySelector('.guide-roster-field--dept input').value||'').trim();
+    if(!name&&!tel&&!dept)return '';
+    return [name,tel,dept].filter(Boolean).join('   ');
+  }).filter(Boolean).join('\n');
+}
+function validateGuideRosterRows(){
+  const errors=[];
+  const people=[];
+  const seen=new Set();
+  document.querySelectorAll('[data-guide-roster-row]').forEach(function(row,index){
+    const name=(row.querySelector('.guide-roster-field--name input').value||'').trim();
+    const tel=(row.querySelector('.guide-roster-field--tel input').value||'').trim();
+    const dept=(row.querySelector('.guide-roster-field--dept input').value||'').trim();
+    if(!name&&!tel&&!dept)return;
+    const rowNo=index+1;
+    if(!name||name.length<2||/\d/.test(name)){
+      errors.push(rowNo+'번째 명단의 이름을 확인해 주세요. 이름은 반드시 입력해야 합니다.');
+      return;
+    }
+    const phoneDigits=tel.replace(/\D/g,'');
+    if(tel&&!/^01[016789]\d{7,8}$/.test(phoneDigits)){
+      errors.push(rowNo+'번째 명단의 전화번호를 확인해 주세요. 예: 010-1234-5678');
+    }
+    const key=(name+'|'+phoneDigits).toLowerCase();
+    if(seen.has(key))errors.push(rowNo+'번째 명단이 앞의 명단과 중복됩니다.');
+    seen.add(key);
+    people.push({name:name,tel:tel,dept:dept});
+  });
+  return {ok:errors.length===0,errors:errors,people:people};
+}
+function syncGuideRoster(markChanged){
+  const input=document.getElementById('guideBulkInput');
+  const source=document.getElementById('bulkInput');
+  const text=guideRosterTextFromRows();
+  if(input)input.value=text;
+  if(source&&source.value!==text){
+    source.value=text;
+    if(markChanged)markRosterChanged();
+    countBulk();
+  }
+  updateGuideRoster();
+}
+function guideRosterChanged(input){
+  const row=input.closest('[data-guide-roster-row]');
+  const rows=document.getElementById('guideRosterRows');
+  if(row&&rows&&row===rows.lastElementChild&&row.querySelector('.guide-roster-field--name input').value.trim()&&rows.children.length<GUIDE_ROSTER_MAX_ROWS){
+    addGuideRosterRow(null,false);
+  }
+  syncGuideRoster(true);
+}
+function formatGuideRosterPhone(input){
+  const digits=(input.value||'').replace(/\D/g,'');
+  if(digits.length===11)input.value=digits.replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3');
+  else if(digits.length===10)input.value=digits.replace(/(\d{3})(\d{3})(\d{4})/,'$1-$2-$3');
+  syncGuideRoster(true);
+}
+function removeGuideRosterRow(button){
+  const row=button.closest('[data-guide-roster-row]');
+  const rows=document.getElementById('guideRosterRows');
+  if(!row||!rows)return;
+  if(rows.children.length>GUIDE_ROSTER_MIN_ROWS)row.remove();
+  else row.querySelectorAll('input').forEach(function(input){input.value='';});
+  refreshGuideRosterRoles();
+  syncGuideRoster(true);
+}
 function fillGuideRoster(){
   const source = document.getElementById('bulkInput');
   const input = document.getElementById('guideBulkInput');
-  input.value = source ? source.value : '';
+  const text = source ? source.value : '';
+  if(input)input.value=text;
+  renderGuideRosterRows(guideRosterPeople(text));
   const title = document.getElementById('guideRosterTitle');
   const action = document.getElementById('guideAssignBtn');
   if (title) title.textContent = currentPlanId ? '저장된 명단을 수정하세요' : '근무자 명단만 적어주세요';
@@ -1233,7 +1380,7 @@ function showGuideRoster(animate){
   const roster = document.getElementById('guideRoster');
   const save = document.getElementById('guideSave');
   const assign = document.getElementById('guideAssign');
-  document.querySelector('#guideMask .guide-card').style.maxWidth='440px';
+  document.querySelector('#guideMask .guide-card').style.maxWidth='720px';
   intro.style.display = 'none';
   save.style.display = 'none';
   assign.style.display = 'none';
@@ -1247,7 +1394,7 @@ function openGuideRoster(){
   const roster = document.getElementById('guideRoster');
   intro.classList.add('is-leaving');
   window.setTimeout(function(){
-    document.querySelector('#guideMask .guide-card').style.maxWidth='440px';
+    document.querySelector('#guideMask .guide-card').style.maxWidth='720px';
     intro.style.display = 'none';
     intro.classList.remove('is-leaving');
     roster.style.display = 'block';
@@ -1255,20 +1402,20 @@ function openGuideRoster(){
     void roster.offsetWidth;
     roster.classList.add('is-entering');
     fillGuideRoster();
-    const input = document.getElementById('guideBulkInput');
-    window.setTimeout(function(){ input.focus(); }, 80);
+    const input = document.querySelector('#guideRosterRows .guide-roster-field--name input');
+    window.setTimeout(function(){ if(input)input.focus(); }, 80);
   }, 150);
 }
 function updateGuideRoster(){
   const input = document.getElementById('guideBulkInput');
-  const lines = input.value.split(/\n/).map(s=>s.trim()).filter(Boolean);
   const count = document.getElementById('guideRosterCount');
   const btn = document.getElementById('guideAssignBtn');
   const error = document.getElementById('guideRosterError');
-  const check = validateRosterText(input.value);
-  count.textContent = lines.length + '명';
-  btn.disabled = lines.length === 0 || !check.ok;
-  input.classList.toggle('is-invalid', !check.ok);
+  const grid = document.getElementById('guideRosterGrid');
+  const check = validateGuideRosterRows();
+  count.textContent = check.people.length + '명';
+  btn.disabled = check.people.length === 0 || !check.ok;
+  if(grid)grid.classList.toggle('is-invalid', check.people.length>0&&!check.ok);
   if (error) {
     error.textContent = check.ok ? '' : check.errors[0];
     error.classList.toggle('show', !check.ok);
@@ -1277,9 +1424,17 @@ function updateGuideRoster(){
 function assignFromGuide(){
   const input = document.getElementById('guideBulkInput');
   const source = document.getElementById('bulkInput');
-  if (!input.value.trim()) { input.focus(); return; }
-  const check = validateRosterText(input.value);
-  if (!check.ok) { updateGuideRoster(); input.focus(); toast(check.errors[0]); return; }
+  syncGuideRoster(false);
+  const check = validateGuideRosterRows();
+  if (!check.people.length) {
+    const first=document.querySelector('#guideRosterRows .guide-roster-field--name input');
+    if(first)first.focus(); return;
+  }
+  if (!check.ok) {
+    updateGuideRoster();
+    const first=document.querySelector('#guideRosterRows .guide-roster-field--name input');
+    if(first)first.focus(); toast(check.errors[0]); return;
+  }
   source.value = input.value;
   source.dispatchEvent(new Event('input', {bubbles:true}));
   autoAssign(true);
@@ -1887,7 +2042,7 @@ function rebuildBulkFromModel(){
   const push = (m) => {
     if (!m || !m.name) return;
     const key=personKey(m); if(key&&seen.has(key))return; if(key)seen.add(key);
-    lines.push([m.name, m.tel || '', m.task || ''].filter(Boolean).join('   '));
+    lines.push([m.name, m.tel || '', m.dept || ''].filter(Boolean).join('   '));
   };
   push(model.cmd);
   push(model.deputy);
@@ -2083,12 +2238,12 @@ document.addEventListener('keydown', function(e){
       <div class="guide-line">
         <span class="guide-tag guide-tag--name">이름</span>
         <span class="guide-tag guide-tag--tel">전화번호</span>
-        <span class="guide-tag guide-tag--dept">직급</span>
+        <span class="guide-tag guide-tag--dept">직급/소속</span>
       </div>
-      <div class="guide-example">홍길동&nbsp;&nbsp;010-1234-5678&nbsp;&nbsp;지점장</div>
+      <div class="guide-example">홍길동&nbsp;&nbsp;010-1234-5678&nbsp;&nbsp;시설팀 / 지점장</div>
       <div class="guide-arrow-down">↓ 한 줄에 한 명씩, 줄바꿈만 하면 됩니다</div>
-      <div class="guide-example guide-example--dim">김철수&nbsp;&nbsp;010-2222-3333&nbsp;&nbsp;차장</div>
-      <div class="guide-example guide-example--dim">이영희 <span class="guide-note">← 전화번호·직급은 없어도 OK</span></div>
+      <div class="guide-example guide-example--dim">김철수&nbsp;&nbsp;010-2222-3333&nbsp;&nbsp;관리팀 / 차장</div>
+      <div class="guide-example guide-example--dim">이영희 <span class="guide-note">← 전화번호·직급/소속은 없어도 OK</span></div>
     </div>
 
     <div class="guide-rule">
@@ -2123,12 +2278,24 @@ document.addEventListener('keydown', function(e){
         <button class="guide-back" type="button" onclick="showGuideIntro(true)" aria-label="안내로 돌아가기">‹</button>
         <div class="guide-roster__title">
           <h3 id="guideRosterTitle">근무자 명단만 적어주세요</h3>
-          <p>한 줄에 한 명씩 입력하면 자동으로 편성합니다.</p>
+          <p>각 항목을 나눠 적으면 정확하게 자동 편성됩니다.</p>
         </div>
         <span class="guide-roster__count" id="guideRosterCount">0명</span>
       </div>
-      <textarea class="guide-input" id="guideBulkInput" oninput="updateGuideRoster()"
-        placeholder="홍길동   010-1234-5678   지점장&#10;김철수   010-2222-3333   차장&#10;이영희"></textarea>
+      <div class="guide-roster-example" aria-label="명단 입력 예시">
+        <b>입력 예시</b><span>홍길동</span><span>010-1234-5678</span><span>시설팀 / 지점장</span>
+      </div>
+      <div class="guide-roster-grid" id="guideRosterGrid">
+        <div class="guide-roster-columns" aria-hidden="true">
+          <span>순서</span><span>이름</span><span>전화번호</span><span>직급·소속</span><span></span>
+        </div>
+        <div id="guideRosterRows"></div>
+      </div>
+      <textarea id="guideBulkInput" hidden aria-hidden="true"></textarea>
+      <div class="guide-roster-tools">
+        <button class="guide-roster-add" type="button" onclick="addGuideRosterRow(null,true)">＋ 명단 한 줄 추가</button>
+        <span style="font-size:10.5px;color:var(--mut)">이름은 필수 · 나머지는 선택</span>
+      </div>
       <div class="guide-roster__error" id="guideRosterError" aria-live="polite"></div>
       <div class="guide-roster__help">
         이름만 입력해도 됩니다. 첫 번째는 대장, 두 번째는 부대장, 나머지는 활동조에 배치됩니다.
