@@ -108,6 +108,8 @@ function bi_blank(): array {
     'bd_energy'   => '',   // 에너지효율등급 (engrGrade)
     'bd_road_addr'=> '',   // 도로명대지위치 (newPlatPlc)
     'bd_dongs'    => '',   // 여러 동일 때 동별 층수·구조 (한 줄에 한 동)
+    'bd_dong_list'=> [],   // 건축물대장에서 조회한 동별 상세 목록
+    'bd_dong_pick'=> '',   // 대표 기준동(연면적이 가장 큰 동)
     'bd_looked'   => '',   // 자동조회 시각 (YYYY-mm-dd HH:ii:ss)
     'updated'    => '',
   ];

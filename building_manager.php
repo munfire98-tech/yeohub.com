@@ -289,13 +289,76 @@ $floorNumber = static function($value): int {
 };
 $floorAbove = $floorNumber($bi['floor_a'] ?? '');
 $floorBelow = $floorNumber($bi['floor_b'] ?? '');
-$isHighRise = $floorAbove > 20;
-$floorVisualAbove = min(20, max(1, $floorAbove));
-$floorVisualBelow = min(3, $floorBelow);
-$buildingFixedHeight = 71 + ($floorVisualBelow * 25); // 지붕·출입구·대지·지하층
-$buildingFloorHeight = $isHighRise
-  ? 18
-  : max(8, min(31, (int)floor((310 - $buildingFixedHeight) / max(1, $floorVisualAbove))));
+
+/* 건축물대장에서 조회한 동별 목록.
+   대표 수치는 가장 큰 동 하나만 쓰고, 나머지 동은 현장 구성으로 별도 표시합니다. */
+$dongListRaw = $bi['bd_dong_list'] ?? [];
+if (is_string($dongListRaw) && trim($dongListRaw) !== '') {
+  $decodedDongList = json_decode($dongListRaw, true);
+  if (is_array($decodedDongList)) $dongListRaw = $decodedDongList;
+}
+$buildingDongs = [];
+if (is_array($dongListRaw)) {
+  foreach ($dongListRaw as $dong) {
+    if (!is_array($dong)) continue;
+    $dongName = trim((string)($dong['dong'] ?? ''));
+    if ($dongName === '') $dongName = '동명 미상';
+    $buildingDongs[] = [
+      'dong' => $dongName,
+      'floor_a' => $floorNumber($dong['floor_a'] ?? ''),
+      'floor_b' => $floorNumber($dong['floor_b'] ?? ''),
+      'area' => max(0, (float)str_replace(',', '', (string)($dong['area'] ?? '0'))),
+      'struct' => trim((string)($dong['struct'] ?? '')),
+      'height' => max(0, (float)($dong['height'] ?? 0)),
+      'use' => trim((string)($dong['use'] ?? '')),
+    ];
+  }
+}
+/* 이전 저장본은 구조화 목록이 없을 수 있으므로 동별 요약 문자열에서 복원합니다. */
+if (!$buildingDongs && trim((string)($bi['bd_dongs'] ?? '')) !== '') {
+  foreach (preg_split('/\R/u', trim((string)$bi['bd_dongs'])) ?: [] as $line) {
+    if (!preg_match('/^\s*(.*?)\s*:\s*지상\s*(\d+)\s*\/\s*지하\s*(\d+)\s*층/u', $line, $match)) continue;
+    preg_match('/([\d,.]+)\s*㎡/u', $line, $areaMatch);
+    preg_match('/([\d.]+)\s*m(?:\s|·|$)/u', $line, $heightMatch);
+    $buildingDongs[] = [
+      'dong' => trim($match[1]) ?: '동명 미상',
+      'floor_a' => (int)$match[2],
+      'floor_b' => (int)$match[3],
+      'area' => isset($areaMatch[1]) ? (float)str_replace(',', '', $areaMatch[1]) : 0,
+      'struct' => '',
+      'height' => isset($heightMatch[1]) ? (float)$heightMatch[1] : 0,
+      'use' => '',
+    ];
+  }
+}
+if ($buildingDongs) {
+  usort($buildingDongs, static fn(array $a, array $b): int => ($b['area'] <=> $a['area']));
+} elseif ($hasBi) {
+  $buildingDongs[] = [
+    'dong' => trim((string)($bi['bd_dong_pick'] ?? '')) ?: $biName,
+    'floor_a' => $floorAbove,
+    'floor_b' => $floorBelow,
+    'area' => max(0, (float)str_replace(',', '', (string)($bi['area_t'] ?? '0'))),
+    'struct' => trim((string)($bi['bd_struct'] ?? '')),
+    'height' => max(0, (float)($bi['bd_height'] ?? 0)),
+    'use' => trim((string)($bi['bd_use_main'] ?? '')),
+  ];
+}
+$declaredDongCount = $floorNumber($bi['dongsu'] ?? '');
+$siteDongCount = max(count($buildingDongs), $declaredDongCount);
+$primaryDong = $buildingDongs[0] ?? null;
+$primaryDongName = trim((string)($primaryDong['dong'] ?? '')) ?: $biName;
+$otherDongs = array_slice($buildingDongs, 1);
+$carouselDongCount = count($buildingDongs);
+$otherDongNames = array_values(array_filter(array_map(static fn(array $dong): string => trim((string)($dong['dong'] ?? '')), $otherDongs)));
+$otherDongText = implode(', ', $otherDongNames);
+if ($siteDongCount > count($buildingDongs)) {
+  $otherDongText .= ($otherDongText !== '' ? ' · ' : '') . '상세 미확인 ' . ($siteDongCount - count($buildingDongs)) . '개 동';
+}
+if ($primaryDong) {
+  $floorAbove = (int)$primaryDong['floor_a'];
+  $floorBelow = (int)$primaryDong['floor_b'];
+}
 
 /* 지도에서 실제로 설정한 핵심 안전자산 */
 $fireRouteRaw = $bi['fire_engine_route'] ?? '';
@@ -906,6 +969,12 @@ a.pstep:hover{background:#f2f6fd}
 .building-board__head-copy{min-width:0}
 .building-board__head-label{font-size:11px;font-weight:800;color:var(--brand2);margin-bottom:4px}
 .building-board__head h1{font-size:23px!important;letter-spacing:-.45px;margin:0!important}
+.building-dong-strip{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap;margin-top:8px}
+.building-dong-strip span{display:inline-flex;align-items:center;min-height:23px;padding:3px 8px;border-radius:999px;
+  background:#eef2f7;color:#64748b;font-size:10.5px;font-weight:750}
+.building-dong-strip .is-count{background:#e8f1ff;color:#1d4ed8}
+.building-dong-strip .is-primary{background:#ecfdf5;color:#047857}
+.building-dong-strip .is-others{max-width:min(480px,70vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .building-board__head .plan-link{background:#fff;min-width:92px}
 .building-board__eyebrow{font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--brand2);margin-bottom:8px}
 .building-board__copy h2{font-size:22px;letter-spacing:-.4px;margin:0 0 7px}
@@ -920,25 +989,51 @@ a.pstep:hover{background:#f2f6fd}
 .build-stage.is-done .build-stage__dot{background:#22c55e;color:#fff}
 .build-stage.is-now{background:#eff6ff;color:#1d4ed8}
 .build-stage.is-now .build-stage__dot{background:#2563eb;color:#fff}
-.building-scene{position:relative;height:330px;min-height:330px;max-height:330px;display:flex;align-items:flex-end;
-  justify-content:center;padding:8px 26px 12px;overflow:hidden}
-.building-skyline{position:relative;width:min(250px,88%);z-index:2}
-.building-skyline.is-high-rise{width:min(190px,72%)}
+.building-scene{position:relative;height:290px;min-height:290px;max-height:290px;display:flex;align-items:flex-end;
+  justify-content:center;padding:8px 14px 8px;overflow:hidden}
+.building-carousel{width:100%;height:100%;display:flex;flex-direction:column;justify-content:flex-end;gap:6px}
+.building-carousel__viewport{height:232px;overflow:hidden;touch-action:pan-y}
+.building-slide{display:none;height:100%;flex-direction:column;align-items:center;justify-content:flex-end}
+.building-slide.is-active{display:flex;animation:buildingSlideIn .22s ease-out}
+@keyframes buildingSlideIn{from{opacity:.3;transform:translateX(10px)}to{opacity:1;transform:translateX(0)}}
+.building-slide__figure{position:relative;flex:1;width:100%;min-height:0;display:flex;align-items:flex-end;justify-content:center;padding:2px 0 5px}
+.building-slide__figure .building-skyline{width:min(165px,62%)}
+.building-slide__figure .building-skyline.is-high-rise{width:min(138px,54%)}
+.building-slide__info{display:flex;align-items:center;justify-content:center;gap:7px;min-width:0;max-width:100%;min-height:38px;
+  padding:6px 11px;border:1px solid rgba(148,163,184,.24);border-radius:10px;background:rgba(255,255,255,.82)}
+.building-slide__badge{flex-shrink:0;padding:2px 6px;border-radius:999px;background:#eef2f7;color:#64748b;font-size:8.5px;font-weight:850}
+.building-slide__badge.is-primary{background:#dcfce7;color:#15803d}
+.building-slide__name{max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e293b;font-size:11px;font-weight:850}
+.building-slide__meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#64748b;font-size:9px}
+.building-carousel__controls{display:grid;grid-template-columns:auto minmax(80px,1fr) auto;align-items:center;gap:7px;min-height:38px}
+.building-carousel__nav{min-width:62px;padding:7px 9px;border:1px solid #d7e1ed;border-radius:9px;background:rgba(255,255,255,.9);
+  color:#334155;font:inherit;font-size:10px;font-weight:800;cursor:pointer}
+.building-carousel__nav:hover{border-color:#8eadd2;background:#fff;color:#1d4ed8}
+.building-carousel__nav:disabled{opacity:.35;cursor:default;color:#94a3b8}
+.building-carousel__status{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;color:#475569;font-size:9.5px;font-weight:800}
+.building-carousel__dots{display:flex;align-items:center;justify-content:flex-start;gap:4px;max-width:150px;overflow-x:auto;scrollbar-width:none}
+.building-carousel__dots::-webkit-scrollbar{display:none}
+.building-carousel__dot{width:6px;height:6px;flex:0 0 6px;padding:0;border:0;border-radius:999px;background:#cbd5e1;cursor:pointer;transition:.18s}
+.building-carousel__dot.is-active{width:17px;flex-basis:17px;background:#2563eb}
+.building-carousel__single .building-carousel__controls{grid-template-columns:1fr}
+.building-carousel__single .building-carousel__nav,.building-carousel__single .building-carousel__dots{display:none}
+.building-skyline{position:relative;width:min(165px,68%);z-index:2}
+.building-skyline.is-high-rise{width:min(138px,58%)}
 .building-height-label{position:absolute;right:8px;top:3px;z-index:3;padding:3px 7px;border-radius:6px;
   background:#1e3a5f;color:#fff;font-size:10px;font-weight:900;letter-spacing:.04em;box-shadow:0 3px 9px rgba(30,58,95,.18)}
-.building-roof{height:18px;margin:0 10px;background:#d7dee9;border:1px solid #b9c3d1;border-bottom:0;
+.building-roof{height:12px;margin:0 9px;background:#d7dee9;border:1px solid #b9c3d1;border-bottom:0;
   clip-path:polygon(8% 100%,18% 0,82% 0,92% 100%);opacity:.42}
 .building-roof.is-built{background:#315f9f;border-color:#234b84;opacity:1}
-.building-floor{height:var(--floor-h,31px);display:grid;grid-template-columns:repeat(3,1fr);gap:9px;align-items:center;
-  padding:0 13px;border:1px solid #cbd5e1;border-bottom:0;background:rgba(255,255,255,.36)}
+.building-floor{height:var(--floor-h,23px);display:grid;grid-template-columns:repeat(3,1fr);gap:7px;align-items:center;
+  padding:0 10px;border:1px solid #cbd5e1;border-bottom:0;background:rgba(255,255,255,.36)}
 .building-floor:first-of-type{border-radius:6px 6px 0 0}
 .building-floor:last-of-type{border-bottom:1px solid #cbd5e1}
-.building-window{height:clamp(4px,calc(var(--floor-h,31px) - 8px),12px);border-radius:2px;background:#e2e8f0;border:1px solid #cbd5e1}
+.building-window{height:clamp(4px,calc(var(--floor-h,23px) - 7px),10px);border-radius:2px;background:#e2e8f0;border:1px solid #cbd5e1}
 .building-floor__label{display:none}
 .building-skyline.is-high-rise .building-floor{position:relative;grid-template-columns:repeat(2,1fr);padding-left:34px;padding-right:10px;gap:7px}
 .building-skyline.is-high-rise .building-floor__label{display:block;position:absolute;left:7px;top:50%;transform:translateY(-50%);
   color:#64748b;font-size:7.5px;font-weight:800}
-.building-compressed{height:54px;position:relative;display:flex;align-items:center;justify-content:center;text-align:center;
+.building-compressed{height:34px;position:relative;display:flex;align-items:center;justify-content:center;text-align:center;
   border:1px solid #8fa4bd;border-bottom:0;background:repeating-linear-gradient(180deg,#eef4fa 0,#eef4fa 5px,#d9e4ef 6px,#eef4fa 7px);
   color:#27496d}
 .building-compressed::before,.building-compressed::after{content:'';position:absolute;top:8px;bottom:8px;width:1px;background:#b7c7d8}
@@ -950,13 +1045,13 @@ a.pstep:hover{background:#f2f6fd}
 .building-skyline.stage-3 .building-window{background:#bdd7f4;border-color:#92b9e5}
 .building-skyline.stage-4 .building-window:nth-child(2){background:#86efac;border-color:#4ade80}
 .building-skyline.stage-5 .building-floor{background:#f8fbff;border-color:#7896b8}
-.building-entry{height:43px;display:flex;align-items:flex-end;justify-content:center;border:1px solid #94a3b8;
-  background:#edf2f7;padding-top:7px}
-.building-door{width:38px;height:34px;background:#cbd5e1;border:1px solid #94a3b8;border-bottom:0}
+.building-entry{height:30px;display:flex;align-items:flex-end;justify-content:center;border:1px solid #94a3b8;
+  background:#edf2f7;padding-top:5px}
+.building-door{width:28px;height:23px;background:#cbd5e1;border:1px solid #94a3b8;border-bottom:0}
 .building-skyline.stage-4 .building-door{background:#4f86c6;border-color:#315f9f}
-.building-basement{height:25px;margin:0 15px;border:1px dashed #94a3b8;border-top:0;background:rgba(226,232,240,.55);
+.building-basement{height:16px;margin:0 12px;border:1px dashed #94a3b8;border-top:0;background:rgba(226,232,240,.55);
   display:flex;align-items:center;justify-content:center;color:#64748b;font-size:9px}
-.building-ground{height:10px;border-radius:50%;background:#9aaa85;box-shadow:0 9px 22px rgba(77,93,57,.22)}
+.building-ground{height:6px;border-radius:50%;background:#9aaa85;box-shadow:0 7px 16px rgba(77,93,57,.18)}
 .building-basement-label{position:absolute;left:50%;bottom:0;z-index:4;transform:translateX(-50%);
   display:flex;align-items:center;gap:6px;padding:4px 9px;border-radius:7px;background:rgba(255,255,255,.9);
   color:#475569;font-size:9.5px;font-weight:750;white-space:nowrap;box-shadow:0 2px 8px rgba(71,85,105,.08)}
@@ -1031,9 +1126,11 @@ a.pstep:hover{background:#f2f6fd}
   box-shadow:0 0 38px rgba(16,185,129,.3);animation:protectedGlow 2.8s ease-in-out infinite}
 @keyframes protectedGlow{50%{opacity:.72;box-shadow:0 0 48px rgba(16,185,129,.38)}}
 @media(prefers-reduced-motion:reduce){.building-skyline.protection-5::before{animation:none}}
-@media(max-width:820px){.building-board{grid-template-columns:1fr;gap:8px}.building-scene{min-height:300px}}
+@media(prefers-reduced-motion:reduce){.building-slide.is-active{animation:none}}
+@media(max-width:820px){.building-board{grid-template-columns:1fr;gap:8px}.building-scene{height:280px;min-height:280px;max-height:280px}}
 @media(max-width:520px){.building-board{padding:22px 18px}.building-board__copy h2{font-size:19px}.building-scene{padding-left:5px;padding-right:5px}}
 @media(max-width:520px){.building-crew{left:1px}.building-inspection{right:1px}.building-safety-seal{left:1px}}
+@media(max-width:520px){.building-carousel__viewport{height:225px}.building-slide__figure .building-skyline{width:min(145px,58%)}.building-slide__info{max-width:96%}.building-carousel__nav{min-width:58px;padding-left:7px;padding-right:7px}}
 
 /* 시각화와 다음 실행을 하나의 작업 카드로 묶습니다. */
 .building-workspace{grid-column:1/-1;display:flex;flex-direction:column}
@@ -1549,8 +1646,15 @@ a.pstep:hover{background:#f2f6fd}
                     <section class="building-board" aria-labelledby="buildingBoardTitle">
                       <div class="building-board__head">
                         <div class="building-board__head-copy">
-                          <div class="building-board__head-label">건물 소방안전관리</div>
-                          <h1 id="buildingBoardTitle"><?= $hasBi ? h($biName) : '우리 건물 안전관리 현황' ?></h1>
+                           <div class="building-board__head-label">건물 소방안전관리</div>
+                           <h1 id="buildingBoardTitle"><?= $hasBi ? h($biName) : '우리 건물 안전관리 현황' ?></h1>
+                           <?php if ($hasBi && $siteDongCount > 1): ?>
+                             <div class="building-dong-strip" aria-label="현장 동 구성">
+                               <span class="is-count">총 <?=$siteDongCount?>개 동</span>
+                               <span class="is-primary">기준동 · <?=h($primaryDongName)?></span>
+                               <span class="is-others" title="<?=h($otherDongText)?>">나머지 동 · <?=h($otherDongText ?: '상세 확인 필요')?></span>
+                             </div>
+                           <?php endif; ?>
                         </div>
                         <a class="plan-link<?= $isPro ? ' plan-link--on' : ($proStatus === 'pending' ? ' plan-link--wait' : '') ?>"
                            href="<?=h($url('/subscribe_page.php'))?>">
@@ -1675,7 +1779,7 @@ a.pstep:hover{background:#f2f6fd}
                         </div>
                       </div>
 
-                      <div class="building-scene" aria-label="<?= $hasBi ? h($biName).' 건물 안전관리 완성도 '.$buildStage.'단계' : '등록 전 대지' ?>">
+                      <div class="building-scene" aria-label="<?= $hasBi ? h($biName).' '.max(1,$siteDongCount).'개 동 건물 안전관리 완성도 '.$buildStage.'단계' : '등록 전 대지' ?>">
                         <?php if (!$hasBi): ?>
                           <div class="building-empty">
                             <div>아직 대지만 준비되어 있습니다.<br><a class="one-stop-trigger" data-one-stop-title="기본정보 입력"
@@ -1683,44 +1787,89 @@ a.pstep:hover{background:#f2f6fd}
                           </div>
                           <div class="building-skyline"><div class="building-ground"></div></div>
                         <?php else: ?>
-                          <div class="building-skyline stage-<?=$buildStage?> protection-<?=$buildStage?><?= $isHighRise ? ' is-high-rise' : '' ?>" style="--floor-h:<?=$buildingFloorHeight?>px">
-                            <?php if ($isHighRise): ?><span class="building-height-label"><?=$floorAbove?>F</span><?php endif; ?>
-                            <div class="building-roof<?= $buildStage >= 5 ? ' is-built' : '' ?>"></div>
-                            <?php if ($isHighRise): ?>
-                              <?php for ($floor = $floorAbove; $floor >= $floorAbove - 2; $floor--): ?>
-                                <div class="building-floor" aria-label="지상 <?=$floor?>층">
-                                  <span class="building-floor__label"><?=$floor?>F</span>
-                                  <span class="building-window"></span><span class="building-window"></span>
-                                </div>
-                              <?php endfor; ?>
-                              <div class="building-compressed" aria-label="지상 4층부터 <?=$floorAbove-3?>층까지 압축 표시">
-                                <b>4~<?=$floorAbove-3?>층<small><?=max(0,$floorAbove-6)?>개 층 압축</small></b>
-                              </div>
-                              <?php for ($floor = 3; $floor >= 1; $floor--): ?>
-                                <div class="building-floor" aria-label="지상 <?=$floor?>층">
-                                  <span class="building-floor__label"><?=$floor?>F</span>
-                                  <span class="building-window"></span><span class="building-window"></span>
-                                </div>
-                              <?php endfor; ?>
-                            <?php else: ?>
-                              <?php for ($floor = $floorVisualAbove; $floor >= 1; $floor--): ?>
-                                <div class="building-floor" aria-label="지상 <?=$floor?>층">
-                                  <span class="building-window"></span><span class="building-window"></span><span class="building-window"></span>
-                                </div>
-                              <?php endfor; ?>
-                            <?php endif; ?>
-                            <div class="building-entry"><span class="building-door"></span></div>
-                            <?php for ($basement = 1; $basement <= $floorVisualBelow; $basement++): ?>
-                              <div class="building-basement">지하 <?=$basement?>층</div>
-                            <?php endfor; ?>
-                            <div class="building-ground"></div>
-                          </div>
-                          <?php if ($floorBelow > 3): ?>
-                            <div class="building-basement-label">
-                              <b>B<?=$floorBelow?></b><span>지하 <?=$floorBelow?>층</span>
-                              <small><?=($floorBelow-3)?>개 층 압축</small>
+                          <div class="building-carousel<?= $carouselDongCount <= 1 ? ' building-carousel__single' : '' ?>"
+                               data-building-carousel data-count="<?=$carouselDongCount?>" tabindex="0">
+                            <div class="building-carousel__viewport">
+                              <?php foreach ($buildingDongs as $dongIndex => $dong):
+                                $slideAbove = max(0, (int)$dong['floor_a']);
+                                $slideBelow = max(0, (int)$dong['floor_b']);
+                                $slideHighRise = $slideAbove > 20;
+                                $slideVisualAbove = min(20, max(1, $slideAbove));
+                                $slideVisualBelow = min(3, $slideBelow);
+                                $slideFixedHeight = 48 + ($slideVisualBelow * 16);
+                                $slideFloorHeight = $slideHighRise
+                                  ? 9
+                                  : max(5, min(18, (int)floor((190 - $slideFixedHeight) / max(1, $slideVisualAbove))));
+                                $slideMeta = ['지상 '.$slideAbove.'층'];
+                                if ($slideBelow > 0) $slideMeta[] = '지하 '.$slideBelow.'층';
+                                if ((float)$dong['area'] > 0) $slideMeta[] = number_format((float)$dong['area']).'㎡';
+                                if (trim((string)$dong['struct']) !== '') $slideMeta[] = trim((string)$dong['struct']);
+                              ?>
+                                <article class="building-slide<?= $dongIndex === 0 ? ' is-active' : '' ?>"
+                                         data-building-slide data-dong-name="<?=h($dong['dong'])?>"
+                                         aria-hidden="<?= $dongIndex === 0 ? 'false' : 'true' ?>"<?= $dongIndex === 0 ? '' : ' hidden' ?>>
+                                  <div class="building-slide__figure">
+                                    <div class="building-skyline stage-<?=$buildStage?> protection-<?=$buildStage?><?= $slideHighRise ? ' is-high-rise' : '' ?>" style="--floor-h:<?=$slideFloorHeight?>px">
+                                      <?php if ($slideHighRise): ?><span class="building-height-label"><?=$slideAbove?>F</span><?php endif; ?>
+                                      <div class="building-roof<?= $buildStage >= 5 ? ' is-built' : '' ?>"></div>
+                                      <?php if ($slideHighRise): ?>
+                                        <?php for ($floor = $slideAbove; $floor >= $slideAbove - 2; $floor--): ?>
+                                          <div class="building-floor" aria-label="지상 <?=$floor?>층">
+                                            <span class="building-floor__label"><?=$floor?>F</span>
+                                            <span class="building-window"></span><span class="building-window"></span>
+                                          </div>
+                                        <?php endfor; ?>
+                                        <div class="building-compressed" aria-label="지상 4층부터 <?=$slideAbove-3?>층까지 압축 표시">
+                                          <b>4~<?=$slideAbove-3?>층<small><?=max(0,$slideAbove-6)?>개 층 압축</small></b>
+                                        </div>
+                                        <?php for ($floor = 3; $floor >= 1; $floor--): ?>
+                                          <div class="building-floor" aria-label="지상 <?=$floor?>층">
+                                            <span class="building-floor__label"><?=$floor?>F</span>
+                                            <span class="building-window"></span><span class="building-window"></span>
+                                          </div>
+                                        <?php endfor; ?>
+                                      <?php else: ?>
+                                        <?php for ($floor = $slideVisualAbove; $floor >= 1; $floor--): ?>
+                                          <div class="building-floor" aria-label="지상 <?=$floor?>층">
+                                            <span class="building-window"></span><span class="building-window"></span><span class="building-window"></span>
+                                          </div>
+                                        <?php endfor; ?>
+                                      <?php endif; ?>
+                                      <div class="building-entry"><span class="building-door"></span></div>
+                                      <?php for ($basement = 1; $basement <= $slideVisualBelow; $basement++): ?>
+                                        <div class="building-basement">지하 <?=$basement?>층</div>
+                                      <?php endfor; ?>
+                                      <div class="building-ground"></div>
+                                    </div>
+                                    <?php if ($slideBelow > 3): ?>
+                                      <div class="building-basement-label">
+                                        <b>B<?=$slideBelow?></b><span>지하 <?=$slideBelow?>층</span>
+                                        <small><?=($slideBelow-3)?>개 층 압축</small>
+                                      </div>
+                                    <?php endif; ?>
+                                  </div>
+                                  <div class="building-slide__info">
+                                    <span class="building-slide__badge<?= $dongIndex === 0 ? ' is-primary' : '' ?>"><?= $dongIndex === 0 ? '업무 기준동' : '별도 동' ?></span>
+                                    <strong class="building-slide__name"><?=h($dong['dong'])?></strong>
+                                    <span class="building-slide__meta"><?=h(implode(' · ', $slideMeta))?></span>
+                                  </div>
+                                </article>
+                              <?php endforeach; ?>
                             </div>
-                          <?php endif; ?>
+                            <div class="building-carousel__controls">
+                              <button class="building-carousel__nav" type="button" data-building-prev>이전 동</button>
+                              <div class="building-carousel__status" aria-live="polite">
+                                <span data-building-position>1 / <?=$carouselDongCount?> · <?=h($primaryDongName)?></span>
+                                <span class="building-carousel__dots" aria-label="동 바로 선택">
+                                  <?php foreach ($buildingDongs as $dongIndex => $dong): ?>
+                                    <button class="building-carousel__dot<?= $dongIndex === 0 ? ' is-active' : '' ?>" type="button"
+                                            data-building-index="<?=$dongIndex?>" aria-label="<?=h($dong['dong'])?> 보기"></button>
+                                  <?php endforeach; ?>
+                                </span>
+                              </div>
+                              <button class="building-carousel__nav" type="button" data-building-next>다음 동</button>
+                            </div>
+                          </div>
                         <?php endif; ?>
                       </div>
                     </section>
@@ -2241,6 +2390,65 @@ function showQr(id, name){
   }
   document.getElementById('qrov').classList.add('on');
 }
+</script>
+<script>
+/* 여러 동 건물 보기 — 버튼·점·키보드·모바일 스와이프로 전환합니다. */
+(function(){
+  var root = document.querySelector('[data-building-carousel]');
+  if (!root) return;
+  var slides = Array.prototype.slice.call(root.querySelectorAll('[data-building-slide]'));
+  var dots = Array.prototype.slice.call(root.querySelectorAll('[data-building-index]'));
+  var prev = root.querySelector('[data-building-prev]');
+  var next = root.querySelector('[data-building-next]');
+  var position = root.querySelector('[data-building-position]');
+  var index = 0;
+  var touchX = 0;
+  var touchY = 0;
+  if (!slides.length) return;
+
+  function showBuilding(target){
+    index = (target + slides.length) % slides.length;
+    slides.forEach(function(slide, i){
+      var active = i === index;
+      slide.hidden = !active;
+      slide.classList.toggle('is-active', active);
+      slide.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
+    dots.forEach(function(dot, i){
+      var active = i === index;
+      dot.classList.toggle('is-active', active);
+      dot.setAttribute('aria-current', active ? 'true' : 'false');
+      if (active && dot.scrollIntoView) dot.scrollIntoView({block:'nearest', inline:'center'});
+    });
+    var name = slides[index].getAttribute('data-dong-name') || '건물';
+    if (position) position.textContent = (index + 1) + ' / ' + slides.length + ' · ' + name;
+    if (prev) prev.disabled = slides.length <= 1;
+    if (next) next.disabled = slides.length <= 1;
+  }
+
+  if (prev) prev.addEventListener('click', function(){ showBuilding(index - 1); });
+  if (next) next.addEventListener('click', function(){ showBuilding(index + 1); });
+  dots.forEach(function(dot){
+    dot.addEventListener('click', function(){ showBuilding(parseInt(dot.getAttribute('data-building-index') || '0', 10)); });
+  });
+  root.addEventListener('keydown', function(event){
+    if (event.key === 'ArrowLeft'){ event.preventDefault(); showBuilding(index - 1); }
+    if (event.key === 'ArrowRight'){ event.preventDefault(); showBuilding(index + 1); }
+  });
+  var viewport = root.querySelector('.building-carousel__viewport');
+  if (viewport){
+    viewport.addEventListener('touchstart', function(event){
+      var touch = event.changedTouches[0]; touchX = touch.clientX; touchY = touch.clientY;
+    }, {passive:true});
+    viewport.addEventListener('touchend', function(event){
+      var touch = event.changedTouches[0];
+      var diffX = touch.clientX - touchX;
+      var diffY = touch.clientY - touchY;
+      if (Math.abs(diffX) >= 45 && Math.abs(diffX) > Math.abs(diffY)) showBuilding(index + (diffX < 0 ? 1 : -1));
+    }, {passive:true});
+  }
+  showBuilding(0);
+})();
 </script>
 <!-- 첫 방문 안내 팝업 -->
 <div class="gdov" id="gdov">

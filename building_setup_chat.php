@@ -275,6 +275,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
   $dongDetail = implode("\n", $dongLines);
 
   $useNm  = trim((string)($val('mainPurpsCdNm')));
+  if ($head && trim((string)($head['mainPurpsCdNm'] ?? '')) !== '') {
+    $useNm = trim((string)$head['mainPurpsCdNm']);
+  }
   $useApr = $fmtDay($val('useAprDay'));
   $pmsDay = $fmtDay($val('pmsDay'));
   $stcns  = $fmtDay($val('stcnsDay'));
@@ -289,8 +292,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
     'use'     => bldg_map_use($useNm),
     'floor_a' => (string)$floorA,
     'floor_b' => (string)$floorB,
-    'area_t'  => ($val('totArea') !== '') ? (string)round((float)$val('totArea')) : '',
-    'area_f'  => ($val('archArea') !== '') ? (string)round((float)$val('archArea')) : '',
+    // 여러 동이어도 합산하지 않고 연면적이 가장 큰 대표동 값을 사용합니다.
+    'area_t'  => ($head && ($head['totArea'] ?? '') !== '') ? (string)round((float)$head['totArea']) : '',
+    'area_f'  => ($head && ($head['archArea'] ?? '') !== '') ? (string)round((float)$head['archArea']) : '',
     'dongsu'  => $numOrEmpty($val('mainBldCnt')) ?: (string)max(count($titles),0),
     // 건축물대장 상세 (building_info.php 의 bd_* 필드로 저장)
     'bd_struct'    => $struct,
@@ -318,6 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
     'bd_road_addr' => trim((string)($val('newPlatPlc'))),
     'bd_dongs'     => $dongDetail,   // 여러 동일 때 동별 층수·구조(요약 텍스트)
     'bd_dong_list' => $dongList,     // 동별 상세(구조화) — 시뮬레이션용
+    'bd_dong_pick' => (string)($dongList[0]['dong'] ?? ''), // 가장 큰 동을 대표 기준동으로 고정
     'bd_looked'    => date('Y-m-d H:i:s'),
   ];
   echo json_encode(['ok'=>true,'patch'=>$patch,'rawUse'=>$useNm,'code'=>$code,
@@ -1716,7 +1721,7 @@ function doLookupPick(a, s){
         if(patch.name)    lines.push('**대상명** '+patch.name);
         if(patch.address) lines.push('**소재지** '+patch.address);
         if(patch.use)     lines.push('**용도** '+patch.use);
-        if(patch.area_t)  lines.push('**연면적** '+Number(patch.area_t).toLocaleString()+'㎡ (전체)');
+        if(patch.area_t)  lines.push('**연면적** '+Number(patch.area_t).toLocaleString()+'㎡ (가장 큰 동 기준)');
 
         // 동이 2개 이상이면 → 어느 동인지 사용자가 고르게 한다
         if (j.dongCnt > 1 && j.dongList && j.dongList.length > 1) {
@@ -1750,26 +1755,23 @@ function showLookupRecovery(a,s,message){
   row.appendChild(retry); row.appendChild(manual); b.appendChild(row);
 }
 
-/* ── 동 선택 — 여러 동일 때 어느 동(들)을 대상으로 할지 고른다 ──
-   모든 동은 bd_dong_list 에 저장되고, 고른 동은 bd_dong_pick 에 기록됩니다.
-   (시뮬레이션은 저장된 동별 정보를 그대로 꺼내 쓸 수 있습니다) */
+/* ── 여러 동 안내 ─────────────────────────────────────────
+   합산하지 않고 연면적이 가장 큰 첫 번째 동을 대표 기준동으로 저장합니다.
+   나머지 동은 bd_dong_list 에 그대로 보존해 관리 화면에서 함께 표시합니다. */
 function askDongPick(j, patch){
-  bot(md('어느 동을 기준으로 할까요? **여러 개 선택**할 수 있고, 전체를 고르면 합산해서 채웁니다.\n모든 동 정보는 어차피 저장되니, 시뮬레이션은 동별로 그릴 수 있습니다.'), '선택한 동 기준으로 층수·구조가 채워집니다.');
+  bot(md('여러 동을 하나로 합산하지 않습니다.\n\n연면적이 가장 큰 **'+((j.dongList[0]&&j.dongList[0].dong)||'첫 번째 동')+'**을 기준동으로 사용하고, 나머지 동은 별도로 표시합니다.'), '층수·연면적·구조·높이는 기준동 값으로 저장됩니다.');
   var b = box();
   var list = j.dongList || [];
-  var picked = {};
 
   var w = document.createElement('div'); w.className='opts';
   list.forEach(function(g, i){
-    var btn=document.createElement('button'); btn.className='opt'; btn.type='button';
+    var btn=document.createElement('div'); btn.className='opt';
     var sub = '지상'+g.floor_a+'/지하'+g.floor_b+'층';
     if (g.struct) sub += ' · '+g.struct;
     if (g.area)   sub += ' · '+Number(g.area).toLocaleString()+'㎡';
-    btn.innerHTML = '<b>'+esc(g.dong)+'</b><br><span style="font-size:11.5px;color:var(--mut)">'+esc(sub)+'</span>';
-    btn.onclick=function(){
-      if(picked[i]){ delete picked[i]; btn.style.background=''; btn.style.borderColor=''; }
-      else { picked[i]=true; btn.style.background='#eef4ff'; btn.style.borderColor='var(--brand)'; }
-    };
+    btn.style.cursor='default';
+    if(i===0){ btn.style.background='#eef4ff'; btn.style.borderColor='var(--brand)'; }
+    btn.innerHTML = '<b>'+esc(g.dong)+'</b>'+(i===0?' <span style="font-size:10px;color:var(--brand2);font-weight:800">기준동</span>':' <span style="font-size:10px;color:var(--mut);font-weight:700">별도 표시</span>')+'<br><span style="font-size:11.5px;color:var(--mut)">'+esc(sub)+'</span>';
     w.appendChild(btn);
   });
   b.appendChild(w);
@@ -1777,56 +1779,27 @@ function askDongPick(j, patch){
   var row=document.createElement('div'); row.className='subrow';
   var okBtn=document.createElement('button');
   okBtn.className='btn btn--primary btn--sm'; okBtn.type='button';
-  okBtn.textContent='선택한 동으로 진행';
-  okBtn.onclick=function(){
-    var idx=Object.keys(picked).map(Number);
-    if(!idx.length){ return; }          // 아무것도 안 고르면 무시
-    applyDongPick(j, patch, idx);
-  };
-  var allBtn=document.createElement('button');
-  allBtn.className='btn btn--sm'; allBtn.type='button';
-  allBtn.textContent='전체 '+list.length+'개 동';
-  allBtn.onclick=function(){
-    applyDongPick(j, patch, list.map(function(_,i){return i;}), true);
-  };
-  row.appendChild(okBtn); row.appendChild(allBtn);
+  okBtn.textContent='기준동으로 저장하고 계속';
+  okBtn.onclick=function(){ applyDongPick(j, patch); };
+  row.appendChild(okBtn);
   b.appendChild(row);
 }
 
-/* 고른 동을 대표값에 반영하고 저장 */
-function applyDongPick(j, patch, idx, isAll){
+/* 서버에서 이미 가장 큰 동 기준으로 만든 값을 그대로 저장합니다. */
+function applyDongPick(j, patch){
   var list=j.dongList||[];
-  var sel=idx.map(function(i){return list[i];}).filter(Boolean);
-  if(!sel.length) return;
-
-  // 대표값: 층수는 최대, 구조·높이는 가장 큰 동 기준, 연면적은 합
-  var maxA=0, maxB=0, maxH=0, sumArea=0, struct='', biggest=null;
-  sel.forEach(function(g){
-    maxA=Math.max(maxA, parseInt(g.floor_a||0,10));
-    maxB=Math.max(maxB, parseInt(g.floor_b||0,10));
-    maxH=Math.max(maxH, parseFloat(g.height||0));
-    sumArea+=parseFloat(g.area||0);
-    if(!biggest || parseFloat(g.area||0)>parseFloat(biggest.area||0)) biggest=g;
-  });
-  if(biggest && biggest.struct) struct=biggest.struct;
-
-  patch.floor_a   = String(maxA);
-  patch.floor_b   = String(maxB);
-  patch.bd_struct = struct;
-  patch.bd_height = maxH ? String(maxH) : '';
-  if(sumArea>0) patch.area_t = String(Math.round(sumArea));
-  patch.bd_dong_pick = isAll ? 'ALL' : sel.map(function(g){return g.dong;}).join(',');
-
-  var label = isAll ? ('전체 '+sel.length+'개 동') : sel.map(function(g){return g.dong;}).join(', ');
+  if(!list.length) return;
+  var primary=list[0];
+  var label=primary.dong||'기준동';
   clearBox(); me(label);
   typing(function(){
     var lines=[];
-    lines.push('**선택** '+label);
+    lines.push('**기준동** '+label+' (연면적이 가장 큰 동)');
     lines.push('**층수** 지상 '+patch.floor_a+'층'+((patch.floor_b&&patch.floor_b!=='0')?(' · 지하 '+patch.floor_b+'층'):''));
     if(patch.bd_struct) lines.push('**구조** '+patch.bd_struct);
     if(patch.area_t)    lines.push('**연면적** '+Number(patch.area_t).toLocaleString()+'㎡');
     bot(md('이 내용으로 채웠습니다.\n'+lines.join('\n')+
-           '\n\n동별 상세는 모두 저장되어 있어, 피난 시뮬레이션은 동마다 따로 만들 수 있습니다.'));
+           '\n\n나머지 '+Math.max(0,list.length-1)+'개 동은 합산하지 않고 건물 현황에 별도로 표시합니다.'));
     for(var k in patch){ if(patch[k]!=='' && patch[k]!==null) SAVED[k]=patch[k]; }
     save(patch, function(){ step++; setTimeout(next,500); });
   });
