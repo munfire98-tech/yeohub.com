@@ -275,7 +275,9 @@ table.d td{word-break:break-all}
             $rows = $isSelf ? ['작동점검','종합점검','외관점검'] : ['소방시설','피난시설','방화시설']; ?>
       <table class="d">
         <tr><th>구 분</th><th>실시 시기</th><th>담당자</th><th>비 고</th></tr>
-        <?php foreach ($rows as $i => $rn): $n = $i+1; ?>
+        <?php foreach ($rows as $i => $rn): $n = $i+1;
+          if ($isSelf && $n === 2 && !fp_comprehensive($s1,$d)) continue;
+        ?>
         <tr>
           <th><?=h($rn)?></th>
           <td><?=v($d["r{$n}_when"] ?? '')?></td>

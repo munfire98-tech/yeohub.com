@@ -536,16 +536,20 @@ function box(){ clearBox(); var d=document.createElement('div');
 
 /* ── 저장 ── */
 function save(patch, done){
+  window.recordModalPending=(window.recordModalPending||0)+1;
+  window.recordModalDirty=true;
   var fd=new FormData();
   fd.append('act','save_step'); fd.append('csrf',CSRF);
   fd.append('patch', JSON.stringify(patch));
   fetch(location.pathname + location.search, {method:'POST', body:fd, credentials:'same-origin'})
     .then(function(r){ return r.json(); })
     .then(function(j){
+      window.recordModalPending--;
+      if(j && j.ok){window.recordModalDirty=false;document.dispatchEvent(new Event('record-saved'));}
       if(!j || !j.ok) bot(md('⚠️ ' + ((j&&j.error)?j.error:'저장하지 못했습니다.')));
       if(done) done();
     })
-    .catch(function(){ bot(md('⚠️ 연결이 끊겼습니다. 잠시 후 다시 시도해 주세요.')); if(done) done(); });
+    .catch(function(){ window.recordModalPending=Math.max(0,(window.recordModalPending||0)-1);bot(md('⚠️ 연결이 끊겼습니다. 잠시 후 다시 시도해 주세요.')); if(done) done(); });
 }
 function put(patch, shown, next){
   for(var k in patch) SAVED[k]=patch[k];

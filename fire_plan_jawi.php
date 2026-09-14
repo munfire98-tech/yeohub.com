@@ -1009,6 +1009,7 @@ let currentPlanId = null;   // 현재 불러와 수정 중인 편성표 id (null
 let finalAction = '';       // autoAssign 뒤 save, 저장 성공 뒤 building
 let rosterChanged = false;  // 명단을 고친 뒤 다시 자동 배치해야 하는 상태
 let pageDirty = false;      // 저장하지 않은 화면 변경 여부
+let planSaving = false;
 
 /* ---------- 임무 기본 문구 (활동조 자동 배정용) ---------- */
 const GROUP_TEMPLATES = [
@@ -1976,6 +1977,7 @@ function collect(){
 }
 
 async function saveplan(){
+  if(planSaving) return false;
   const rosterCheck = validateRosterText((document.getElementById('bulkInput')||{}).value || '');
   if (!rosterCheck.ok) {
     toast(rosterCheck.errors[0] + ' 저장 전에 명단을 수정해 주세요.');
@@ -1986,6 +1988,7 @@ async function saveplan(){
   fd.append('csrf',CSRF); fd.append('action','fire_save');
   if(currentPlanId) fd.append('plan_id',currentPlanId);   // 있으면 그 항목 갱신
   fd.append('payload',JSON.stringify(collect()));
+  planSaving = true;
   try{
     const res = await fetch(location.pathname,{method:'POST',body:fd}).then(r=>r.json());
     if(res.ok){
@@ -2000,6 +2003,7 @@ async function saveplan(){
       return true;
     } else { toast("저장 실패: "+(res.msg||"")); return false; }
   }catch(e){ toast("네트워크 오류"); return false; }
+  finally { planSaving = false; }
 }
 
 /* 저장이 끝나면 안내를 남기고, 하단의 '메인으로' 버튼을 강조합니다. */
@@ -2182,6 +2186,24 @@ document.addEventListener('keydown', function(e){
   const mask = document.getElementById('leaveMask');
   const saveBtn = document.getElementById('saveAndLeaveBtn');
   let destination = '/building_manager.php';
+  const modal = new URLSearchParams(location.search).get('modal') === '1' && window.parent !== window;
+  function finishClose(){
+    pageDirty = false;
+    if(modal) window.parent.postMessage({type:'building-info-close'},location.origin);
+    else window.top.location.href = destination;
+  }
+  window.buildingInfoRequestClose = function(){
+    if(planSaving){ toast('저장이 끝날 때까지 잠시 기다려 주세요.'); return; }
+    if(pageDirty) mask.classList.add('show');
+    else finishClose();
+  };
+  if(modal){
+    document.getElementById('leaveTitle').textContent = '바뀐 정보가 있습니다. 저장할까요?';
+    mask.querySelector('p').textContent = '저장하지 않고 닫으면 수정한 편성 내용이 사라집니다.';
+    saveBtn.textContent = '저장 후 닫기';
+    document.getElementById('leaveWithoutSaveBtn').textContent = '저장하지 않고 닫기';
+    document.querySelectorAll('.js-main-link').forEach(function(link){link.textContent = '닫기';link.title = '닫기';});
+  }
 
   document.addEventListener('input', function(e){
     if (e.target && e.target.closest && (e.target.closest('.layout') || e.target.closest('.guide-card'))) {
@@ -2190,6 +2212,7 @@ document.addEventListener('keydown', function(e){
   });
   document.querySelectorAll('.js-main-link').forEach(function(link){
     link.addEventListener('click', function(e){
+      if(modal){ e.preventDefault(); window.buildingInfoRequestClose(); return; }
       if (!pageDirty) return;
       e.preventDefault();
       destination = link.href;
@@ -2198,23 +2221,26 @@ document.addEventListener('keydown', function(e){
   });
   document.getElementById('stayBtn').onclick = function(){ mask.classList.remove('show'); };
   document.getElementById('leaveWithoutSaveBtn').onclick = function(){
-    pageDirty = false;
-    window.top.location.href = destination;
+    if(!planSaving) finishClose();
   };
   saveBtn.onclick = async function(){
     saveBtn.disabled = true;
     saveBtn.textContent = '저장 중…';
     const ok = await saveplan();
     if (ok) {
-      pageDirty = false;
-      window.top.location.href = destination;
+      finishClose();
       return;
     }
     saveBtn.disabled = false;
-    saveBtn.textContent = '저장 후 이동';
+    saveBtn.textContent = modal ? '저장 후 닫기' : '저장 후 이동';
+    mask.classList.remove('show');
   };
   mask.addEventListener('click', function(e){ if(e.target === mask) mask.classList.remove('show'); });
-  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') mask.classList.remove('show'); });
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Escape') return;
+    if(mask.classList.contains('show')) mask.classList.remove('show');
+    else if(modal && !document.getElementById('guideMask')?.classList.contains('show')) window.buildingInfoRequestClose();
+  });
 
   window.addEventListener('beforeunload', function(e){
     if (pageDirty) { e.preventDefault(); e.returnValue = ''; }

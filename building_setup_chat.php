@@ -558,6 +558,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 </style>
 </head>
 <body>
+<?php if (($_GET['modal'] ?? '') === '1'): ?>
+<style>.nav .brand{display:none}.nav__in{justify-content:flex-end}.prog{position:static}</style>
+<?php endif; ?>
 
 <nav class="nav">
   <div class="nav__in">
@@ -922,8 +925,25 @@ function filled(s){
 }
 
 /* ── 서버에 저장 ──────────────────────────────────────── */
+var chatPending = 0;
+var chatUnsaved = false;
+var chatEditVersion = 0;
+document.addEventListener('input',function(e){
+  if(e.target.closest('#ansBox')) { chatUnsaved = true; chatEditVersion++; }
+});
 function save(patch, done){
   if (NOUSER){ done(false); return; }
+  chatPending++;
+  var version = chatEditVersion;
+  var onDone = done;
+  var settled = false;
+  done = function(ok){
+    if(settled) return;
+    settled = true;
+    chatPending--;
+    if(ok && version === chatEditVersion) chatUnsaved = false;
+    onDone(ok);
+  };
   var fd = new FormData();
   fd.append('act','save_step'); fd.append('csrf',CSRF);
   fd.append('patch', JSON.stringify(patch));
@@ -1838,6 +1858,41 @@ function finish(){
   });
 }
 
+// 문답은 답변마다 저장합니다. 인쇄는 대화가 아닌 저장된 기본정보 서식으로 연결합니다.
+(function(){
+  var modal = new URLSearchParams(location.search).get('modal') === '1' && window.parent !== window;
+  if(!modal) return;
+  function canLeave(){
+    if(chatPending){ alert('답변을 저장하고 있습니다. 잠시 후 다시 눌러 주세요.'); return false; }
+    return !chatUnsaved || confirm('아직 답변을 확정하지 않은 내용이 있습니다. 계속하려면 취소 후 현재 질문의 다음 또는 저장 버튼을 눌러 주세요.\n저장된 답변만 남기고 이동할까요?');
+  }
+  function setupUrl(print){
+    var target = new URL(<?=json_encode($url('/building_setup.php'))?>,location.origin);
+    target.searchParams.set('embed','1'); target.searchParams.set('modal','1');
+    if(print) target.searchParams.set('print','1');
+    return target.href;
+  }
+  window.buildingInfoRequestClose = function(){
+    if(!canLeave()) return;
+    chatUnsaved = false;
+    window.parent.postMessage({type:'building-info-close'},location.origin);
+  };
+  window.buildingInfoPrint = function(){
+    if(canLeave()) { chatUnsaved = false; location.href = setupUrl(true); }
+  };
+  document.addEventListener('click',function(e){
+    var link = e.target.closest('a[href]');
+    if(!link || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    var target = new URL(link.href,location.origin);
+    if(target.origin !== location.origin) return;
+    if(target.pathname.endsWith('/building_manager.php')){
+      e.preventDefault(); window.buildingInfoRequestClose();
+    } else if(target.pathname.endsWith('/building_setup.php')){
+      e.preventDefault(); if(canLeave()){chatUnsaved=false;location.href=setupUrl(false);}
+    }
+  });
+  document.addEventListener('keydown',function(e){if(e.key==='Escape') window.buildingInfoRequestClose();});
+})();
 start();
 </script>
 <?php require __DIR__ . '/memo_widget.php'; ?>

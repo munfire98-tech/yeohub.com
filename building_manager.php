@@ -1404,8 +1404,8 @@ a.pstep:hover{background:#f2f6fd}
     <section class="safety-ai safety-ai--rail" aria-labelledby="safetyAiTitle">
       <div class="safety-ai__head">
         <div class="safety-ai__title" id="safetyAiTitle">
-          <span class="safety-ai__mark">HUB</span>
-          소방안전관리 업무 도우미
+          <span class="safety-ai__mark">M</span>
+          소방안전관리 매니저
         </div>
         <span class="safety-ai__mode" id="safetyAiMode">현재 상태 분석 완료</span>
       </div>
@@ -2146,10 +2146,201 @@ const safetyAiContext = <?=json_encode([
 ], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
 const safetyAiCsrf = <?=json_encode($safetyAiCsrf, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
 
+// 목록, 문답, 표 작성, 인쇄 사이의 이동을 하나의 팝업 안에서 유지합니다.
+function setupRecordPopupFrame(frame, dialog, fromPrintAll = false){
+  const win = frame.contentWindow, doc = frame.contentDocument;
+  const current = new URL(win.location.href);
+  const name = current.pathname.split('/').pop();
+  const pages = ['work_log.php','work_log_form.php','work_log_print.php','jawi.php','jawi_chat.php','jawi_edit.php','jawi_print.php','train.php','train_chat.php','train_edit.php','train_print.php','evacuation_plan.php','evacuation_plan_chat.php','fire_plan.php','fire_plan_new.php','fire_plan_chat.php','fire_plan_edit.php','fire_plan_print.php'];
+  pages.push('print_all.php');
+  if(!pages.includes(name)) return null;
+  const training = name.startsWith('train');
+  const evacuation = name.startsWith('evacuation_plan');
+  const firePlan = name.startsWith('fire_plan');
+  const education = name.startsWith('jawi') || training;
+  const printing = name.endsWith('_print.php') || (evacuation && current.searchParams.get('print') === '1');
+  const title = name==='print_all.php' ? '전체 인쇄 · PDF' : firePlan ? '소방계획서' : evacuation ? '피난계획' : training ? '소방훈련·교육' : education ? '자위소방대 교육·훈련' : '월별 업무기록';
+  dialog.querySelector('#buildingInfoDialogTitle').textContent = title;
+  frame.title = title;
+  // 서버 리다이렉트가 쿼리를 생략해도 다음 POST와 링크는 팝업 상태를 유지합니다.
+  current.searchParams.set('modal','1');current.searchParams.set('embed','1');
+  win.history.replaceState(win.history.state,'',current.href);
+  const style = doc.createElement('style');
+  style.media = 'screen';
+  style.textContent = '.nav,.appnav,.appbar{display:none!important}.prog{top:0!important}body{padding-top:0!important}';
+  doc.head.appendChild(style);
+  function snapshot(){
+    return JSON.stringify(Array.from(doc.querySelectorAll('input,textarea,select')).filter(el=>!['hidden','submit','button'].includes(el.type)).map(el=>[el.name,el.value,el.checked]));
+  }
+  let baseline = snapshot(), submitting = false, edited = false;
+  doc.addEventListener('input',function(){edited=true;});
+  doc.addEventListener('change',function(){edited=true;});
+  doc.addEventListener('record-saved',function(){baseline=snapshot();edited=false;});
+  function canLeave(){
+    if(typeof win.fpModalState === 'function'){
+      const state=win.fpModalState();
+      if(state.busy){win.alert('저장이 끝날 때까지 잠시 기다려 주세요.');return false;}
+      if(!state.dirty) return true;
+      if(!win.confirm('아직 저장하지 않은 답변이 있습니다.\n저장하려면 취소 후 현재 답변을 저장해 주세요.\n저장하지 않고 이동할까요?')) return false;
+      win.fpModalDiscard();return true;
+    }
+    if(submitting || win.recordModalPending){win.alert('저장이 끝날 때까지 잠시 기다려 주세요.');return false;}
+    if(!win.recordModalDirty && (!edited || snapshot() === baseline)) return true;
+    return win.confirm('아직 저장하지 않은 내용이 있습니다.\n저장하려면 취소 후 화면의 저장 또는 다음 버튼을 눌러 주세요.\n저장하지 않고 이동할까요?');
+  }
+  function contextual(url){
+    const next = new URL(url,current.href);
+    next.searchParams.set('modal','1');next.searchParams.set('embed','1');
+    if(current.searchParams.has('uid') && !next.searchParams.has('uid')) next.searchParams.set('uid',current.searchParams.get('uid'));
+    return next.href;
+  }
+  function navigate(url){
+    if(!canLeave()) return;
+    baseline=snapshot();win.recordModalDirty=false;
+    win.location.href=contextual(url);
+  }
+  win.buildingInfoRequestClose=function(){
+    if(canLeave()) {baseline=snapshot();win.recordModalDirty=false;dialog.close();}
+  };
+  doc.addEventListener('click',function(event){
+    const link=event.target.closest('a[href]');
+    if(!link || event.button!==0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const next=new URL(link.href,current.href);
+    if(next.origin!==current.origin) return;
+    if(next.pathname.endsWith('/building_manager.php')){
+      event.preventDefault();event.stopImmediatePropagation();win.buildingInfoRequestClose();return;
+    }
+    if(!pages.concat(['building_setup.php','building_setup_chat.php','fire_plan_jawi.php']).includes(next.pathname.split('/').pop()) || (next.pathname===current.pathname && next.search===current.search && next.hash)) return;
+    event.preventDefault();event.stopImmediatePropagation();navigate(next.href);
+  },true);
+  doc.addEventListener('submit',function(event){
+    if(event.defaultPrevented) return;
+    const form=event.target;
+    // name="action" 입력칸이 form.action 속성을 가릴 수 있으므로 HTML 속성을 직접 읽습니다.
+    const action=new URL(form.getAttribute('action') || current.href,current.href);
+    if(action.origin!==current.origin) return;
+    form.setAttribute('action',contextual(action.href));
+    submitting=true;
+  });
+  doc.addEventListener('keydown',function(event){if(event.key==='Escape'){event.preventDefault();win.buildingInfoRequestClose();}});
+  const back = dialog.querySelector('[data-list]');
+  back.hidden = name === 'jawi.php' || name === 'work_log.php' || name === 'train.php' || name === 'evacuation_plan.php' || name === 'fire_plan.php';
+  back.textContent = evacuation ? '피난계획 보기' : '목록';
+  back.onclick = function(){navigate(firePlan ? '/fire_plan.php' : evacuation ? '/evacuation_plan.php' : training ? '/train.php' : education ? '/jawi.php?stay=1' : '/work_log.php');};
+  if(fromPrintAll){
+    back.hidden=name==='print_all.php';back.textContent='전체 인쇄 목록';
+    back.onclick=function(){navigate('/print_all.php');};
+  }
+  if(name==='print_all.php'){back.hidden=true;return false;}
+  if(printing || name === 'work_log_form.php') return function(){win.focus();win.print();};
+  let printUrl = null;
+  if(firePlan && current.searchParams.get('id')) printUrl='/fire_plan_print.php?id='+encodeURIComponent(current.searchParams.get('id'));
+  if(evacuation){
+    const link=Array.from(doc.querySelectorAll('a[href]')).find(el=>{const u=new URL(el.href,current.href);return u.pathname.endsWith('/evacuation_plan_chat.php') && u.searchParams.get('print')==='1';});
+    if(link) printUrl=link.href;
+    else if(name==='evacuation_plan_chat.php') {const u=new URL(current.href);u.searchParams.set('print','1');u.searchParams.delete('plan_token');printUrl=u.href;}
+  }
+  if(education && current.searchParams.get('id')) printUrl=(training ? '/train_print.php?id=' : '/jawi_print.php?id=')+encodeURIComponent(current.searchParams.get('id'));
+  if(!education && !evacuation && !firePlan){
+    const link=Array.from(doc.querySelectorAll('a[href]')).find(el=>new URL(el.href,current.href).pathname.endsWith('/work_log_print.php'));
+    if(link) printUrl=link.href;
+  }
+  return printUrl ? function(){navigate(printUrl);} : false;
+}
+
+function openBuildingInfoPopup(url){
+  const target = new URL(url, location.origin);
+  if(target.origin !== location.origin) return;
+  const popupTitle = target.pathname.endsWith('/fire_plan_jawi.php') ? '자위소방대 편성'
+    : target.pathname.endsWith('/print_all.php') ? '전체 인쇄 · PDF'
+    : /\/fire_plan(?:_new|_chat|_edit)?\.php$/.test(target.pathname) ? '소방계획서'
+    : /\/evacuation_plan(?:_chat)?\.php$/.test(target.pathname) ? '피난계획'
+    : /\/train(?:_chat|_edit)?\.php$/.test(target.pathname) ? '소방훈련·교육'
+    : /\/jawi(?:_chat|_edit)?\.php$/.test(target.pathname) ? '자위소방대 교육·훈련'
+    : target.pathname.endsWith('/work_log.php') ? '월별 업무기록' : '건물 기본정보';
+  if(document.getElementById('buildingInfoDialog')) return;
+  target.searchParams.set('embed','1');
+  target.searchParams.set('modal','1');
+  target.searchParams.delete('after_save');
+  target.searchParams.delete('print');
+  const style = document.createElement('style');
+  style.textContent = '#buildingInfoDialog{position:fixed!important;inset:50% auto auto 50%!important;transform:translate(-50%,-50%)!important;margin:0!important;padding:0;box-sizing:border-box;width:min(960px,calc(100vw - 32px));height:calc(100dvh - 48px);max-height:960px;max-width:none;border:1px solid #dce2e8;border-radius:16px;background:#fff;overflow:hidden;box-shadow:0 20px 70px #0002}#buildingInfoDialog[open]{display:flex;flex-direction:column}#buildingInfoDialog::backdrop{background:rgba(20,30,45,.4)}#buildingInfoDialog .bi-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid #e5e7eb;flex-shrink:0}#buildingInfoDialog .bi-modal-actions{display:flex;gap:8px}#buildingInfoDialog button{font:inherit;font-size:13px;padding:8px 12px;background:white;color:#334155;border:1px solid #dce2e8;border-radius:8px;cursor:pointer}#buildingInfoDialog button:disabled{opacity:.45;cursor:wait}#buildingInfoDialog iframe{border:0;width:100%;flex:1;min-height:0;background:#f5f7fb}';
+  document.head.appendChild(style);
+  const dialog = document.createElement('dialog');
+  dialog.id = 'buildingInfoDialog';
+  dialog.setAttribute('aria-labelledby','buildingInfoDialogTitle');
+  dialog.innerHTML = '<div class="bi-modal-head"><strong id="buildingInfoDialogTitle">건물 기본정보</strong><div class="bi-modal-actions"><button type="button" data-print disabled>인쇄 / PDF</button><button type="button" data-close>닫기</button></div></div><iframe title="건물 기본정보 입력"></iframe>';
+  const frame = dialog.querySelector('iframe');
+  const listButton = document.createElement('button');
+  listButton.type='button';listButton.dataset.list='';listButton.textContent='목록';listButton.hidden=true;
+  dialog.querySelector('.bi-modal-actions').prepend(listButton);
+  dialog.querySelector('#buildingInfoDialogTitle').textContent = popupTitle;
+  frame.title = popupTitle;
+  const printButton = dialog.querySelector('[data-print]');
+  let loaded = false;
+  let recordPrinter = null;
+  const previousFocus = document.activeElement;
+  const previousOverflow = document.documentElement.style.overflow;
+  function closePopup(){ dialog.close(); }
+  function requestClose(){
+    try {
+      if(typeof frame.contentWindow.buildingInfoRequestClose === 'function'){
+        frame.contentWindow.buildingInfoRequestClose(); return;
+      }
+    } catch(ignore) {}
+    if(window.confirm(popupTitle + ' 창을 닫을까요? 저장하지 않은 내용은 사라질 수 있습니다.')) closePopup();
+  }
+  function receive(event){
+    if(event.origin === location.origin && event.source === frame.contentWindow && event.data?.type === 'building-info-close') closePopup();
+  }
+  window.addEventListener('message',receive);
+  dialog.querySelector('[data-close]').onclick = requestClose;
+  dialog.addEventListener('cancel',function(event){event.preventDefault();requestClose();});
+  frame.addEventListener('load',function(){
+    try {
+      const currentPath = frame.contentWindow.location.pathname;
+      listButton.hidden = true;
+      recordPrinter = setupRecordPopupFrame(frame,dialog,target.pathname.endsWith('/print_all.php'));
+      const standaloneForm = /\/(building_setup(?:_chat)?|fire_plan_jawi)\.php$/.test(currentPath);
+      loaded = recordPrinter !== null || standaloneForm || currentPath === target.pathname;
+      if(standaloneForm) dialog.querySelector('#buildingInfoDialogTitle').textContent=currentPath.endsWith('/fire_plan_jawi.php')?'자위소방대 편성':'건물 기본정보';
+      printButton.disabled = !loaded || recordPrinter === false;
+      printButton.title = recordPrinter === false ? '인쇄할 기록을 먼저 선택해 주세요' : '';
+    } catch(ignore){printButton.disabled = true;}
+  });
+  printButton.onclick = function(){
+    if(!loaded) return;
+    if(typeof recordPrinter === 'function') {recordPrinter();return;}
+    if(typeof frame.contentWindow.buildingInfoPrint === 'function') { frame.contentWindow.buildingInfoPrint(); return; }
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+  };
+  dialog.addEventListener('close',function(){
+    window.removeEventListener('message',receive);
+    document.documentElement.style.overflow = previousOverflow;
+    dialog.remove();style.remove();previousFocus?.focus();
+    window.location.reload();
+  },{once:true});
+  document.body.appendChild(dialog);
+  document.documentElement.style.overflow = 'hidden';
+  frame.src = target.href;
+  dialog.showModal();
+}
+
+// 기본정보와 자위소방대 편성은 어느 카드에서 눌러도 동일한 중앙 팝업으로 엽니다.
+document.addEventListener('click',function(event){
+  const link = event.target.closest('a[href]');
+  if(!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  const target = new URL(link.href,location.origin);
+  if(target.origin !== location.origin || !/\/(print_all|building_setup(?:_chat)?|fire_plan(?:_jawi|_new|_chat|_edit)?|evacuation_plan(?:_chat)?|work_log|(?:jawi|train)(?:_chat|_edit)?)\.php$/.test(target.pathname)) return;
+  event.preventDefault();event.stopPropagation();openBuildingInfoPopup(target.href);
+},true);
+
 function openOneStop(url, title){
   let target;
   try { target = new URL(url, window.location.origin); } catch (error) { return; }
   if (target.origin !== window.location.origin) return;
+  if (/\/(print_all|building_setup(?:_chat)?|fire_plan(?:_jawi|_new|_chat|_edit)?|evacuation_plan(?:_chat)?|work_log|(?:jawi|train)(?:_chat|_edit)?)\.php$/.test(target.pathname)) { openBuildingInfoPopup(target.href); return; }
   target.searchParams.set('embed', '1');
   if (target.pathname === '/subscribe_page.php') title = 'PRO 구독 · 관리';
   const shell = document.querySelector('.dashboard-shell');

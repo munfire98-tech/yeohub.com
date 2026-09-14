@@ -1,712 +1,420 @@
 <?php
-/* =============================================================
-   fire_plan_chat.php — 소방계획서 문답 작성
-   ─────────────────────────────────────────────────────────────
-   지금까지 입력해 둔 것을 최대한 끌어와 먼저 채우고,
-   남은 것만 하나씩 여쭤봅니다.
-
-     · 건물 기본정보 (building_info)  → 항목1 일반현황 대부분
-     · 공통 피난계획                    → 항목5 피난경로·집결지
-     · 자위소방대 편성표 (_jawi.json) → 항목9 조직·임무, 항목14 초기대응
-     · 업무수행 기록표 기본값          → 항목13 업무수행 기록·유지
-     · 소방훈련·교육 기록              → 항목11 훈련·교육 계획
-
-   나머지 세부 항목은 표 화면(fire_plan_edit.php)에서 다듬습니다.
-   ============================================================= */
+// 소방계획서 전체 문답. 원본 업무자료는 읽기만 하고 확인한 답변만 저장합니다.
 declare(strict_types=1);
-
-if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
-ini_set('session.cookie_httponly', '1');
-if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
+date_default_timezone_set('Asia/Seoul');
+ini_set('session.cookie_httponly','1');
+if (PHP_VERSION_ID >= 70300) session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']);
 session_start();
-
-function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
-function is_admin(): bool {
-  return (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'])
-      || (!empty($_SESSION['ID_OK']) && $_SESSION['ID_OK'] == 1);
-}
-function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']); }
-if (!is_logged_in()) { header('Location: /index.php'); exit; }
-$role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
-
-require_once __DIR__ . '/fire_plan_db.php';
-require_once __DIR__ . '/building_info.php';
-require_once __DIR__ . '/evacuation_plan_common.php';
-
-$USAGES = fp_usages();
-
-/* ── 계획서 준비 ───────────────────────────────────────────
-   id 가 없으면 만들어 줍니다. 용도는 나중에 문답에서 고칩니다. */
+function h($s): string { return htmlspecialchars((string)$s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8'); }
+function is_admin(): bool { return !empty($_SESSION['is_admin']) || (!empty($_SESSION['ID_OK']) && $_SESSION['ID_OK'] == 1); }
+if (!is_admin() && empty($_SESSION['is_user'])) { header('Location: /index.php'); exit; }
+if (!is_admin() && ($_SESSION['role'] ?? '') !== 'building') { header('Location: /clients_mini.php'); exit; }
+require_once __DIR__.'/fire_plan_db.php';
+require_once __DIR__.'/building_info.php';
+require_once __DIR__.'/evacuation_plan_common.php';
+if (fp_user_key() === '') { http_response_code(403); exit('사용자 정보를 확인할 수 없습니다. 다시 로그인해 주세요.'); }
+$context = [];
+if (($_GET['embed'] ?? '') === '1') $context['embed'] = '1';
+if (($_GET['modal'] ?? '') === '1') $context['modal'] = '1';
+if (is_admin() && isset($_GET['uid']) && is_string($_GET['uid'])) $context['uid'] = $_GET['uid'];
+$url = function(string $path, array $args = []) use ($context): string { $q = array_merge($context,$args); return $path.($q ? '?'.http_build_query($q) : ''); };
 $planId = (string)($_GET['id'] ?? '');
-$plan   = $planId !== '' ? fp_load_plan($planId) : null;
+$requestedYear = filter_var($_GET['year'] ?? date('Y'),FILTER_VALIDATE_INT,['options'=>['min_range'=>1900,'max_range'=>2200]]);
+if ($requestedYear === false) { http_response_code(400); exit('올바른 계획연도를 선택해 주세요.'); }
+if ($planId === '' && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+  foreach (fp_list_plans() as $row) {
+    $existing=fp_load_plan((string)($row['id'] ?? ''));
+    if ($existing && fp_plan_year($existing)===$requestedYear) { $planId=(string)$existing['id']; break; }
+  }
+  if ($planId!=='') { header('Location: '.$url('/fire_plan_chat.php',['id'=>$planId,'year'=>$requestedYear])); exit; }
+}
+$plan = $planId !== '' ? fp_load_plan($planId) : null;
 if (!$plan) {
+  if ($planId !== '' || ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') { http_response_code(404); exit('계획서를 찾을 수 없습니다. 목록에서 다시 열어주세요.'); }
   $usage = (string)($_GET['usage'] ?? 'business');
-  if (!isset($USAGES[$usage])) $usage = 'business';
-  $planId = fp_create_plan($usage);
-  header('Location: /fire_plan_chat.php?id=' . urlencode($planId)); exit;
+  if (!isset(fp_usages()[$usage])) $usage = 'business';
+  $planId = fp_create_plan($usage,$requestedYear);
+  if (!fp_load_plan($planId)) { http_response_code(500); exit('계획서를 만들지 못했습니다. 저장 공간을 확인해 주세요.'); }
+  header('Location: '.$url('/fire_plan_chat.php',['id'=>$planId,'year'=>$requestedYear])); exit;
 }
-
-/* ── 지금까지 모아둔 자료 ─────────────────────────────────── */
-$bi   = bi_load();
-$mgrs = is_array($bi['mgrs'] ?? null) ? $bi['mgrs'] : [];
-
-/* 주 담당 소방안전관리자 (없으면 첫 사람) */
-$mgrName = ''; $mgrTel = '';
-foreach ($mgrs as $m) {
-  if (!is_array($m)) continue;
-  $n = trim((string)($m['name'] ?? ''));
-  if ($n === '') continue;
-  if ($mgrName === '') { $mgrName = $n; $mgrTel = trim((string)($m['tel'] ?? '')); }
-  if (strpos((string)($m['type'] ?? ''), '주') === 0) {
-    $mgrName = $n; $mgrTel = trim((string)($m['tel'] ?? '')); break;
+$planYear=fp_plan_year($plan);
+if (isset($_GET['year']) && $requestedYear!==$planYear && ($_SERVER['REQUEST_METHOD'] ?? 'GET')==='GET') {
+  header('Location: '.$url('/fire_plan_chat.php',['id'=>$planId,'year'=>$planYear]));exit;
+}
+$schema = fp_chat_schema();
+$bi = bi_load();
+$common = epc_load();
+$selection=(array)($plan['source_selection'] ?? []);
+$sources = fp_chat_sources($bi,$common,$planYear,$selection);
+$sectionTitles = [];
+foreach (fp_sections() as $chapter) foreach ($chapter['items'] as $c=>$t) $sectionTitles[(string)$c] = $t;
+function chat_reply(array $data, int $status = 200): void {
+  http_response_code($status); header('Content-Type: application/json; charset=utf-8');
+  echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE); exit;
+}
+function chat_sections(array $plan): array {
+  $out = [];
+  foreach (fp_chat_schema() as $c=>$fields) $out[$c] = (array)($plan['sections'][$c]['data'] ?? []);
+  $out['1']['plan_date'] = (string)($plan['plan_date'] ?? '');
+  return $out;
+}
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+  if (!hash_equals(fp_csrf(),(string)($_POST['csrf'] ?? ''))) chat_reply(['ok'=>false,'error'=>'세션이 만료되었습니다. 새로고침 후 다시 시도해 주세요.'],403);
+  if (($_POST['act'] ?? '') === 'sources') {
+    $selected=json_decode((string)($_POST['patch'] ?? '[]'),true);
+    if (!is_array($selected)) chat_reply(['ok'=>false,'error'=>'반영할 자료를 선택해 주세요.'],400);
+    foreach ($selected as $id) if (!is_string($id) || !isset($sources['groups'][$id])) chat_reply(['ok'=>false,'error'=>'잘못된 자료 선택입니다.'],400);
+    $plan['plan_year']=$planYear;$plan['source_selection']=array_values(array_unique($selected));$plan['source_selection_set']=true;
+    if (!fp_write_json(fp_plan_file($planId),$plan)) chat_reply(['ok'=>false,'error'=>'선택을 저장하지 못했습니다.'],500);
+    fp_touch_index($planId,$plan);
+    chat_reply(['ok'=>true,'sections'=>chat_sections($plan),'sources'=>fp_chat_sources($bi,$common,$planYear,$plan['source_selection']),'selection'=>$plan['source_selection']]);
   }
-}
-
-/* 자위소방대 편성표 */
-$TEAM = ['found'=>false, 'total'=>0, 'chief'=>'', 'deputy'=>'',
-         'summary'=>'', 'groups'=>[], 'early'=>[], 'early_total'=>0];
-$fpKey = fp_user_key();
-if ($fpKey !== '') {
-  $jf = __DIR__ . '/data/fireplan/' . $fpKey . '/_jawi.json';
-  if (is_file($jf)) {
-    $ja = json_decode((string)@file_get_contents($jf), true);
-    /* fire_plan_jawi.php는 최신 편성표를 배열 맨 앞에 저장합니다. */
-    $jp = (is_array($ja) && $ja) ? ($ja[0] ?? null) : null;
-    if (is_array($jp)) {
-      $n = 0; $lines = []; $groups = []; $early = []; $earlyN = 0;
-      $cn = trim((string)($jp['cmd']['name'] ?? ''));
-      if ($cn !== '') { $TEAM['chief'] = $cn; $n++; $lines[] = '대장 ' . $cn; }
-      $dn = trim((string)($jp['deputy']['name'] ?? ''));
-      if ($dn !== '') { $TEAM['deputy'] = $dn; $n++; $lines[] = '부대장 ' . $dn; }
-      foreach ((array)($jp['groups'] ?? []) as $g) {
-        $gn = trim((string)($g['name'] ?? ''));
-        $names = []; $tasks = [];
-        foreach ((array)($g['members'] ?? []) as $mm) {
-          $nm = trim((string)($mm['name'] ?? ''));
-          if ($nm === '') continue;
-          $names[] = $nm; $n++;
-          $tk = trim((string)($mm['task'] ?? ''));
-          if ($tk !== '' && !in_array($tk, $tasks, true)) $tasks[] = $tk;
-        }
-        if (!$names) continue;
-        $groups[] = ['name'=>$gn, 'names'=>$names, 'tasks'=>$tasks, 'count'=>count($names)];
-        $lines[] = $gn . ' ' . count($names) . '명';
-        $flat = str_replace(' ', '', $gn);
-        foreach (['비상연락','통보','초기소화','소화','피난','유도'] as $k) {
-          if (strpos($flat, $k) !== false) {
-            $early[] = $gn . ' ' . count($names) . '명';
-            $earlyN += count($names);
-            break;
-          }
+  if (empty($plan['source_selection_set'])) chat_reply(['ok'=>false,'error'=>'먼저 반영할 자료를 선택하거나 직접 작성을 선택해 주세요.'],400);
+  $code = (string)($_POST['code'] ?? '');
+  if (!isset($schema[$code])) chat_reply(['ok'=>false,'error'=>'잘못된 항목입니다.'],400);
+  $cur = fp_get_section($planId,$code);
+  $s1 = fp_get_section($planId,'1'); $s3 = fp_get_section($planId,'3');
+  $action = (string)($_POST['act'] ?? '');
+  if ($action === 'answer') {
+    $patch = json_decode((string)($_POST['patch'] ?? ''),true);
+    if (!is_array($patch) || !$patch) chat_reply(['ok'=>false,'error'=>'답변을 확인해 주세요.'],400);
+    $answered = (array)($cur['_chat_answers'] ?? []);
+    foreach ($patch as $key=>$v) {
+      if (!isset($schema[$code][$key])) chat_reply(['ok'=>false,'error'=>'저장할 수 없는 필드입니다.'],400);
+      $field = $schema[$code][$key];
+      if ($field['type'] === 'multi') {
+        if (!is_array($v)) chat_reply(['ok'=>false,'error'=>'선택값을 확인해 주세요.'],400);
+        foreach ($v as $item) if (!is_string($item)) chat_reply(['ok'=>false,'error'=>'선택값을 확인해 주세요.'],400);
+        $allowed = array_merge($field['options'],is_array($cur[$key] ?? null)?$cur[$key]:[]);
+        if (array_diff($v,$allowed)) chat_reply(['ok'=>false,'error'=>'지원하지 않는 선택값입니다.'],400);
+        if (in_array('해당없음',$v,true) && count($v)>1) chat_reply(['ok'=>false,'error'=>'해당없음은 다른 항목과 함께 선택할 수 없습니다.'],400);
+        $v = array_values(array_unique($v));
+      } else {
+        if (!is_string($v) || strlen($v)>30000) chat_reply(['ok'=>false,'error'=>'답변 형식이나 길이를 확인해 주세요.'],400);
+        $v = trim($v);
+        if ($field['type'] === 'choice' && $v !== '' && !in_array($v,$field['options'],true)) chat_reply(['ok'=>false,'error'=>'선택지를 확인해 주세요.'],400);
+        if ($field['type'] === 'number' && $v !== '' && (!is_numeric($v) || (float)$v<0)) chat_reply(['ok'=>false,'error'=>'0 이상의 숫자를 입력해 주세요.'],400);
+        if ($field['type'] === 'date' && $v !== '') {
+          $date = DateTimeImmutable::createFromFormat('!Y-m-d',$v);
+          if (!$date || $date->format('Y-m-d') !== $v) chat_reply(['ok'=>false,'error'=>'날짜를 확인해 주세요.'],400);
         }
       }
-      if ($n > 0) {
-        $TEAM['found'] = true; $TEAM['total'] = $n;
-        $TEAM['summary'] = implode(' · ', $lines);
-        $TEAM['groups'] = $groups;
-        $TEAM['early'] = $early; $TEAM['early_total'] = $earlyN;
-      }
+      if ($code === '1' && in_array($key,['name','addr','mgr_name','grade'],true) && $v === '') chat_reply(['ok'=>false,'error'=>'기본 필수정보는 비워둘 수 없습니다. 나중에 답하기를 선택할 수 있습니다.'],400);
+      $cur[$key] = $v; $answered[] = $key;
     }
-  }
-}
-
-/* 최근 소방훈련·교육 실시 기록 (항목11 계획의 근거로 씁니다) */
-$LASTTRAIN = '';
-$trKey = $_SESSION['member_id'] ?? ('kakao_' . ($_SESSION['kakao_id'] ?? ''));
-$trIdx = __DIR__ . '/data/train/' . $trKey . '/_index.json';
-if (is_file($trIdx)) {
-  $ti = json_decode((string)@file_get_contents($trIdx), true);
-  if (is_array($ti) && $ti) {
-    $dates = [];
-    foreach ($ti as $row) {
-      $dt = trim((string)($row['fire_date'] ?? $row['date'] ?? ''));
-      if ($dt !== '') $dates[] = substr($dt, 0, 10);
+    $cur['_chat_answers'] = array_values(array_unique($answered));
+    $cur['_chat_complete'] = false;
+    if ($code === '5' && isset($patch['route'])
+        && $patch['route'] === ($sources['data']['5']['route'] ?? null)) {
+      $cur['common_updated'] = (string)($sources['data']['5']['common_updated'] ?? '');
     }
-    if ($dates) { rsort($dates); $LASTTRAIN = $dates[0]; }
-  }
-}
-
-/* 진행률 — 생략(해당없음) 처리된 항목은 분모에서 뺍니다 */
-function fp_progress_of(?array $p): array {
-  $total = 0;
-  foreach (fp_sections() as $ch) $total += count($ch['items']);
-  if (!$p) return ['done'=>0, 'total'=>$total];
-  $st = fp_count_states($p);
-  $skip = (int)($st['skip'] ?? 0);
-  return ['done'=>(int)($st['done'] ?? 0), 'total'=>max(1, $total - $skip)];
-}
-
-/* ── 저장 (fetch 로 들어옴) ──────────────────────────────── */
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['act'] ?? '') === 'save_step') {
-  header('Content-Type: application/json; charset=utf-8');
-  if (!hash_equals(fp_csrf(), (string)($_POST['csrf'] ?? ''))) {
-    echo json_encode(['ok'=>false,'error'=>'세션이 만료되었습니다. 새로고침 후 다시 시도해 주세요.']); exit;
-  }
-
-  $code  = (string)($_POST['code'] ?? '1');
-  $patch = json_decode((string)($_POST['patch'] ?? '{}'), true);
-  if (!is_array($patch)) $patch = [];
-
-  $cur = fp_get_section($planId, $code);
-  foreach ($patch as $k => $v) {
-    $cur[$k] = is_array($v) ? array_values(array_map('strval', $v)) : (string)$v;
-  }
-  unset($cur['is_skipped'], $cur['skip_reason'], $cur['is_done']);
-
-  $done = $code === '1' ? (trim((string)($cur['name'] ?? '')) !== '')
-                        : (trim((string)($cur['memo'] ?? '')) !== '' || count($cur) > 0);
-  fp_save_section($planId, $code, $cur, $done);
-
+  } elseif ($action === 'confirm') {
+    foreach ($schema[$code] as $key=>$field) {
+      if (fp_chat_visible($code,$key,$s1,$s3) && !in_array($key,(array)($cur['_chat_answers'] ?? []),true)) chat_reply(['ok'=>false,'error'=>'아직 확인하지 않은 답변이 있습니다. 문답을 이어가 주세요.'],400);
+    }
+    $cur['_chat_complete'] = true;
+  } else chat_reply(['ok'=>false,'error'=>'잘못된 요청입니다.'],400);
+  if (!fp_save_section($planId,$code,$cur,!empty($cur['_chat_complete']))) chat_reply(['ok'=>false,'error'=>'저장하지 못했습니다. 다시 시도해 주세요.'],500);
   if ($code === '1') {
-    fp_apply_skips($planId, fp_skip_rules($cur));
-    fp_update_shared($planId, (string)($cur['name'] ?? ''), fp_jawi_type($cur), null);
-  }
-
-  $p2 = fp_load_plan($planId);
-  echo json_encode(['ok'=>true] + fp_progress_of($p2), JSON_UNESCAPED_UNICODE);
-  exit;
-}
-
-/* ── 처음부터 다시 ─────────────────────────────────────── */
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['act'] ?? '') === 'reset') {
-  fp_csrf_check();
-  $p = fp_load_plan($planId);
-  if ($p) {
-    foreach (array_keys((array)($p['sections'] ?? [])) as $code) {
-      fp_save_section($planId, (string)$code, [], false);
+    fp_apply_skips($planId,fp_skip_rules($cur));
+    fp_update_shared($planId,(string)($cur['name'] ?? ''),fp_jawi_type($cur),(string)($cur['plan_date'] ?? ''));
+    if ($action === 'answer' && (($s1['grade'] ?? '') !== ($cur['grade'] ?? '') || ($s1['approval'] ?? '') !== ($cur['approval'] ?? ''))) {
+      $s3['_chat_complete'] = false;
+      $s3['_chat_answers'] = array_values(array_diff((array)($s3['_chat_answers'] ?? []),['comprehensive','r1_when','r2_when']));
+      if (!fp_save_section($planId,'3',$s3,false)) chat_reply(['ok'=>false,'error'=>'점검계획 확인 상태를 갱신하지 못했습니다. 다시 시도해 주세요.'],500);
     }
   }
-  header('Location: /fire_plan_chat.php?id=' . urlencode($planId) . '&reset=1'); exit;
+  $all = chat_sections(fp_load_plan($planId));
+  $complete = true; $skips = fp_skip_rules($all['1']);
+  foreach ($schema as $c=>$fields) if (!isset($skips[$c]) && empty($all[$c]['_chat_complete'])) $complete = false;
+  fp_set_status($planId,$complete?'done':'draft');
+  chat_reply(['ok'=>true,'sections'=>$all,'complete'=>$complete]);
 }
-
-$s1    = fp_get_section($planId, '1');
-$savedEvac = fp_get_section($planId, '5');
-$commonEvac = epc_load();
-$commonEvacStatus = epc_status($commonEvac);
-$AUTOEVAC = epc_missing_patch($savedEvac, epc_to_fire_section($commonEvac));
-$state = fp_progress_of($plan);
-$nick  = $_SESSION['nickname'] ?? '사용자';
-$CSRF  = fp_csrf();
-
-/* 기본정보에서 곧바로 옮겨 담을 수 있는 항목1 값 */
-$floors = '';
-$fa = trim((string)($bi['floor_a'] ?? ''));
-$fb = trim((string)($bi['floor_b'] ?? ''));
-if ($fa !== '' || $fb !== '') {
-  $floors = ($fb !== '' && $fb !== '0' ? '지하 ' . $fb . '층 / ' : '') . ($fa !== '' ? '지상 ' . $fa . '층' : '');
-}
-$staffSum = (int)($bi['wd_day'] ?? 0) + (int)($bi['wd_night'] ?? 0);
-
-$AUTO1 = [
-  'name'     => (string)($bi['name'] ?? ''),
-  'addr'     => (string)($bi['address'] ?? ''),
-  'rep_name' => (string)($bi['rep'] ?? ''),
-  'rep_tel'  => (string)($bi['tel'] ?? ''),
-  'mgr_name' => $mgrName,
-  'mgr_tel'  => $mgrTel,
-  'grade'    => (string)($bi['grade'] ?? ''),
-  'main_use' => (string)($bi['use'] ?? ''),
-  'area'     => (string)($bi['area_t'] ?? ''),
-  'bld_area' => (string)($bi['area_f'] ?? ''),
-  'floors'   => $floors,
-  'wd_day'   => (string)($bi['wd_day'] ?? ''),
-  'wd_night' => (string)($bi['wd_night'] ?? ''),
-  'hd_day'   => (string)($bi['hd_day'] ?? ''),
-  'hd_night' => (string)($bi['hd_night'] ?? ''),
-  'staff'    => $staffSum > 0 ? (string)$staffSum : '',
-];
-$AUTO1 = array_filter($AUTO1, function($v){ return trim((string)$v) !== ''; });
-
-/* 편성표·업무수행 기본값으로 만든 서술형 문구 (항목 9·11·13·14) */
-$AUTOMEMO = [];
-if ($TEAM['found']) {
-  $t = [];
-  if ($TEAM['chief']  !== '') $t[] = '자위소방대장 ' . $TEAM['chief'];
-  if ($TEAM['deputy'] !== '') $t[] = '부대장 ' . $TEAM['deputy'];
-  foreach ($TEAM['groups'] as $g) {
-    $line = $g['name'] . '(' . $g['count'] . '명) : ' . implode(', ', $g['names']);
-    if ($g['tasks']) $line .= ' — ' . implode(' / ', $g['tasks']);
-    $t[] = $line;
-  }
-  $AUTOMEMO['9'] = "자위소방대는 아래와 같이 편성하며, 각 조는 지정된 임무를 수행한다.\n\n"
-    . implode("\n", $t)
-    . "\n\n※ 인사이동 등으로 편성이 바뀌면 편성표를 갱신하고 본 계획서에 반영한다.";
-
-  if ($TEAM['early']) {
-    $AUTOMEMO['14'] = "화재를 발견하면 초기대응체계가 즉시 가동된다.\n\n"
-      . "1) 화재 발견자는 육성·비상벨로 알리고 방재실에 통보한다.\n"
-      . "2) 방재실은 119에 신고하고 비상방송으로 전관에 전파한다.\n"
-      . "3) 초기소화 담당은 소화기·옥내소화전으로 초기 진화한다.\n"
-      . "4) 피난유도 담당은 피난경로를 확보하고 재실자를 대피시킨다.\n\n"
-      . "초기대응체계 편성 : " . implode(', ', $TEAM['early'])
-      . " (모두 " . $TEAM['early_total'] . "명)";
-  }
-}
-$notes = array_filter([
-  '소방시설'     => (string)($bi['note_sobang'] ?? ''),
-  '피난·방화시설'=> (string)($bi['note_pinan'] ?? ''),
-  '화기취급'     => (string)($bi['note_hwagi'] ?? ''),
-  '기타'         => (string)($bi['note_etc'] ?? ''),
-], function($v){ return trim($v) !== ''; });
-if ($notes) {
-  $l = [];
-  foreach ($notes as $k => $v) $l[] = '· ' . $k . ' : ' . $v;
-  $AUTOMEMO['13'] = "소방안전관리 업무수행 기록표(별지 제12호)를 매월 작성하여 2년간 보관한다.\n"
-    . "매월 확인하는 기본 내용은 다음과 같다.\n\n" . implode("\n", $l)
-    . "\n\n작성자 : " . ($mgrName !== '' ? $mgrName : '소방안전관리자');
-}
-if ($LASTTRAIN !== '' || $TEAM['found']) {
-  $l = ["소방훈련 및 교육은 연 1회 이상 실시하고, 실시 결과는 별지 제28호 서식으로 기록하여 2년간 보관한다.", ""];
-  if ($TEAM['found']) $l[] = '대상 : 자위소방대원 ' . $TEAM['total'] . '명 및 상시 근무자';
-  $l[] = '내용 : 소화·통보·피난 훈련과 소방안전교육';
-  $l[] = '주관 : ' . ($mgrName !== '' ? $mgrName : '소방안전관리자');
-  if ($LASTTRAIN !== '') $l[] = '최근 실시 : ' . $LASTTRAIN;
-  $AUTOMEMO['11'] = implode("\n", $l);
-}
+$boot = ['csrf'=>fp_csrf(),'year'=>$planYear,'selection'=>$selection,'selectionSet'=>!empty($plan['source_selection_set']),'schema'=>$schema,'titles'=>$sectionTitles,'sections'=>chat_sections($plan),'sources'=>$sources,
+  'listUrl'=>$url('/fire_plan.php'),'editUrl'=>$url('/fire_plan_edit.php',['id'=>$planId]),
+  'printUrl'=>$url('/fire_plan_print.php',['id'=>$planId])];
 ?>
-<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>소방계획서 문답 작성 — TWORIX</title>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>소방계획서 문답 작성</title>
 <style>
-:root{--bg:#f5f7fb;--card:#fff;--bd:#e3e8f0;--bd2:#d4dbe6;--fg:#1a2436;
-  --mut:#7a8699;--mut2:#56627a;--brand:#2563eb;--brand2:#1d4ed8;--accent:#0891b2}
+:root{--bg:#f5f7fb;--card:#fff;--bd:#e3e8f0;--bd2:#d4dbe6;--fg:#1a2436;--mut:#7a8699;--mut2:#56627a;--brand:#2563eb;--brand2:#1d4ed8;--accent:#0891b2}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--fg);line-height:1.65;
-  font-family:Inter,system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
-a{text-decoration:none;color:inherit} button{font:inherit;color:inherit;cursor:pointer}
-.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.94);
-  backdrop-filter:blur(10px);border-bottom:1px solid var(--bd)}
-.nav__in{max-width:760px;margin:0 auto;padding:0 20px;height:56px;
-  display:flex;align-items:center;justify-content:space-between;gap:12px}
-.brand{font-weight:800;font-size:21px}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border-radius:9px;
-  border:1px solid var(--bd2);background:#fff;font-size:13px;font-weight:600;transition:.15s}
-.btn:hover{border-color:var(--brand);color:var(--brand2)}
-.btn--pri{background:var(--brand);border-color:var(--brand);color:#fff}
-.btn--pri:hover{background:var(--brand2);color:#fff}
-.btn--sm{padding:6px 12px;font-size:12.5px}
-.prog{position:sticky;top:56px;z-index:45;background:#fff;border-bottom:1px solid var(--bd)}
-.prog__in{max-width:760px;margin:0 auto;padding:11px 20px}
-.prog__row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mut2);margin-bottom:6px}
-.prog__row b{color:var(--brand2)}
-.bar{height:6px;background:#eef2f7;border-radius:3px;overflow:hidden}
-.bar i{display:block;height:100%;background:var(--brand);width:0;transition:width .45s cubic-bezier(.2,.7,.3,1)}
-.wrap{max-width:760px;margin:0 auto;padding:24px 20px 70px}
-.msg{display:flex;gap:11px;margin-bottom:15px;animation:pop .28s ease both}
-@keyframes pop{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
-.msg__av{width:31px;height:31px;border-radius:9px;flex-shrink:0;display:flex;
-  align-items:center;justify-content:center;font-size:15px;background:#eef2ff}
-.msg__b{background:var(--card);border:1px solid var(--bd);border-radius:4px 14px 14px 14px;
-  padding:14px 17px;max-width:calc(100% - 44px);font-size:14.8px;line-height:1.72}
-.msg--me{flex-direction:row-reverse}
-.msg--me .msg__av{background:#e6edfb}
-.msg--me .msg__b{background:var(--brand);border-color:var(--brand);color:#fff;
-  border-radius:14px 4px 14px 14px}
-.msg__b b{font-weight:700}
-.hint{font-size:12.5px;color:var(--mut);margin-top:9px;padding-top:9px;border-top:1px dashed var(--bd)}
-.answer{margin:0 0 22px 42px}
-.opts{display:flex;flex-wrap:wrap;gap:8px}
-.opt{padding:9px 15px;border:1px solid var(--bd2);border-radius:999px;background:#fff;
-  font-size:13.5px;font-weight:500;transition:.14s}
-.opt:hover{border-color:var(--brand);color:var(--brand2);background:#f7faff}
-.opt--long{border-radius:12px;text-align:left;line-height:1.55}
-.opt.on{background:var(--brand);border-color:var(--brand);color:#fff}
-.inrow{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
-.inrow input,.inrow textarea{flex:1;min-width:180px;padding:11px 14px;border:1px solid var(--bd2);
-  border-radius:11px;background:#fff;font-size:14.8px;font-family:inherit}
-.inrow textarea{min-height:120px;resize:vertical;line-height:1.7}
-.subrow{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
-.nrow{display:flex;gap:8px;flex-wrap:wrap}
-.nbox{flex:1;min-width:110px;background:#fff;border:1px solid var(--bd2);border-radius:11px;padding:9px 11px}
-.nbox__l{font-size:11.5px;color:var(--mut);display:block;margin-bottom:3px}
-.ncell{width:100%;border:0;font-size:16px;font-weight:700;font-family:inherit;color:var(--fg);background:none}
-.ncell:focus{outline:none}
-.summary{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:16px 18px;
-  margin-bottom:18px;font-size:13px;color:var(--mut2)}
-.summary b{color:var(--fg)}
-.summary__t{font-size:12px;font-weight:800;color:var(--brand2);margin-bottom:7px}
-.srow{padding:3px 0}
-.done{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:22px;margin-left:42px}
-.done h2{font-size:18px;font-weight:800;margin-bottom:12px}
-.sum{display:flex;justify-content:space-between;gap:14px;padding:8px 0;
-  border-top:1px solid var(--bd);font-size:14px;flex-wrap:wrap}
-.sum:first-of-type{border-top:0}
-.sum__k{color:var(--mut2);font-size:13px}
-.sum__v{font-weight:600;text-align:right}
-.sum__v.none{color:var(--mut);font-weight:400}
-.doneRow{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}
-.alert{display:flex;gap:11px;border-radius:12px;padding:14px 16px;font-size:14px;
-  line-height:1.7;margin-bottom:18px;background:#fff7ed;border:1px solid #fed7aa;color:#92400e}
-.typing{display:inline-flex;gap:4px;align-items:center;padding:3px 0}
-.typing i{width:6px;height:6px;border-radius:50%;background:var(--mut);display:block;animation:blink 1.2s infinite}
-.typing i:nth-child(2){animation-delay:.18s}
-.typing i:nth-child(3){animation-delay:.36s}
-@keyframes blink{0%,60%,100%{opacity:.28}30%{opacity:1}}
-@media(max-width:560px){.answer,.done{margin-left:0}.msg__b{max-width:calc(100% - 42px)}}
+body{margin:0;background:var(--bg);color:var(--fg);line-height:1.65;font-family:Inter,system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+a{color:inherit;text-decoration:none}button,input,textarea,select{font:inherit;color:inherit}button,a{touch-action:manipulation}button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--bd)}
+.nav__in{max-width:780px;margin:0 auto;padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{font-weight:800;font-size:21px}.nav__actions{display:flex;gap:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 15px;border-radius:9px;border:1px solid var(--bd2);background:#fff;font-size:13px;font-weight:600;transition:.15s}.btn:hover{border-color:var(--brand);color:var(--brand2)}.primary,.btn--pri{background:var(--brand);border-color:var(--brand);color:#fff}.primary:hover,.btn--pri:hover{background:var(--brand2);color:#fff}.btn--sm{padding:6px 12px;font-size:12.5px}
+.prog{position:sticky;top:56px;z-index:45;background:#fff;border-bottom:1px solid var(--bd)}.prog__in{max-width:780px;margin:0 auto;padding:11px 20px}.prog__row{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;color:var(--mut2);margin-bottom:6px}.prog__row b{color:var(--brand2)}.bar{height:6px;background:#eef2f7;border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;background:var(--brand);width:0;border-radius:3px;transition:width .45s cubic-bezier(.2,.7,.3,1)}
+.wrap{max-width:780px;margin:0 auto;padding:24px 20px 70px}.chat-settings{margin-bottom:20px;border:1px solid var(--bd);border-radius:11px;background:rgba(255,255,255,.72);overflow:hidden}.chat-settings>summary{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 13px;cursor:pointer;list-style:none;color:var(--mut2);font-size:12px}.chat-settings>summary::-webkit-details-marker{display:none}.chat-settings>summary:after{content:'설정';flex-shrink:0;padding:4px 9px;border:1px solid var(--bd2);border-radius:8px;background:#fff;color:var(--mut2);font-size:11px;font-weight:700}.chat-settings[open]>summary:after{content:'접기'}.chat-settings__summary{min-width:0}.chat-settings__summary b{display:block;color:#334155;font-size:12.5px}.chat-settings__summary small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mut);font-size:10.5px;font-weight:400}.chat-settings__body{display:grid;grid-template-columns:1fr auto;gap:9px;padding:11px 13px 13px;border-top:1px solid var(--bd);background:#fff}.toolbar{display:flex;align-items:center;gap:10px;min-width:0;padding:8px 11px;border:1px solid var(--bd);border-radius:9px;background:#fff}.toolbar label{flex-shrink:0;font-size:11.5px;font-weight:700;color:var(--mut2)}.toolbar select{width:100%;min-width:0;border:0;background:transparent;color:#334155;font-size:12px;font-weight:650;outline:0}
+.source-bar{display:flex;align-items:center}.source-bar>span{display:none}.source-bar .btn{height:100%;white-space:nowrap}.source-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:16px 0}.source-option{display:flex;align-items:flex-start;gap:9px;border:1px solid var(--bd);background:#fff;border-radius:11px;padding:12px;cursor:pointer;transition:.14s}.source-option:hover{border-color:#b7c8e2}.source-option:has(input:checked){border-color:#8db0e8;background:#f3f7ff;box-shadow:0 0 0 2px rgba(37,99,235,.06)}.source-option:has(input:disabled){opacity:.6;cursor:default}.source-option b{font-size:12.5px}.source-option small{display:block;font-size:10.5px;color:var(--mut);margin-top:4px}.source-option input{margin-top:4px;accent-color:var(--brand)}
+.card{background:transparent;border:0;padding:0 0 20px;scroll-margin-top:118px}.msg{display:flex;gap:11px;margin-bottom:15px;animation:pop .28s ease both}@keyframes pop{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}.msg__av{width:31px;height:31px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px;background:#eef2ff}.msg__b{background:var(--card);border:1px solid var(--bd);border-radius:4px 14px 14px 14px;padding:14px 17px;max-width:calc(100% - 44px);font-size:14.8px;line-height:1.72;white-space:pre-wrap;overflow-wrap:anywhere}.msg--me{flex-direction:row-reverse}.msg--me .msg__av{background:#e6edfb}.msg--me .msg__b{background:var(--brand);border-color:var(--brand);color:#fff;border-radius:14px 4px 14px 14px}.question{font-size:14.8px;font-weight:700;line-height:1.72;margin:0}.chat-turn{margin-bottom:5px}
+.answer{margin:0 0 22px 42px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}.actions>.primary,.actions>.btn--pri{margin-left:0;min-width:0}.options{display:flex;gap:8px;flex-wrap:wrap;padding:3px 0}.option{position:relative;display:flex;align-items:center;min-height:41px;padding:9px 15px;border:1px solid var(--bd2);border-radius:999px;background:#fff;cursor:pointer;font-size:13.5px;font-weight:500;transition:.14s}.option:hover{border-color:var(--brand);color:var(--brand2);background:#f7faff}.option:has(input:checked),.option.on{background:var(--brand);border-color:var(--brand);color:#fff}.option:focus-within{outline:2px solid var(--brand);outline-offset:2px}.option input{position:absolute;opacity:0;pointer-events:none}
+.quick-answer{margin-bottom:10px}.quick-answer__label{display:block;margin-bottom:7px;color:var(--mut2);font-size:11.5px;font-weight:700}.quick-answer__choices{display:flex;flex-wrap:wrap;gap:7px}.quick-answer .option{min-height:36px;padding:7px 12px;font-size:12.5px}.quick-answer .option--long{width:100%;border-radius:10px;line-height:1.5}.quick-answer__manual{border-style:dashed!important;color:var(--mut2)}.direct-answer-input[hidden],.actions .btn[hidden]{display:none!important}
+#inputArea:not(.options) input,#inputArea textarea{width:100%;padding:11px 14px;border:1px solid var(--bd2);border-radius:11px;background:#fff;font-size:14.5px;font-family:inherit}#inputArea textarea{min-height:110px;resize:vertical;line-height:1.6}#inputArea input:focus,#inputArea textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.question-meta{font-size:12px;color:var(--mut);margin-top:9px;padding-top:9px;border-top:1px dashed var(--bd)}.hint{font-size:12.5px;color:var(--mut);margin-top:9px;padding-top:9px;border-top:1px dashed var(--bd);white-space:normal}.section-note{padding:11px 13px;background:#eff6ff;border:1px solid #d5e5ff;border-radius:10px;color:#4a607d;font-size:12px;margin-bottom:12px;white-space:normal}.answer-extra{margin:14px 0 2px;font-size:12px;color:var(--mut)}.answer-extra summary{cursor:pointer;width:fit-content}.extra-buttons{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}.save-hint{flex-basis:100%;text-align:right;font-size:11px;color:var(--mut)}.error{color:#b42318;white-space:pre-wrap;margin-top:12px;font-size:12.5px}.status{color:var(--mut);font-size:12px;min-height:20px;margin:2px 0 0 42px}
+.review{margin:12px 0 4px;max-height:340px;overflow:auto;background:#fff;border:1px solid var(--bd);border-radius:12px;padding:0 14px;white-space:normal}.review div{padding:10px 0;border-bottom:1px solid #eef1f5}.review div:last-child{border-bottom:0}.review dt{color:var(--mut);font-size:11px}.review dd{margin:3px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;font-weight:600;color:#334155}
+.saved-chat{margin-bottom:20px;border:1px solid var(--bd);border-radius:12px;background:rgba(255,255,255,.72);overflow:hidden}.saved-chat>summary{cursor:pointer;padding:11px 14px;color:var(--mut2);font-size:12px;font-weight:700}.saved-chat[open]>summary{border-bottom:1px solid var(--bd)}.saved-chat .chat-turn{padding:14px 14px 0}.saved-chat .msg__b{font-size:13px;padding:11px 14px}.saved-chat .msg:last-child{margin-bottom:0}
+@media(max-width:560px){.nav__in{padding:0 14px}.brand{font-size:18px}.nav__actions .btn:first-child{display:none}.prog__in{padding:10px 14px}.wrap{padding:16px 14px 48px}.chat-settings__body{grid-template-columns:1fr}.source-grid{grid-template-columns:1fr}.source-bar .btn{width:100%}.answer{margin-left:0}.msg__b{max-width:calc(100% - 42px);font-size:14px}.actions>.primary,.actions>.btn--pri{margin-left:0}.status{margin-left:0}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 </style>
-</head>
-<body>
+<?php if (isset($context['modal'])): ?>
+<style>.nav{display:none}.prog{top:0}.wrap{max-width:none;padding:16px 22px 34px}.card{scroll-margin-top:98px}@media(max-width:540px){.wrap{padding:14px}}</style>
+<?php endif; ?>
+</head><body>
 <nav class="nav"><div class="nav__in">
-  <a class="brand" href="/index.php">YEOHUB</a>
-  <div style="display:flex;gap:8px">
-    <form method="post" style="display:inline"
-      onsubmit="return confirm('입력한 내용을 모두 지우고 처음부터 다시 시작합니다.\n계속할까요?')">
-      <input type="hidden" name="act" value="reset">
-      <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
-      <button class="btn" type="submit">↺ 처음부터 다시</button>
-    </form>
-    <a class="btn" href="/fire_plan_edit.php?id=<?=h(rawurlencode($planId))?>">표에서 편집</a>
-    <a class="btn" href="/fire_plan.php">← 목록</a>
-  </div>
+  <a class="brand" href="/index.php" target="_top">소방계획서.com</a>
+  <div class="nav__actions"><a class="btn" href="<?=h($url('/fire_plan_edit.php',['id'=>$planId]))?>">표로 작성</a><a class="btn" href="<?=h($url('/fire_plan.php'))?>">← 목록</a></div>
 </div></nav>
-
-<div class="prog"><div class="prog__in">
-  <div class="prog__row"><span>소방계획서 작성</span>
-    <span><b id="pPct">0%</b> · <span id="pNum">0/15</span></span></div>
-  <div class="bar"><i id="pBar" style="width:0%"></i></div>
-</div></div>
-
+<div class="prog"><div class="prog__in"><div class="prog__row"><span><?=$planYear?>년 소방계획서</span><span><b id="progressPct">0%</b> · <span id="progressText"></span></span></div><div class="bar"><i id="progressBar"></i></div></div></div>
 <main class="wrap">
-  <?php if (trim((string)($bi['name'] ?? '')) === ''): ?>
-    <div class="alert">건물 기본정보가 아직 비어 있습니다.
-      먼저 <a href="/building_setup_chat.php" style="text-decoration:underline">기본정보</a>를 입력하시면
-      대상물 현황이 자동으로 채워져 훨씬 빨리 끝납니다.</div>
-  <?php endif; ?>
-
-  <div class="summary">
-    <div class="summary__t">이미 입력해 두신 것에서 가져옵니다</div>
-    <div class="srow">· 건물 기본정보 —
-      <b><?=h($AUTO1['name'] ?? '미입력')?></b>
-      <?= isset($AUTO1['addr']) ? ' · ' . h($AUTO1['addr']) : '' ?>
-      <?= isset($AUTO1['grade']) ? ' · ' . h($AUTO1['grade']) : '' ?></div>
-    <div class="srow">· 공통 피난계획 —
-      <?php if ($commonEvacStatus['has_content']): ?>
-        <b><?= (int)$commonEvacStatus['floor_count'] ?>개 층</b>
-        <?= $commonEvacStatus['updated'] !== '' ? ' · 최근 수정 ' . h(substr((string)$commonEvacStatus['updated'],0,16)) : '' ?>
-      <?php else: ?>아직 없음<?php endif; ?></div>
-    <div class="srow">· 자위소방대 편성표 —
-      <?= $TEAM['found'] ? '<b>' . (int)$TEAM['total'] . '명</b> · ' . h($TEAM['summary']) : '아직 없음' ?></div>
-    <div class="srow">· 업무수행 기록표 기본값 —
-      <?= $notes ? '<b>' . count($notes) . '개 항목</b>' : '아직 없음' ?></div>
-    <div class="srow">· 소방훈련·교육 기록 —
-      <?= $LASTTRAIN !== '' ? '최근 <b>' . h($LASTTRAIN) . '</b>' : '아직 없음' ?></div>
-  </div>
-
-  <div id="chat"></div>
-</main>
-
-<script>
-var CSRF   = <?=json_encode($CSRF)?>;
-var PLANID = <?=json_encode($planId)?>;
-var NICK   = <?=json_encode($nick, JSON_UNESCAPED_UNICODE)?>;
-var S1     = <?=json_encode($s1, JSON_UNESCAPED_UNICODE)?>;
-var AUTO1  = <?=json_encode($AUTO1, JSON_UNESCAPED_UNICODE)?>;
-var SAVED_EVAC = <?=json_encode($savedEvac, JSON_UNESCAPED_UNICODE)?>;
-var AUTOEVAC = <?=json_encode($AUTOEVAC, JSON_UNESCAPED_UNICODE)?>;
-var COMMON_EVAC_STATUS = <?=json_encode($commonEvacStatus, JSON_UNESCAPED_UNICODE)?>;
-var AUTOMEMO = <?=json_encode($AUTOMEMO, JSON_UNESCAPED_UNICODE)?>;
-var TEAM   = <?=json_encode($TEAM, JSON_UNESCAPED_UNICODE)?>;
-var USAGES = <?=json_encode($USAGES, JSON_UNESCAPED_UNICODE)?>;
-var USAGE  = <?=json_encode((string)($plan['usage_code'] ?? 'business'), JSON_UNESCAPED_UNICODE)?>;
-var STATE  = <?=json_encode($state, JSON_UNESCAPED_UNICODE)?>;
-
-var chat = document.getElementById('chat');
-var SAVED = {};                       // 항목1 누적값
-for (var k in S1) SAVED[k] = S1[k];
-var step = 0;
-
-function esc(s){ return String(s==null?'':s)
-  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function md(s){ return esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>'); }
-function down(){ requestAnimationFrame(function(){
-  window.scrollTo({top:document.body.scrollHeight, behavior:'smooth'}); }); }
-function bot(html, hint){
-  var d=document.createElement('div'); d.className='msg';
-  d.innerHTML='<div class="msg__av">📋</div><div class="msg__b">'+html+
-    (hint?'<div class="hint">'+esc(hint)+'</div>':'')+'</div>';
-  chat.appendChild(d); down(); return d;
-}
-function me(t){
-  var d=document.createElement('div'); d.className='msg msg--me';
-  d.innerHTML='<div class="msg__av">🙂</div><div class="msg__b">'+esc(t)+'</div>';
-  chat.appendChild(d); down();
-}
-function typing(cb){
-  var d=bot('<span class="typing"><i></i><i></i><i></i></span>');
-  setTimeout(function(){ d.remove(); cb(); }, 300);
-}
-function clearBox(){ var a=document.getElementById('ansBox'); if(a) a.remove(); }
-function box(){ clearBox(); var d=document.createElement('div');
-  d.className='answer'; d.id='ansBox'; chat.appendChild(d); down(); return d; }
-
-function setProg(done, total){
-  var pct = total ? Math.round(done/total*100) : 0;
-  document.getElementById('pPct').textContent = pct + '%';
-  document.getElementById('pNum').textContent = done + '/' + total;
-  document.getElementById('pBar').style.width = pct + '%';
-}
-setProg(STATE.done||0, STATE.total||15);
-
-function save(code, patch, done){
-  var fd=new FormData();
-  fd.append('act','save_step'); fd.append('csrf',CSRF);
-  fd.append('code',code); fd.append('patch',JSON.stringify(patch));
-  fetch(location.pathname+location.search,{method:'POST',body:fd,credentials:'same-origin'})
-    .then(function(r){ return r.json(); })
-    .then(function(j){
-      if(j&&j.ok){ setProg(j.done,j.total); if(done) done(true); }
-      else { bot(md('⚠️ '+((j&&j.error)?j.error:'저장하지 못했습니다.'))); if(done) done(false); }
-    })
-    .catch(function(){ bot(md('⚠️ 저장 중 연결이 끊겼습니다.')); if(done) done(false); });
-}
-
-/* ── 물어볼 것 — 기본정보로 못 채우는 것만 ───────────────── */
-var STEPS = [
-  { id:'main_use', q:'이 건물을 주로 어떤 용도로 쓰나요?', type:'choice+',
-    options:['업무시설(오피스)','근린생활시설','판매시설','공동주택','숙박시설','교육연구시설','공장','창고'],
-    hint:'소방계획서의 용도 구분에 쓰입니다.' },
-
-  { id:'structure', q:'건물 구조는 어떻게 되나요?', type:'choice+',
-    options:['철근콘크리트조','철골철근콘크리트조','철골조','조적조','목조'] },
-
-  { id:'roof', q:'지붕은 어떤 형태인가요?', type:'choice+', skip:true,
-    options:['평슬래브','경사지붕','철골 샌드위치패널','기타'] },
-
-  { id:'recv_loc', q:'화재수신기는 어디에 있나요?', type:'choice+',
-    options:['1층 방재실','1층 로비 관리실','지하 1층 기계실','경비실'],
-    hint:'화재 발생 시 가장 먼저 확인하는 곳이라 계획서에 반드시 들어갑니다.' },
-
-  { id:'use_cnt', q:'최대 수용인원은 몇 명 정도인가요?', type:'num',
-    hint:'정확하지 않아도 됩니다. 대략적인 인원을 적어주세요.' },
-
-  { id:'public', q:'특정소방대상물 중 공공기관에 해당하나요?', type:'yn' },
-  { id:'split',  q:'건물의 관리 권원이 나뉘어 있나요?', type:'yn',
-    hint:'층별·구역별로 소유자나 관리자가 다르면 «해당»입니다. 단일 소유면 «해당없음».' },
-  { id:'joint',  q:'여러 관리자가 공동으로 소방안전관리를 하나요?', type:'yn' },
-  { id:'hazmat', q:'위험물을 저장하거나 취급하나요?', type:'yn',
-    hint:'지정수량 이상의 위험물이 있으면 «해당»입니다.' },
-
-  { id:'ins', q:'화재보험에 가입되어 있나요?', type:'choice',
-    options:['가입','미가입'] },
-  { id:'ins_co', q:'보험사는 어디인가요?', type:'text', ph:'예: OO화재',
-    only_ins:true, skip:true },
-
-  { id:'__evac', q:'화재 시 대피 집결지는 어디인가요?', type:'text',
-    ph:'예: 건물 앞 주차장', code:'5', field:'assembly',
-    hint:'피난계획(항목5)에 들어갑니다.' }
-];
-
-function need(s){
-  if (s.only_ins && SAVED.ins !== '가입') return false;
-  return true;
-}
-function filled(s){
-  if (s.code === '5') return String(SAVED_EVAC[s.field]||AUTOEVAC[s.field]||'').trim() !== '';
-  if (s.code) return false;
-  return String(SAVED[s.id]||'').trim() !== '';
-}
-
-/* ── 시작 ─────────────────────────────────────────────── */
-function start(){
-  var msg = '안녕하세요' + (NICK && NICK!=='사용자' ? ', ' + NICK + '님' : '') +
-            '. 소방계획서를 함께 채워보겠습니다.\n\n';
-
-  var got = [];
-  if (Object.keys(AUTO1).length) got.push('건물 기본정보');
-  if (COMMON_EVAC_STATUS.has_content) got.push('공통 피난계획');
-  if (TEAM.found) got.push('자위소방대 편성표');
-  if (AUTOMEMO['13']) got.push('업무수행 기록표 기본값');
-  if (AUTOMEMO['11']) got.push('훈련·교육 기록');
-
-  if (got.length){
-    msg += '**' + got.join(' · ') + '**에서 가져올 수 있는 건 먼저 채워두겠습니다.\n' +
-           '남은 것만 여쭤볼게요.';
-  } else {
-    msg += '항목을 하나씩 여쭤보겠습니다.';
+<details class="chat-settings"><summary><span class="chat-settings__summary"><b>작성 설정</b><small id="sourceSummary">먼저 반영할 자료를 골라주세요.</small></span></summary><div class="chat-settings__body">
+  <div class="toolbar"><label for="sectionNav">작성 항목</label><select id="sectionNav" aria-label="작성 항목 선택"></select></div>
+  <div class="source-bar"><span aria-hidden="true"></span><button type="button" class="btn btn--sm" id="changeSources">자료 다시 선택</button></div>
+</div></details>
+<div id="chatLog" aria-label="작성 대화 기록"></div>
+<div id="stage"></div><div id="saveStatus" class="status" role="status"></div>
+</main><script>
+const APP = <?=json_encode($boot,JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_INVALID_UTF8_SUBSTITUTE)?>;
+if(window.parent!==window)window.parent.postMessage({type:'fp-modal-year',year:APP.year},location.origin);
+let data = APP.sections, code = '1', fieldIndex = 0, busy = false, dirty = false, reviewAll = false, saveCurrentAnswer = null;
+const stage = document.getElementById('stage'), nav = document.getElementById('sectionNav');
+const codes = Object.keys(APP.schema), savedStatus = document.getElementById('saveStatus');
+const empty = v => Array.isArray(v) ? v.length === 0 : v == null || String(v).trim() === '';
+const text = v => Array.isArray(v) ? v.join(' · ') : String(v == null ? '' : v);
+const esc = v => text(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const grade3 = () => String(data['1'].grade || '').replace(/\s/g,'') === '3급';
+const comp = () => data['3'].comprehensive === '포함' || (data['3'].comprehensive !== '제외' && !grade3());
+function skipped(c){return ({'7':'split','8':'joint','12':'hazmat'})[c] && data['1'][({'7':'split','8':'joint','12':'hazmat'})[c]] === '해당없음';}
+function visible(f){return !(code === '1' && ['ins_co','ins_term','ins_life','ins_prop'].includes(f.key) && data['1'].ins !== '가입') && !(code === '3' && f.key.startsWith('r2_') && !comp());}
+function fields(){return Object.values(APP.schema[code]).filter(visible);}
+function answered(k){return (data[code]._chat_answers || []).includes(k);}
+function suggestion(k){
+  const source = (APP.sources.data[code] || {})[k];
+  if (!empty(source)) return source;
+  if(code === '1' && k === 'plan_date') return data['1'].plan_date || '';
+  if(code === '3') {
+    if(k === 'comprehensive' && grade3()) return '제외';
+    if(k === 'r3_when') return '매월 1일';
+    if(k === 'r3_who') return data['1'].mgr_name || '';
+    if(k === 'r1_when' && grade3() && !comp() && /^\d{4}-\d{2}-\d{2}$/.test(data['1'].approval || '')) return '매년 '+Number(data['1'].approval.slice(5,7))+'월 (연 1회, 해당 월 말일까지)';
+    if(k === 'memo') return '불량 발견 즉시 관계인에게 보고하고 위험구역 안전조치를 실시한다. 점검업체와 보수 일정·방법을 협의하여 수리하고, 조치 결과를 확인·기록한다.';
   }
-  bot(md(msg));
-  typing(prefill);
+  if(code === '4' && k === 'memo') return '이상 발견 → 관계인 보고 → 필요한 안전조치 → 보수 담당 및 일정 협의 → 정비 완료 확인 → 업무기록에 결과를 남긴다.';
+  if(code === '10') return '작업 전 책임자에게 작업 내용을 알리고 가연물 제거, 소화기 비치, 불티 비산 방지 등 안전조치를 확인한다. 작업 중 화재감시자를 배치하고, 작업 후 잔불과 주변 이상 유무를 확인한다.';
+  if(code === '14' && k === 's3') return '대피로가 확보되고 안전하게 대응할 수 있는 초기 화재에 한해 설치된 소화설비로 대응하며, 연기·화세가 커지면 즉시 대피한다.';
+  return '';
 }
-
-/* 이미 아는 값을 한 번에 밀어 넣습니다 */
-function prefill(){
-  var patch1 = {};
-  for (var k in AUTO1) if (!String(SAVED[k]||'').trim()) patch1[k] = AUTO1[k];
-
-  var memoCodes = Object.keys(AUTOMEMO);
-  var jobs = [];
-  if (Object.keys(patch1).length) jobs.push(['1', patch1]);
-  if (Object.keys(AUTOEVAC).length) jobs.push(['5', AUTOEVAC]);
-  memoCodes.forEach(function(c){ jobs.push([c, {memo:AUTOMEMO[c]}]); });
-
-  if (!jobs.length){ go(); return; }
-
-  var lines = [];
-  if (Object.keys(patch1).length) lines.push('항목1 일반현황 — ' + Object.keys(patch1).length + '칸');
-  if (Object.keys(AUTOEVAC).length) lines.push('항목5 공통 피난계획');
-  if (AUTOMEMO['9'])  lines.push('항목9 자위소방대 조직·임무');
-  if (AUTOMEMO['11']) lines.push('항목11 소방훈련·교육 계획');
-  if (AUTOMEMO['13']) lines.push('항목13 업무수행 기록·유지');
-  if (AUTOMEMO['14']) lines.push('항목14 화재 초기대응');
-
-  var i = 0;
-  (function next(){
-    if (i >= jobs.length){
-      for (var k2 in patch1) SAVED[k2] = patch1[k2];
-      for (var k3 in AUTOEVAC) SAVED_EVAC[k3] = AUTOEVAC[k3];
-      bot(md('**채워 넣었습니다.**\n\n' + lines.map(function(l){ return '· ' + l; }).join('\n') +
-             '\n\n내용은 나중에 «표에서 편집»으로 고칠 수 있습니다.'));
-      setTimeout(go, 500);
-      return;
-    }
-    save(jobs[i][0], jobs[i][1], function(){ i++; next(); });
-  })();
+function value(k){return answered(k) || !empty(data[code][k]) ? data[code][k] : suggestion(k);}
+function updateProgress(){
+  const active = codes.filter(c=>!skipped(c)), count = active.filter(c=>data[c]._chat_complete).length;
+  const pct = active.length ? Math.round(count/active.length*100) : 0;
+  document.getElementById('progressText').textContent = count+' / '+active.length+'항목 확인';
+  document.getElementById('progressPct').textContent = pct+'%';
+  document.getElementById('progressBar').style.width = pct+'%';
+  nav.innerHTML = codes.map(c=>'<option value="'+c+'">'+c+'. '+esc(APP.titles[c])+(skipped(c)?' · 해당없음':data[c]._chat_complete?' · 확인 완료':'')+'</option>').join(''); nav.value = code;
 }
-
-function go(){
-  while (step < STEPS.length && (!need(STEPS[step]) || filled(STEPS[step]))) step++;
-  if (step >= STEPS.length){ finish(); return; }
-  typing(function(){ ask(STEPS[step]); });
+function card(title, body='') {saveCurrentAnswer=null;stage.innerHTML='<section class="card"><div class="msg"><div class="msg__av" aria-hidden="true">🚒</div><div class="msg__b"><h2 class="question" tabindex="-1">'+esc(title)+'</h2></div></div><div class="answer">'+body+'<div class="actions" id="actions"></div><div class="error" id="error" role="alert"></div></div></section>';const meta=stage.querySelector('.question-meta');if(meta)stage.querySelector('.msg__b').append(meta);requestAnimationFrame(()=>stage.scrollIntoView({block:'start',behavior:'smooth'}));}
+function recordTurn(answer){
+  const log=document.getElementById('chatLog'),turn=document.createElement('div');turn.className='chat-turn';
+  const question=document.createElement('div');question.className='msg';question.innerHTML='<div class="msg__av" aria-hidden="true">🚒</div><div class="msg__b chat-bot"></div>';question.querySelector('.chat-bot').textContent=stage.querySelector('.question')?.textContent || '내용 확인';
+  const reply=document.createElement('div');reply.className='msg msg--me';reply.innerHTML='<div class="msg__av" aria-hidden="true">🙂</div><div class="msg__b chat-user"></div>';reply.querySelector('.chat-user').textContent=text(answer)||'해당없음';turn.append(question,reply);log.append(turn);
 }
-
-function put(s, value, label){
-  clearBox(); me(label || value);
-  if (s.code){                       // 항목1이 아닌 다른 섹션에 저장
-    var p = {}; p[s.field] = value;
-    if (s.code === '5') SAVED_EVAC[s.field] = value;
-    save(s.code, p, function(){ step++; go(); });
-    return;
+function sourceSummary(){document.getElementById('sourceSummary').textContent=APP.sources.names.length?'반영 자료 · '+APP.sources.names.join(' · '):'자료를 불러오지 않고 직접 작성';}
+function chooseSources(){
+  updateProgress();nav.disabled=true;
+  const html='<p class="hint">필요한 자료만 골라주세요. 선택한 자료는 답변을 확인할 때 반영돼요.</p><div class="source-grid">'+Object.entries(APP.sources.groups).map(([id,g])=>'<label class="source-option"><input type="checkbox" value="'+id+'" '+((APP.selectionSet?APP.selection.includes(id):g.available)?'checked ':'')+(!g.available?'disabled ':'')+'><span><b>'+esc(g.title)+'</b><small>'+esc(g.detail)+(g.available?'':' · 불러올 자료 없음')+'</small></span></label>').join('')+'</div><p class="hint">기본정보·편성·피난계획은 현재 자료입니다. '+APP.year+'년 당시 현황과 맞는지 확인해 주세요. 선택을 해제해도 이미 저장한 답변은 지워지지 않습니다.</p>';
+  card(APP.year+'년 계획서에 어떤 자료를 반영할까요?',html);
+  stage.querySelectorAll('.source-option input').forEach(el=>el.addEventListener('change',()=>dirty=true));
+  const saveSelection=async()=>{
+    const selected=[...stage.querySelectorAll('.source-option input:checked:not(:disabled)')].map(el=>el.value);
+    if(!await send('sources',selected))return false;
+    recordTurn(APP.sources.names.length?APP.sources.names.join(' · ')+' 반영':'직접 작성할게요');sourceSummary();return true;
+  };
+  saveCurrentAnswer=saveSelection;
+  button('선택한 자료로 시작 →',async()=>{if(await saveSelection())resumeChat();},true);
+  button('불러오지 않고 직접 작성',async()=>{if(!await send('sources',[]))return;recordTurn('직접 작성할게요');sourceSummary();resumeChat();});
+}
+function resumeChat(){const resume=codes.find(c=>!skipped(c)&&!data[c]._chat_complete)||'1';enter(resume);if(!data[resume]._chat_complete&&(data[resume]._chat_answers||[]).length){fieldIndex=0;askNext(false);}}
+function button(label,fn,primary=false){const b=document.createElement('button');b.type='button';b.className='btn'+(primary?' primary':'');b.textContent=label;b.onclick=()=>{if(!busy)fn();};document.getElementById('actions').appendChild(b);return b;}
+function reviewHtml(rows){return '<dl class="review">'+rows.map(f=>'<div><dt>'+esc(f.label)+'</dt><dd>'+esc(empty(value(f.key))?(answered(f.key)?'해당없음 / 추가 내용 없음':'미입력'):value(f.key))+'</dd></div>').join('')+'</dl>';}
+function quickPresets(f,current){
+  const items=[],seen=new Set(),manager=text(data['1'].mgr_name||'').trim();
+  const add=(label,val)=>{val=String(val==null?'':val).trim();if(!val||seen.has(val))return;seen.add(val);items.push({label,value:val});};
+  if(!empty(current))add('불러온 내용 사용',text(current));
+  const fixed={
+    recv_loc:[['1층 방재실','1층 방재실'],['관리사무소','관리사무소'],['경비실','경비실']],
+    main_use:[['업무시설','업무시설'],['근린생활시설','근린생활시설'],['공장','공장'],['창고시설','창고시설'],['공동주택','공동주택']],
+    structure:[['철근콘크리트조','철근콘크리트조'],['철골철근콘크리트조','철골철근콘크리트조'],['철골조','철골조']],
+    roof:[['철근콘크리트 슬래브','철근콘크리트 슬래브'],['평지붕','평지붕'],['경사지붕','경사지붕']],
+    finish:[['불연재료','불연재료'],['준불연재료','준불연재료'],['난연재료','난연재료']],
+    wd_day:[['일반 주간근무','09:00~18:00'],['조기 근무','08:00~17:00'],['24시간 근무','24시간']],
+    wd_night:[['야간 근무 없음','야간 근무 없음'],['일반 야간근무','18:00~09:00'],['24시간 근무','24시간']],
+    hd_day:[['휴무','휴무'],['평일과 동일','평일과 동일'],['주간 당직','09:00~18:00']],
+    hd_night:[['휴무','휴무'],['야간 근무 없음','야간 근무 없음'],['평일과 동일','평일과 동일']],
+    r1_when:[['연 1회','매년 1회'],['상반기','매년 상반기'],['사용승인 월','매년 사용승인 월']],
+    r2_when:[['연 1회','매년 1회'],['하반기','매년 하반기'],['사용승인 월','매년 사용승인 월']],
+    r3_when:[['매월','매월 1일'],['분기마다','분기 1회'],['반기마다','반기 1회']],
+    r1_who:[['소방안전관리자',manager||'소방안전관리자'],['전문점검업체','전문점검업체'],['관리사무소','관리사무소']],
+    r2_who:[['소방안전관리자',manager||'소방안전관리자'],['전문점검업체','전문점검업체'],['관리사무소','관리사무소']],
+    r3_who:[['소방안전관리자',manager||'소방안전관리자'],['관리사무소','관리사무소'],['시설관리 담당자','시설관리 담당자']],
+    floor_exit:[['1층 주출입구','지상 1층 주출입구'],['주출입구 2개소','지상 1층 주출입구 2개소'],['주출입구와 비상구','지상 1층 주출입구 및 비상구']],
+    route:[['계단 이용 후 집결지로','각 층 → 가까운 피난계단 → 1층 주출입구 → 외부 집결지'],['비상계단 우선 이용','각 층 → 가까운 비상계단 → 외부 출입구 → 집결지']],
+    weak_plan:[['담당자 1:1 지원','층별 피난보조자를 지정하여 피난약자를 1:1로 지원한다.'],['안전구역 우선 이동','피난약자를 가까운 안전구역으로 먼저 이동시킨 후 구조대에 위치를 알린다.']],
+    assembly:[['건물 앞 공터','건물 앞 공터'],['옥외 주차장','건물 외부 주차장'],['정문 앞 안전구역','정문 앞 안전구역']],
+    t1_when:[['상·하반기','매년 상·하반기 각 1회'],['연 1회','매년 1회'],['분기 1회','분기 1회']],
+    t1_who:[['전 직원','전 직원'],['자위소방대','자위소방대 전원'],['근무자 전체','근무자 전체']],
+    t1_how:[['자체 종합훈련','자체 종합훈련'],['소방서 합동훈련','소방서 합동훈련'],['도상·실습훈련','도상훈련 및 실습훈련']],
+    t2_when:[['연 1회','매년 1회'],['상반기','매년 상반기'],['하반기','매년 하반기']],
+    t2_who:[['전 직원','전 직원'],['자위소방대','자위소방대 전원'],['신규 입사자 포함','전 직원 및 신규 입사자']],
+    t2_how:[['집합교육','집합교육'],['시청각교육','시청각교육'],['이론·실습 병행','이론교육 및 실습교육']],
+    t3_when:[['입사 시','신규 입사 시'],['배치 전','업무 배치 전'],['필요 시','필요 시 수시']],
+    t3_who:[['신규 입사자','신규 입사자'],['신규 근무자','신규 배치 근무자'],['협력업체 포함','신규 입사자 및 협력업체 근무자']],
+    t3_how:[['기초 안전교육','소방안전 기초교육'],['현장 안내','현장 피난로 및 소방시설 안내'],['이론·실습 병행','이론교육 및 실습교육']],
+    s1:[['기본 경보·전파','발신기 작동 → 자동화재탐지설비 경보 → 비상방송으로 상황 전파']],
+    s2:[['119 신고와 관계기관 통보','최초 발견자가 119에 신고하고 비상연락반이 관계기관과 관계인에게 통보']],
+    s3:[['소화기·옥내소화전 사용','안전한 초기 화재에 한해 초기소화반이 소화기와 옥내소화전으로 대응']],
+    s4:[['피난로 확보·대피 유도','피난유도반이 피난경로를 확보하고 가까운 비상구를 통해 집결지로 대피 유도']],
+    s5:[['집결지 인원 확인','집결지에서 부서·층별 인원을 확인하고 미대피자를 파악하여 소방대에 보고']]
+  };
+  (fixed[f.key]||[]).forEach(x=>add(x[0],x[1]));
+  const label=String(f.label||''),key=String(f.key||'');
+  if(f.type==='date'){
+    const d=new Date(),today=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');add('오늘',today);
   }
-  var p1 = {}; p1[s.id] = value; SAVED[s.id] = value;
-  save('1', p1, function(){ step++; go(); });
-}
-
-function ask(s){
-  bot(md(s.q), s.hint);
-  var b = box();
-
-  if (s.type === 'choice' || s.type === 'choice+'){
-    var w = document.createElement('div'); w.className = 'opts';
-    (s.options||[]).forEach(function(o){
-      var btn=document.createElement('button'); btn.className='opt'; btn.type='button';
-      btn.textContent=o;
-      btn.onclick=function(){ put(s, o, null); };
-      w.appendChild(btn);
-    });
-    b.appendChild(w);
-    if (s.type === 'choice+') addFree(b, s, '직접 입력');
-    addSkip(b, s);
-    return;
+  if(f.type==='number'&&!/(area|height)/i.test(key)){['0','1','5','10'].forEach(v=>add(v,v));}
+  if(f.type==='memo'){
+    const suggested=suggestion(f.key);if(!empty(suggested))add('추천 내용 사용',text(suggested));
+    const memo={
+      '5':'각 층 재실자는 가까운 피난계단을 이용해 외부 집결지로 이동하고, 층별 담당자는 잔류자를 확인한 뒤 인원 현황을 보고한다.',
+      '6':'화재신고, 상황전파, 초기소화, 피난유도, 응급처치 순으로 자체 훈련을 실시한다.',
+      '7':'관리 구역과 담당 역할을 사전에 구분하고 비상 시 연락체계와 공동 대응 절차에 따라 조치한다.',
+      '8':'관계 대상과 연락망을 공유하고 화재 발생 시 상황전파, 초기대응, 피난유도를 공동으로 실시한다.',
+      '11':'화재 발생 시 인명안전을 최우선으로 상황을 전파하고 초기 대응 후 신속히 대피한다.',
+      '12':'위험물은 지정된 장소에 보관하고 취급 전 안전수칙과 소화설비 위치를 확인한다.',
+      '13':'교육·훈련 결과와 개선사항을 기록하고 다음 교육계획에 반영한다.',
+      '15':'피난안내도와 소방시설 사용방법을 잘 보이는 장소에 게시하고 정기적으로 상태를 확인한다.'
+    };if(memo[code])add('일반적인 내용 사용',memo[code]);
   }
-
-  if (s.type === 'yn'){
-    var w2 = document.createElement('div'); w2.className='opts';
-    [['해당없음','아니요 · 해당없음'],['해당','네 · 해당됩니다']].forEach(function(pair){
-      var btn=document.createElement('button'); btn.className='opt'; btn.type='button';
-      btn.textContent=pair[1];
-      btn.onclick=function(){ put(s, pair[0], pair[1]); };
-      w2.appendChild(btn);
-    });
-    b.appendChild(w2);
-    return;
+  if(!fixed[f.key]){
+    if(/담당|책임|관리자|실시자/.test(label)&&manager)add('소방안전관리자',manager);
+    if(/대상|참여/.test(label)){add('전 직원','전 직원');add('자위소방대','자위소방대 전원');}
+    if(/방법|방식/.test(label)){add('집합교육','집합교육');add('실습 중심','실습 중심으로 실시');}
+    if(/시기|일정|주기/.test(label)){add('연 1회','매년 1회');add('반기 1회','반기 1회');add('필요 시','필요 시 수시');}
+    if(/장소|위치|집결/.test(label)){add('관리사무소','관리사무소');add('건물 앞 공터','건물 앞 공터');}
+    if(/유무|여부/.test(label)){add('있음','있음');add('없음','없음');}
   }
-
-  if (s.type === 'num'){
-    var row=document.createElement('div'); row.className='inrow';
-    var inp=document.createElement('input'); inp.type='number'; inp.min='0';
-    inp.placeholder = s.ph || '숫자만';
-    row.appendChild(inp); b.appendChild(row);
-    var sub=document.createElement('div'); sub.className='subrow';
-    var go1=document.createElement('button'); go1.className='btn btn--pri'; go1.type='button';
-    go1.textContent='넣기';
-    go1.onclick=function(){ var v=(inp.value||'').trim(); if(v===''){inp.focus();return;} put(s, v, v+'명'); };
-    sub.appendChild(go1); b.appendChild(sub);
-    addSkipTo(sub, s);
-    inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault();go1.click();} });
-    inp.focus();
-    return;
+  return items.slice(0,6);
+}
+function renderQuickAnswers(area,input,f,current,onPick,onManual){
+  const picks=quickPresets(f,current),box=document.createElement('div');box.className='quick-answer';
+  const label=document.createElement('span');label.className='quick-answer__label';label.textContent='자주 쓰는 답변';
+  const choices=document.createElement('div');choices.className='quick-answer__choices';box.append(label,choices);
+  const buttons=[];
+  picks.forEach(p=>{const b=document.createElement('button');b.type='button';b.className='option'+(p.value.length>45?' option--long':'');b.textContent=p.label;b.title=p.label===p.value?'':p.value;b.onclick=async()=>{if(busy)return;input.value=p.value;input.dispatchEvent(new Event('input',{bubbles:true}));b.classList.add('on');if(onPick)await onPick();};choices.append(b);buttons.push([b,p.value]);});
+  const manual=document.createElement('button');manual.type='button';manual.className='btn btn--sm quick-answer__manual';manual.textContent='✏️ 직접 입력';manual.onclick=()=>{box.hidden=true;input.hidden=false;if(onManual)onManual();input.focus();try{input.select();}catch(e){}};choices.append(manual);
+  const sync=()=>{buttons.forEach(([b,val])=>b.classList.toggle('on',input.value.trim()===val));};
+  input.classList.add('direct-answer-input');input.hidden=true;input.addEventListener('input',sync);area.insertBefore(box,input);sync();
+}
+async function send(act,patch={}) {
+  if(busy)return false;busy=true;
+  stage.querySelectorAll('button,input,textarea').forEach(el=>el.disabled=true);nav.disabled=true;savedStatus.textContent='저장 중…';
+  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),20000);
+  try{
+    const body = new FormData();body.set('csrf',APP.csrf);body.set('code',code);body.set('act',act);body.set('patch',JSON.stringify(patch));
+    const r = await fetch(location.href,{method:'POST',body,credentials:'same-origin',signal:controller.signal});
+    const j = await r.json();if(!r.ok || !j.ok)throw new Error(j.error || '저장하지 못했습니다.');
+    data = j.sections;if(j.sources){APP.sources=j.sources;APP.selection=j.selection;APP.selectionSet=true;}dirty=false;updateProgress();savedStatus.textContent='저장되었습니다';return true;
+  }catch(e){document.getElementById('error').textContent=e.message || '연결을 확인하고 다시 시도해 주세요.';savedStatus.textContent='저장되지 않았습니다. 현재 답변을 다시 저장해 주세요.';return false;}
+  finally{clearTimeout(timeout);busy=false;nav.disabled=!APP.selectionSet;stage.querySelectorAll('button,input,textarea').forEach(el=>{if(!el.closest('.source-option') || APP.sources.groups[el.value]?.available)el.disabled=false;});}
+}
+function enter(c){code=c;fieldIndex=0;dirty=false;reviewAll=false;updateProgress();
+  if(skipped(c)){card('일반현황에서 해당없음으로 선택한 항목입니다.');button('다음 항목',nextSection,true);return;}
+  const known=fields().filter(f=>!empty(value(f.key)));
+  let note='';
+  if(code==='3') note='<div class="section-note">3급 정기점검은 사용승인 월의 작동점검을 기본으로 제안합니다. 종합점검은 예외 대상이면 포함으로 바꿔주세요. 외관점검 매월 1일은 자체 관리 일정입니다. 최초점검과 법정 대상 여부는 별도 확인이 필요합니다.</div>';
+  card(known.length?'이 내용이 맞나요?':'함께 채워볼까요?',note+'<p class="hint">'+(known.length?'이미 입력한 내용과 제안값을 모았어요. 맞으면 남은 질문만 답하면 됩니다.':'모르는 내용은 나중에 답해도 괜찮아요.')+'</p>'+reviewHtml(known));
+  if(known.length)button('네, 맞아요',async()=>{const p={};known.forEach(f=>p[f.key]=value(f.key));if(await send('answer',p)){recordTurn('확인했어요. 이 내용으로 반영할게요.');askNext(false);}},true);
+  button(known.length?'수정할게요':'시작하기',()=>{fieldIndex=0;askNext(true);},!known.length);
+}
+function askNext(all){if(all!==undefined)reviewAll=all;
+  const list=fields();while(fieldIndex<list.length && !reviewAll && answered(list[fieldIndex].key))fieldIndex++;
+  if(fieldIndex>=list.length){sectionEnd();return;}
+  const f=list[fieldIndex], v=value(f.key);
+  const prompts={name:'건물 이름이 어떻게 되나요?',addr:'건물 주소를 알려주세요.',grade:'소방안전관리 등급을 선택해 주세요.',approval:'건물 사용승인일은 언제인가요?',mgr_name:'소방안전관리자 이름을 알려주세요.'};
+  card(prompts[f.key] || (f.label.endsWith('?')||f.label.endsWith('.')?f.label:f.label+' 내용을 알려주세요.'),'<div class="question-meta">이 항목의 '+(fieldIndex+1)+'번째 질문 / '+list.length+'</div><div id="inputArea"></div>'+(f.hint?'<p class="hint">'+esc(f.hint)+'</p>':'')+(!empty(v)?'<p class="hint">내용이 맞으면 바로 다음으로 넘어가세요.</p>':''));
+  const area=document.getElementById('inputArea');let read,quickInput=null;
+  if(f.type==='multi' || f.type==='choice'){
+    const opts=[...f.options];if(f.type==='multi' && Array.isArray(v))v.forEach(x=>{if(!opts.includes(x))opts.push(x);});
+    area.className='options';area.setAttribute('role','group');area.setAttribute('aria-label',f.label);
+    opts.forEach(o=>{const label=document.createElement('label');label.className='option';const input=document.createElement('input');input.type=f.type==='multi'?'checkbox':'radio';input.name='answer';input.value=o;input.checked=f.type==='multi'?Array.isArray(v)&&v.includes(o):v===o;label.append(input,document.createTextNode(o));area.append(label);
+      input.addEventListener('change',()=>{dirty=true;if(f.type==='multi'&&input.checked){area.querySelectorAll('input').forEach(other=>{if(other!==input&&(o==='해당없음'||other.value==='해당없음'))other.checked=false;});}if(f.type==='choice')setTimeout(()=>submit(),0);});
+      label.addEventListener('click',e=>{if(f.type==='choice'&&e.target===label&&input.checked)setTimeout(()=>submit(),0);});
+    });read=()=>{const vs=[...area.querySelectorAll('input:checked')].map(i=>i.value);return f.type==='multi'?vs:vs[0]||'';};
+  }else{
+    const input=document.createElement(f.type==='memo'?'textarea':'input');if(f.type!=='memo')input.type=['date','number'].includes(f.type)?f.type:'text';if(f.type==='number'){input.min='0';input.step='any';}input.value=text(v);input.setAttribute('aria-label',f.label);area.append(input);input.addEventListener('input',()=>dirty=true);quickInput=input;read=()=>input.value.trim();
   }
-
-  /* text */
-  var row2=document.createElement('div'); row2.className='inrow';
-  var inp2=document.createElement('input'); inp2.type='text'; inp2.placeholder=s.ph||'직접 입력';
-  row2.appendChild(inp2); b.appendChild(row2);
-  var sub2=document.createElement('div'); sub2.className='subrow';
-  var go2=document.createElement('button'); go2.className='btn btn--pri'; go2.type='button';
-  go2.textContent='넣기';
-  go2.onclick=function(){ var v=(inp2.value||'').trim(); if(v===''){inp2.focus();return;} put(s, v, null); };
-  sub2.appendChild(go2); b.appendChild(sub2);
-  addSkipTo(sub2, s);
-  inp2.addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault();go2.click();} });
-  inp2.focus();
+  const submit=async(blank=false,advance=true)=>{
+    const val=blank?(f.type==='multi'?[]:''):read();
+    if(!blank && f.type!=='multi' && empty(val)){document.getElementById('error').textContent='답변을 입력하거나 아래에서 해당없음 또는 잘 모르겠어요를 선택해 주세요.';return false;}
+    if(!blank && [...area.querySelectorAll('input')].some(i=>!i.checkValidity())){document.getElementById('error').textContent='입력 형식을 확인해 주세요.';return false;}
+    if(await send('answer',{[f.key]:val})){recordTurn(empty(val)?'해당없음':val);if(advance){fieldIndex++;askNext();}return true;}return false;
+  };
+  saveCurrentAnswer=()=>submit(false,false);
+  if(fieldIndex>0)button('이전',()=>{if(dirty&&!confirm('입력 중인 답변을 저장하지 않고 이전 질문으로 갈까요?'))return;dirty=false;fieldIndex--;askNext(true);});
+  let nextBtn=null;if(f.type!=='choice'){nextBtn=button(f.type==='multi'?'선택 완료 →':'다음 →',()=>submit(),true);if(quickInput)nextBtn.hidden=true;}
+  const extra=document.createElement('div');extra.className='answer-extra';extra.setAttribute('role','group');extra.setAttribute('aria-label','다른 답변 선택');
+  const extraButtons=document.createElement('div');extraButtons.className='extra-buttons';extra.append(extraButtons);
+  document.getElementById('actions').before(extra);
+  if(!(code==='1'&&['name','addr','mgr_name','grade'].includes(f.key))){const none=button('해당없음',()=>submit(true));extraButtons.append(none);}
+  const later=button('잘 모르겠어요',()=>{if(dirty&&!confirm('아직 저장하지 않은 답변이 있습니다. 건너뛸까요?'))return;dirty=false;recordTurn('잘 모르겠어요. 나중에 답할게요.');fieldIndex++;askNext();});later.title='미확인으로 남겨두고 나중에 답할 수 있어요';extraButtons.append(later);
+  const help=document.createElement('span');help.className='save-hint';help.textContent=f.type==='choice'?'답변을 누르면 바로 저장돼요':f.type==='multi'?'여러 답변을 고른 뒤 선택 완료를 눌러주세요':'일반 답변을 누르면 바로 다음으로 넘어가요';document.getElementById('actions').append(help);
+  if(quickInput){renderQuickAnswers(area,quickInput,f,v,()=>submit(),()=>{if(nextBtn)nextBtn.hidden=false;help.textContent='내용을 적은 뒤 다음을 눌러주세요';});if(f.type!=='memo')quickInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submit();}});}
+  stage.querySelector('.question').focus({preventScroll:true});
 }
-
-function addFree(b, s, label){
-  var row=document.createElement('div'); row.className='inrow'; row.style.marginTop='10px';
-  var inp=document.createElement('input'); inp.type='text'; inp.placeholder=label;
-  row.appendChild(inp); b.appendChild(row);
-  var sub=document.createElement('div'); sub.className='subrow';
-  var go1=document.createElement('button'); go1.className='btn btn--pri btn--sm'; go1.type='button';
-  go1.textContent='직접 입력한 내용 넣기';
-  go1.onclick=function(){ var v=(inp.value||'').trim(); if(v===''){inp.focus();return;} put(s, v, null); };
-  sub.appendChild(go1); b.appendChild(sub);
-  inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault();go1.click();} });
+function sectionEnd(){
+  const missing=fields().filter(f=>!answered(f.key));
+  card(missing.length?'아직 확인할 내용이 남아 있어요.':'이 항목의 내용을 확인해 주세요.',reviewHtml(fields())+(missing.length?'<p class="hint">미확인: '+missing.map(f=>esc(f.label)).join(' · ')+'</p>':''));
+  if(!missing.length)button('이 항목 확인 완료',async()=>{if(await send('confirm'))nextSection();},true);
+  else button('남은 질문 답하기',()=>{fieldIndex=0;askNext(false);},true);
+  button('처음부터 확인·수정',()=>{fieldIndex=0;askNext(true);});button('다음 항목',nextSection);
 }
-function addSkip(b, s){
-  if (!s.skip) return;
-  var sub=document.createElement('div'); sub.className='subrow';
-  b.appendChild(sub); addSkipTo(sub, s);
+function nextSection(){reviewAll=false;const i=codes.indexOf(code);const next=codes.slice(i+1).find(c=>!skipped(c));if(next)enter(next);else finish();}
+function finish(){const pending=codes.filter(c=>!skipped(c)&&!data[c]._chat_complete);card(pending.length?'미확인 항목을 이어서 작성할 수 있어요.':'전체 문답 내용을 확인했습니다.', '<p class="hint">'+(pending.length?'미확인 항목: '+pending.map(c=>esc(c+'. '+APP.titles[c])).join(' · '):'최종 서류를 확인한 뒤 인쇄해 주세요. 문답 완료가 법정 적합성을 보증하는 것은 아닙니다.')+'</p>');
+  pending.forEach(c=>button(c+'. '+APP.titles[c],()=>enter(c)));
+  const actions=document.getElementById('actions');[['표에서 최종 확인',APP.editUrl],['인쇄 · PDF',APP.printUrl],['목록으로',APP.listUrl]].forEach(([label,href],index)=>{const a=document.createElement('a');a.className='btn'+(index===0?' btn--pri':'');a.href=href;a.textContent=label;if(label==='인쇄 · PDF'){a.target='_blank';a.rel='noopener';}actions.append(a);});
 }
-function addSkipTo(sub, s){
-  if (!s.skip) return;
-  var sk=document.createElement('button'); sk.className='btn btn--sm'; sk.type='button';
-  sk.textContent='건너뛰기';
-  sk.onclick=function(){ clearBox(); me('건너뛰기'); step++; go(); };
-  sub.appendChild(sk);
+nav.addEventListener('change',()=>{const selected=nav.value;if(dirty&&!confirm('저장하지 않은 답변이 있습니다. 다른 항목으로 이동할까요?')){nav.value=code;return;}enter(selected);});
+window.addEventListener('beforeunload',e=>{if(dirty||busy){e.preventDefault();e.returnValue='';}});
+function closePopup(){
+  window.parent.postMessage({type:'fp-modal-request-close'},location.origin);
 }
-
-function finish(){
-  clearBox();
-  typing(function(){
-    bot(md('**소방계획서 기본 작성이 끝났습니다.**\n\n' +
-      '남은 세부 항목(소방시설 현황, 점검계획, 방화구획 등)은 ' +
-      '표 화면에서 항목별로 채우시면 됩니다.'));
-
-    var rows = [
-      ['대상물명', SAVED.name],
-      ['소재지', SAVED.addr],
-      ['등급', SAVED.grade],
-      ['주용도', SAVED.main_use],
-      ['구조', SAVED.structure],
-      ['수신기 위치', SAVED.recv_loc],
-      ['최대 수용인원', SAVED.use_cnt ? SAVED.use_cnt + '명' : ''],
-      ['자위소방대', TEAM.found ? (TEAM.total + '명 (편성표 반영)') : ''],
-      ['권원분리 / 공동관리', (SAVED.split||'-') + ' / ' + (SAVED.joint||'-')],
-      ['위험물', SAVED.hazmat],
-      ['화재보험', SAVED.ins]
-    ];
-    var html = '<h2>소방계획서 요약</h2>';
-    rows.forEach(function(r){
-      var v = String(r[1]||'').trim();
-      html += '<div class="sum"><span class="sum__k">'+esc(r[0])+'</span>'+
-              '<span class="sum__v'+(v?'':' none')+'">'+esc(v||'비어 있음')+'</span></div>';
-    });
-    html += '<div class="doneRow">'+
-      '<a class="btn btn--pri" href="/fire_plan_edit.php?id='+encodeURIComponent(PLANID)+'">표에서 이어서 작성 →</a>'+
-      '<a class="btn" href="/fire_plan_print.php?id='+encodeURIComponent(PLANID)+'">🖨 인쇄 · PDF</a>'+
-      '<a class="btn" href="/fire_plan.php">목록으로</a></div>';
-
-    var d=document.createElement('div'); d.className='done'; d.innerHTML=html;
-    chat.appendChild(d); down();
-  });
+// 같은 출처의 상위 팝업이 직접 확인합니다. 중첩 iframe의 메시지 발신 창 차이를 피합니다.
+window.fpModalState=()=>({busy,dirty});
+window.fpModalDiscard=()=>{dirty=false;};
+window.fpModalSave=async()=>{if(busy)return false;if(!dirty)return true;return saveCurrentAnswer ? await saveCurrentAnswer() : false;};
+window.addEventListener('message',event=>{
+  if(event.origin!==location.origin || event.source!==window.parent)return;
+  if(event.data && event.data.type==='fp-modal-request-close')closePopup();
+});
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape' && new URLSearchParams(location.search).get('modal')==='1'){event.preventDefault();closePopup();}
+});
+document.addEventListener('click',event=>{
+  const link=event.target.closest('a[href]');
+  if(link && new URLSearchParams(location.search).get('modal')==='1' && new URL(link.href).pathname==='/fire_plan.php'){
+    event.preventDefault();closePopup();
+  }
+});
+document.getElementById('changeSources').addEventListener('click',()=>{if(busy)return;if(dirty&&!confirm('저장하지 않은 답변을 두고 자료 선택으로 이동할까요?'))return;dirty=false;chooseSources();});
+sourceSummary();
+const savedTurns=[];
+codes.forEach(c=>(data[c]._chat_answers||[]).forEach(k=>{const f=APP.schema[c][k];if(f)savedTurns.push([f.label,data[c][k]]);}));
+if(savedTurns.length){
+  const previous=document.createElement('details');previous.className='saved-chat';
+  const summary=document.createElement('summary');summary.textContent='이전에 저장한 답변 '+savedTurns.length+'개 보기';previous.append(summary);
+  savedTurns.forEach(([q,a])=>{const turn=document.createElement('div');turn.className='chat-turn';const bot=document.createElement('div');bot.className='msg';bot.innerHTML='<div class="msg__av" aria-hidden="true">🚒</div><div class="msg__b chat-bot"></div>';bot.querySelector('.chat-bot').textContent=q;const me=document.createElement('div');me.className='msg msg--me';me.innerHTML='<div class="msg__av" aria-hidden="true">🙂</div><div class="msg__b chat-user"></div>';me.querySelector('.chat-user').textContent=empty(a)?'해당없음':text(a);turn.append(bot,me);previous.append(turn);});document.getElementById('chatLog').append(previous);
 }
-
-start();
+if(APP.selectionSet)resumeChat();else chooseSources();
 </script>
-<?php require_once __DIR__ . '/admin_quickmemo_widget.php'; ?>
-</body>
-</html>
+<?php if (is_file(__DIR__.'/admin_quickmemo_widget.php')) require_once __DIR__.'/admin_quickmemo_widget.php'; ?>
+</body></html>

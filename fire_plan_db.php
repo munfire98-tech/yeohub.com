@@ -3,6 +3,8 @@
 //   TWORIX의 나머지 기능(회원·거래처·업무일지)과 동일하게 JSON으로 저장합니다.
 declare(strict_types=1);
 
+require_once __DIR__ . '/user_key.php';
+
 /* 관리자가 이 회원 화면을 대리로 볼 때 위에 알림 띠를 붙입니다 */
 @include_once __DIR__ . '/_imp.php';
 
@@ -11,7 +13,7 @@ declare(strict_types=1);
       회원가입 사용자 → member_id / 카카오 → kakao_카카오id
    ───────────────────────────────────────────── */
 function fp_user_key(): string {
-  return $_SESSION['member_id'] ?? ('kakao_' . ($_SESSION['kakao_id'] ?? 'guest'));
+  return app_user_key();
 }
 
 /* 계획서 저장 폴더 (사용자별) */
@@ -35,7 +37,7 @@ function fp_write_json(string $file, array $data): bool {
   $dir = dirname($file);
   if (!is_dir($dir)) @mkdir($dir, 0775, true);
   $tmp = $file . '.tmp';
-  if (file_put_contents($tmp, json_encode($data, JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT), LOCK_EX) === false) return false;
+  if (@file_put_contents($tmp, json_encode($data, JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT), LOCK_EX) === false) return false;
   return @rename($tmp, $file);
 }
 
@@ -119,9 +121,9 @@ function fp_item_help(): array {
    ───────────────────────────────────────────── */
 function fp_skip_rules(array $s1): array {
   $skips = [];
-  if (($s1['split']  ?? '해당없음') === '해당없음') $skips['7']  = '권원분리 해당없음';
-  if (($s1['joint']  ?? '해당없음') === '해당없음') $skips['8']  = '공동관리 해당없음';
-  if (($s1['hazmat'] ?? '해당없음') === '해당없음') $skips['12'] = '위험물 해당없음';
+  if (($s1['split']  ?? '') === '해당없음') $skips['7']  = '권원분리 해당없음';
+  if (($s1['joint']  ?? '') === '해당없음') $skips['8']  = '공동관리 해당없음';
+  if (($s1['hazmat'] ?? '') === '해당없음') $skips['12'] = '위험물 해당없음';
   return $skips;
 }
 
@@ -145,7 +147,16 @@ function fp_jawi_type(array $s1): ?string {
    ───────────────────────────────────────────── */
 
 /* 새 계획서 생성 → 새 id 반환 */
-function fp_create_plan(string $usageCode): string {
+function fp_plan_year(array $plan): int {
+  $year = (int)($plan['plan_year'] ?? 0);
+  if ($year >= 1900 && $year <= 2200) return $year;
+  foreach (['plan_date','created_at'] as $key) {
+    $year = (int)substr((string)($plan[$key] ?? ''),0,4);
+    if ($year >= 1900 && $year <= 2200) return $year;
+  }
+  return (int)date('Y');
+}
+function fp_create_plan(string $usageCode, ?int $planYear = null): string {
   $id = date('YmdHis') . substr((string)random_int(100,999),0,3);   // 시간기반 고유 id
   $now = date('Y-m-d H:i:s');
   $plan = [
@@ -153,6 +164,7 @@ function fp_create_plan(string $usageCode): string {
     'usage_code'    => $usageCode,
     'building_name' => '',
     'plan_date'     => date('Y-m-d'),
+    'plan_year'     => $planYear ?? (int)date('Y'),
     'status'        => 'draft',
     'jawi_type'     => null,
     'created_at'    => $now,
@@ -163,7 +175,7 @@ function fp_create_plan(string $usageCode): string {
 
   // 목록(_index.json)에 추가
   $idx = fp_read_json(fp_index_file());
-  $idx[$id] = ['id'=>$id, 'usage_code'=>$usageCode, 'building_name'=>'', 'status'=>'draft', 'updated_at'=>$now];
+  $idx[$id] = ['id'=>$id, 'usage_code'=>$usageCode, 'plan_year'=>$plan['plan_year'], 'plan_date'=>$plan['plan_date'], 'created_at'=>$now, 'building_name'=>'', 'status'=>'draft', 'updated_at'=>$now];
   fp_write_json(fp_index_file(), $idx);
   return $id;
 }
@@ -203,15 +215,16 @@ function fp_get_section(string $planId, string $code): array {
 }
 
 /* 섹션 데이터 저장 */
-function fp_save_section(string $planId, string $code, array $data, bool $done = true): void {
+function fp_save_section(string $planId, string $code, array $data, bool $done = true): bool {
   $plan = fp_load_plan($planId);
-  if (!$plan) return;
+  if (!$plan) return false;
   if (!isset($plan['sections']) || !is_array($plan['sections'])) $plan['sections'] = [];
   $skipped = $plan['sections'][$code]['is_skipped'] ?? 0;
   $plan['sections'][$code] = ['data'=>$data, 'is_done'=>$done?1:0, 'is_skipped'=>$skipped];
   $plan['updated_at'] = date('Y-m-d H:i:s');
-  fp_write_json(fp_plan_file($planId), $plan);
+  if (!fp_write_json(fp_plan_file($planId), $plan)) return false;
   fp_touch_index($planId, $plan);
+  return true;
 }
 
 /* 분기 규칙에 따라 생략 서식 표시 */
@@ -262,6 +275,9 @@ function fp_touch_index(string $planId, array $plan): void {
   $idx = fp_read_json(fp_index_file());
   $idx[$planId] = [
     'id'            => $planId,
+    'plan_year'     => fp_plan_year($plan),
+    'plan_date'     => $plan['plan_date'] ?? '',
+    'created_at'    => $plan['created_at'] ?? '',
     'usage_code'    => $plan['usage_code'] ?? '',
     'building_name' => $plan['building_name'] ?? '',
     'status'        => $plan['status'] ?? 'draft',
@@ -271,6 +287,188 @@ function fp_touch_index(string $planId, array $plan): void {
 }
 
 /* 진행률 계산용: 완료/생략 개수 */
+/* 문답과 표 편집이 동일한 필드명을 사용합니다. 빈 값은 '없음'으로 추정하지 않습니다. */
+function fp_chat_schema(): array {
+  $s = [];
+  $add = function(string $code, string $key, string $label, string $type = 'text', array $options = [], string $hint = '') use (&$s): void {
+    $s[$code][$key] = ['key'=>$key, 'label'=>$label, 'type'=>$type, 'options'=>$options, 'hint'=>$hint];
+  };
+  foreach (['name'=>'건물 이름','addr'=>'소재지','rep_name'=>'대표자 이름','rep_tel'=>'대표자 연락처','mgr_name'=>'소방안전관리자 이름','mgr_tel'=>'관리자 연락처','recv_loc'=>'화재수신기 위치','main_use'=>'건물 주용도','floors'=>'지상·지하 층수','structure'=>'건물 구조','roof'=>'지붕 형태'] as $k=>$l) $add('1',$k,$l);
+  $add('1','grade','소방안전관리 등급','choice',['특급','1급','2급','3급']);
+  $add('1','approval','사용승인일','date');
+  $add('1','plan_date','계획서 작성일','date');
+  foreach (['area'=>'연면적(㎡)','bld_area'=>'건축면적(㎡)','height'=>'높이(m)','staff'=>'근무인원(명)','resident'=>'거주인원(명)','use_cnt'=>'최대 수용인원(명)'] as $k=>$l) $add('1',$k,$l,'number');
+  $add('1','elev','설치된 승강기','multi',['승용','비상용','피난용']);
+  $add('1','park','주차장 형태','multi',['옥내','옥외','자주식','기계식']);
+  $add('1','ev','전기차 충전소','choice',['있음','없음']);
+  $add('1','stairs','계단 종류','multi',['특별피난계단','직통계단','피난계단','옥외계단']);
+  foreach (['wd_day'=>'평일 주간 운영시간','wd_night'=>'평일 야간 운영시간','hd_day'=>'휴일 주간 운영시간','hd_night'=>'휴일 야간 운영시간'] as $k=>$l) $add('1',$k,$l,'text',[],'인원수가 아닌 운영시간입니다. 운영하지 않으면 휴무라고 적어주세요.');
+  foreach (['public'=>'공공기관에 해당하나요?','split'=>'관리 권원이 나뉘어 있나요?','joint'=>'공동으로 소방안전관리를 하나요?','hazmat'=>'위험물을 저장·취급하나요?'] as $k=>$l) $add('1',$k,$l,'choice',['해당','해당없음']);
+  $add('1','ins','화재보험 가입 여부','choice',['가입','미가입']);
+  foreach (['ins_co'=>'보험사','ins_term'=>'보험 가입기간','ins_life'=>'대인 보상금액','ins_prop'=>'대물 보상금액'] as $k=>$l) $add('1',$k,$l);
+  $groups = [
+    'fire_ext'=>['소화설비',['소화기구 및 자동소화장치','옥내소화전설비','옥외소화전설비','스프링클러설비','간이스프링클러설비','화재조기진압용 스프링클러설비','물분무소화설비','미분무소화설비','포소화설비','이산화탄소소화설비','할론소화설비','할로겐화합물 및 불활성기체소화설비','분말소화설비','강화액소화설비','고체에어졸소화설비']],
+    'alarm'=>['경보설비',['단독경보형감지기','비상경보설비','자동화재탐지설비 및 시각경보기','화재알림설비','비상방송설비','통합감시시설','자동화재속보설비','누전경보기','가스누설경보기']],
+    'escape'=>['피난구조설비',['피난기구','공기안전매트','피난사다리','(간이)완강기','미끄럼대','구조대','다수인피난장비','승강식피난기','하향식피난구용내림식사다리','인명구조기구','피난유도선','유도등','비상조명등','유도표지','휴대용비상조명등']],
+    'water'=>['소화용수설비',['상수도소화용수설비','소화수조 및 저수조']],
+    'active'=>['소화활동설비',['거실제연설비','부속실 등 제연설비','연결송수관설비','연결살수설비','비상콘센트설비','무선통신보조설비','연소방지설비']],
+    'etc_fac'=>['기타시설',['전기시설','가스시설','위험물시설','방화시설']],
+  ];
+  foreach ($groups as $k=>$g) $add('2',$k,$g[0],'multi',$g[1]);
+  $add('2','memo','설치장소·수량·규격 등 특이사항','memo');
+  $add('3','comprehensive','종합점검도 계획에 포함하나요?','choice',['제외','포함'], '3급의 일반적인 정기점검은 제외로 제안합니다. 최초점검·설비·용도에 따른 예외는 관할 소방서나 점검업체에 확인하세요.');
+  foreach (['3'=>['작동점검','종합점검','외관점검'],'4'=>['소방시설','피난시설','방화시설']] as $code=>$labels) {
+    foreach ($labels as $i=>$l) foreach (['when'=>'시기','who'=>'담당자','note'=>'비고'] as $f=>$label) $add((string)$code,'r'.($i+1).'_'.$f,$l.' '.$label);
+    $add((string)$code,'memo',$code == '3' ? '불량 발견 시 어떻게 조치하나요?' : '고장·불량을 어떻게 정비하나요?','memo');
+  }
+  foreach (['floor_exit'=>'피난층·출구','route'=>'층별 피난경로','weak_loc'=>'화재안전취약자 위치','weak_plan'=>'취약자 피난보조 방법','assembly'=>'대피 후 집결지'] as $k=>$l) $add('5',$k,$l,in_array($k,['route','weak_plan'],true)?'memo':'text');
+  $add('5','weak_cnt','화재안전취약자 인원(명)','number');
+  $add('5','evac','피난기구','multi',['완강기','구조대','피난사다리','공기안전매트','승강식피난기','유도등·유도표지']);
+  foreach (['bkchk'=>['방화구획 기준',['면적별','층별','용도별']], 'bkdoor'=>['방화구획 설비',['방화문','자동폐쇄장치','방화셔터','방화스크린']], 'smoke'=>['제연설비',['거실제연','부속실제연','전실제연','해당없음']], 'flame'=>['방염물품',['커튼류','카펫','벽지류','합판·목재','무대막','섬유판','해당없음']]] as $k=>$g) $add('6',$k,$g[0],'multi',$g[1]);
+  $add('6','finish','내부 마감재');
+  $add('6','flame_cert','방염성능검사 필증','choice',['있음','없음']);
+  $add('6','memo','방화구획·마감재·방염물품을 어떻게 유지관리하나요?','memo');
+  foreach (['7'=>'권원별 관리 범위와 공용부 책임자는 누구인가요?','8'=>'공동관리 협의 구성·주기·협의사항은 무엇인가요?','9'=>'자위소방대 조직과 각 대원의 임무를 확인해 주세요.','10'=>'화기취급 작업 전·중·후 안전조치는 어떻게 하나요?','12'=>'위험물의 종류·수량·위치·관리방법은 무엇인가요?','13'=>'월별 업무기록의 작성자·보관장소·관리방법은 무엇인가요?','15'=>'관할 소방서에서 추가로 요청한 사항이 있나요?'] as $c=>$l) $add((string)$c,'memo',$l,'memo');
+  foreach (['소방훈련','소방교육','신규자 교육'] as $i=>$l) foreach (['when'=>'시기','who'=>'대상','how'=>'방법'] as $f=>$label) $add('11','t'.($i+1).'_'.$f,$l.' '.$label);
+  $add('11','memo','훈련·교육 내용과 기존 실시기록','memo');
+  foreach (['화재경보','119 신고','초기소화','피난유도','집결지 인원확인'] as $i=>$l) $add('14','s'.($i+1),$l.'는 누가 어떻게 하나요?','memo');
+  $add('14','memo','소방차 진입경로·야간·휴일 등 추가 대응사항','memo');
+  ksort($s, SORT_NUMERIC);
+  return $s;
+}
+
+function fp_is_grade3(array $s1): bool { return preg_replace('/\s+/u','',(string)($s1['grade'] ?? '')) === '3급'; }
+function fp_comprehensive(array $s1, array $s3): bool {
+  if (($s3['comprehensive'] ?? '') === '포함') return true;
+  if (($s3['comprehensive'] ?? '') === '제외') return false;
+  return !fp_is_grade3($s1);
+}
+function fp_inspection_defaults(array $s1, array $s3 = []): array {
+  $d = ['r3_when'=>'매월 1일']; // 사용자 관리 일정이며 법정 일자로 표기하지 않습니다.
+  if (fp_is_grade3($s1) && !fp_comprehensive($s1,$s3)) {
+    $d['comprehensive'] = '제외';
+    $date = preg_replace('/[^0-9]/','',(string)($s1['approval'] ?? ''));
+    if (strlen($date) === 8 && checkdate((int)substr($date,4,2),(int)substr($date,6,2),(int)substr($date,0,4))) {
+      $d['r1_when'] = '매년 '.(int)substr($date,4,2).'월 (연 1회, 해당 월 말일까지)';
+    }
+  }
+  if (trim((string)($s1['mgr_name'] ?? '')) !== '') $d['r3_who'] = $s1['mgr_name'];
+  return $d;
+}
+function fp_chat_visible(string $code, string $key, array $s1, array $s3): bool {
+  if (isset(fp_skip_rules($s1)[$code])) return false;
+  if ($code === '1' && in_array($key,['ins_co','ins_term','ins_life','ins_prop'],true)) return ($s1['ins'] ?? '') === '가입';
+  if ($code === '3' && strpos($key,'r2_') === 0) return fp_comprehensive($s1,$s3);
+  return true;
+}
+
+/* 최신 저장순으로 읽고, 대장/부대장의 객체형·구형 배열형을 모두 지원합니다. */
+function fp_team_source(): array {
+  $key = fp_user_key();
+  $out = ['memo'=>'','total'=>0];
+  if ($key === '') return $out;
+  $rows = array_values(array_filter(fp_read_json(__DIR__.'/data/fireplan/'.$key.'/_jawi.json'),'is_array'));
+  usort($rows,fn($a,$b)=>strcmp((string)($b['saved'] ?? $b['updated_at'] ?? $b['created'] ?? ''),(string)($a['saved'] ?? $a['updated_at'] ?? $a['created'] ?? '')));
+  $p = $rows[0] ?? [];
+  $lines = []; $people = [];
+  $person = function(array $m, string $role) use (&$lines,&$people): void {
+    $name = trim((string)($m['name'] ?? $m[0] ?? ''));
+    if ($name === '') return;
+    $tel = preg_replace('/\D/','',(string)($m['tel'] ?? $m[1] ?? ''));
+    $people[$name.'|'.$tel] = true;
+    $task = trim((string)($m['task'] ?? $m[2] ?? ''));
+    $lines[] = $role.' : '.$name.($task !== '' ? ' — '.$task : ' — 임무 확인 필요');
+  };
+  foreach (['cmd'=>'대장','deputy'=>'부대장'] as $k=>$l) if (is_array($p[$k] ?? null)) $person($p[$k],$l);
+  foreach ((array)($p['groups'] ?? []) as $g) {
+    if (!is_array($g)) continue;
+    foreach ((array)($g['members'] ?? []) as $m) if (is_array($m)) $person($m,(string)($g['name'] ?? '활동조'));
+  }
+  $out['total'] = count($people);
+  if ($lines) $out['memo'] = "자위소방대는 다음과 같이 편성하고 각 대원은 지정된 임무를 수행한다.\n\n".implode("\n",$lines)."\n\n편성 변경 시 편성표와 소방계획서를 함께 갱신한다.";
+  return $out;
+}
+
+/* 원본은 읽기만 합니다. 문답에서 확인한 값만 계획서에 저장됩니다. */
+function fp_chat_sources(array $bi, array $evac, ?int $year = null, ?array $selected = null): array {
+  $d = []; $names = []; $mgr = [];
+  foreach ((array)($bi['mgrs'] ?? []) as $m) {
+    if (!is_array($m) || trim((string)($m['name'] ?? '')) === '') continue;
+    if (!$mgr) $mgr = $m;
+    if (strpos((string)($m['type'] ?? ''),'주') === 0) { $mgr = $m; break; }
+  }
+  foreach (['name'=>'name','addr'=>'address','rep_name'=>'rep','rep_tel'=>'tel','grade'=>'grade','main_use'=>'use','area'=>'area_t','structure'=>'bd_struct','height'=>'bd_height'] as $to=>$from) $d['1'][$to] = (string)($bi[$from] ?? '');
+  $d['1']['mgr_name'] = (string)($mgr['name'] ?? ''); $d['1']['mgr_tel'] = (string)($mgr['tel'] ?? '');
+  $date = preg_replace('/\D/','',(string)($bi['bd_use_apr'] ?? ''));
+  if (strlen($date) === 8 && checkdate((int)substr($date,4,2),(int)substr($date,6,2),(int)substr($date,0,4))) $d['1']['approval'] = substr($date,0,4).'-'.substr($date,4,2).'-'.substr($date,6,2);
+  $floors = [];
+  foreach (['floor_b'=>'지하','floor_a'=>'지상'] as $k=>$label) if (trim((string)($bi[$k] ?? '')) !== '') $floors[] = $label.' '.$bi[$k].'층';
+  $d['1']['floors'] = implode(' / ',$floors);
+  // area_f는 바닥면적, wd_day 등은 시간대별 인원으로 편집 화면의 다른 의미 필드에 복사하지 않습니다.
+  if ((int)($bi['bd_elev'] ?? 0) > 0) $d['1']['elev'] = ['승용'];
+  if (trim((string)($bi['name'] ?? '')) !== '') $names[] = '건물 기본정보·건축물대장';
+  $d['5'] = function_exists('epc_to_fire_section') ? epc_to_fire_section($evac) : [];
+  if (trim((string)($d['5']['assembly'] ?? '')) === '') $d['5']['assembly'] = (string)($bi['assembly_kind'] ?? '');
+  if (!empty($d['5']['route']) || !empty($d['5']['assembly'])) $names[] = '피난계획·집결지';
+  foreach (['alarm_method'=>'s1','reporter'=>'s2','headcount_method'=>'s5'] as $from=>$to) if (trim((string)($evac[$from] ?? '')) !== '') $d['14'][$to] = (string)$evac[$from];
+  $routeNote = trim((string)($bi['fire_engine_route_note'] ?? ''));
+  if ($routeNote !== '') { $d['14']['memo'] = '소방차 진입 시 주의사항: '.$routeNote; $names[] = '소방차 진입로'; }
+  $team = fp_team_source();
+  if ($team['memo'] !== '') { $d['9']['memo'] = $team['memo']; $names[] = '자위소방대 편성·대원별 임무'; }
+  $histories = []; $months = [];
+  $key = fp_user_key();
+  if ($key !== '') {
+    $fixed = fp_read_json(__DIR__.'/data/worklog/'.preg_replace('/[^A-Za-z0-9_]/','_',$key).'/building.json');
+    foreach (['sprinkler'=>'스프링클러설비','hydrant'=>'옥내소화전설비'] as $k=>$label) if (($fixed[$k] ?? '') === 'yes') $d['2']['fire_ext'][] = $label;
+    $noteLines = [];
+    foreach (['note_sobang'=>'소방시설','note_pinan'=>'피난·방화시설','note_hwagi'=>'화기취급','note_etc'=>'기타'] as $k=>$label) {
+      $v = trim((string)($fixed[$k] ?? $bi[$k] ?? ''));
+      if ($v !== '') $noteLines[] = $label.': '.$v;
+    }
+    if ($noteLines) { $d['13']['memo'] = "매월 업무수행 기록표를 작성하고 관리한다.\n작성자: ".($mgr['name'] ?? '소방안전관리자')."\n\n".implode("\n",$noteLines); $names[] = '월별기록 기본값'; }
+    if ($year !== null) {
+      $base = __DIR__.'/data/worklog/'.preg_replace('/[^A-Za-z0-9_]/','_',$key);
+      for ($month=1;$month<=12;$month++) {
+        $file=$base.'/m'.$year.'-'.sprintf('%02d',$month).'.json';
+        if (is_file($file) && fp_read_json($file)) $months[]=$month.'월';
+      }
+      if ($months) $d['13']['memo'] = trim(($d['13']['memo'] ?? '')."\n\n".$year.'년 저장된 월별 기록: '.implode(', ',$months));
+    }
+    $history = [];
+    foreach (['train'=>['train_date','소방훈련·교육'],'jawi'=>['edu_date','자위소방대 교육']] as $folder=>$meta) {
+      $dates = [];
+      foreach (fp_read_json(__DIR__.'/data/'.$folder.'/'.$key.'/_index.json') as $r) {
+        if (!is_array($r)) continue;
+        $v = (string)($r[$meta[0]] ?? '');
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/',$v) && $v <= date('Y-m-d') && ($year === null || (int)substr($v,0,4)===$year)) $dates[] = $v;
+      }
+      if ($dates) { rsort($dates); $histories[$folder]=$meta[1].' 실시 기록: '.implode(', ',array_unique($dates)); $history[] = $histories[$folder]; $names[] = $meta[1].' 기록'; }
+    }
+    if ($history) $d['11']['memo'] = implode("\n",$history); // 과거 실시일을 미래 계획일로 간주하지 않습니다.
+  }
+  $groups = [
+    'basic'=>['title'=>'기본정보','detail'=>'현재 건물정보·관리자·진입로 메모','data'=>['1'=>$d['1'] ?? [],'14'=>isset($d['14']['memo'])?['memo'=>$d['14']['memo']]:[]]],
+    'team'=>['title'=>'자위소방대 편성','detail'=>'현재 편성된 인원과 대원별 임무','data'=>['9'=>$d['9'] ?? []]],
+    'monthly'=>['title'=>'매월 기록','detail'=>($year ?? date('Y')).'년 기록 '.count($months).'개월 · 현재 시설 기본값','data'=>['2'=>$d['2'] ?? [],'13'=>$d['13'] ?? []]],
+    'jawi_education'=>['title'=>'자위소방대 교육','detail'=>isset($histories['jawi'])?'선택 연도의 실시 기록':'선택 연도의 기록 없음','data'=>['11'=>isset($histories['jawi'])?['memo'=>$histories['jawi']]:[]]],
+    'training'=>['title'=>'소방훈련·교육','detail'=>isset($histories['train'])?'선택 연도의 실시 기록':'선택 연도의 기록 없음','data'=>['11'=>isset($histories['train'])?['memo'=>$histories['train']]:[]]],
+    'evacuation'=>['title'=>'피난계획','detail'=>'현재 층별 피난경로·집결지·대응방법','data'=>['5'=>$d['5'] ?? [],'14'=>array_intersect_key($d['14'] ?? [],array_flip(['s1','s2','s5']))]],
+  ];
+  $merged=[]; $names=[];
+  foreach ($groups as $id=>&$group) {
+    $group['available']=false;
+    foreach ($group['data'] as $fields) foreach ($fields as $v) if (is_array($v)?count($v)>0:trim((string)$v)!=='') $group['available']=true;
+    if ($selected!==null && !in_array($id,$selected,true)) continue;
+    if ($group['available']) $names[]=$group['title'];
+    foreach ($group['data'] as $code=>$fields) foreach ($fields as $key=>$value) {
+      if ($code==11 && $key==='memo' && isset($merged[$code][$key])) $merged[$code][$key].="\n".$value;
+      else $merged[$code][$key]=$value;
+    }
+  }
+  unset($group);
+  return ['data'=>$merged,'names'=>$names,'groups'=>$groups];
+}
+
 function fp_count_states(array $plan): array {
   $done = 0; $skip = 0;
   foreach (($plan['sections'] ?? []) as $sec) {

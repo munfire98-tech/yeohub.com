@@ -19,6 +19,7 @@ if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php')
 
 require_once __DIR__ . '/fire_plan_db.php';
 require_once __DIR__ . '/evacuation_plan_common.php';
+require_once __DIR__ . '/building_info.php';
 $nick = $_SESSION['nickname'] ?? '사용자';
 $commonEvac = epc_load();
 $commonEvacStatus = epc_status($commonEvac);
@@ -28,6 +29,9 @@ $commonFireData = epc_to_fire_section($commonEvac);
 $plan = fp_load_plan((string)($_GET['id'] ?? ''));
 if (!$plan) { header('Location: /fire_plan.php'); exit; }
 $planId   = (string)$plan['id'];
+$selectedSources = !empty($plan['source_selection_set']) ? (array)($plan['source_selection'] ?? []) : null;
+$allowEvacImport = $selectedSources === null || in_array('evacuation',$selectedSources,true);
+$allowJawiImport = $selectedSources === null || in_array('team',$selectedSources,true);
 $usages   = fp_usages();
 $usage    = $usages[$plan['usage_code']] ?? ['nm'=>$plan['usage_code'],'cat'=>''];
 $sections = fp_sections();
@@ -40,46 +44,10 @@ foreach ($sections as $ch) {
 }
 if (!in_array($cur, $allCodes, true)) $cur = '1';
 
-/* 최신 자위소방대 편성표로 '조직 및 임무' 문구를 만듭니다. */
-$jawiMemo = '';
-$jawiTotal = 0;
-$jawiKey = function_exists('fp_user_key') ? fp_user_key() : '';
-if ($jawiKey !== '') {
-  $jawiFile = __DIR__ . '/data/fireplan/' . $jawiKey . '/_jawi.json';
-  if (is_file($jawiFile)) {
-    $jawiRows = json_decode((string)@file_get_contents($jawiFile), true);
-    $jawiLatest = (is_array($jawiRows) && $jawiRows) ? ($jawiRows[0] ?? null) : null;
-    if (is_array($jawiLatest)) {
-      $jawiLines = [];
-      $chief = trim((string)($jawiLatest['cmd']['name'] ?? ''));
-      $deputy = trim((string)($jawiLatest['deputy']['name'] ?? ''));
-      if ($chief !== '') { $jawiLines[] = '자위소방대장 : ' . $chief; $jawiTotal++; }
-      if ($deputy !== '') { $jawiLines[] = '부대장 : ' . $deputy; $jawiTotal++; }
-      foreach ((array)($jawiLatest['groups'] ?? []) as $group) {
-        if (!is_array($group)) continue;
-        $groupName = trim((string)($group['name'] ?? '')) ?: '활동조';
-        $names = []; $tasks = [];
-        foreach ((array)($group['members'] ?? []) as $member) {
-          if (!is_array($member)) continue;
-          $name = trim((string)($member['name'] ?? ''));
-          if ($name === '') continue;
-          $names[] = $name; $jawiTotal++;
-          $task = trim((string)($member['task'] ?? ''));
-          if ($task !== '' && !in_array($task, $tasks, true)) $tasks[] = $task;
-        }
-        if (!$names) continue;
-        $line = $groupName . '(' . count($names) . '명) : ' . implode(', ', $names);
-        if ($tasks) $line .= "\n  임무 : " . implode(' / ', $tasks);
-        $jawiLines[] = $line;
-      }
-      if ($jawiLines) {
-        $jawiMemo = "자위소방대는 다음과 같이 편성하며, 화재 발생 시 각 조는 지정된 임무를 수행한다.\n\n"
-          . implode("\n", $jawiLines)
-          . "\n\n편성 변경 시 자위소방대 편성표를 갱신하고 본 소방계획서에 반영한다.";
-      }
-    }
-  }
-}
+/* 문답과 동일한 최신 편성표·대원별 임무를 사용합니다. */
+$jawiSource = fp_team_source();
+$jawiMemo = $jawiSource['memo'];
+$jawiTotal = $jawiSource['total'];
 
 /* ── 저장 처리 ── */
 $savedMsg = '';
@@ -192,6 +160,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   } elseif ($cur === '3' || $cur === '4') {
     /* 점검·정비 계획 표 (3행 × 시기/담당/비고 + 메모) */
     $data = ['memo' => trim((string)($_POST['memo'] ?? ''))];
+    if ($cur === '3') {
+      $data['comprehensive'] = ($_POST['comprehensive'] ?? '') === '포함' ? '포함' : '제외';
+    }
     $any = $data['memo'] !== '';
     foreach ([1,2,3] as $i) {
       foreach (['when','who','note'] as $f) {
@@ -273,7 +244,15 @@ $commonUpdateAvailable = $commonEvacStatus['has_content']
   && $commonEvacStatus['updated'] !== ''
   && $commonAppliedAt < (string)$commonEvacStatus['updated'];
 $curData = ($cur === '1') ? $s1 : ($cur === '5' ? $section5Stored : fp_get_section($planId, $cur));
-if ($cur === '5' && $commonEvacStatus['has_content']) {
+$linkedSources = fp_chat_sources(bi_load(), $commonEvac, fp_plan_year($plan), $selectedSources);
+$suggested = $linkedSources['data'][$cur] ?? [];
+if ($cur === '3') $suggested = array_merge($suggested,fp_inspection_defaults($s1,$curData));
+foreach ($suggested as $key=>$value) {
+  if ((!array_key_exists($key,$curData) || $curData[$key] === '' || $curData[$key] === [])
+      && !in_array($key,(array)($curData['_chat_answers'] ?? []),true)) $curData[$key] = $value;
+}
+if ($cur === '1') $s1 = $curData;
+if ($cur === '5' && $commonEvacStatus['has_content'] && $allowEvacImport) {
   $curData = epc_merge_empty($curData, $commonFireData);
 }
 
@@ -771,6 +750,18 @@ table.ft .flow{margin-top:6px}
           $ttl = $isSelf ? '자체점검계획 및 대응대책' : '소방·피난·방화시설 점검·정비계획';
         ?>
         <p class="desc">소방청 <b>서식 1.10 자체점검 및 업무수행</b> 기준입니다. 점검 주기와 담당자를 정합니다.</p>
+        <?php if ($isSelf): ?>
+          <div class="placeholder-note">
+            3급 정기 작동점검은 사용승인 월을 기본으로 제안합니다. 외관점검 매월 1일은 자체 관리 일정입니다.
+            최초점검·설비·용도에 따른 종합점검 대상 여부는 별도 확인하세요.
+            <label style="display:block;margin-top:8px">종합점검
+              <select name="comprehensive" id="comprehensiveChoice">
+                <option value="제외" <?=!fp_comprehensive($s1,$curData)?'selected':''?>>제외</option>
+                <option value="포함" <?=fp_comprehensive($s1,$curData)?'selected':''?>>포함</option>
+              </select>
+            </label>
+          </div>
+        <?php endif; ?>
 
         <table class="ft">
           <tr>
@@ -785,7 +776,7 @@ table.ft .flow{margin-top:6px}
             <td><input type="text" name="r1_who" value="<?=h($curData['r1_who'] ?? '')?>" placeholder="담당자명"></td>
             <td><input type="text" name="r1_note" value="<?=h($curData['r1_note'] ?? '')?>"></td>
           </tr>
-          <tr>
+          <tr <?=$isSelf?'id="comprehensiveRow"':''?> <?=$isSelf && !fp_comprehensive($s1,$curData)?'hidden':''?>>
             <th class="lb2"><?=$isSelf?'종합점검':'피난시설'?></th>
             <td><input type="text" name="r2_when" value="<?=h($curData['r2_when'] ?? '')?>" placeholder="예: 매년 3월"></td>
             <td><input type="text" name="r2_who" value="<?=h($curData['r2_who'] ?? '')?>"></td>
@@ -912,7 +903,7 @@ table.ft .flow{margin-top:6px}
             <button class="btn btn--primary" type="submit" name="act" value="sync_jawi">최신 편성표 다시 반영</button>
             <a class="btn" href="/fire_plan_jawi.php" style="text-decoration:none">편성표 확인·수정</a>
           </div>
-          <?php $jawiCurrentMemo = trim((string)($curData['memo'] ?? '')) !== '' ? (string)$curData['memo'] : $jawiMemo; ?>
+          <?php $jawiCurrentMemo = trim((string)($curData['memo'] ?? '')) !== '' ? (string)$curData['memo'] : ($allowJawiImport ? $jawiMemo : ''); ?>
           <textarea name="memo" rows="14" placeholder="자위소방대 조직 및 임무"><?=h($jawiCurrentMemo)?></textarea>
         <?php else: ?>
           <div class="placeholder-note">먼저 자위소방대 편성표를 작성하면 조직과 임무 문구가 자동으로 만들어집니다.</div>
@@ -974,6 +965,7 @@ document.querySelectorAll('.seg').forEach(seg=>{
 });
 ['fArea','fStaff'].forEach(id=>{const el=document.getElementById(id); if(el) el.addEventListener('input',apply);});
 const ap=document.getElementById('fApproval'); if(ap) ap.addEventListener('change',apply);
+document.querySelectorAll('input[name="grade"]').forEach(el=>el.addEventListener('change',apply));
 
 function apply(){
   const skips = {};
@@ -1006,15 +998,18 @@ function apply(){
   else if(staff>=50){type='Type-Ⅱ';reason='상시 근무 50명 이상';}
   else if(area||staff){type='Type-Ⅲ';reason='상시 근무 50명 미만';}
   const at=document.getElementById('autoType');
-  at.classList.toggle('show',!!type);
-  if(type) at.innerHTML='자위소방대 편성 <b>'+type+'</b> 자동 추천 ('+reason+') — 저장 시 2장에 적용됩니다.';
+  if(at) at.classList.toggle('show',!!type);
+  if(at && type) at.innerHTML='자위소방대 편성 <b>'+type+'</b> 자동 추천 ('+reason+') — 저장 시 2장에 적용됩니다.';
 
   const v=document.getElementById('fApproval')?.value;
   const ai=document.getElementById('autoInspect');
   if(ai){
     ai.classList.toggle('show',!!v);
-    if(v){const m=new Date(v).getMonth()+1;
-      ai.innerHTML='자체점검 시기 자동 계산: 종합점검 <b>'+m+'월</b> · 작동점검 <b>'+((m+5)%12+1)+'월</b>';}
+    if(v){const m=Number(v.slice(5,7));
+      const grade=document.querySelector('input[name="grade"]:checked')?.value;
+      ai.textContent=grade==='3급'
+        ? '3급 정기 작동점검: 매년 '+m+'월 말일까지를 기본으로 제안합니다. 종합점검 예외 여부는 별도 확인하세요.'
+        : '사용승인 월: '+m+'월. 자체점검 종류와 시기는 대상·설비·이전 점검일에 맞춰 확인하세요.';}
   }
 }
 function flow(id,show,msg){const el=document.getElementById(id);if(!el)return;el.classList.toggle('show',show);if(show)el.textContent=msg;}
@@ -1026,6 +1021,13 @@ apply();
 </script>
 <?php endif; ?>
 
+<?php if ($cur === '3'): ?>
+<script>
+document.getElementById('comprehensiveChoice')?.addEventListener('change',function(){
+  document.getElementById('comprehensiveRow').hidden=this.value !== '포함';
+});
+</script>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/admin_quickmemo_widget.php'; ?>
 </body>

@@ -1,522 +1,148 @@
 <?php
-// fire_plan.php — 소방계획서 목록 (건물 소방안전관리자 전용)
 declare(strict_types=1);
-
-ini_set('session.cookie_httponly', '1');
-if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
+date_default_timezone_set('Asia/Seoul');
+ini_set('session.cookie_httponly','1');
+if(PHP_VERSION_ID>=70300)session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']);
 session_start();
-
-function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
-function is_admin(): bool {
-  return (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'])
-      || (!empty($_SESSION['ID_OK']) && $_SESSION['ID_OK'] == 1);
+function h(string $s):string{return htmlspecialchars($s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
+function is_admin():bool{return !empty($_SESSION['is_admin'])||(!empty($_SESSION['ID_OK'])&&$_SESSION['ID_OK']==1);}
+if(!is_admin()&&empty($_SESSION['is_user'])){header('Location: /index.php');exit;}
+if(!is_admin()&&($_SESSION['role']??'')!=='building'){header('Location: /clients_mini.php');exit;}
+require_once __DIR__.'/fire_plan_db.php';
+if(fp_user_key()===''){http_response_code(403);exit('다시 로그인해 주세요.');}
+$context=[];
+if(($_GET['embed']??'')==='1')$context['embed']='1';
+if(is_admin()&&isset($_GET['uid'])&&is_string($_GET['uid']))$context['uid']=$_GET['uid'];
+$link=function(string $path,array $args=[])use($context):string{$q=array_merge($context,$args);return $path.($q?'?'.http_build_query($q):'');};
+if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'&&($_POST['act']??'')==='delete'){
+  fp_csrf_check();$p=fp_load_plan((string)($_POST['id']??''));if($p)fp_delete_plan((string)$p['id']);
+  header('Location: '.$link('/fire_plan.php'));exit;
 }
-function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']); }
-
-if (!is_logged_in()) { header('Location: /index.php'); exit; }
-$role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
-
-require_once __DIR__ . '/fire_plan_db.php';
-require_once __DIR__ . '/evacuation_plan_common.php';
-$nick   = $_SESSION['nickname'] ?? '사용자';
-$usages = fp_usages();
-$commonEvac = epc_load();
-$commonEvacStatus = epc_status($commonEvac);
-$commonEvacUrl = '/evacuation_plan_chat.php?return=' . rawurlencode('/fire_plan.php');
-
-/* 삭제 처리 */
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'delete') {
-  fp_csrf_check();
-  $plan = fp_load_plan((string)($_POST['id'] ?? ''));
-  if ($plan) fp_delete_plan((string)$plan['id']);
-  header('Location: /fire_plan.php'); exit;
+$thisYear=(int)date('Y');
+$focusYear=filter_var($_GET['year']??$thisYear,FILTER_VALIDATE_INT,['options'=>['min_range'=>1901,'max_range'=>2199]]);
+if($focusYear===false)$focusYear=$thisYear;
+$plans=[];$byYear=[];
+foreach(fp_list_plans() as $row){
+  $full=fp_load_plan((string)($row['id']??''));if(!$full)continue;
+  $full['plan_year']=fp_plan_year($full);$plans[]=$full;$byYear[$full['plan_year']][]=$full;
 }
-
-/* 목록 조회 */
-$plans = fp_list_plans();
-
-/* ── 연도별 보유 현황 ──────────────────────────────────────────
-   법령상 소방계획은 매년 12월 31일까지 다음 해 것을 작성하고,
-   작성한 문서는 2년간 보관해야 합니다(화재예방법 시행령 제27조 관련).
-   그래서 '올해 것'과 '작년 것'이 있는지를 각각 확인해 보여줍니다.
-   계획서에 연도 필드가 따로 없으므로 작성일(created_at)의 연도로 봅니다. */
-$thisYear = (int)date('Y');
-$lastYear = $thisYear - 1;
-$nextYear = $thisYear + 1;
-
-$byYear = [];   // [연도 => 그 해에 만든 계획서 목록]
-foreach ($plans as $p) {
-  $stamp = (string)($p['created_at'] ?? $p['updated_at'] ?? '');
-  $y = (int)substr($stamp, 0, 4);
-  if ($y > 0) $byYear[$y][] = $p;
-}
-
-$hasThisYear = !empty($byYear[$thisYear]);
-$hasLastYear = !empty($byYear[$lastYear]);
-$hasNextYear = !empty($byYear[$nextYear]);
-
-/* 연말(11~12월)에는 '다음 해 계획서'를 준비할 시기임을 함께 알립니다 */
-$isYearEnd  = ((int)date('n') >= 11);
-$daysToYearEnd = (int)ceil((strtotime($thisYear . '-12-31 23:59:59') - time()) / 86400);
-
-$totalSections = 0;
-foreach (fp_sections() as $ch) $totalSections += count($ch['items']);
 ?>
-<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>소방계획서 — TWORIX</title>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>연도별 소방계획서</title>
 <style>
-:root{
-  --bg:#f5f7fb; --card:#fff; --bd:#e3e8f0; --bd2:#d4dbe6;
-  --fg:#1a2436; --mut:#7a8699; --mut2:#56627a;
-  --brand:#2563eb; --brand2:#1d4ed8; --accent:#0891b2;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{background:var(--bg);color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,"Apple SD Gothic Neo",sans-serif;line-height:1.6}
-a{text-decoration:none}
-.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--bd)}
-.nav__inner{max-width:1120px;margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px}
-.nav__brand{font-weight:800;font-size:22px;color:var(--fg);letter-spacing:.5px}
-.nav__right{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--mut2)}
-.btn{display:inline-flex;align-items:center;padding:8px 16px;border-radius:9px;border:1px solid var(--bd2);background:#fff;color:var(--fg);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
-.btn:hover{border-color:var(--brand);color:var(--brand2)}
-.btn--primary{background:var(--brand);border-color:var(--brand);color:#fff}
-.btn--primary:hover{background:var(--brand2);color:#fff}
-.btn--danger:hover{border-color:#dc2626;color:#dc2626}
-.page-head{position:relative;overflow:hidden;border-bottom:1px solid var(--bd);
-  background:linear-gradient(rgba(37,99,235,.04) 1px,transparent 1px) 0 0/100% 28px,
-  linear-gradient(90deg,rgba(37,99,235,.04) 1px,transparent 1px) 0 0/28px 100%,
-  linear-gradient(180deg,#fbfcff,#eef3fb)}
-.page-head::before{content:'';position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(ellipse 760px 320px at 12% 0%,rgba(8,145,178,.10),transparent 70%)}
-.page-head__inner{position:relative;max-width:1120px;margin:0 auto;padding:48px 24px 40px}
-.crumb{font-size:13px;color:var(--mut2);margin-bottom:12px}
-.crumb a{color:var(--mut2)}.crumb a:hover{color:var(--brand2)}
-.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;border:1px solid var(--bd2);background:#fff;color:var(--mut2);font-size:12px;margin-bottom:14px}
-.badge span{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block}
-.page-head h1{font-size:clamp(24px,3.5vw,34px);font-weight:700;letter-spacing:-.5px;margin-bottom:8px}
-.page-head p{color:var(--mut2);font-size:15px}
-.wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:24px}
-.empty{text-align:center;color:var(--mut2);padding:48px 20px}
-
-/* ── 연도별 보유 현황 ── */
-.yearcov{margin-bottom:16px}
-.yearcov__hd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-.yearcov__law{font-size:12px;color:var(--mut2)}
-.yearcov__law b{color:var(--fg)}
-.yearcov__grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.ycell{border:1px solid var(--bd);border-radius:11px;padding:13px 15px;background:#fff}
-.ycell__y{font-size:13px;font-weight:800;color:var(--fg);margin-bottom:6px;
-  display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.ycell__tag{font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;
-  background:#eef2ff;color:#4338ca}
-.ycell__s{font-size:15px;font-weight:800;margin-bottom:3px}
-.ycell__d{font-size:11.5px;color:var(--mut2);line-height:1.55}
-.ycell--ok{border-color:#bfe6cb;background:#f6fdf8}
-.ycell--ok .ycell__s{color:#15803d}
-.ycell--miss{border-color:#eebfb8;background:#fef6f5}
-.ycell--miss .ycell__s{color:#b91c1c}
-.ycell--now{border-color:#f6d8a8;background:#fffbeb}
-.ycell--now .ycell__s{color:#b45309}
-.ycell--soon{border-color:#f6d8a8;background:#fffbeb}
-.ycell--soon .ycell__s{color:#b45309}
-.ycell--wait .ycell__s{color:var(--mut2)}
-.yearcov__todo{margin-top:12px;padding:11px 14px;border-radius:9px;
-  background:#fffbeb;border:1px solid #f6d8a8;color:#92400e;font-size:12.5px;line-height:1.7}
-@media(max-width:640px){.yearcov__grid{grid-template-columns:1fr}}
-.empty h3{font-size:18px;color:var(--fg);margin-bottom:8px}
-.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap}
-.toolbar h2{font-size:18px;font-weight:700}
-.plan{display:flex;align-items:center;gap:16px;padding:16px 6px;border-top:1px solid var(--bd);flex-wrap:wrap}
-.plan:first-of-type{border-top:0}
-.plan__main{flex:1;min-width:220px}
-.plan__name{font-weight:700;font-size:15.5px}
-.plan__name a{color:var(--fg)}.plan__name a:hover{color:var(--brand2)}
-.plan__meta{font-size:12.5px;color:var(--mut2);margin-top:2px}
-.tag{display:inline-block;font-size:11.5px;border-radius:999px;padding:2px 10px;font-weight:700}
-.tag--use{background:#eef2ff;color:var(--brand2)}
-.tag--draft{background:#fff7ed;color:#b45309}
-.tag--done{background:#ecfdf5;color:#047857}
-.tag--sync{background:#fff7ed;color:#b45309;margin-left:5px}
-.prog{width:150px}
-.prog__bar{height:7px;border-radius:99px;background:#e9edf4;overflow:hidden}
-.prog__bar i{display:block;height:100%;background:var(--brand);border-radius:99px}
-.prog__txt{font-size:11.5px;color:var(--mut2);margin-top:3px}
-
-/* ── 건물 공통 피난계획 ── */
-.common-evac{margin-bottom:16px;display:flex;align-items:center;gap:18px}
-.common-evac__mark{flex:0 0 46px;width:46px;height:46px;border-radius:10px;background:#ecfdf5;
-  color:#047857;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800}
-.common-evac__main{flex:1;min-width:0}
-.common-evac__head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:4px}
-.common-evac__head h2{font-size:17px}
-.common-evac__state{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;
-  background:#f1f5f9;color:var(--mut2)}
-.common-evac__state.is-ready{background:#ecfdf5;color:#047857}
-.common-evac__state.is-writing{background:#fff7ed;color:#b45309}
-.common-evac__desc{font-size:13px;color:var(--mut2)}
-.common-evac__meta{margin-top:5px;font-size:12px;color:var(--mut)}
-.common-evac__actions{display:flex;gap:8px;flex-wrap:wrap}
-@media(max-width:680px){.common-evac{align-items:flex-start;flex-wrap:wrap}.common-evac__actions{width:100%}.common-evac__actions .btn{flex:1;justify-content:center}}
-
-/* ── 법령 근거 안내 (접이식) ── */
-.law{margin-bottom:24px;border:1px solid var(--bd);border-radius:14px;background:
-  linear-gradient(180deg,#fbfcff,#fff);overflow:hidden}
-.law__head{display:flex;align-items:center;gap:14px;padding:18px 22px;cursor:pointer;
-  list-style:none;user-select:none}
-.law__head::-webkit-details-marker{display:none}
-.law__seal{flex-shrink:0;width:42px;height:42px;border-radius:10px;
-  background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;
-  display:flex;align-items:center;justify-content:center;font-size:20px;
-  box-shadow:0 4px 12px rgba(37,99,235,.28)}
-.law__htxt{flex:1;min-width:0}
-.law__eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--accent);margin-bottom:2px}
-.law__title{font-size:15.5px;font-weight:700;color:var(--fg)}
-.law__title b{color:var(--brand2)}
-.law__chev{flex-shrink:0;color:var(--mut);transition:transform .25s ease;font-size:13px}
-details[open] .law__chev{transform:rotate(180deg)}
-.law__body{padding:4px 22px 24px;border-top:1px solid var(--bd)}
-.law__lead{font-size:13.5px;color:var(--mut2);margin:16px 2px 22px;line-height:1.75}
-
-/* 법 계층 흐름 */
-.flow{display:grid;gap:0}
-.tier{position:relative;padding:0 0 0 34px}
-.tier::before{content:'';position:absolute;left:11px;top:6px;bottom:-6px;width:2px;
-  background:linear-gradient(var(--bd2),var(--bd2))}
-.tier:last-child::before{display:none}
-.tier__dot{position:absolute;left:4px;top:5px;width:16px;height:16px;border-radius:50%;
-  background:#fff;border:2px solid var(--brand);z-index:1}
-.tier--law .tier__dot{border-color:#1e3a8a}
-.tier--ord .tier__dot{border-color:var(--accent)}
-.tier__k{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--mut);text-transform:uppercase}
-.tier__t{font-size:14.5px;font-weight:700;color:var(--fg);margin:1px 0 4px}
-.tier__d{font-size:13px;color:var(--mut2);line-height:1.7;padding-bottom:20px}
-.tier__d em{font-style:normal;background:#eef4ff;color:var(--brand2);
-  padding:1px 6px;border-radius:5px;font-weight:600;font-size:12.5px}
-.tier__quote{display:block;margin-top:8px;padding:10px 14px;border-left:3px solid var(--bd2);
-  background:#f8fafc;border-radius:0 8px 8px 0;font-size:12.5px;color:var(--mut2);line-height:1.7}
-
-/* 15항목 그리드 (펼쳤을 때) */
-.items15{margin-top:6px;display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px}
-.i15{display:flex;gap:9px;padding:9px 11px;border:1px solid var(--bd);border-radius:9px;
-  background:#fff;font-size:12.5px;line-height:1.45}
-.i15__n{flex-shrink:0;width:20px;height:20px;border-radius:6px;background:#eef2ff;
-  color:var(--brand2);font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center}
-.i15__t{color:var(--mut2);padding-top:1px}
-/* 법정서식 준수 안내 */
-.forms{margin-top:22px;padding-top:20px;border-top:1px dashed var(--bd)}
-.forms__t{font-size:13.5px;font-weight:700;margin-bottom:4px}
-.forms__d{font-size:12.5px;color:var(--mut2);line-height:1.7;margin-bottom:14px}
-.forms__grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.fcol{border:1px solid var(--bd);border-radius:10px;padding:13px 15px;background:#fff}
-.fcol__k{font-size:11px;font-weight:700;letter-spacing:.06em;margin-bottom:3px}
-.fcol--free .fcol__k{color:var(--brand2)}
-.fcol--fixed .fcol__k{color:#0f766e}
-.fcol__t{font-size:13px;font-weight:700;margin-bottom:6px}
-.fcol__d{font-size:12px;color:var(--mut2);line-height:1.65}
-.fcol__list{margin-top:8px;font-size:11.5px;color:var(--mut2);line-height:1.7}
-.fcol__list b{color:var(--fg);font-weight:600}
-@media(max-width:640px){.forms__grid{grid-template-columns:1fr}}
-.law__foot{margin-top:20px;font-size:12px;color:var(--mut);text-align:center;
-  padding-top:16px;border-top:1px dashed var(--bd)}
-
-@media(max-width:680px){.nav__inner{padding:0 16px}.page-head__inner{padding:36px 20px 28px}.prog{width:100%}
-  .law__head{padding:16px}.law__body{padding:4px 16px 20px}.items15{grid-template-columns:1fr 1fr}}
-</style>
-</head>
-<body>
-
-<nav class="nav">
-  <div class="nav__inner">
-    <a class="nav__brand" href="/index.php">YEOHUB</a>
-    <div class="nav__right">
-      <span><?=h($nick)?>님</span>
-      <a class="btn" href="/building_manager.php">← 메인</a>
-      <a class="btn" href="/logout.php">로그아웃</a>
-    </div>
-  </div>
-</nav>
-
-<header class="page-head">
-  <div class="page-head__inner">
-    <div class="crumb"><a href="/building_manager.php">건물 소방안전관리</a> › 소방계획서</div>
-    <div class="badge"><span></span> 소방계획서</div>
-    <h1>소방계획서</h1>
-    <p>건물의 소방계획서를 작성하고 보관합니다.</p>
-  </div>
-</header>
-
-<main class="wrap">
-
-  <details class="law">
-    <summary class="law__head">
-      <div class="law__seal">§</div>
-      <div class="law__htxt">
-        <div class="law__eyebrow">법령 근거</div>
-        <div class="law__title">이 소방계획서는 <b>화재예방법</b>에 따라 작성합니다 — 근거 보기</div>
-      </div>
-      <div class="law__chev">▼</div>
-    </summary>
-
-    <div class="law__body">
-      <p class="law__lead">
-        소방계획서는 소방안전관리자가 법으로 정해진 업무를 <b>어떻게 수행할지 미리 적어두는 설계도</b>입니다.
-        아래처럼 법률이 큰 틀을 정하고, 시행령이 담을 내용을 구체화합니다.
-      </p>
-
-      <div class="flow">
-        <div class="tier tier--law">
-          <div class="tier__dot"></div>
-          <div class="tier__k">법률</div>
-          <div class="tier__t">화재예방법 제24조 제5항</div>
-          <div class="tier__d">
-            소방안전관리자가 수행할 <em>업무 9가지</em>를 정합니다. 그 <em>제1호</em>가 “소방계획서의 작성 및 시행”입니다.
-            계획서 내용은 “<em>대통령령으로 정하는 사항</em>”으로 넘깁니다.
-            <span class="tier__quote">“제36조에 따른 피난계획에 관한 사항과 대통령령으로 정하는 사항이 포함된 소방계획서의 작성 및 시행”</span>
-          </div>
-        </div>
-
-        <div class="tier tier--ord">
-          <div class="tier__dot"></div>
-          <div class="tier__k">시행령 (대통령령)</div>
-          <div class="tier__t">화재예방법 시행령 제27조 제1항</div>
-          <div class="tier__d">
-            법률이 넘긴 “대통령령으로 정하는 사항”이 바로 <em>이 15개 항목</em>입니다.
-            우리 계획서의 작성 항목이 여기서 나옵니다.
-            <span class="tier__quote">“법 제24조제5항제1호에서 ‘대통령령으로 정하는 사항’이란 다음 각 호의 사항을 말한다”</span>
-          </div>
-        </div>
-
-        <div class="tier">
-          <div class="tier__dot"></div>
-          <div class="tier__k">작성 항목</div>
-          <div class="tier__t">15개 법정 항목</div>
-          <div class="tier__d" style="padding-bottom:4px">
-            건물에 해당하지 않는 항목(권원분리·위험물 등)은 작성 시 <em>자동으로 생략</em>됩니다.
-          </div>
-        </div>
-      </div>
-
-      <div class="items15">
-        <?php
-          $lawItems = [
-            '위치·구조·연면적·용도·수용인원 등 일반현황',
-            '소방·방화·전기·가스·위험물시설의 현황',
-            '자체점검계획 및 대응대책',
-            '소방·피난·방화시설의 점검·정비계획',
-            '피난계획 (화재안전취약자 포함)',
-            '방화구획·제연·마감재·방염대상물품 유지관리',
-            '관리 권원이 분리된 대상물의 안전관리',
-            '소방훈련·교육에 관한 계획',
-            '자위소방대 조직과 대원의 임무',
-            '화기취급 작업 등 공사 중 안전관리',
-            '소화 및 연소 방지에 관한 사항',
-            '위험물의 저장·취급에 관한 사항',
-            '업무수행에 관한 기록·유지',
-            '화재 초기대응 (경보·초기소화·피난유도)',
-            '소방본부장·소방서장이 요청하는 사항',
-          ];
-          foreach ($lawItems as $i => $t):
-        ?>
-          <div class="i15">
-            <div class="i15__n"><?=$i+1?></div>
-            <div class="i15__t"><?=h($t)?></div>
-          </div>
-        <?php endforeach; ?>
-      </div>
-
-      <div class="forms">
-        <div class="forms__t">서식은 어떻게 따르나요?</div>
-        <div class="forms__d">
-          법은 문서마다 요구 수준이 다릅니다. <b>내용만 정한 것</b>과 <b>서식(양식)까지 정한 것</b>을
-          구분해서, TWORIX는 각각 법이 요구하는 방식 그대로 따릅니다.
-        </div>
-        <div class="forms__grid">
-          <div class="fcol fcol--free">
-            <div class="fcol__k">내용만 법정 — 서식 자유</div>
-            <div class="fcol__t">소방계획서 (이 페이지)</div>
-            <div class="fcol__d">
-              시행령 제27조는 "다음 각 호의 <b>사항이 포함</b>되어야 한다"고 하여
-              담을 <b>내용</b>만 정하고 양식은 정하지 않았습니다.
-              그래서 15개 항목을 빠짐없이 담되, 작성 화면은 쓰기 쉽게 구성했습니다.
-            </div>
-          </div>
-          <div class="fcol fcol--fixed">
-            <div class="fcol__k">서식까지 법정 — 원본 그대로</div>
-            <div class="fcol__t">별지 서식 (기록·제출 문서)</div>
-            <div class="fcol__d">
-              시행규칙이 "<b>별지 제○호서식</b>에 기록해야 한다"고 서식 자체를
-              지정한 문서는 행정안전부령 <b>원본 양식을 그대로 재현</b>해
-              작성·출력합니다.
-            </div>
-            <div class="fcol__list">
-              · <b>별지 제12호</b> 업무수행 기록표 (규칙 제10조)<br>
-              · <b>별지 제28호</b> 소방훈련·교육 결과 기록부 (규칙 제36조④, 2년 보관)<br>
-              · <b>별지 제29호</b> 소방훈련·교육 결과서 (규칙 제37조, 특급·1급 제출)<br>
-              · <b>별지 제13호</b> 자위소방대 교육·훈련 기록부 (규칙 제36조⑦, 2년 보관)
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="law__foot">
-        근거: 「화재의 예방 및 안전관리에 관한 법률」 제24조 제5항 · 같은 법 시행령 제27조 제1항
-      </div>
-    </div>
-  </details>
-
-  <section class="card common-evac">
-    <div class="common-evac__mark" aria-hidden="true">↗</div>
-    <div class="common-evac__main">
-      <div class="common-evac__head">
-        <h2>공통 피난계획</h2>
-        <?php if ($commonEvacStatus['ready']): ?>
-          <span class="common-evac__state is-ready">사용 가능</span>
-        <?php elseif ($commonEvacStatus['has_content']): ?>
-          <span class="common-evac__state is-writing">작성 중</span>
-        <?php else: ?>
-          <span class="common-evac__state">작성 전</span>
-        <?php endif; ?>
-      </div>
-      <div class="common-evac__desc">이 건물의 층별 대피경로와 집결지를 소방계획서에 공통으로 사용합니다.</div>
-      <?php if ($commonEvacStatus['has_content']): ?>
-        <div class="common-evac__meta">
-          <?= (int)$commonEvacStatus['floor_count'] ?>개 층
-          <?php if ((int)$commonEvacStatus['occupants'] > 0): ?> · 최대 <?= (int)$commonEvacStatus['occupants'] ?>명<?php endif; ?>
-          <?php if ($commonEvacStatus['updated'] !== ''): ?> · 최근 수정 <?=h(substr((string)$commonEvacStatus['updated'], 0, 16))?><?php endif; ?>
-        </div>
-      <?php endif; ?>
-    </div>
-    <div class="common-evac__actions">
-      <a class="btn <?= $commonEvacStatus['has_content'] ? '' : 'btn--primary' ?>" href="<?=h($commonEvacUrl)?>">
-        <?= $commonEvacStatus['has_content'] ? '검토·수정' : '피난계획 작성' ?>
-      </a>
-    </div>
-  </section>
-
-  <!-- ── 연도별 보유 현황 ──
-       소방계획은 매년 새로 만들고, 만든 문서는 2년간 보관해야 합니다.
-       그래서 올해·작년 것이 있는지 한눈에 보이게 합니다. -->
-  <div class="card yearcov">
-    <div class="yearcov__hd">
-      <h2>연도별 보유 현황</h2>
-      <span class="yearcov__law">소방계획은 매년 작성하고 <b>2년간 보관</b>해야 합니다</span>
-    </div>
-
-    <div class="yearcov__grid">
-      <div class="ycell <?= $hasLastYear ? 'ycell--ok' : 'ycell--miss' ?>">
-        <div class="ycell__y"><?=$lastYear?>년</div>
-        <?php if ($hasLastYear): ?>
-          <div class="ycell__s">보유 <?=count($byYear[$lastYear])?>건</div>
-          <div class="ycell__d">보관 기간 내</div>
-        <?php else: ?>
-          <div class="ycell__s">없음</div>
-          <div class="ycell__d">보관 대상인데 자료가 없습니다</div>
-        <?php endif; ?>
-      </div>
-
-      <div class="ycell <?= $hasThisYear ? 'ycell--ok' : 'ycell--now' ?>">
-        <div class="ycell__y"><?=$thisYear?>년 <span class="ycell__tag">올해</span></div>
-        <?php if ($hasThisYear): ?>
-          <div class="ycell__s">보유 <?=count($byYear[$thisYear])?>건</div>
-          <div class="ycell__d">작성 완료</div>
-        <?php else: ?>
-          <div class="ycell__s">없음</div>
-          <div class="ycell__d">올해 계획서를 작성해 주세요</div>
-        <?php endif; ?>
-      </div>
-
-      <div class="ycell <?= $hasNextYear ? 'ycell--ok' : ($isYearEnd ? 'ycell--soon' : 'ycell--wait') ?>">
-        <div class="ycell__y"><?=$nextYear?>년</div>
-        <?php if ($hasNextYear): ?>
-          <div class="ycell__s">보유 <?=count($byYear[$nextYear])?>건</div>
-          <div class="ycell__d">미리 준비됨</div>
-        <?php elseif ($isYearEnd): ?>
-          <div class="ycell__s">준비 필요</div>
-          <div class="ycell__d"><?=$daysToYearEnd?>일 남음 · 12월 31일까지</div>
-        <?php else: ?>
-          <div class="ycell__s">—</div>
-          <div class="ycell__d">연말에 준비하시면 됩니다</div>
-        <?php endif; ?>
-      </div>
-    </div>
-
-    <?php if (!$hasThisYear || (!$hasNextYear && $isYearEnd)): ?>
-      <div class="yearcov__todo">
-        <?php if (!$hasThisYear): ?>
-          <b><?=$thisYear?>년 소방계획서가 없습니다.</b> 아래에서 새로 작성해 주세요.
-        <?php else: ?>
-          <b><?=$nextYear?>년 계획서를 준비할 시기입니다.</b>
-          다음 해 계획은 <?=$thisYear?>년 12월 31일까지 작성하는 것이 원칙입니다.
-        <?php endif; ?>
-      </div>
-    <?php endif; ?>
-  </div>
-
-  <div class="card">
-    <div class="toolbar">
-      <h2>소방계획서 목록</h2>
-      <a class="btn btn--primary" href="/fire_plan_chat.php">💬 문답으로 작성</a>
-      <a class="btn" href="/fire_plan_new.php">＋ 표로 작성</a>
-    </div>
-
-    <?php if (!$plans): ?>
-      <div class="empty">
-        <h3>아직 등록된 소방계획서가 없습니다</h3>
-        <p><b>문답으로 작성</b>을 누르면 지금까지 입력해 두신 건물 기본정보·자위소방대 편성표·
-          업무수행 기록표 기본값을 먼저 채워 넣고, 남은 것만 하나씩 여쭤봅니다.</p>
-      </div>
-    <?php else: foreach ($plans as $p):
-      $u = $usages[$p['usage_code']] ?? ['nm'=>$p['usage_code']];
-      $full = fp_load_plan((string)$p['id']);
-      $cnt  = $full ? fp_count_states($full) : ['done'=>0,'skip'=>0];
-      $effective = max(1, $totalSections - (int)$cnt['skip']);
-      $pct = min(100, (int)round((int)$cnt['done'] / $effective * 100));
-    ?>
-      <div class="plan">
-        <div class="plan__main">
-          <div class="plan__name">
-            <a href="/fire_plan_edit.php?id=<?=h($p['id'])?>"><?=h($p['building_name'] ?: '(대상명 미입력)')?></a>
-            <span class="tag tag--use"><?=h($u['nm'])?></span>
-            <?php if (($p['status'] ?? '')==='done'): ?><span class="tag tag--done">완료</span>
-            <?php else: ?><span class="tag tag--draft">작성중</span><?php endif; ?>
-            <?php
-              $planEvac = fp_get_section((string)$p['id'], '5');
-              $needsCommonEvac = $commonEvacStatus['has_content']
-                && $commonEvacStatus['updated'] !== ''
-                && (string)($planEvac['common_updated'] ?? '') < (string)$commonEvacStatus['updated'];
-            ?>
-            <?php if ($needsCommonEvac): ?><span class="tag tag--sync">피난계획 반영 필요</span><?php endif; ?>
-          </div>
-          <div class="plan__meta">
-            최근 수정 <?=h(substr((string)($p['updated_at'] ?? ''),0,16))?>
-            <?php if ($cnt['skip']): ?> · 자동 생략 <?=$cnt['skip']?>건<?php endif; ?>
-          </div>
-        </div>
-        <div class="prog">
-          <div class="prog__bar"><i style="width:<?=$pct?>%"></i></div>
-          <div class="prog__txt">작성 진행률 <?=$pct?>%</div>
-        </div>
-        <a class="btn" href="/fire_plan_chat.php?id=<?=h($p['id'])?>">💬 문답</a>
-        <?php if ($needsCommonEvac): ?><a class="btn" href="/fire_plan_edit.php?id=<?=h($p['id'])?>&s=5">피난계획 적용</a><?php endif; ?>
-        <a class="btn" href="/fire_plan_edit.php?id=<?=h($p['id'])?>">이어쓰기</a>
-        <form method="post" onsubmit="return confirm('이 계획서를 삭제할까요? 되돌릴 수 없습니다.')">
-          <input type="hidden" name="act" value="delete">
-          <input type="hidden" name="id" value="<?=h($p['id'])?>">
-          <input type="hidden" name="csrf" value="<?=h(fp_csrf())?>">
-          <button class="btn btn--danger" type="submit">삭제</button>
-        </form>
-      </div>
-    <?php endforeach; endif; ?>
-  </div>
+*{box-sizing:border-box}body{margin:0;background:#f7f8fa;color:#2d3848;font:14px/1.6 system-ui,-apple-system,"Apple SD Gothic Neo",sans-serif}a{color:inherit;text-decoration:none}button,input{font:inherit}.plan-page{max-width:1000px;margin:auto;padding:30px 24px 50px}.plan-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:28px}h1{font-size:23px;margin:0 0 6px;letter-spacing:-.04em}.muted{font-size:12px;color:#7b8593}.year-picker{display:flex;align-items:center;gap:6px}.year-picker input{width:84px;padding:7px;border:1px solid #e0e5ec;border-radius:7px;background:#fff}.btn{display:inline-flex;align-items:center;justify-content:center;padding:7px 11px;border:1px solid #e0e5ec;border-radius:7px;background:#fff;font-size:12px;color:#596578;cursor:pointer}.years{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.year-card{display:flex;flex-direction:column;gap:20px;min-height:175px;padding:22px;border:1px solid #e1e6ed;border-radius:12px;background:#fff}.year-card:hover{border-color:#9daec8;background:#fcfdff}.year-card.current{border-color:#b9c7dc}.year-label{font-size:11px;color:#8a94a2}.year-title{font-size:24px;font-weight:650;letter-spacing:-.04em}.year-title small{font-size:12px;font-weight:400;margin-left:6px;color:#7a8596}.year-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:#5e718f}.intro-note{margin:16px 2px 30px;color:#7b8593;font-size:12px}.records{background:#fff;border:1px solid #e1e6ed;border-radius:12px;padding:20px}.records h2{font-size:15px;margin:0 0 8px}.record{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 0;border-top:1px solid #edf0f4}.record-main{min-width:0}.record-main b{font-size:13px}.record-actions{display:flex;gap:6px;flex-wrap:wrap}.record-actions form{margin:0}.empty{padding:25px 0;color:#7b8593;font-size:13px}.status{font-size:10px;margin-left:6px;padding:3px 6px;border-radius:4px;background:#f2f5f9;color:#6b7b93}.help{margin-top:22px;font-size:12px;color:#758192}.help summary{cursor:pointer}.help p{line-height:1.8}a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid #7e96ba;outline-offset:3px}@media(max-width:640px){.plan-page{padding:22px 16px}.plan-head{align-items:flex-start;flex-direction:column}.years{grid-template-columns:1fr}.year-card{min-height:0;gap:12px;padding:18px}.record{align-items:flex-start;flex-direction:column}.record-actions{width:100%}}
+</style></head><body><main class="plan-page">
+<header class="plan-head"><div><h1>어느 해의 소방계획서를 작성할까요?</h1><div class="muted">연도를 선택하고, 기존 자료를 골라 대화로 작성하세요.</div></div>
+<form class="year-picker" method="get">
+<?php foreach($context as $k=>$v):?><input type="hidden" name="<?=h($k)?>" value="<?=h($v)?>"><?php endforeach;?>
+<input aria-label="계획연도" type="number" name="year" min="1901" max="2199" value="<?=$focusYear?>"><button class="btn">연도 찾기</button></form></header>
+<section class="years" aria-label="작성할 계획연도">
+<?php foreach([$focusYear-1,$focusYear,$focusYear+1] as $year):
+  $items=$byYear[$year]??[];$latest=$items[0]??null;
+?>
+<a class="year-card <?=$year===$thisYear?'current':''?>" href="<?=h($link('/fire_plan_chat.php',['year'=>$year]))?>">
+<div><div class="year-label"><?=$year===$thisYear?'올해 계획':($year<$thisYear?'지난해 계획':'다가올 계획')?></div><div class="year-title"><?=$year?>년<small>소방계획서</small></div></div>
+<div class="year-foot"><span><?=$latest?(($latest['status']??'')==='done'?'작성 완료 · 확인하기':'작성 중 · 이어쓰기'):'새로 작성하기'?></span><span aria-hidden="true">→</span></div>
+</a>
+<?php endforeach;?>
+</section>
+<p class="intro-note">기존 계획서가 있으면 이어서 열립니다. 선택한 연도와 실제 작성일은 별도로 보관합니다.</p>
+<section class="records"><h2>작성한 계획서</h2>
+<?php if(!$plans):?><div class="empty">아직 작성한 계획서가 없어요. 위에서 연도를 선택해 시작해 보세요.</div>
+<?php else:foreach($plans as $p):?>
+<div class="record"><div class="record-main"><b><?= (int)$p['plan_year'] ?>년 소방계획서</b><span class="status"><?=($p['status']??'')==='done'?'작성 완료':'작성 중'?></span><div class="muted"><?=h((string)($p['building_name']?:'건물정보 입력 전'))?> · 수정 <?=h(substr((string)($p['updated_at']??''),0,16))?></div></div>
+<div class="record-actions">
+<a class="btn" href="<?=h($link('/fire_plan_chat.php',['id'=>$p['id'],'year'=>$p['plan_year']]))?>">대화로 작성</a>
+<a class="btn" href="<?=h($link('/fire_plan_edit.php',['id'=>$p['id']]))?>">서식 확인</a>
+<a class="btn" target="_blank" rel="noopener" href="<?=h($link('/fire_plan_print.php',['id'=>$p['id']]))?>">인쇄</a>
+<form method="post" onsubmit="return confirm('이 계획서를 삭제할까요? 되돌릴 수 없습니다.')"><input type="hidden" name="act" value="delete"><input type="hidden" name="id" value="<?=h((string)$p['id'])?>"><input type="hidden" name="csrf" value="<?=h(fp_csrf())?>"><button class="btn">삭제</button></form>
+</div></div>
+<?php endforeach;endif;?></section>
+<details class="help"><summary>어떤 자료를 활용할 수 있나요?</summary><p>기본정보 · 자위소방대 편성 · 매월 기록 · 자위소방대 교육 · 소방훈련·교육 · 피난계획 중 필요한 자료를 고를 수 있습니다. 자료를 불러오지 않고 직접 답변해도 됩니다.</p></details>
 </main>
+<script>
+/* 문답만 최상위 문서의 모달로 엽니다. 기존 인페이지 작업 공간은 그대로 둡니다. */
+document.addEventListener('click',function(event){
+  // 공통 업무 팝업 안에서는 별도 문답 팝업을 중첩해서 만들지 않습니다.
+  if(window.parent!==window && new URLSearchParams(location.search).get('modal')==='1') return;
+  const link=event.target.closest('a[href]');
+  if(!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button!==0)return;
+  const url=new URL(link.href,location.href);
+  if(url.origin!==location.origin || url.pathname!=='/fire_plan_chat.php')return;
+  let host;
+  try{host=window.top;if(host.location.origin!==location.origin)return;}catch(e){return;}
+  event.preventDefault();
+  if(host.document.getElementById('firePlanQuestionDialog'))return;
+  const doc=host.document, dialog=doc.createElement('dialog'), frame=doc.createElement('iframe');
+  const previous=doc.activeElement, oldOverflow=doc.documentElement.style.overflow;
+  const style=doc.createElement('style');
+  style.textContent='#firePlanQuestionDialog{padding:0;border:1px solid #e1e6ed;border-radius:16px;width:min(760px,calc(100vw - 32px));max-width:none;height:min(820px,calc(100dvh - 48px));max-height:none;background:#fff;box-shadow:0 24px 80px #17243b30;overflow:hidden}#firePlanQuestionDialog::backdrop{background:rgba(24,34,50,.38)}#firePlanQuestionDialog .fp-modal-head{display:flex;align-items:center;justify-content:space-between;padding:15px 20px;border-bottom:1px solid #edf0f4;font:600 14px system-ui;color:#344054}#firePlanQuestionDialog button{border:1px solid #e0e5ec;border-radius:7px;background:white;padding:6px 10px;font:12px system-ui;color:#64748b;cursor:pointer}#firePlanQuestionDialog button:focus-visible{outline:2px solid #667da5;outline-offset:2px}#firePlanQuestionDialog iframe{display:block;width:100%;height:calc(100% - 64px);border:0;background:#fff}@media(max-width:540px){#firePlanQuestionDialog{width:calc(100vw - 16px);height:calc(100dvh - 24px);border-radius:12px}}';
+  dialog.id='firePlanQuestionDialog';dialog.setAttribute('aria-label','소방계획서 문답 작성');
+  // 상위 페이지의 dialog·전역 margin 초기화와 관계없이 뷰포트 중앙에 배치합니다.
+  style.textContent += '#firePlanQuestionDialog{position:fixed!important;inset:50% auto auto 50%!important;margin:0!important;transform:translate(-50%,-50%)!important;box-sizing:border-box}';
+  const header=doc.createElement('div');header.className='fp-modal-head';
+  const title=doc.createElement('span');title.textContent=url.searchParams.has('year')?url.searchParams.get('year')+'년 소방계획서 작성':'소방계획서 작성';
+  const close=doc.createElement('button');close.type='button';close.textContent='닫기 ×';close.setAttribute('aria-label','문답 팝업 닫기');
+  header.append(title,close);frame.title='소방계획서 질문과 답변';
+  const notice=doc.createElement('div');notice.hidden=true;notice.className='fp-close-notice';notice.setAttribute('role','status');
+  style.textContent+='#firePlanQuestionDialog[open]{display:flex;flex-direction:column}#firePlanQuestionDialog .fp-modal-head{flex-shrink:0}#firePlanQuestionDialog iframe{flex:1;min-height:0;height:auto}#firePlanQuestionDialog .fp-close-notice{padding:14px 20px;border-bottom:1px solid #e5e9f0;background:#f8fafc;color:#475569;font:13px/1.6 system-ui}#firePlanQuestionDialog .fp-close-notice[hidden]{display:none}#firePlanQuestionDialog .fp-close-options{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}#firePlanQuestionDialog .fp-close-options .fp-save-close{background:#405c86;color:white;border-color:#405c86}';
+  const context=new URLSearchParams(location.search);
+  if(context.has('uid')&&!url.searchParams.has('uid'))url.searchParams.set('uid',context.get('uid'));
+  url.searchParams.set('embed','1');url.searchParams.set('modal','1');frame.src=url.href;
+  let loaded=false;
+  const finish=()=>{dialog.close();};
+  let closing=false;
+  const showCloseChoice=(child,canSave)=>{
+    notice.replaceChildren();notice.hidden=false;
+    const message=doc.createElement('div');message.textContent='아직 저장하지 않은 답변이 있어요. 어떻게 할까요?';notice.append(message);
+    const options=doc.createElement('div');options.className='fp-close-options';notice.append(options);
+    const add=(label,action)=>{const b=doc.createElement('button');b.type='button';b.textContent=label;b.onclick=action;options.append(b);return b;};
+    if(canSave){
+      const save=add('저장하고 닫기',async()=>{
+        if(closing)return;closing=true;options.querySelectorAll('button').forEach(b=>b.disabled=true);
+        try{if(await child.fpModalSave()){finish();return;}message.textContent='저장하지 못했어요. 답변이나 오류 안내를 확인해 주세요.';}
+        catch(e){message.textContent='저장 상태를 확인하지 못했어요. 계속 작성으로 돌아가 확인해 주세요.';}
+        finally{closing=false;options.querySelectorAll('button').forEach(b=>b.disabled=false);}
+      });save.className='fp-save-close';
+    }
+    add('계속 작성',()=>{notice.hidden=true;frame.focus();});
+    add('저장 없이 닫기',()=>{if(child && typeof child.fpModalDiscard==='function')child.fpModalDiscard();finish();});
+    options.querySelector('button').focus();
+  };
+  const requestClose=()=>{
+    if(closing)return;
+    if(!loaded){finish();return;}
+    try{
+      const child=frame.contentWindow;
+      if(child.location.origin===location.origin && typeof child.fpModalState==='function'){
+        const state=child.fpModalState();
+        if(state.busy){notice.hidden=false;notice.textContent='저장 중이에요. 잠시 후 다시 닫아주세요.';return;}
+        if(!state.dirty){finish();return;}
+        showCloseChoice(child,typeof child.fpModalSave==='function');return;
+      }
+    }catch(e){}
+    // 구버전·오류 화면도 무응답으로 갇히지 않게, 명시적인 닫기 선택을 제공합니다.
+    showCloseChoice(null,false);
+  };
+  const receive=event=>{
+    if(event.origin!==location.origin || event.source!==frame.contentWindow)return;
+    if(event.data && event.data.type==='fp-modal-year' && Number.isInteger(event.data.year) && event.data.year>=1900 && event.data.year<=2200){title.textContent=event.data.year+'년 소방계획서 작성';return;}
+    if(event.data && event.data.type==='fp-modal-request-close'){requestClose();return;}
+    if(event.data && event.data.type==='fp-modal-close-ready')finish();
+  };
+  host.addEventListener('message',receive);
+  frame.addEventListener('load',()=>{loaded=true;});
+  close.addEventListener('click',requestClose);
+  dialog.addEventListener('cancel',e=>{e.preventDefault();requestClose();});
+  dialog.addEventListener('close',()=>{
+    host.removeEventListener('message',receive);dialog.remove();style.remove();doc.documentElement.style.overflow=oldOverflow;
+    if(previous && previous.isConnected)previous.focus();
+    window.location.reload();
+  },{once:true});
+  dialog.append(header,notice,frame);doc.head.append(style);doc.body.append(dialog);
+  doc.documentElement.style.overflow='hidden';dialog.showModal();close.focus();
+});
+</script>
 
-<?php require_once __DIR__ . '/admin_quickmemo_widget.php'; ?>
-</body>
-</html>
+
+<?php if(is_file(__DIR__.'/admin_quickmemo_widget.php')) require_once __DIR__.'/admin_quickmemo_widget.php'; ?>
+</body></html>

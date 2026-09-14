@@ -252,6 +252,9 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 </style>
 </head>
 <body>
+<?php if (($_GET['modal'] ?? '') === '1'): ?>
+<style media="screen">.nav,.head{display:none!important}.wrap{margin-top:0!important;padding-top:18px!important}</style>
+<?php endif; ?>
 
 <nav class="nav">
   <div class="nav__in">
@@ -606,12 +609,32 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
     var mask = document.getElementById('leaveMask');
     var destination = <?=json_encode($url('/building_manager.php'))?>;
     window.buildingInfoDirty = false;
+    var modal = new URLSearchParams(location.search).get('modal') === '1' && window.parent !== window;
+    var saving = false;
+    function finishClose(){
+      if(modal) window.parent.postMessage({type:'building-info-close'}, location.origin);
+      else window.top.location.href = destination;
+    }
+    window.buildingInfoRequestClose = function(){
+      if(saving) return;
+      if(window.buildingInfoDirty) mask.classList.add('show');
+      else finishClose();
+    };
+    form.addEventListener('submit', function(){ saving = true; });
+    if(modal){
+      document.getElementById('leaveTitle').textContent = '바뀐 정보가 있습니다. 저장할까요?';
+      mask.querySelector('p').textContent = '저장하지 않고 닫으면 수정한 내용이 사라집니다.';
+      document.getElementById('saveAndLeaveBtn').textContent = '저장 후 닫기';
+      document.getElementById('leaveWithoutSaveBtn').textContent = '저장하지 않고 닫기';
+      document.querySelectorAll('.js-main-link').forEach(function(link){ link.textContent = '닫기'; });
+    }
 
     form.addEventListener('input', function(){ window.buildingInfoDirty = true; });
     form.addEventListener('change', function(){ window.buildingInfoDirty = true; });
 
     document.querySelectorAll('.js-main-link').forEach(function(link){
       link.addEventListener('click', function(e){
+        if(modal){ e.preventDefault(); window.buildingInfoRequestClose(); return; }
         if (!window.buildingInfoDirty) return;
         e.preventDefault();
         destination = link.href;
@@ -619,15 +642,19 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
       });
     });
     document.getElementById('stayBtn').onclick = function(){ mask.classList.remove('show'); };
-    document.getElementById('leaveWithoutSaveBtn').onclick = function(){ window.top.location.href = destination; };
+    document.getElementById('leaveWithoutSaveBtn').onclick = finishClose;
     document.getElementById('saveAndLeaveBtn').onclick = function(){
       var action = new URL(window.location.href);
-      action.searchParams.set('after_save', 'main');
+      action.searchParams.set('after_save', modal ? 'modal' : 'main');
       form.action = action.pathname + action.search;
       form.requestSubmit();
     };
     mask.addEventListener('click', function(e){ if(e.target === mask) mask.classList.remove('show'); });
-    document.addEventListener('keydown', function(e){ if(e.key === 'Escape') mask.classList.remove('show'); });
+    document.addEventListener('keydown', function(e){
+      if(e.key !== 'Escape') return;
+      if(mask.classList.contains('show')) mask.classList.remove('show');
+      else if(modal) window.buildingInfoRequestClose();
+    });
   })();
 
   document.querySelectorAll('[data-seg],[data-tseg]').forEach(function(g){
@@ -718,6 +745,9 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
   window.addEventListener('afterprint', clearEmptyPrintFields);
 })();
 </script>
+<?php if ($saved && ($_GET['after_save'] ?? '') === 'modal'): ?>
+<script>if(window.parent !== window) window.parent.postMessage({type:'building-info-close'}, location.origin);</script>
+<?php endif; ?>
 <?php if ($saved && ($_GET['after_save'] ?? '') === 'main'): ?>
 <script>
 /* 팝업에서 '저장 후 이동'을 고른 경우 저장 성공을 확인한 뒤 iframe 밖 메인으로 이동합니다. */

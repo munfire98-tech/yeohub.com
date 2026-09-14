@@ -653,8 +653,8 @@ footer a:hover{color:var(--fg)}
     <ul class="nav__links" id="navLinks">
       <li><a href="/faq.php">FAQ</a></li>
       <li><a href="/service.php">서비스</a></li>
-      <li><a href="/blog.php">블로그</a></li>
       <li><a href="/ar.php">피난시뮬레이터</a></li>
+      <li><a href="/pro_mode.php">PRO</a></li>
       <?php if (is_logged_in()): ?>
         <?php if (!empty($_SESSION['nickname'])): ?>
           <li class="mobile-only m-user"><?=h($_SESSION['nickname'])?>님으로 로그인됨</li>
