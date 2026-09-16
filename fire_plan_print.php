@@ -58,76 +58,90 @@ function v($x): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?=h($bldName)?> 소방계획서 — TWORIX</title>
 <style>
-:root{--bd:#333;--bd2:#999;--mut:#777;--brand:#2563eb}
+:root{--brand:#2563eb;--brand-dark:#17345f;--ink:#172033;--mut:#667085;--line:#d9e2ee;--line-dark:#b9c5d4;--soft:#f4f7fb;--ok:#047857;--warn:#b45309}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#eef1f6;color:#111;
-  font-family:"Malgun Gothic","맑은 고딕",system-ui,"Apple SD Gothic Neo",sans-serif;line-height:1.6}
+html{background:#edf2f7}
+body{background:#edf2f7;color:var(--ink);font-family:Pretendard,"Noto Sans KR","Malgun Gothic","맑은 고딕",system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
 
 /* 화면 전용 툴바 */
-.topbar{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #dde3ec;
-  padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.topbar .ttl{font-size:15px;font-weight:800}
-.topbar .ttl small{font-weight:400;color:var(--mut);margin-left:8px;font-size:12.5px}
+.topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:12px 22px;background:rgba(255,255,255,.94);border-bottom:1px solid #dde4ed;backdrop-filter:blur(12px)}
+.topbar .ttl{font-size:15px;font-weight:850;color:#15243a}
+.topbar .ttl small{margin-left:8px;color:var(--mut);font-size:12.5px;font-weight:500}
 .tb-btns{display:flex;gap:8px}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:9px;
-  border:1px solid #cfd7e3;background:#fff;color:#1a2436;font-size:13.5px;font-weight:700;
-  cursor:pointer;font-family:inherit;text-decoration:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 15px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#344054;font:inherit;font-size:13px;font-weight:750;text-decoration:none;cursor:pointer;transition:.15s}
 .btn:hover{border-color:var(--brand);color:var(--brand)}
 .btn--primary{background:var(--brand);border-color:var(--brand);color:#fff}
 .btn--primary:hover{background:#1d4ed8;color:#fff}
-.hint{max-width:820px;margin:14px auto 0;padding:0 12px;font-size:12.5px;color:var(--mut);text-align:center}
+.hint{max-width:880px;margin:14px auto 0;padding:0 14px;color:var(--mut);font-size:12px;text-align:center}
 
-/* 문서(A4) */
-.doc{max-width:820px;margin:18px auto;background:#fff;padding:24mm 18mm;
-  box-shadow:0 10px 40px rgba(20,40,80,.10);border-radius:2px}
+/* 화면 문서 */
+.doc{max-width:880px;margin:18px auto 44px;padding:18mm 16mm;background:#fff;border:1px solid #e0e6ef;border-radius:12px;box-shadow:0 18px 55px rgba(27,45,75,.1)}
 
 /* 표지 */
-.cover{text-align:center;padding:40px 0 30px;border-bottom:3px double var(--bd);margin-bottom:26px}
-.cover .cat{font-size:13px;color:var(--mut);letter-spacing:2px;margin-bottom:16px}
-.cover h1{font-size:34px;font-weight:800;letter-spacing:10px;margin-bottom:8px}
-.cover .bld{font-size:19px;font-weight:700;margin:22px 0 6px}
-.cover .date{font-size:13.5px;color:#444;margin-top:14px}
-.cover .law{font-size:11.5px;color:var(--mut);margin-top:20px;line-height:1.7}
+.cover{position:relative;display:flex;min-height:540px;flex-direction:column;align-items:center;justify-content:center;margin-bottom:28px;padding:50px 34px 42px;overflow:hidden;border:1px solid #dbe4ef;border-radius:12px;background:linear-gradient(180deg,#f8fbff 0,#fff 38%);text-align:center}
+.cover::before{position:absolute;top:0;left:0;width:100%;height:8px;background:linear-gradient(90deg,var(--brand-dark),var(--brand),#60a5fa);content:""}
+.cover-mark{display:flex;align-items:center;gap:9px;margin-bottom:42px;color:var(--brand-dark)}
+.cover-mark strong{font-size:13px;font-weight:900;letter-spacing:.13em}
+.cover-mark span{width:1px;height:12px;background:#bdc9d8}
+.cover-mark small{color:#708096;font-size:9px;font-weight:750;letter-spacing:.09em}
+.cover .cat{margin-bottom:14px;color:#67809f;font-size:11.5px;font-weight:750;letter-spacing:.14em}
+.cover h1{position:relative;margin-bottom:0;padding:15px 34px;border-top:2px solid var(--brand-dark);border-bottom:2px solid var(--brand-dark);color:#102642;font-size:36px;font-weight:850;letter-spacing:.22em;line-height:1.35}
+.cover .bld{margin:28px 0 6px;color:#192c48;font-size:20px;font-weight:800;letter-spacing:-.03em}
+.cover .addr{max-width:560px;color:#64748b;font-size:12.5px;line-height:1.55}
+.cover .date{margin-top:12px;color:#536176;font-size:12.5px;font-weight:650}
+.law-box{max-width:620px;margin-top:38px;padding:15px 17px;border:1px solid #d9e3ef;border-radius:9px;background:rgba(244,248,253,.9);color:#59677a;font-size:10.5px;line-height:1.7;text-align:left}
+.law-title{margin-bottom:5px;color:#2d4f79;font-size:10.5px;font-weight:850}
+.law-box strong{color:#314e72}
+.law-ref{margin-top:7px;padding-top:7px;border-top:1px solid #dfe6ee;color:#748094;font-size:9.5px}
 
 /* 항목 */
-.sec{margin-bottom:22px;page-break-inside:avoid}
-.sec__h{display:flex;align-items:center;gap:9px;margin-bottom:8px;padding-bottom:5px;border-bottom:2px solid var(--bd)}
-.sec__no{flex-shrink:0;width:26px;height:26px;background:#333;color:#fff;border-radius:5px;
-  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
-.sec__t{font-size:15.5px;font-weight:800;letter-spacing:-.3px}
-.sec__skip{margin-left:auto;font-size:11.5px;color:#888;border:1px solid #ddd;border-radius:20px;padding:2px 10px}
+.sec{margin-bottom:18px;padding:0;overflow:hidden;border:1px solid var(--line);border-radius:9px;background:#fff;break-inside:avoid-page;page-break-inside:avoid}
+.sec__h{display:flex;align-items:center;gap:10px;min-height:46px;padding:9px 12px;background:linear-gradient(90deg,#eef4fb,#f8fafc);border-bottom:1px solid var(--line)}
+.sec__no{display:flex;width:27px;height:27px;flex-shrink:0;align-items:center;justify-content:center;border-radius:7px;background:var(--brand-dark);color:#fff;font-size:12px;font-weight:850}
+.sec__t{color:#18314f;font-size:14px;font-weight:850;letter-spacing:-.025em}
+.sec__skip{margin-left:auto;padding:3px 9px;border:1px solid #d9dee6;border-radius:999px;background:#fff;color:#8791a0;font-size:10.5px;white-space:nowrap}
+.sec>table.d,.sec>.para,.sec>.empty-note,.sec>div:not(.sec__h){margin:12px}
 
 /* 데이터 표 */
-table.d{width:100%;border-collapse:collapse;font-size:12.5px}
-table.d th,table.d td{border:1px solid var(--bd2);padding:6px 9px;vertical-align:middle}
-table.d th{background:#f2f4f8;font-weight:700;text-align:center;white-space:nowrap;width:96px}
+table.d{width:calc(100% - 24px);margin:12px;border:1px solid var(--line-dark);border-collapse:separate;border-spacing:0;border-radius:7px;overflow:hidden;font-size:11.7px}
+table.d th,table.d td{padding:7px 9px;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);vertical-align:middle}
+table.d tr:last-child>*{border-bottom:0}
+table.d tr>*:last-child{border-right:0}
+table.d th{width:96px;background:#f2f5f9;color:#34445a;font-weight:750;text-align:center;white-space:nowrap}
 table.d th.w2{width:120px}
-table.d td{word-break:break-all}
-.tag{display:inline-block;background:#eef4ff;border:1px solid #cfe0ff;color:#1d4ed8;
-  border-radius:4px;padding:2px 7px;font-size:11.5px;margin:2px 3px 2px 0;white-space:nowrap}
-.none{color:#aaa}
-.para{white-space:pre-wrap;font-size:12.5px;line-height:1.8;padding:8px 10px;
-  border:1px solid var(--bd2);border-radius:3px;min-height:44px;background:#fcfdff}
-.empty-note{font-size:12px;color:#b45309;background:#fff7ed;border:1px solid #fed7aa;
-  border-radius:4px;padding:7px 10px}
+table.d td{color:#243247;word-break:break-word;overflow-wrap:anywhere}
+.tag{display:inline-flex;align-items:center;margin:2px 4px 2px 0;padding:2px 7px;border:1px solid #cfe0fa;border-radius:999px;background:#eff5ff;color:#2457a5;font-size:10.5px;font-weight:650;white-space:nowrap}
+.none{color:#9aa4b2}
+.para{min-height:48px;padding:11px 13px;border:1px solid var(--line);border-radius:7px;background:#fbfcfe;color:#2d3b4f;font-size:11.8px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
+.empty-note{padding:9px 11px;border:1px solid #f1d5a8;border-radius:7px;background:#fffbeb;color:var(--warn);font-size:11px}
+.doc-foot{margin-top:26px;padding:14px 12px 0;border-top:1px solid #cbd5e1;color:#7a8595;font-size:10.5px;line-height:1.7;text-align:center}
 
-/* 인쇄 */
-@media print{
-  body{background:#fff}
-  .topbar,.hint{display:none !important}
-  .doc{max-width:none;margin:0;padding:0;box-shadow:none;border-radius:0}
-  .cover{page-break-after:always;border-bottom:0;
-    height:calc(297mm - 32mm);display:flex;flex-direction:column;
-    align-items:center;justify-content:center;padding:0}
-  .cover h1{border-top:3px double var(--bd);border-bottom:3px double var(--bd);
-    padding:18px 40px;margin-bottom:0}
-  .sec{page-break-inside:avoid}
-  @page{size:A4;margin:16mm 14mm}
-}
 @media(max-width:680px){
-  .doc{padding:20px 16px;margin:10px}
-  .cover h1{font-size:26px;letter-spacing:6px}
-  table.d th{width:80px;font-size:11.5px}
+  .topbar{padding:10px 12px}.topbar .ttl small{display:none}.tb-btns{width:100%}.tb-btns .btn{flex:1}
+  .doc{margin:10px;padding:18px 13px;border-radius:10px}
+  .cover{min-height:460px;padding:42px 18px 32px}.cover-mark{margin-bottom:30px}.cover h1{padding:12px 20px;font-size:27px;letter-spacing:.15em}.cover .bld{font-size:18px}
+  .law-box{margin-top:28px}.sec__h{align-items:flex-start}.sec__skip{white-space:normal;text-align:right}
+  table.d{font-size:10.8px}table.d th{width:76px;padding:6px 5px;font-size:10.5px;white-space:normal}table.d th.w2{width:88px}table.d td{padding:6px}
+}
+
+/* A4 인쇄 */
+@page{size:A4 portrait;margin:13mm 12mm 14mm}
+@media print{
+  html,body{width:100%;min-height:auto;background:#fff}
+  body{font-family:"Noto Sans KR","Malgun Gothic",sans-serif;color:#111827;font-size:9pt;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .topbar,.hint,[class*="quickmemo"],[id*="quickmemo"]{display:none!important}
+  .doc{max-width:none;margin:0;padding:0;border:0;border-radius:0;box-shadow:none}
+  .cover{min-height:calc(297mm - 27mm);margin:0;padding:16mm 15mm;border:1px solid #cbd5e1;border-radius:0;background:#fff;break-after:page;page-break-after:always}
+  .cover::before{height:4mm}
+  .cover-mark{margin-bottom:20mm}.cover .cat{font-size:8.5pt}.cover h1{font-size:28pt}.cover .bld{margin-top:12mm;font-size:16pt}.cover .addr,.cover .date{font-size:9pt}
+  .law-box{margin-top:17mm;padding:4mm 5mm;border-radius:1.5mm;background:#f4f7fb;font-size:7.5pt}.law-title{font-size:8pt}.law-ref{font-size:7pt}
+  .sec{margin-bottom:4mm;border-color:#cbd5e1;border-radius:1.5mm;box-shadow:none;break-inside:avoid-page;page-break-inside:avoid}
+  .sec__h{min-height:11mm;padding:2.2mm 3mm;background:#edf3f9;border-bottom-color:#cbd5e1}
+  .sec__no{width:7mm;height:7mm;border-radius:1.5mm;font-size:8pt}.sec__t{font-size:10.5pt}.sec__skip{font-size:7.2pt}
+  table.d{width:calc(100% - 6mm);margin:3mm;border-radius:1mm;font-size:8.3pt}
+  table.d th,table.d td{padding:1.8mm 2.2mm}table.d th{width:24mm;font-size:8pt}table.d th.w2{width:29mm}
+  .tag{padding:.4mm 1.5mm;font-size:7.2pt}.para{min-height:12mm;margin:3mm!important;padding:2.5mm 3mm;font-size:8.3pt}.empty-note{margin:3mm!important;padding:2mm 3mm;font-size:8pt}
+  .doc-foot{margin-top:6mm;padding-top:3mm;font-size:7.2pt;break-inside:avoid}
 }
 </style>
 </head>
@@ -148,6 +162,7 @@ table.d td{word-break:break-all}
 
   <!-- ── 표지 ── -->
  <div class="cover">
+    <div class="cover-mark"><strong>YEOHUB</strong><span></span><small>FIRE SAFETY DOCUMENT</small></div>
     <div class="cat"><?=h($usage['cat'] ?? '')?></div>
 
     <h1>소방계획서</h1>
@@ -155,7 +170,7 @@ table.d td{word-break:break-all}
     <div class="bld"><?=h($bldName)?></div>
 
     <?php if (!empty($s1['addr'])): ?>
-        <div style="font-size:13px;color:#555">
+        <div class="addr">
             <?=h($s1['addr'])?>
         </div>
     <?php endif; ?>
@@ -170,17 +185,14 @@ table.d td{word-break:break-all}
 
         <p>
             본 소방계획서는
-            <strong>「화재의 예방 및 안전관리에 관한 법률 시행령」 
-            <strong>제27조제1항에 따른 필수 기재사항</strong>
+            <strong>「화재의 예방 및 안전관리에 관한 법률 시행령」 제27조제1항</strong>에 따른 필수 기재사항
             을 모두 포함하여 작성되었으며,
             소방계획서 작성시 법령에서 요구하는 사항을 모두 포함하도록 구성하였습니다.
         </p>
 
         <div class="law-ref">
-            <strong>　</strong><br><br>
-
             본 계획서의 적합성은 소방청 권장서식의 형식이 아닌
-             「화재의 예방 및 안전관리에 관한 법률 시행령」
+            「화재의 예방 및 안전관리에 관한 법률 시행령」
             제27조제1항에 따른 필수 기재사항의 포함 여부를 기준으로 작성되었습니다.
         </div>
 
@@ -376,8 +388,7 @@ table.d td{word-break:break-all}
   </section>
   <?php endforeach; ?>
 
-  <div style="margin-top:30px;padding-top:14px;border-top:1px solid #ccc;
-    font-size:11px;color:#888;text-align:center;line-height:1.7">
+  <div class="doc-foot">
     본 소방계획서는 「화재의 예방 및 안전관리에 관한 법률 시행령」 제27조 제1항에 따라 작성되었습니다.<br>
     작성일 <?=h($today)?> · 소방안전관리자 <?=h($s1['mgr_name'] ?? '________')?> (서명)
   </div>
