@@ -846,39 +846,61 @@ footer a:hover{color:var(--fg)}
             <span class="promo__meta">명단만 붙여넣으면 자동</span>
           </div>
           <div class="promo__stage promo__stage--rpt">
-            <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="자위소방대 편성표">
-              <rect x="0" y="0" width="340" height="210" fill="#fff"/>
-              <rect x="130" y="18" width="80" height="26" rx="5" fill="#1a2436"/>
-              <text x="170" y="35" font-size="9" fill="#fff" font-family="sans-serif" text-anchor="middle">대장 · 문우주</text>
-              <line x1="170" y1="44" x2="170" y2="58" stroke="#9aa3b2"/>
-              <rect x="130" y="58" width="80" height="24" rx="5" fill="#475569"/>
-              <text x="170" y="74" font-size="8.5" fill="#fff" font-family="sans-serif" text-anchor="middle">부대장 · 김철수</text>
-              <line x1="170" y1="82" x2="170" y2="96" stroke="#9aa3b2"/>
-              <line x1="55" y1="96" x2="285" y2="96" stroke="#9aa3b2"/>
-              <line x1="55" y1="96" x2="55" y2="108" stroke="#9aa3b2"/>
-              <line x1="132" y1="96" x2="132" y2="108" stroke="#9aa3b2"/>
-              <line x1="208" y1="96" x2="208" y2="108" stroke="#9aa3b2"/>
-              <line x1="285" y1="96" x2="285" y2="108" stroke="#9aa3b2"/>
-              <rect x="20" y="108" width="70" height="46" rx="5" fill="#f5f7fb" stroke="#d4dbe6"/>
-              <text x="55" y="124" font-size="7.5" fill="#1a2436" font-family="sans-serif" text-anchor="middle" font-weight="600">비상연락</text>
-              <text x="55" y="138" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">이영희</text>
-              <text x="55" y="149" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">박민수</text>
-              <rect x="97" y="108" width="70" height="46" rx="5" fill="#f5f7fb" stroke="#d4dbe6"/>
-              <text x="132" y="124" font-size="7.5" fill="#1a2436" font-family="sans-serif" text-anchor="middle" font-weight="600">초기소화</text>
-              <text x="132" y="138" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">정대한</text>
-              <text x="132" y="149" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">최수진</text>
-              <rect x="173" y="108" width="70" height="46" rx="5" fill="#f5f7fb" stroke="#d4dbe6"/>
-              <text x="208" y="124" font-size="7.5" fill="#1a2436" font-family="sans-serif" text-anchor="middle" font-weight="600">피난유도</text>
-              <text x="208" y="138" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">강호동</text>
-              <text x="208" y="149" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">유재석</text>
-              <rect x="250" y="108" width="70" height="46" rx="5" fill="#f5f7fb" stroke="#d4dbe6"/>
-              <text x="285" y="124" font-size="7.5" fill="#1a2436" font-family="sans-serif" text-anchor="middle" font-weight="600">응급구조</text>
-              <text x="285" y="138" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">신동엽</text>
-              <text x="285" y="149" font-size="7" fill="#56627a" font-family="sans-serif" text-anchor="middle">김종국</text>
-              <text x="170" y="180" font-size="7.5" fill="#8a94a6" font-family="sans-serif" text-anchor="middle">적은 순서대로 대장 · 부대장 · 활동조에 배치됩니다</text>
+            <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="명단 수정과 자동 편성을 한 번에 처리하는 자위소방대 팝업">
+              <rect width="340" height="210" fill="#eef2f7"/>
+              <rect x="12" y="9" width="316" height="192" rx="12" fill="#fff" stroke="#cbd5e1"/>
+              <path d="M12 21a12 12 0 0112-12h292a12 12 0 0112 12v22H12V21z" fill="#f8fafc"/>
+              <line x1="12" y1="43" x2="328" y2="43" stroke="#e2e8f0"/>
+              <circle cx="28" cy="26" r="7" fill="#eaf2ff"/>
+              <path d="M25.5 29v-5l2.5-1.5 2.5 1.5v5M24 29.5h8" fill="none" stroke="#2563eb" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <text x="41" y="29.5" font-size="9" fill="#172033" font-family="sans-serif" font-weight="700">자위소방대 편성</text>
+              <rect x="245" y="18" width="52" height="16" rx="8" fill="#ecfdf3"/>
+              <text x="271" y="28.7" font-size="6.5" fill="#047857" font-family="sans-serif" text-anchor="middle" font-weight="700">자동 배치 가능</text>
+              <path d="M310 22l7 7m0-7l-7 7" stroke="#94a3b8" stroke-width="1.2" stroke-linecap="round"/>
+
+              <rect x="26" y="51" width="86" height="17" rx="8.5" fill="#eaf2ff"/>
+              <circle cx="38" cy="59.5" r="5" fill="#2563eb"/><text x="38" y="62" font-size="6" fill="#fff" font-family="sans-serif" text-anchor="middle" font-weight="700">1</text>
+              <text x="70" y="62" font-size="7" fill="#1d4ed8" font-family="sans-serif" text-anchor="middle" font-weight="700">명단 수정</text>
+              <rect x="127" y="51" width="86" height="17" rx="8.5" fill="#f1f5f9"/>
+              <circle cx="139" cy="59.5" r="5" fill="#94a3b8"/><text x="139" y="62" font-size="6" fill="#fff" font-family="sans-serif" text-anchor="middle" font-weight="700">2</text>
+              <text x="171" y="62" font-size="7" fill="#64748b" font-family="sans-serif" text-anchor="middle" font-weight="700">자동 편성</text>
+              <rect x="228" y="51" width="86" height="17" rx="8.5" fill="#f1f5f9"/>
+              <circle cx="240" cy="59.5" r="5" fill="#94a3b8"/><text x="240" y="62" font-size="6" fill="#fff" font-family="sans-serif" text-anchor="middle" font-weight="700">3</text>
+              <text x="272" y="62" font-size="7" fill="#64748b" font-family="sans-serif" text-anchor="middle" font-weight="700">인원 배치</text>
+
+              <rect x="26" y="77" width="112" height="84" rx="7" fill="#f8fafc" stroke="#dbe3ed"/>
+              <text x="36" y="90" font-size="7.5" fill="#334155" font-family="sans-serif" font-weight="700">근무자 명단</text>
+              <text x="128" y="90" font-size="6.5" fill="#64748b" font-family="sans-serif" text-anchor="end">6명</text>
+              <circle cx="38" cy="105" r="6" fill="#dbeafe"/><text x="38" y="107.5" font-size="5.5" fill="#2563eb" font-family="sans-serif" text-anchor="middle" font-weight="700">문</text>
+              <text x="49" y="104" font-size="7" fill="#1e293b" font-family="sans-serif" font-weight="700">문우주</text><text x="49" y="112" font-size="5.7" fill="#94a3b8" font-family="sans-serif">관리팀 · 팀장</text>
+              <line x1="34" y1="118" x2="130" y2="118" stroke="#e2e8f0"/>
+              <circle cx="38" cy="130" r="6" fill="#dcfce7"/><text x="38" y="132.5" font-size="5.5" fill="#15803d" font-family="sans-serif" text-anchor="middle" font-weight="700">김</text>
+              <text x="49" y="129" font-size="7" fill="#1e293b" font-family="sans-serif" font-weight="700">김철수</text><text x="49" y="137" font-size="5.7" fill="#94a3b8" font-family="sans-serif">시설팀 · 대리</text>
+              <line x1="34" y1="143" x2="130" y2="143" stroke="#e2e8f0"/>
+              <text x="82" y="154" font-size="6.2" fill="#64748b" font-family="sans-serif" text-anchor="middle">이영희 외 3명</text>
+
+              <path d="M143 115h8m-3-3l3 3-3 3" fill="none" stroke="#60a5fa" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+
+              <rect x="156" y="77" width="158" height="84" rx="7" fill="#fff" stroke="#bcd0eb"/>
+              <text x="166" y="90" font-size="7.5" fill="#1e3a8a" font-family="sans-serif" font-weight="700">편성 미리보기</text>
+              <rect x="166" y="97" width="63" height="23" rx="5" fill="#172554"/>
+              <text x="197.5" y="106" font-size="5.7" fill="#93c5fd" font-family="sans-serif" text-anchor="middle">대장</text><text x="197.5" y="115" font-size="6.8" fill="#fff" font-family="sans-serif" text-anchor="middle" font-weight="700">문우주</text>
+              <rect x="237" y="97" width="67" height="23" rx="5" fill="#334155"/>
+              <text x="270.5" y="106" font-size="5.7" fill="#cbd5e1" font-family="sans-serif" text-anchor="middle">부대장</text><text x="270.5" y="115" font-size="6.8" fill="#fff" font-family="sans-serif" text-anchor="middle" font-weight="700">김철수</text>
+              <rect x="166" y="127" width="42" height="25" rx="4" fill="#eff6ff" stroke="#bfdbfe"/>
+              <text x="187" y="137" font-size="5.7" fill="#1d4ed8" font-family="sans-serif" text-anchor="middle" font-weight="700">비상연락</text><text x="187" y="146" font-size="5.8" fill="#475569" font-family="sans-serif" text-anchor="middle">이영희</text>
+              <rect x="214" y="127" width="42" height="25" rx="4" fill="#fff7ed" stroke="#fed7aa"/>
+              <text x="235" y="137" font-size="5.7" fill="#c2410c" font-family="sans-serif" text-anchor="middle" font-weight="700">초기소화</text><text x="235" y="146" font-size="5.8" fill="#475569" font-family="sans-serif" text-anchor="middle">박민수</text>
+              <rect x="262" y="127" width="42" height="25" rx="4" fill="#f0fdf4" stroke="#bbf7d0"/>
+              <text x="283" y="137" font-size="5.7" fill="#15803d" font-family="sans-serif" text-anchor="middle" font-weight="700">피난유도</text><text x="283" y="146" font-size="5.8" fill="#475569" font-family="sans-serif" text-anchor="middle">정대한</text>
+
+              <rect x="26" y="171" width="76" height="20" rx="6" fill="#fff" stroke="#cbd5e1"/>
+              <text x="64" y="184" font-size="7" fill="#475569" font-family="sans-serif" text-anchor="middle" font-weight="700">명단 수정</text>
+              <rect x="190" y="171" width="124" height="20" rx="6" fill="#2563eb"/>
+              <text x="252" y="184" font-size="7" fill="#fff" font-family="sans-serif" text-anchor="middle" font-weight="700">이 명단으로 자동 편성</text>
             </svg>
           </div>
-          <p class="promo__cap">이름만 붙여넣으면 편성표가 만들어집니다</p>
+          <p class="promo__cap">명단 수정부터 자동 편성·인원 조정까지 한 팝업에서</p>
         </a>
 
         <!-- 4. 피난 시뮬레이션 -->
