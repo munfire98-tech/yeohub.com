@@ -474,16 +474,18 @@ a:hover{color:#1e40af}
 .cta-box{text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:16px}
 .cta-box__msg{color:var(--mut2);font-size:15px}
 .cta-box__btns{display:flex;gap:10px;flex-wrap:wrap}
-.cta-box--work{position:relative;width:100%;padding:28px 30px;border:1px solid #c9daf7;border-radius:20px;overflow:hidden;
-  background:linear-gradient(125deg,#fff 0%,#f5f9ff 60%,#edf5ff 100%);box-shadow:0 18px 46px rgba(30,64,175,.10)}
-.cta-box--work .cta-box__eyebrow{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:850;color:var(--brand);letter-spacing:.1em;text-transform:uppercase}
-.cta-box--work .cta-box__eyebrow::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.1)}
-.cta-box--work .cta-box__title{font-size:22px;font-weight:850;letter-spacing:-.035em;line-height:1.35}
-.cta-box--work .cta-box__msg{margin-top:-11px;font-size:13.5px}.cta-box--work .btn--primary{padding:13px 22px;font-size:14px;box-shadow:0 8px 18px rgba(37,99,235,.18)}
-.hero .cta-box--work{max-width:520px;margin-top:22px;padding:18px 20px;border-radius:16px;gap:10px;box-shadow:0 12px 30px rgba(30,64,175,.09)}
-.hero .cta-box--work .cta-box__title{font-size:17px;line-height:1.4}
-.hero .cta-box--work .cta-box__msg{margin-top:-4px;font-size:12.5px;line-height:1.65}
-.hero .cta-box--work .btn--primary{padding:10px 17px;font-size:13px;border-radius:9px}
+.cta-box--work{position:relative;display:grid;width:100%;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:18px;padding:18px 18px 18px 20px;border:1px solid #274c88;border-radius:16px;background:linear-gradient(125deg,#172554,#1e3a8a);box-shadow:0 12px 30px rgba(23,37,84,.2);animation:workEntryGlow 3.2s ease-in-out infinite}
+.work-entry__body{min-width:0}
+.cta-box--work .cta-box__eyebrow{display:flex;align-items:center;gap:7px;margin-bottom:5px;color:#93c5fd;font-size:10px;font-weight:800;letter-spacing:.06em}
+.cta-box--work .cta-box__eyebrow::before{width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.13);content:''}
+.cta-box--work .cta-box__title{color:#fff;font-size:17px;font-weight:850;letter-spacing:-.03em;line-height:1.4;word-break:keep-all}
+.cta-box--work .cta-box__msg{margin:4px 0 0;color:#cbd5e1;font-size:11.5px;line-height:1.55;word-break:keep-all}
+.cta-box--work>.btn--primary{min-width:142px;padding:12px 17px;border-color:#fff;border-radius:9px;background:#fff;color:#1d4ed8;font-size:13.5px;font-weight:850;box-shadow:0 8px 18px rgba(3,12,35,.18);white-space:nowrap}
+.cta-box--work>.btn--primary:hover{border-color:#dbeafe;background:#eff6ff;color:#1d4ed8;transform:translateY(-1px)}
+.hero .cta-box--work{max-width:540px;margin-top:18px}
+@keyframes workEntryGlow{0%,100%{border-color:#274c88;box-shadow:0 12px 30px rgba(23,37,84,.2),0 0 0 0 rgba(59,130,246,0)}50%{border-color:#60a5fa;box-shadow:0 14px 34px rgba(23,37,84,.25),0 0 0 4px rgba(59,130,246,.14)}}
+@media(max-width:520px){.cta-box--work{grid-template-columns:1fr;gap:13px;padding:17px 16px}.cta-box--work .cta-box__title{font-size:16px}.cta-box--work>.btn--primary{width:100%}}
+@media(prefers-reduced-motion:reduce){.cta-box--work{animation:none}}
 .service-guide{position:relative;margin-top:72px;padding:52px 46px 42px;border:1px solid #dce5f1;border-radius:26px;overflow:hidden;background:linear-gradient(155deg,#fff 0%,#f8faff 58%,#f2f6fc 100%);box-shadow:0 24px 60px rgba(30,41,59,.07)}
 .service-guide::before{content:'';position:absolute;width:360px;height:360px;border-radius:50%;right:-160px;top:-210px;background:radial-gradient(circle,rgba(37,99,235,.13),rgba(37,99,235,0) 70%);pointer-events:none}
 .service-guide__head{position:relative;text-align:left;max-width:720px;margin:0 0 36px}
@@ -631,11 +633,12 @@ footer a:hover{color:var(--fg)}
   .nav__links .m-user{padding:12px 20px;font-size:13px;color:var(--mut2);
     background:#f7f9fc;border-top:1px solid var(--bd)}
   .nav__links .m-logout a{color:#dc2626}
-  .cta-box--work{padding:21px 20px}.cta-box--work .btn{width:100%;justify-content:center}
+  .cta-box--work{padding:19px 18px}.cta-box--work .btn{width:100%;justify-content:center}
   .service-guide{margin-top:48px;padding:34px 20px 22px;border-radius:20px}.service-guide__head{margin-bottom:28px}.service-guide h2 br{display:none}.service-flow{grid-template-columns:1fr;gap:8px}.service-flow::before{left:23px;right:auto;top:20px;bottom:20px;width:1px;height:auto;background:linear-gradient(#93c5fd,#cbd5e1)}
   .service-step{padding:10px 8px 10px 62px;min-height:58px}.service-step__num{position:absolute;left:0;top:7px;margin:0;width:46px;height:46px}
   .service-step:not(:last-child)::after{display:none}.service-guide__result{align-items:flex-start;flex-direction:column}.service-guide__result .btn{width:100%;justify-content:center}
 }
+@media(max-width:520px){.cta-box--work{padding:17px 15px 16px}}
 .nav__links .mobile-only{display:none}
 </style>
 </head>
@@ -743,6 +746,21 @@ footer a:hover{color:var(--fg)}
       <div class="hero__label"><span></span>YEOHUB</div>
                     <h1>안전관리 <em>업무지원</em></h1>
                     <p class="hero__sub">소방안전관리, 수행에서 증명까지</p>
+      <?php if (is_logged_in() && !is_admin()): ?>
+        <?php
+          $isBuildingRole=(($_SESSION['role'] ?? 'agency') === 'building');
+          $workLabel=$isBuildingRole?'건물 관리하기':'거래처·건물 관리하기';
+          $workTitle=$isBuildingRole?'오늘의 소방안전관리 업무를 확인하세요':'거래처별 업무 현황을 확인하세요';
+        ?>
+        <div class="cta-box cta-box--work">
+          <div class="work-entry__body">
+            <div class="cta-box__eyebrow"><?=h($_SESSION['nickname'] ?? '회원')?>님 로그인 완료</div>
+            <div class="cta-box__title"><?=h($workTitle)?></div>
+            <p class="cta-box__msg"><?=$isBuildingRole?'작성 중인 업무와 다음 할 일을 바로 이어서 진행할 수 있습니다.':'거래처와 건물별 진행 업무를 한 화면에서 확인할 수 있습니다.'?></p>
+          </div>
+          <a class="btn btn--primary" href="<?=h(work_page())?>"><?=h($workLabel)?></a>
+        </div>
+      <?php endif; ?>
                     <p class="hero__note">
                       건물 정보를 한 번만 입력하면 업무수행 기록표·소방계획서·자위소방대 편성표가
                       법정서식 그대로 만들어집니다. 반복 입력은 줄이고, 필요한 순간 꺼내 쓸 수 있는
@@ -751,17 +769,6 @@ footer a:hover{color:var(--fg)}
       <?php if ($notice !== ''): ?>
         <div class="alert <?= is_admin() ? 'alert--ok' : 'alert--warn' ?>"
              style="max-width:400px;margin:16px 0 0"><?=h($notice)?></div>
-      <?php endif; ?>
-      <?php if (is_logged_in() && !is_admin()): ?>
-        <?php $isBuildingRole=(($_SESSION['role'] ?? 'agency') === 'building'); $workLabel=$isBuildingRole?'건물 관리하기':'거래처·건물 관리하기'; ?>
-        <div class="cta-box cta-box--work">
-          <div class="cta-box__eyebrow">바로가기</div>
-          <div class="cta-box__title"><?=h($_SESSION['nickname'] ?? '회원')?>님, 관리할 건물을 확인하세요</div>
-          <p class="cta-box__msg"><?=$isBuildingRole?'건물 정보와 소방안전관리 업무를 이어서 관리할 수 있습니다.':'거래처와 건물별 소방안전관리 업무를 이어서 관리할 수 있습니다.'?></p>
-          <div class="cta-box__btns">
-            <a class="btn btn--primary" href="<?=h(work_page())?>"><?=h($workLabel)?></a>
-          </div>
-        </div>
       <?php endif; ?>
     </div>
 
