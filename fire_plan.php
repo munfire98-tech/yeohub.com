@@ -1,9 +1,14 @@
 <?php
 declare(strict_types=1);
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
+
 date_default_timezone_set('Asia/Seoul');
+if(session_status()!==PHP_SESSION_ACTIVE){
 ini_set('session.cookie_httponly','1');
 if(PHP_VERSION_ID>=70300)session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']);
-session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+}
+
 function h(string $s):string{return htmlspecialchars($s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
 function is_admin():bool{return !empty($_SESSION['is_admin'])||(!empty($_SESSION['ID_OK'])&&$_SESSION['ID_OK']==1);}
 if(!is_admin()&&empty($_SESSION['is_user'])){header('Location: /index.php');exit;}
@@ -35,6 +40,7 @@ foreach(fp_list_plans() as $row){
 <form class="year-picker" method="get">
 <?php foreach($context as $k=>$v):?><input type="hidden" name="<?=h($k)?>" value="<?=h($v)?>"><?php endforeach;?>
 <input aria-label="계획연도" type="number" name="year" min="1901" max="2199" value="<?=$focusYear?>"><button class="btn">연도 찾기</button></form></header>
+<?php require_once __DIR__.'/building_facilities_common.php';bf_render_reference(); ?>
 <section class="years" aria-label="작성할 계획연도">
 <?php foreach([$focusYear-1,$focusYear,$focusYear+1] as $year):
   $items=$byYear[$year]??[];$latest=$items[0]??null;

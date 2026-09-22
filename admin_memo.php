@@ -14,7 +14,7 @@ function is_admin(): bool {
 }
 
 // 관리자만 접근
-if (!is_admin()) { header('Location: /login.php'); exit; }
+if (!is_admin() || !empty($_SESSION['_imp']) || !empty($_SESSION['_manager_edit'])) { header('Location: /admin_login.php'); exit; }
 
 $FILE = __DIR__ . '/data/admin_memo.json';
 function load_json(string $f): array {
@@ -24,8 +24,10 @@ function load_json(string $f): array {
 }
 function save_json(string $f, array $arr): bool {
   if (!is_dir(dirname($f))) @mkdir(dirname($f), 0775, true);
-  $tmp=$f.'.tmp'; file_put_contents($tmp, json_encode($arr, JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT));
-  return @rename($tmp,$f);
+  $tmp=tempnam(dirname($f),'.memo-');if($tmp===false)return false;
+  $json=json_encode($arr,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+  if($json===false||file_put_contents($tmp,$json,LOCK_EX)===false){@unlink($tmp);return false;}
+  $ok=rename($tmp,$f);if(!$ok)@unlink($tmp);return $ok;
 }
 
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
@@ -33,10 +35,11 @@ $CSRF = $_SESSION['csrf'];
 
 $data = load_json($FILE);
 $saved = false;
+$saveError = false;
 
 // 저장 처리 (전체 폼을 한 번에 저장)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save') {
-  if (!hash_equals($CSRF, $_POST['csrf'] ?? '')) { http_response_code(403); exit('CSRF'); }
+  if (!is_string($_POST['csrf']??null)||!hash_equals($CSRF, $_POST['csrf'])) { http_response_code(403); exit('CSRF'); }
 
   // 할 일: 제목 배열 + 체크 배열을 합쳐 정리
   $todoTexts = $_POST['todo_text'] ?? [];
@@ -48,15 +51,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
     $todos[] = ['text' => $t, 'done' => isset($todoDone[$i])];
   }
 
-  $data = [
+  $data = array_merge($data,[
     'big_goal'   => trim($_POST['big_goal'] ?? ''),
     'small_goal' => trim($_POST['small_goal'] ?? ''),
     'process'    => trim($_POST['process'] ?? ''),
     'todos'      => $todos,
     'updated'    => date('Y-m-d H:i'),
-  ];
-  save_json($FILE, $data);
-  $saved = true;
+    'bottleneck'=>trim((string)($_POST['bottleneck']??'')),
+    'next_action'=>trim((string)($_POST['next_action']??'')),
+    'success_metric'=>trim((string)($_POST['success_metric']??'')),
+    'deadline'=>preg_match('/^\d{4}-\d{2}-\d{2}$/D',(string)($_POST['deadline']??''))?(string)$_POST['deadline']:'',
+  ]);
+  $saved = save_json($FILE, $data);
+  $saveError = !$saved;
 }
 
 $bigGoal   = $data['big_goal'] ?? '';
@@ -65,172 +72,30 @@ $process   = $data['process'] ?? '';
 $todos     = $data['todos'] ?? [];
 $updated   = $data['updated'] ?? '';
 $nick = $_SESSION['nickname'] ?? '관리자';
+$todoCount=count(array_filter($todos,fn($t)=>trim((string)($t['text']??''))!==''));
+$doneCount=count(array_filter($todos,fn($t)=>!empty($t['done'])&&trim((string)($t['text']??''))!==''));
 ?>
-<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>관리자 메모 — TWORIX</title>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>실행 보드 · YEOHUB</title>
 <style>
-:root{--bg:#f5f7fb;--card:#fff;--bd:#e3e8f0;--bd2:#d4dbe6;--fg:#1a2436;--mut:#7a8699;--mut2:#56627a;--brand:#2563eb;--brand2:#1d4ed8;--accent:#0891b2;--ok:#16a34a}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{background:var(--bg);color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,"Apple SD Gothic Neo",sans-serif;line-height:1.6}
-a{text-decoration:none}
-.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--bd)}
-.nav__inner{max-width:900px;margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px}
-.nav__brand{font-weight:800;font-size:22px;color:var(--fg);letter-spacing:.5px}
-.nav__right{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--mut2)}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:9px;border:1px solid var(--bd2);background:#fff;color:var(--fg);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
-.btn:hover{border-color:var(--brand);color:var(--brand2)}
-.btn--primary{background:var(--brand);border-color:var(--brand);color:#fff}
-.btn--primary:hover{background:var(--brand2);color:#fff}
-.page-head{position:relative;overflow:hidden;border-bottom:1px solid var(--bd);
-  background:linear-gradient(rgba(37,99,235,.04) 1px,transparent 1px) 0 0/100% 28px,
-  linear-gradient(90deg,rgba(37,99,235,.04) 1px,transparent 1px) 0 0/28px 100%,
-  linear-gradient(180deg,#fbfcff,#eef3fb)}
-.page-head::before{content:'';position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(ellipse 760px 320px at 12% 0%,rgba(8,145,178,.10),transparent 70%)}
-.page-head__inner{position:relative;max-width:900px;margin:0 auto;padding:40px 24px 32px}
-.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;border:1px solid var(--bd2);background:#fff;color:var(--mut2);font-size:12px;margin-bottom:12px}
-.badge span{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block}
-.page-head h1{font-size:clamp(24px,3.5vw,32px);font-weight:700;letter-spacing:-.5px;margin-bottom:6px}
-.page-head p{color:var(--mut2);font-size:14px}
-.wrap{max-width:900px;margin:0 auto;padding:28px 24px 90px}
-.section{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:22px 24px;margin-bottom:18px}
-.section h2{font-size:16px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px}
-.section h2 .em{font-size:18px}
-.goal2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.field{display:flex;flex-direction:column;gap:6px}
-.field label{font-size:12px;color:var(--mut2);font-weight:700}
-textarea,.inp{width:100%;padding:12px 13px;border:1px solid var(--bd2);border-radius:10px;font-size:14px;font-family:inherit;background:#f8fafc;color:var(--fg);resize:vertical}
-textarea:focus,.inp:focus{outline:none;border-color:var(--brand);background:#fff}
-.big textarea{min-height:80px}
-.small textarea{min-height:80px}
-.process textarea{min-height:90px}
-
-/* 할 일 */
-.todos{display:flex;flex-direction:column;gap:8px}
-.todo{display:flex;align-items:center;gap:10px;border:1px solid var(--bd);border-radius:10px;padding:8px 10px;background:#fff}
-.todo input[type=checkbox]{width:18px;height:18px;flex-shrink:0;cursor:pointer}
-.todo input[type=text]{flex:1;border:0;background:transparent;font-size:14px;font-family:inherit;color:var(--fg);outline:none}
-.todo.done input[type=text]{text-decoration:line-through;color:var(--mut)}
-.todo .del{border:0;background:transparent;color:var(--mut);cursor:pointer;font-size:18px;line-height:1;padding:2px 6px}
-.todo .del:hover{color:#dc2626}
-.addbtn{margin-top:10px;align-self:flex-start}
-
-.savebar{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.95);backdrop-filter:blur(8px);border-top:1px solid var(--bd);padding:12px 24px;z-index:40}
-.savebar__inner{max-width:900px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
-.savebar .meta{font-size:12px;color:var(--mut)}
-.toast{background:#ecfdf5;border:1px solid #a7f3d0;color:#047857;border-radius:9px;padding:10px 14px;font-size:13px;margin-bottom:16px}
-@media(max-width:680px){.nav__inner,.page-head__inner{padding-left:16px;padding-right:16px}.goal2{grid-template-columns:1fr}}
-</style>
-</head>
-<body>
-
-<nav class="nav">
-  <div class="nav__inner">
-    <a class="nav__brand" href="/index.php">TWORIX</a>
-    <div class="nav__right">
-      <span><?=h($nick)?>님 · 관리자</span>
-      <a class="btn" href="/index.php">← 메인</a>
-      <a class="btn" href="/logout.php">로그아웃</a>
-    </div>
-  </div>
-</nav>
-
-<header class="page-head">
-  <div class="page-head__inner">
-    <div class="badge"><span></span> 관리자 전용 메모</div>
-    <h1>목표 · 프로세스 · 할 일</h1>
-    <p>목표와 진행 계획을 적고, 할 일을 체크하며 관리하세요.</p>
-  </div>
-</header>
-
-<main class="wrap">
-
-  <?php if ($saved): ?><div class="toast">✓ 저장되었습니다. <?=h($updated)?></div><?php endif; ?>
-
-  <form method="post" id="memoForm">
-    <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
-    <input type="hidden" name="action" value="save">
-
-    <!-- 목표 -->
-    <div class="section">
-      <h2><span class="em">🎯</span> 목표</h2>
-      <div class="goal2">
-        <div class="field big"><label>큰 목표</label>
-          <textarea name="big_goal" placeholder="이루고 싶은 큰 방향·목표"><?=h($bigGoal)?></textarea>
-        </div>
-        <div class="field small"><label>작은 목표</label>
-          <textarea name="small_goal" placeholder="지금 집중할 작은 목표들"><?=h($smallGoal)?></textarea>
-        </div>
-      </div>
-    </div>
-
-    <!-- 프로세스 -->
-    <div class="section process">
-      <h2><span class="em">🧭</span> 프로세스</h2>
-      <div class="field">
-        <textarea name="process" placeholder="목표를 이루기 위한 단계·진행 방식을 적어두세요"><?=h($process)?></textarea>
-      </div>
-    </div>
-
-    <!-- 할 일 체크리스트 -->
-    <div class="section">
-      <h2><span class="em">✅</span> 할 일 체크리스트</h2>
-      <div class="todos" id="todos">
-        <?php if (empty($todos)): ?>
-          <div class="todo">
-            <input type="checkbox" name="todo_done[0]">
-            <input type="text" name="todo_text[0]" placeholder="할 일을 입력하세요">
-            <button type="button" class="del" onclick="delTodo(this)">×</button>
-          </div>
-        <?php else: foreach ($todos as $i => $t): ?>
-          <div class="todo <?= !empty($t['done'])?'done':'' ?>">
-            <input type="checkbox" name="todo_done[<?=$i?>]" <?= !empty($t['done'])?'checked':'' ?> onchange="toggleDone(this)">
-            <input type="text" name="todo_text[<?=$i?>]" value="<?=h($t['text'])?>" placeholder="할 일을 입력하세요">
-            <button type="button" class="del" onclick="delTodo(this)">×</button>
-          </div>
-        <?php endforeach; endif; ?>
-      </div>
-      <button type="button" class="btn addbtn" onclick="addTodo()">+ 할 일 추가</button>
-    </div>
-  </form>
-</main>
-
-<div class="savebar">
-  <div class="savebar__inner">
-    <span class="meta"><?= $updated ? '마지막 저장: '.h($updated) : '아직 저장 전' ?></span>
-    <button class="btn btn--primary" type="button" onclick="document.getElementById('memoForm').requestSubmit()">💾 저장하기</button>
-  </div>
-</div>
-
+:root{--bg:#f3f5f7;--ink:#182632;--mut:#637381;--line:#dde4e8;--green:#176c50;--lime:#d7f279}*{box-sizing:border-box}body{margin:0;background:var(--bg);font:14px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo',sans-serif;color:var(--ink)}button,input,textarea{font:inherit}button,a,input,textarea{outline-offset:4px}a{color:inherit;text-decoration:none}button{cursor:pointer}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--green)}
+nav{background:#fff;border-bottom:1px solid var(--line)}.nav-inner{max-width:1440px;margin:auto;min-height:60px;padding:12px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{font-size:15px;letter-spacing:.1em;font-weight:800}.brand span{font-weight:500;font-size:10px;letter-spacing:.1em;color:var(--mut);margin-left:12px}.nav-links{display:flex;gap:20px;align-items:center;font-size:12px;color:var(--mut)}.nav-links a:hover{color:var(--green)}main{max-width:1440px;margin:auto;padding:27px 32px 110px}.page-top{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:22px}.eyebrow{font:600 10px/1.5 system-ui;letter-spacing:.18em;color:var(--mut)}h1{font-size:29px;line-height:1.3;letter-spacing:-1px;margin:5px 0}h2{font-size:16px;margin:0;letter-spacing:-.4px}p{margin:0}.subtitle{color:var(--mut);font-size:12px}.date{font-size:12px;color:var(--mut);text-align:right}.date b{display:block;font-size:14px;color:var(--ink)}
+.focus{display:grid;grid-template-columns:1fr 200px;gap:32px;background:#192f2b;color:white;padding:25px 28px;border-radius:15px;margin-bottom:20px;box-shadow:0 8px 24px #132d2510}.focus .eyebrow{color:var(--lime)}.focus label{display:block;font-size:11px;color:#bed0c6;margin-bottom:5px}.focus-title{display:flex;align-items:center;gap:8px;margin-bottom:12px}.focus-dot{width:7px;height:7px;border-radius:50%;background:var(--lime)}.focus textarea{display:block;width:100%;height:62px;resize:vertical;border:0;border-bottom:1px solid #49615a;background:transparent;border-radius:0;color:#fff;padding:3px 0;font-size:21px;font-weight:600;line-height:1.5}.focus textarea::placeholder{color:#afc1b8;font-weight:400}.focus-right{border-left:1px solid #49615a;padding-left:26px}.focus input[type=date]{width:100%;background:#253f36;color:#fff;color-scheme:dark;border:1px solid #506459;border-radius:7px;padding:7px 9px;font-size:12px}.progress-number{font-size:30px;line-height:1.2;font-weight:650;margin-top:15px}.progress-number small{font-size:11px;color:#bed0c6;font-weight:400;margin-left:8px}.progress-track{height:4px;border-radius:3px;background:#435a50;margin:9px 0 5px;overflow:hidden}.progress-track span{display:block;height:100%;background:var(--lime);width:0;transition:width .2s}.progress-copy{font-size:10px;color:#bed0c6}
+.board{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:20px;align-items:start}.column{display:grid;gap:16px}.panel{padding:20px 22px;background:#fff;border:1px solid var(--line);border-radius:12px}.panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:16px}.step{font:600 10px/1.5 system-ui;color:#82928f;letter-spacing:.12em;margin-bottom:3px}.panel-note{font-size:11px;color:var(--mut)}.field{display:block;margin-top:13px}.field>span{display:block;font-size:11px;font-weight:600;color:#4b5d68;margin-bottom:6px}textarea,.input{width:100%;border:1px solid #e0e6eb;border-radius:8px;background:#f9fafb;color:var(--ink);padding:10px 12px;font-size:13px}textarea{resize:vertical;min-height:72px}textarea::placeholder,input::placeholder{color:#84929e}textarea:focus,.input:focus{background:#fff;border-color:#6a9b87}.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.bottleneck{border-left:3px solid #c68c43}.bottleneck textarea{background:#fcfaf5}.process textarea{min-height:100px}.principles{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.principles span{font-size:10px;padding:4px 8px;background:#f0f4f2;border-radius:5px;color:#5e7568}.principles span:last-child{background:#eaf2e9}
+.tasks-panel{padding-bottom:16px}.task-top{display:flex;align-items:center;gap:9px}.task-count{padding:3px 7px;background:#eef4f1;color:#287054;font-size:11px;border-radius:6px}.task-help{font-size:11px;color:var(--mut);margin:-6px 0 15px}.todos{display:flex;flex-direction:column;gap:8px}.todo{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:9px;align-items:center;border:1px solid #e3e8ec;border-radius:9px;padding:12px 10px;background:#fff}.todo:first-child:not(.done){border-color:#8bb49c;background:#f6faf6}.todo input[type=checkbox]{width:18px;height:18px;accent-color:var(--green);cursor:pointer}.todo input[type=text]{min-width:0;width:100%;border:0;border-bottom:1px solid transparent;background:transparent;padding:4px 0;color:var(--ink);font-size:13px}.todo.done input[type=text]{text-decoration:line-through;color:#8a959d}.todo.done{background:#f9fafb}.row-actions{display:flex;gap:1px}.row-actions button{border:0;background:transparent;color:#768593;width:26px;height:28px;border-radius:5px;font-size:14px}.row-actions button:hover{background:#edf1f5;color:#273e4a}.row-actions .del:hover{background:#fff0ef;color:#b0443c}.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 13px;border:1px solid #d9e1e6;border-radius:8px;background:white;color:#38524a;font-size:12px;font-weight:600}.btn:hover{background:#f1f6f3}.add{margin-top:13px;width:100%;border-style:dashed;background:#fafcfb}.small-link{border:0;background:none;color:#6c7d88;font-size:11px;padding:6px}.review{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e7ecef;margin-top:16px;padding-top:12px;font-size:11px;color:var(--mut)}.savebar{position:fixed;bottom:0;left:0;right:0;z-index:20;background:#ffffffee;backdrop-filter:blur(8px);border-top:1px solid var(--line)}.save-inner{max-width:1440px;margin:auto;padding:13px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px}.save-meta{font-size:11px;color:var(--mut)}.save-meta strong{display:block;color:#415851;font-size:12px}.save{background:var(--green);border-color:var(--green);color:white;padding:11px 25px}.save:hover{background:#10563f}.toast{border:1px solid #a5c9b2;background:#eff8f2;padding:11px 15px;border-radius:8px;margin-bottom:16px;color:#226145;font-size:12px}.error{background:#fff3ef;border-color:#e9bbb0;color:#963e2d}[hidden]{display:none!important}
+@media(max-width:900px){.board{grid-template-columns:1fr}.focus{grid-template-columns:1fr 170px;gap:20px}.focus-right{padding-left:20px}.nav-inner,main,.save-inner{padding-left:20px;padding-right:20px}}@media(max-width:550px){main{padding-top:20px}.nav-links{gap:10px}.nav-links .nickname{display:none}.brand span{display:none}.focus{grid-template-columns:1fr;padding:20px}.focus-right{border-left:0;border-top:1px solid #49615a;padding:15px 0 0;display:grid;grid-template-columns:1fr 1fr;column-gap:20px}.progress-number{margin-top:0}.focus-right .deadline{grid-row:1/4}.focus textarea{font-size:18px}.field-grid{grid-template-columns:1fr;gap:0}.page-top .date{display:none}.panel{padding:18px 16px}h1{font-size:25px}.todo{gap:5px;padding:10px 7px}.row-actions button{width:24px}.save{padding:10px 14px}.save-inner{gap:10px}.nav-inner,main,.save-inner{padding-left:14px;padding-right:14px}}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body>
+<nav><div class="nav-inner"><a class="brand" href="/index.php">YEOHUB <span>ADMIN / EXECUTION</span></a><div class="nav-links"><span class="nickname"><?=h($nick)?>님</span><a href="/admin_manager_payouts.php">매니저 관리 ↗</a><a href="/index.php">메인</a></div></div></nav>
+<main><div class="page-top"><div><div class="eyebrow">FOCUS ON WHAT MATTERS</div><h1>생각은 명확하게, 실행은 빠르게.</h1><p class="subtitle">목표를 정하고, 막힌 곳을 찾아, 가장 중요한 일부터 끝내세요.</p></div><div class="date"><b><?=h(date('Y.m.d'))?></b>관리자 실행 보드</div></div>
+<?php if($saved):?><p class="toast" role="status">변경사항을 저장했습니다. <?=h($updated)?></p><?php endif;?><?php if($saveError):?><p class="toast error" role="alert">저장하지 못했습니다. 작성 내용은 화면에 남아 있습니다. 다시 저장해 주세요.</p><?php endif;?>
+<form method="post" id="memoForm"><input type="hidden" name="csrf" value="<?=h($CSRF)?>"><input type="hidden" name="action" value="save">
+<section class="focus" aria-label="최우선 행동"><div><div class="focus-title"><span class="focus-dot"></span><span class="eyebrow">ONE THING / 지금 가장 중요한 일</span></div><label for="next_action">오늘 끝낼 단 하나의 행동</label><textarea name="next_action" id="next_action" placeholder="예: 출금 신청부터 지급 완료까지 직접 검증하기"><?=h($data['next_action']??'')?></textarea></div><div class="focus-right"><div class="deadline"><label for="deadline">목표 마감일</label><input type="date" id="deadline" name="deadline" value="<?=h($data['deadline']??'')?>"></div><div class="progress-number"><span id="progress">0%</span><small>실행 완료율</small></div><div class="progress-track" role="progressbar" aria-label="실행 완료율" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="progress-fill"></span></div><p id="progress-copy" class="progress-copy"></p></div></section>
+<div class="board"><div class="column"><section class="panel"><div class="panel-head"><div><div class="step">01 / DIRECTION</div><h2>무엇을 달성할 것인가</h2></div></div><label class="field"><span>큰 목표 · 도달할 방향</span><textarea name="big_goal" placeholder="사업에서 바꾸고 싶은 결과를 적으세요."><?=h($bigGoal)?></textarea></label><div class="field-grid"><label class="field"><span>이번 단계의 목표</span><textarea name="small_goal" placeholder="이번 주에 만들 구체적인 결과"><?=h($smallGoal)?></textarea></label><label class="field"><span>완료 기준 · 숫자로 확인하기</span><textarea name="success_metric" placeholder="예: 실제 유저 5명이 도움 없이 가입 완료"><?=h($data['success_metric']??'')?></textarea></label></div></section>
+<section class="panel bottleneck"><div class="step">02 / FIRST PRINCIPLES</div><h2>지금 막힌 진짜 이유</h2><label class="field"><span>확인된 사실 → 가정 → 가장 작은 해결 실험</span><textarea name="bottleneck" placeholder="무엇이 사실인가? 꼭 필요한 조건인가? 무엇을 먼저 확인할까?"><?=h($data['bottleneck']??'')?></textarea></label></section>
+<section class="panel process"><div class="step">03 / SIMPLIFY</div><h2>더 적은 단계로 끝내기</h2><label class="field"><span>진행 방법 · 다음 실험</span><textarea name="process" placeholder="없앨 일과 남길 일을 구분하고, 실행 순서를 적으세요."><?=h($process)?></textarea></label><div class="principles"><span>01 필요성 질문</span><span>02 불필요한 일 제거</span><span>03 단순화</span><span>04 빠른 검증</span><span>05 반복 후 자동화</span></div></section></div>
+<section class="panel tasks-panel"><div class="panel-head"><div><div class="step">04 / EXECUTE</div><div class="task-top"><h2>실행 목록</h2><span id="task-count" class="task-count"></span></div></div><button type="button" class="small-link" id="toggle-completed">완료 항목 숨기기</button></div><p class="task-help">위쪽부터 우선순위입니다. ↑ ↓ 버튼으로 순서를 바꿀 수 있습니다.</p><div class="todos" id="todos">
+<?php foreach($todos?:[['text'=>'','done'=>false]] as $i=>$t):?><div class="todo <?=!empty($t['done'])?'done':''?>"><input type="checkbox" name="todo_done[<?=$i?>]" aria-label="할 일 완료" <?=!empty($t['done'])?'checked':''?>><input type="text" name="todo_text[<?=$i?>]" value="<?=h($t['text']??'')?>" placeholder="구체적인 행동을 입력하세요" aria-label="할 일"><div class="row-actions"><button type="button" data-move="up" aria-label="우선순위 올리기">↑</button><button type="button" data-move="down" aria-label="우선순위 내리기">↓</button><button type="button" class="del" aria-label="할 일 삭제">×</button></div></div><?php endforeach;?></div><button type="button" class="btn add" id="add-todo">＋ 실행할 일 추가</button><div class="review"><span>완료 체크와 순서 변경 후 저장하세요.</span><span id="remaining"></span></div></section></div>
+</form></main><div class="savebar"><div class="save-inner"><div class="save-meta"><strong id="save-state"><?=$saveError?'저장 실패 · 다시 저장해 주세요':'변경사항을 한 번에 저장합니다'?></strong><span><?= $updated?'마지막 저장 '.h($saveError?($updated.' (실패)'):$updated):'아직 저장된 메모가 없습니다'?></span></div><button class="btn save" type="submit" form="memoForm">변경사항 저장 ↗</button></div></div>
 <script>
-  let todoIndex = <?= max(count($todos), 1) ?>;
-  function addTodo(){
-    const box = document.getElementById('todos');
-    const i = todoIndex++;
-    const div = document.createElement('div');
-    div.className = 'todo';
-    div.innerHTML =
-      '<input type="checkbox" name="todo_done['+i+']" onchange="toggleDone(this)">' +
-      '<input type="text" name="todo_text['+i+']" placeholder="할 일을 입력하세요">' +
-      '<button type="button" class="del" onclick="delTodo(this)">×</button>';
-    box.appendChild(div);
-    div.querySelector('input[type=text]').focus();
-  }
-  function delTodo(btn){
-    const row = btn.closest('.todo');
-    const box = document.getElementById('todos');
-    row.remove();
-    if (box.children.length === 0) addTodo();
-  }
-  function toggleDone(cb){
-    cb.closest('.todo').classList.toggle('done', cb.checked);
-  }
-</script>
-
-<?php require_once __DIR__ . '/admin_quickmemo_widget.php'; ?>
-</body>
-</html>
+(()=>{const form=document.getElementById('memoForm'),box=document.getElementById('todos'),state=document.getElementById('save-state');let dirty=<?= $saveError?'true':'false' ?>,hideDone=false;function mark(){dirty=true;state.textContent='저장하지 않은 변경사항이 있습니다';}function rows(){return [...box.querySelectorAll('.todo')];}function update(){let total=0,done=0;rows().forEach((row,i)=>{const cb=row.querySelector('[type=checkbox]'),text=row.querySelector('[type=text]');cb.name=`todo_done[${i}]`;text.name=`todo_text[${i}]`;row.classList.toggle('done',cb.checked);row.hidden=hideDone&&cb.checked;if(text.value.trim()){total++;if(cb.checked)done++;}});const pct=total?Math.round(done/total*100):0;document.getElementById('progress').textContent=pct+'%';document.getElementById('progress-fill').style.width=pct+'%';document.querySelector('[role=progressbar]').setAttribute('aria-valuenow',pct);document.getElementById('progress-copy').textContent=done+' / '+total+'개 완료';document.getElementById('task-count').textContent=total+'개';document.getElementById('remaining').textContent='남은 일 '+(total-done)+'개';}
+const template=box.firstElementChild.cloneNode(true);function add(){const row=template.cloneNode(true);row.querySelector('[type=checkbox]').checked=false;row.querySelector('[type=text]').value='';row.hidden=false;box.append(row);mark();update();row.querySelector('[type=text]').focus();}document.getElementById('add-todo').addEventListener('click',add);box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const row=b.closest('.todo');if(b.classList.contains('del')){row.remove();if(!box.children.length)add();}else if(b.dataset.move==='up'&&row.previousElementSibling)box.insertBefore(row,row.previousElementSibling);else if(b.dataset.move==='down'&&row.nextElementSibling)box.insertBefore(row.nextElementSibling,row);mark();update();});form.addEventListener('input',()=>{mark();update();});form.addEventListener('change',()=>{mark();update();});document.getElementById('toggle-completed').addEventListener('click',e=>{hideDone=!hideDone;e.target.textContent=hideDone?'완료 항목 보기':'완료 항목 숨기기';update();});form.addEventListener('submit',()=>{update();dirty=false;});window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();form.requestSubmit();}});update();})();
+</script></body></html>

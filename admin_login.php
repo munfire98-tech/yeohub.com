@@ -19,7 +19,7 @@ $CSRF = $_SESSION['csrf'];
 
 /* 이미 로그인된 관리자면 바로 이동 */
 $isAdmin = (!empty($_SESSION['is_admin'])) || (!empty($_SESSION['ID_OK']) && $_SESSION['ID_OK'] == 1);
-if ($isAdmin) { header('Location: /building_manager.php'); exit; }
+if ($isAdmin) { header('Location: /admin_manager_payouts.php'); exit; }
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 $err = isset($_GET['err']);

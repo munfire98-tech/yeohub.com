@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 /* 관리자가 이 회원 화면을 대리로 볼 때 위에 알림 띠를 붙입니다 */
+
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 @include_once __DIR__ . '/_imp.php';
 
 if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }

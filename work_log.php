@@ -1,11 +1,16 @@
 <?php
 // work_log.php — 소방안전관리자 업무 수행 기록: 월별 목록 + 건물 고정정보
 declare(strict_types=1);
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
+
 
 if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
+if(session_status()!==PHP_SESSION_ACTIVE){
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+}
+
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -88,7 +93,7 @@ function worklog_note_progress(array $fixed): array {
 
 /* 2급 대상물 업무수행 기록표 기본 확인문구.
    스프링클러가 없는 건물에는 관련 점검 문구를 넣지 않습니다. */
-function worklog_note_defaults(string $sprinkler, string $hydrant = 'no'): array {
+function worklog_legacy_defaults(string $sprinkler, string $hydrant = 'no'): array {
   $fireParts = ['소화기 비치 및 압력 상태 확인'];
   if ($sprinkler === 'yes') $fireParts[] = '스프링클러 헤드 훼손·누수·살수 장애물 여부 확인';
   if ($hydrant === 'yes') $fireParts[] = '옥내소화전함 주변 적치물 및 사용 가능 상태 확인';
@@ -102,9 +107,35 @@ function worklog_note_defaults(string $sprinkler, string $hydrant = 'no'): array
   ];
 }
 
-/* 시설 선택이 바뀌면 자동 관리하는 두 문구만 추가·제거합니다.
-   사용자가 직접 작성한 나머지 소방시설 문구는 그대로 보존합니다. */
+function worklog_note_defaults(string $sprinkler, string $hydrant = 'no'): array {
+  global $facilityInventory;
+  if(empty($facilityInventory['revision']))return worklog_legacy_defaults($sprinkler,$hydrant);
+  $parts=['note_sobang'=>[], 'note_pinan'=>['피난통로·비상구']];
+  $major=[
+    '소화기구 및 자동소화장치'=>'소화기구·자동소화장치',
+    '옥내소화전설비'=>'옥내소화전',
+    '스프링클러설비'=>'스프링클러',
+    '자동화재탐지설비 및 시각경보기'=>'자동화재탐지설비·시각경보기',
+    '유도등'=>'유도등', '방화문'=>'방화문', '방화셔터'=>'방화셔터',
+  ];
+  $other=['note_sobang'=>false,'note_pinan'=>false];
+  foreach(bf_catalog() as $groupKey=>$group)foreach($group[1] as $name){
+    if(($facilityInventory['items'][bf_id($name)]['status']??'unknown')!=='yes')continue;
+    $key=in_array($groupKey,['escape','fire_compartment'],true)?'note_pinan':'note_sobang';
+    if(isset($major[$name]))$parts[$key][]=$major[$name];else $other[$key]=true;
+  }
+  if($other['note_sobang'])$parts['note_sobang'][]='기타 설치 소방시설';
+  if($other['note_pinan'])$parts['note_pinan'][]='기타 설치 피난·방화시설';
+  return [
+    'note_sobang'=>$parts['note_sobang']?implode('·',$parts['note_sobang']).' 상태 확인':'소방시설 현황의 누락·변경 여부 확인',
+    'note_pinan'=>implode('·',$parts['note_pinan']).' 상태 확인',
+    'note_hwagi'=>'화기취급 장소 주변 가연물 및 사용 후 안전조치 확인',
+    'note_etc'=>'특이사항 및 관계인 전달사항 확인',
+  ];
+}
 function worklog_sync_facility_note(string $note, string $sprinkler, string $hydrant): string {
+  global $facilityInventory;
+  if(!empty($facilityInventory['revision']))return $note;
   $sprinklerText = '스프링클러 헤드 훼손·누수·살수 장애물 여부 확인';
   $hydrantText = '옥내소화전함 주변 적치물 및 사용 가능 상태 확인';
   $parts = preg_split('/\s*,\s*/u', trim($note)) ?: [];
@@ -120,11 +151,37 @@ function worklog_sync_facility_note(string $note, string $sprinkler, string $hyd
   array_splice($parts, min(1, count($parts)), 0, $facilityParts);
   return implode(', ', $parts);
 }
+/* 자동 생성본만 갱신하고 직접 편집한 문구는 유지합니다. */
+function worklog_apply_facility_defaults(array $fixed): array {
+  global $facilityInventory;
+  if(empty($facilityInventory['revision']))return $fixed;
+  $next=worklog_note_defaults((string)($fixed['sprinkler']??'no'),(string)($fixed['hydrant']??'no'));
+  $previous=is_array($fixed['facility_generated_defaults']??null)?$fixed['facility_generated_defaults']:[];
+  $legacy=[];foreach(['yes','no'] as $sp)foreach(['yes','no'] as $hy)$legacy[]=worklog_legacy_defaults($sp,$hy);
+  foreach($next as $key=>$value){
+    $current=trim((string)($fixed[$key]??''));
+    $known=$current==='' || (isset($previous[$key]) && $current===$previous[$key]);
+    if(!$previous)foreach($legacy as $example)if($current===$example[$key])$known=true;
+    if($known)$fixed[$key]=$value;
+  }
+  $fixed['facility_generated_defaults']=$next;
+  return $fixed;
+}
 
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
 $CSRF = $_SESSION['csrf'];
 
 $fixed = load_json($FIXED_FILE);
+require_once __DIR__.'/building_facilities_common.php';
+$facilityInventory=bf_load();
+$facilityPrefill=[];foreach(['sprinkler'=>'스프링클러설비','hydrant'=>'옥내소화전설비'] as $k=>$name){$v=$facilityInventory['items'][bf_id($name)]['status']??'unknown';if(in_array($v,['yes','no'],true))$facilityPrefill[$k]=$v;}
+foreach($facilityPrefill as $key=>$value)$fixed[$key]=$value;
+$fixed=worklog_apply_facility_defaults($fixed);
+if(count($facilityPrefill)===2){
+  foreach(worklog_note_defaults($fixed['sprinkler'],$fixed['hydrant']) as $key=>$value){if(trim((string)($fixed[$key]??''))==='')$fixed[$key]=$value;}
+  $fixed['facility_setup_done']='1';
+}
+
 $saved = '';
 $saveError = '';
 $viewUid = app_user_key();
@@ -139,8 +196,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
   if (!hash_equals($CSRF, $_POST['csrf'] ?? '')) { http_response_code(403); exit('CSRF'); }
   $applyDefaults = (string)($_POST['apply_defaults'] ?? '');
   if ($applyDefaults === 'quick') {
-    $sprinklerChoice = ($_POST['has_sprinkler'] ?? '') === 'yes' ? 'yes' : 'no';
-    $hydrantChoice = ($_POST['has_hydrant'] ?? '') === 'yes' ? 'yes' : 'no';
+    $sprinklerChoice = $facilityPrefill['sprinkler'] ?? (($_POST['has_sprinkler'] ?? '') === 'yes' ? 'yes' : 'no');
+    $hydrantChoice = $facilityPrefill['hydrant'] ?? (($_POST['has_hydrant'] ?? '') === 'yes' ? 'yes' : 'no');
     $fixed = sync_worklog_fixed_with_basic($fixed);
     $fixed['sprinkler'] = $sprinklerChoice;
     $fixed['hydrant'] = $hydrantChoice;
@@ -171,9 +228,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
       'area_f'   => $pick('area_f'),
       'dongsu'   => $pick('dongsu'),
       'performer'=> $pick('performer'),
-      'sprinkler'=> $postedSprinkler !== '' ? $postedSprinkler : $pick('sprinkler'),
-      'hydrant'=> $postedHydrant !== '' ? $postedHydrant : $pick('hydrant'),
+      'sprinkler'=> $facilityPrefill['sprinkler'] ?? ($postedSprinkler !== '' ? $postedSprinkler : $pick('sprinkler')),
+      'hydrant'=> $facilityPrefill['hydrant'] ?? ($postedHydrant !== '' ? $postedHydrant : $pick('hydrant')),
       'facility_setup_done'=> $pick('facility_setup_done'),
+      'facility_generated_defaults'=> $keep['facility_generated_defaults']??[],
       'note_sobang' => $pick('note_sobang'),
       'note_pinan'  => $pick('note_pinan'),
       'note_hwagi'  => $pick('note_hwagi'),
@@ -212,9 +270,9 @@ save_json($FIXED_FILE, $fixed);
 $noteProg = worklog_note_progress($fixed);
 $biProg = bi_progress();
 $biDone = $biProg['filled'] >= $biProg['total'];
-$sprinkler = (string)($fixed['sprinkler'] ?? '');
+$sprinkler = (string)($facilityPrefill['sprinkler']??$fixed['sprinkler']??'');
 $sprinklerSet = in_array($sprinkler, ['yes', 'no'], true);
-$hydrant = (string)($fixed['hydrant'] ?? '');
+$hydrant = (string)($facilityPrefill['hydrant']??$fixed['hydrant']??'');
 $hydrantSet = in_array($hydrant, ['yes', 'no'], true);
 $setupComplete = $sprinklerSet && $hydrantSet
   && $noteProg['filled'] >= $noteProg['total'] && !empty($fixed['facility_setup_done']);
@@ -481,6 +539,7 @@ a{text-decoration:none}
     <p>법정 서식에 맞춰 월 1회 이상 작성하고, PDF로 내려받아 보관하세요.</p>
   </div>
 </header>
+<?php require_once __DIR__.'/building_facilities_common.php';bf_render_reference(); ?>
 
 <main class="wrap">
 
@@ -534,7 +593,7 @@ a{text-decoration:none}
       펼쳐보기
     </span>
     </summary>
-    <div class="desc">매월 기록에 자동으로 들어갈 문구입니다. 시설이나 점검 방법이 바뀌었을 때만 수정하세요.</div>
+    <div class="desc">체크한 소방시설을 기준으로 준비한 점검 항목입니다. 직접 수정한 문구는 유지되며, 시설현황 문구 넣기로 다시 가져올 수 있습니다. 실제 점검 내용과 결과는 매월 기록에서 확인해 주세요.</div>
     <form method="post" id="noteForm">
       <input type="hidden" name="action" value="save_fixed">
       <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
@@ -543,7 +602,7 @@ a{text-decoration:none}
       <div class="facility-checks" id="defaultSetup">
         <div class="facility-check">
           <span class="facility-check__title">스프링클러</span>
-          <div class="facility-check__options">
+          <?php if(isset($facilityPrefill['sprinkler'])): ?><input type="hidden" name="sprinkler" value="<?=h($sprinkler)?>"><span class="bcode-badge">시설현황 연동 · <?= $sprinkler==='yes'?'있음':'없음' ?></span><?php else: ?><div class="facility-check__options">
             <label class="facility-option">
               <input type="radio" name="sprinkler" value="yes" <?= $sprinkler === 'yes' ? 'checked' : '' ?> required>
               <span>있음</span>
@@ -552,11 +611,11 @@ a{text-decoration:none}
               <input type="radio" name="sprinkler" value="no" <?= $sprinkler === 'no' ? 'checked' : '' ?>>
               <span>없음</span>
             </label>
-          </div>
+          </div><?php endif; ?>
         </div>
         <div class="facility-check">
           <span class="facility-check__title">옥내소화전</span>
-          <div class="facility-check__options">
+          <?php if(isset($facilityPrefill['hydrant'])): ?><input type="hidden" name="hydrant" value="<?=h($hydrant)?>"><span class="bcode-badge">시설현황 연동 · <?= $hydrant==='yes'?'있음':'없음' ?></span><?php else: ?><div class="facility-check__options">
             <label class="facility-option">
               <input type="radio" name="hydrant" value="yes" <?= $hydrant === 'yes' ? 'checked' : '' ?> required>
               <span>있음</span>
@@ -565,10 +624,10 @@ a{text-decoration:none}
               <input type="radio" name="hydrant" value="no" <?= $hydrant === 'no' ? 'checked' : '' ?>>
               <span>없음</span>
             </label>
-          </div>
+          </div><?php endif; ?>
         </div>
       </div>
-      <p class="facility-auto-note">시설 선택을 바꾸면 아래 <b>소방시설 기본 문구</b>에 해당 점검 내용이 자동으로 추가되거나 빠집니다.</p>
+      <p class="facility-auto-note">저장된 소방시설 현황을 자동으로 반영합니다. 연동된 설치 여부는 소방시설 현황에서 수정해 주세요.</p>
 
       <div class="notehd">
         <h3>확인내용 기본값</h3>
@@ -610,7 +669,7 @@ a{text-decoration:none}
             <div class="notehint"><?=h($nf[1])?></div>
             <textarea id="<?=h($key)?>" name="<?=h($key)?>" rows="3" required
                       placeholder="<?=h($nf[2])?>"><?=h((string)($fixed[$key] ?? ''))?></textarea>
-            <button type="button" class="btn btn--tiny" onclick="fillNote('<?=h($key)?>')">✍️ 예시 넣기</button>
+            <button type="button" class="btn btn--tiny" onclick="fillNote('<?=h($key)?>')">시설현황 문구 넣기</button>
           </div>
         <?php endforeach; ?>
       </div>
@@ -622,6 +681,7 @@ a{text-decoration:none}
 
     <script>
     var NOTE_SAMPLES = <?=json_encode(array_map(fn($x) => $x[2], $noteFields), JSON_UNESCAPED_UNICODE)?>;
+    var FACILITY_INVENTORY_SAVED = <?=!empty($facilityInventory['revision'])?'true':'false'?>;
     var FACILITY_NOTES = {
       baseFirst: '소화기 비치 및 압력 상태 확인',
       sprinkler: '스프링클러 헤드 훼손·누수·살수 장애물 여부 확인',
@@ -629,10 +689,11 @@ a{text-decoration:none}
       baseLast: '자동화재탐지설비 감지기·수신기 정상 상태 확인'
     };
     function facilityChoice(name){
-      var checked = document.querySelector('input[name="' + name + '"]:checked');
+      var checked = document.querySelector('input[name="' + name + '"][type=hidden], input[name="' + name + '"]:checked');
       return checked ? checked.value : '';
     }
     function syncFacilityNote(){
+      if(FACILITY_INVENTORY_SAVED)return;
       var el = document.getElementById('note_sobang');
       if (!el) return;
       var parts = el.value.split(/\s*,\s*/).map(function(part){ return part.trim(); }).filter(function(part){
@@ -646,6 +707,7 @@ a{text-decoration:none}
       el.value = parts.join(', ');
     }
     function currentSobangSample(){
+      if (FACILITY_INVENTORY_SAVED) return NOTE_SAMPLES.note_sobang || '';
       var parts = [FACILITY_NOTES.baseFirst];
       if (facilityChoice('sprinkler') === 'yes') parts.push(FACILITY_NOTES.sprinkler);
       if (facilityChoice('hydrant') === 'yes') parts.push(FACILITY_NOTES.hydrant);
@@ -655,7 +717,7 @@ a{text-decoration:none}
     function fillNote(key){
       var el = document.getElementById(key);
       if (!el) return;
-      if (el.value.trim() !== '' && !confirm('이미 적힌 내용을 예시로 바꿀까요?')) return;
+      if (el.value.trim() !== '' && !confirm('현재 문구를 시설현황 기준 문구로 바꿀까요?')) return;
       el.value = key === 'note_sobang' ? currentSobangSample() : (NOTE_SAMPLES[key] || '');
       el.focus();
     }
@@ -764,15 +826,15 @@ a{text-decoration:none}
         <input type="hidden" name="apply_defaults" value="quick">
         <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
         <h2 id="quickSetupTitle">소방시설 기본 설정</h2>
-        <p>두 가지만 알려주세요. 월별 기록에 사용할 점검 문구를 자동으로 준비합니다.</p>
-        <div class="quick-q"><div class="quick-q__head"><span>스프링클러가 있습니까?</span><span class="quick-choices">
+        <p>아직 등록하지 않은 시설 여부를 알려주세요. 월별 기록의 기본 문구를 준비합니다.</p>
+        <?php if(!isset($facilityPrefill['sprinkler'])): ?><div class="quick-q"><div class="quick-q__head"><span>스프링클러가 있습니까?</span><span class="quick-choices">
           <label class="quick-choice"><input type="radio" name="has_sprinkler" value="yes" <?= $sprinkler === 'yes' ? 'checked' : '' ?> required><span>있음</span></label>
           <label class="quick-choice"><input type="radio" name="has_sprinkler" value="no" <?= $sprinkler === 'no' ? 'checked' : '' ?>><span>없음</span></label>
-        </span></div></div>
-        <div class="quick-q"><div class="quick-q__head"><span>옥내소화전이 있습니까?</span><span class="quick-choices">
+        </span></div></div><?php endif; ?>
+        <?php if(!isset($facilityPrefill['hydrant'])): ?><div class="quick-q"><div class="quick-q__head"><span>옥내소화전이 있습니까?</span><span class="quick-choices">
           <label class="quick-choice"><input type="radio" name="has_hydrant" value="yes" <?= $hydrant === 'yes' ? 'checked' : '' ?> required><span>있음</span></label>
           <label class="quick-choice"><input type="radio" name="has_hydrant" value="no" <?= $hydrant === 'no' ? 'checked' : '' ?>><span>없음</span></label>
-        </span></div></div>
+        </span></div></div><?php endif; ?>
         <button class="btn btn--primary quick-submit" type="submit">기본값 저장하고 월별 기록 보기</button>
       </form>
     </div>

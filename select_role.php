@@ -29,6 +29,7 @@ $kakaoId = (string)$_SESSION['kakao_id'];
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
 $CSRF = $_SESSION['csrf'];
 
+require_once __DIR__ . '/manager_common.php';
 $ROLES_FILE = __DIR__ . '/data/kakao_roles.json';
 function load_roles(string $f): array {
   if (!file_exists($f)) return [];
@@ -56,15 +57,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($phone !== '' && !preg_match('/^01[016789][0-9]{7,8}$/', $phone)) {
       $error = '휴대폰 번호 형식이 올바르지 않습니다. (예: 01012345678)';
     } else {
-      $all = load_roles($ROLES_FILE);
-      // 새 형식: 객체로 저장 (role + 연락처). 기존 문자열 형식과 혼재해도 읽는 쪽에서 호환 처리
-      $all[$kakaoId] = ['role' => $role, 'email' => $email, 'phone' => $phone];
-      if (save_roles($ROLES_FILE, $all)) {
+      try {
+      mg_member_tx(function(array &$members) use ($kakaoId,$role,$email,$phone) {
+        $uid = 'kakao_' . $kakaoId;
+        if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$uid)) throw new RuntimeException('회원 식별정보가 올바르지 않습니다.');
+        if (isset($members[$uid])) {
+          if (($members[$uid]['role'] ?? '') !== $role || ($members[$uid]['status'] ?? 'active') !== 'active') throw new RuntimeException('기존 가입 유형을 변경할 수 없습니다.');
+          return;
+        }
+        $ref = mg_registration($members,$uid,$role,(string)($_POST['manager_code'] ?? ''),!empty($_POST['manager_consent']));
+        if (!$ref['ok']) throw new RuntimeException($ref['error']);
+        $members[$uid] = array_merge(['userid'=>$uid,'nickname'=>(string)($_SESSION['nickname'] ?? '사용자'),'role'=>$role,'email'=>$email,'phone'=>$phone,'kakao_id'=>$kakaoId,'joined_via'=>'kakao','status'=>'active','created'=>date('Y-m-d H:i:s'),'last_login'=>date('Y-m-d H:i:s'),'pw_hash'=>''],$ref['fields']);
+      });
+      $rolesSaved = mg_tx($ROLES_FILE, function(array &$all) use ($kakaoId,$role,$email,$phone) {
+        $all[$kakaoId] = ['role'=>$role,'email'=>$email,'phone'=>$phone];
+        return true;
+      });
+      if ($rolesSaved) {
+        $_SESSION['member_id'] = 'kakao_' . $kakaoId;
         $_SESSION['role'] = $role;
         header('Location: ' . role_landing($role)); exit;
       } else {
         $error = '저장에 실패했습니다. 잠시 후 다시 시도하세요.';
       }
+      } catch (Throwable $e) { $error = $e->getMessage(); }
     }
   }
 }
@@ -136,7 +152,7 @@ button:hover{background:var(--brand2)}
         <label class="role">
           <input type="radio" name="role" value="agency">
           <span>
-            <span class="t">대행업체</span><br>
+            <span class="t">매니저</span><br>
             <span class="d">소방 업무를 대행하는 사업자용 화면을 이용합니다.</span>
           </span>
         </label>
@@ -147,6 +163,7 @@ button:hover{background:var(--brand2)}
         <label class="clabel">휴대폰 번호 (선택)</label>
         <input class="cinp" type="tel" name="phone" placeholder="01012345678 (숫자만)" value="<?=h($_POST['phone'] ?? '')?>">
       </div>
+
       <button type="submit">선택 완료</button>
     </form>
     <span class="out"><a href="/logout.php">다른 계정으로 로그인</a></span>

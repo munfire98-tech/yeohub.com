@@ -30,7 +30,7 @@ $ACTIVE     = $ACTIVE ?? '';
 $NAV = [
   'faq'     => ['label' => 'FAQ',    'href' => '/faq.php'],
   'service' => ['label' => '서비스', 'href' => '/service.php'],
-  'blog'    => ['label' => '블로그', 'href' => '/blog.php'],
+  'PRO' => ['label' => 'PRO', 'href' => '/pro_mode.php'],
   'ar'      => ['label' => '피난시뮬레이터',     'href' => '/ar.php'],
 ];
 ?>

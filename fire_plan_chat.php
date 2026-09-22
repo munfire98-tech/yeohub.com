@@ -1,6 +1,8 @@
 <?php
 // 소방계획서 전체 문답. 원본 업무자료는 읽기만 하고 확인한 답변만 저장합니다.
 declare(strict_types=1);
+
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 date_default_timezone_set('Asia/Seoul');
 ini_set('session.cookie_httponly','1');
 if (PHP_VERSION_ID >= 70300) session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']);
@@ -234,13 +236,12 @@ function chooseSources(){
   button('선택한 자료로 시작 →',async()=>{if(await saveSelection())resumeChat();},true);
   button('불러오지 않고 직접 작성',async()=>{if(!await send('sources',[]))return;recordTurn('직접 작성할게요');sourceSummary();resumeChat();});
 }
-function resumeChat(){const resume=codes.find(c=>!skipped(c)&&!data[c]._chat_complete)||'1';enter(resume);if(!data[resume]._chat_complete&&(data[resume]._chat_answers||[]).length){fieldIndex=0;askNext(false);}}
+function resumeChat(){const resume=codes.find(c=>!skipped(c)&&!data[c]._chat_complete);if(resume)enter(resume);else finish();}
 function button(label,fn,primary=false){const b=document.createElement('button');b.type='button';b.className='btn'+(primary?' primary':'');b.textContent=label;b.onclick=()=>{if(!busy)fn();};document.getElementById('actions').appendChild(b);return b;}
 function reviewHtml(rows){return '<dl class="review">'+rows.map(f=>'<div><dt>'+esc(f.label)+'</dt><dd>'+esc(empty(value(f.key))?(answered(f.key)?'해당없음 / 추가 내용 없음':'미입력'):value(f.key))+'</dd></div>').join('')+'</dl>';}
-function quickPresets(f,current){
-  const items=[],seen=new Set(),manager=text(data['1'].mgr_name||'').trim();
+function quickPresets(f){
+  const items=[],seen=new Set();
   const add=(label,val)=>{val=String(val==null?'':val).trim();if(!val||seen.has(val))return;seen.add(val);items.push({label,value:val});};
-  if(!empty(current))add('불러온 내용 사용',text(current));
   const fixed={
     recv_loc:[['1층 방재실','1층 방재실'],['관리사무소','관리사무소'],['경비실','경비실']],
     main_use:[['업무시설','업무시설'],['근린생활시설','근린생활시설'],['공장','공장'],['창고시설','창고시설'],['공동주택','공동주택']],
@@ -254,9 +255,9 @@ function quickPresets(f,current){
     r1_when:[['연 1회','매년 1회'],['상반기','매년 상반기'],['사용승인 월','매년 사용승인 월']],
     r2_when:[['연 1회','매년 1회'],['하반기','매년 하반기'],['사용승인 월','매년 사용승인 월']],
     r3_when:[['매월','매월 1일'],['분기마다','분기 1회'],['반기마다','반기 1회']],
-    r1_who:[['소방안전관리자',manager||'소방안전관리자'],['전문점검업체','전문점검업체'],['관리사무소','관리사무소']],
-    r2_who:[['소방안전관리자',manager||'소방안전관리자'],['전문점검업체','전문점검업체'],['관리사무소','관리사무소']],
-    r3_who:[['소방안전관리자',manager||'소방안전관리자'],['관리사무소','관리사무소'],['시설관리 담당자','시설관리 담당자']],
+    r1_who:[['소방안전관리자','소방안전관리자'],['전문점검업체','전문점검업체'],['관리사무소','관리사무소']],
+    r2_who:[['소방안전관리자','소방안전관리자'],['전문점검업체','전문점검업체'],['관리사무소','관리사무소']],
+    r3_who:[['소방안전관리자','소방안전관리자'],['관리사무소','관리사무소'],['시설관리 담당자','시설관리 담당자']],
     floor_exit:[['1층 주출입구','지상 1층 주출입구'],['주출입구 2개소','지상 1층 주출입구 2개소'],['주출입구와 비상구','지상 1층 주출입구 및 비상구']],
     route:[['계단 이용 후 집결지로','각 층 → 가까운 피난계단 → 1층 주출입구 → 외부 집결지'],['비상계단 우선 이용','각 층 → 가까운 비상계단 → 외부 출입구 → 집결지']],
     weak_plan:[['담당자 1:1 지원','층별 피난보조자를 지정하여 피난약자를 1:1로 지원한다.'],['안전구역 우선 이동','피난약자를 가까운 안전구역으로 먼저 이동시킨 후 구조대에 위치를 알린다.']],
@@ -283,12 +284,14 @@ function quickPresets(f,current){
   }
   if(f.type==='number'&&!/(area|height)/i.test(key)){['0','1','5','10'].forEach(v=>add(v,v));}
   if(f.type==='memo'){
-    const suggested=suggestion(f.key);if(!empty(suggested))add('추천 내용 사용',text(suggested));
     const memo={
+      '3':'불량 발견 즉시 관계인에게 보고하고 안전조치를 실시한 뒤 보수 일정과 방법을 협의하여 조치 결과를 기록한다.',
+      '4':'이상 발견 시 관계인에게 보고하고 필요한 안전조치와 보수를 실시한 뒤 완료 결과를 업무기록에 남긴다.',
       '5':'각 층 재실자는 가까운 피난계단을 이용해 외부 집결지로 이동하고, 층별 담당자는 잔류자를 확인한 뒤 인원 현황을 보고한다.',
       '6':'화재신고, 상황전파, 초기소화, 피난유도, 응급처치 순으로 자체 훈련을 실시한다.',
       '7':'관리 구역과 담당 역할을 사전에 구분하고 비상 시 연락체계와 공동 대응 절차에 따라 조치한다.',
       '8':'관계 대상과 연락망을 공유하고 화재 발생 시 상황전파, 초기대응, 피난유도를 공동으로 실시한다.',
+      '10':'작업 전 가연물을 제거하고 소화기를 비치하며, 작업 중 화재감시자를 배치하고 작업 후 잔불과 주변 이상 유무를 확인한다.',
       '11':'화재 발생 시 인명안전을 최우선으로 상황을 전파하고 초기 대응 후 신속히 대피한다.',
       '12':'위험물은 지정된 장소에 보관하고 취급 전 안전수칙과 소화설비 위치를 확인한다.',
       '13':'교육·훈련 결과와 개선사항을 기록하고 다음 교육계획에 반영한다.',
@@ -296,7 +299,7 @@ function quickPresets(f,current){
     };if(memo[code])add('일반적인 내용 사용',memo[code]);
   }
   if(!fixed[f.key]){
-    if(/담당|책임|관리자|실시자/.test(label)&&manager)add('소방안전관리자',manager);
+    if(/담당|책임|관리자|실시자/.test(label))add('소방안전관리자','소방안전관리자');
     if(/대상|참여/.test(label)){add('전 직원','전 직원');add('자위소방대','자위소방대 전원');}
     if(/방법|방식/.test(label)){add('집합교육','집합교육');add('실습 중심','실습 중심으로 실시');}
     if(/시기|일정|주기/.test(label)){add('연 1회','매년 1회');add('반기 1회','반기 1회');add('필요 시','필요 시 수시');}
@@ -306,7 +309,7 @@ function quickPresets(f,current){
   return items.slice(0,6);
 }
 function renderQuickAnswers(area,input,f,current,onPick,onManual){
-  const picks=quickPresets(f,current),box=document.createElement('div');box.className='quick-answer';
+  const picks=quickPresets(f),box=document.createElement('div');box.className='quick-answer';
   const label=document.createElement('span');label.className='quick-answer__label';label.textContent='자주 쓰는 답변';
   const choices=document.createElement('div');choices.className='quick-answer__choices';box.append(label,choices);
   const buttons=[];
@@ -329,29 +332,25 @@ async function send(act,patch={}) {
 }
 function enter(c){code=c;fieldIndex=0;dirty=false;reviewAll=false;updateProgress();
   if(skipped(c)){card('일반현황에서 해당없음으로 선택한 항목입니다.');button('다음 항목',nextSection,true);return;}
-  const known=fields().filter(f=>!empty(value(f.key)));
-  let note='';
-  if(code==='3') note='<div class="section-note">3급 정기점검은 사용승인 월의 작동점검을 기본으로 제안합니다. 종합점검은 예외 대상이면 포함으로 바꿔주세요. 외관점검 매월 1일은 자체 관리 일정입니다. 최초점검과 법정 대상 여부는 별도 확인이 필요합니다.</div>';
-  card(known.length?'이 내용이 맞나요?':'함께 채워볼까요?',note+'<p class="hint">'+(known.length?'이미 입력한 내용과 제안값을 모았어요. 맞으면 남은 질문만 답하면 됩니다.':'모르는 내용은 나중에 답해도 괜찮아요.')+'</p>'+reviewHtml(known));
-  if(known.length)button('네, 맞아요',async()=>{const p={};known.forEach(f=>p[f.key]=value(f.key));if(await send('answer',p)){recordTurn('확인했어요. 이 내용으로 반영할게요.');askNext(false);}},true);
-  button(known.length?'수정할게요':'시작하기',()=>{fieldIndex=0;askNext(true);},!known.length);
+  if(fields().every(f=>answered(f.key))){card('이 항목은 이미 작성되어 있습니다.','<p class="hint">기존 답변은 문답 화면에 다시 표시하지 않습니다. 다시 작성할 때만 새 답변을 입력해 주세요.</p>');button('새로 다시 작성',()=>{fieldIndex=0;askNext(true);},true);button('다음 항목',nextSection);return;}
+  askNext(false);
 }
 function askNext(all){if(all!==undefined)reviewAll=all;
   const list=fields();while(fieldIndex<list.length && !reviewAll && answered(list[fieldIndex].key))fieldIndex++;
   if(fieldIndex>=list.length){sectionEnd();return;}
-  const f=list[fieldIndex], v=value(f.key);
+  const f=list[fieldIndex], v='';
   const prompts={name:'건물 이름이 어떻게 되나요?',addr:'건물 주소를 알려주세요.',grade:'소방안전관리 등급을 선택해 주세요.',approval:'건물 사용승인일은 언제인가요?',mgr_name:'소방안전관리자 이름을 알려주세요.'};
-  card(prompts[f.key] || (f.label.endsWith('?')||f.label.endsWith('.')?f.label:f.label+' 내용을 알려주세요.'),'<div class="question-meta">이 항목의 '+(fieldIndex+1)+'번째 질문 / '+list.length+'</div><div id="inputArea"></div>'+(f.hint?'<p class="hint">'+esc(f.hint)+'</p>':'')+(!empty(v)?'<p class="hint">내용이 맞으면 바로 다음으로 넘어가세요.</p>':''));
+  card(prompts[f.key] || (f.label.endsWith('?')||f.label.endsWith('.')?f.label:f.label+' 내용을 알려주세요.'),'<div class="question-meta">이 항목의 '+(fieldIndex+1)+'번째 질문 / '+list.length+'</div><div id="inputArea"></div>'+(f.hint?'<p class="hint">'+esc(f.hint)+'</p>':''));
   const area=document.getElementById('inputArea');let read,quickInput=null;
   if(f.type==='multi' || f.type==='choice'){
-    const opts=[...f.options];if(f.type==='multi' && Array.isArray(v))v.forEach(x=>{if(!opts.includes(x))opts.push(x);});
+    const opts=[...f.options];
     area.className='options';area.setAttribute('role','group');area.setAttribute('aria-label',f.label);
-    opts.forEach(o=>{const label=document.createElement('label');label.className='option';const input=document.createElement('input');input.type=f.type==='multi'?'checkbox':'radio';input.name='answer';input.value=o;input.checked=f.type==='multi'?Array.isArray(v)&&v.includes(o):v===o;label.append(input,document.createTextNode(o));area.append(label);
+    opts.forEach(o=>{const label=document.createElement('label');label.className='option';const input=document.createElement('input');input.type=f.type==='multi'?'checkbox':'radio';input.name='answer';input.value=o;input.checked=false;label.append(input,document.createTextNode(o));area.append(label);
       input.addEventListener('change',()=>{dirty=true;if(f.type==='multi'&&input.checked){area.querySelectorAll('input').forEach(other=>{if(other!==input&&(o==='해당없음'||other.value==='해당없음'))other.checked=false;});}if(f.type==='choice')setTimeout(()=>submit(),0);});
       label.addEventListener('click',e=>{if(f.type==='choice'&&e.target===label&&input.checked)setTimeout(()=>submit(),0);});
     });read=()=>{const vs=[...area.querySelectorAll('input:checked')].map(i=>i.value);return f.type==='multi'?vs:vs[0]||'';};
   }else{
-    const input=document.createElement(f.type==='memo'?'textarea':'input');if(f.type!=='memo')input.type=['date','number'].includes(f.type)?f.type:'text';if(f.type==='number'){input.min='0';input.step='any';}input.value=text(v);input.setAttribute('aria-label',f.label);area.append(input);input.addEventListener('input',()=>dirty=true);quickInput=input;read=()=>input.value.trim();
+    const input=document.createElement(f.type==='memo'?'textarea':'input');if(f.type!=='memo')input.type=['date','number'].includes(f.type)?f.type:'text';if(f.type==='number'){input.min='0';input.step='any';}input.value='';input.setAttribute('aria-label',f.label);area.append(input);input.addEventListener('input',()=>dirty=true);quickInput=input;read=()=>input.value.trim();
   }
   const submit=async(blank=false,advance=true)=>{
     const val=blank?(f.type==='multi'?[]:''):read();
@@ -373,7 +372,7 @@ function askNext(all){if(all!==undefined)reviewAll=all;
 }
 function sectionEnd(){
   const missing=fields().filter(f=>!answered(f.key));
-  card(missing.length?'아직 확인할 내용이 남아 있어요.':'이 항목의 내용을 확인해 주세요.',reviewHtml(fields())+(missing.length?'<p class="hint">미확인: '+missing.map(f=>esc(f.label)).join(' · ')+'</p>':''));
+  card(missing.length?'아직 확인할 내용이 남아 있어요.':'이 항목의 작성이 끝났습니다.',missing.length?'<p class="hint">미확인: '+missing.map(f=>esc(f.label)).join(' · ')+'</p>':'<p class="hint">작성한 내용은 소방계획서에 저장되었습니다. 필요하면 아래에서 이 항목을 새로 다시 작성할 수 있습니다.</p>');
   if(!missing.length)button('이 항목 확인 완료',async()=>{if(await send('confirm'))nextSection();},true);
   else button('남은 질문 답하기',()=>{fieldIndex=0;askNext(false);},true);
   button('처음부터 확인·수정',()=>{fieldIndex=0;askNext(true);});button('다음 항목',nextSection);
@@ -407,13 +406,6 @@ document.addEventListener('click',event=>{
 });
 document.getElementById('changeSources').addEventListener('click',()=>{if(busy)return;if(dirty&&!confirm('저장하지 않은 답변을 두고 자료 선택으로 이동할까요?'))return;dirty=false;chooseSources();});
 sourceSummary();
-const savedTurns=[];
-codes.forEach(c=>(data[c]._chat_answers||[]).forEach(k=>{const f=APP.schema[c][k];if(f)savedTurns.push([f.label,data[c][k]]);}));
-if(savedTurns.length){
-  const previous=document.createElement('details');previous.className='saved-chat';
-  const summary=document.createElement('summary');summary.textContent='이전에 저장한 답변 '+savedTurns.length+'개 보기';previous.append(summary);
-  savedTurns.forEach(([q,a])=>{const turn=document.createElement('div');turn.className='chat-turn';const bot=document.createElement('div');bot.className='msg';bot.innerHTML='<div class="msg__av" aria-hidden="true">🚒</div><div class="msg__b chat-bot"></div>';bot.querySelector('.chat-bot').textContent=q;const me=document.createElement('div');me.className='msg msg--me';me.innerHTML='<div class="msg__av" aria-hidden="true">🙂</div><div class="msg__b chat-user"></div>';me.querySelector('.chat-user').textContent=empty(a)?'해당없음':text(a);turn.append(bot,me);previous.append(turn);});document.getElementById('chatLog').append(previous);
-}
 if(APP.selectionSet)resumeChat();else chooseSources();
 </script>
 <?php if (is_file(__DIR__.'/admin_quickmemo_widget.php')) require_once __DIR__.'/admin_quickmemo_widget.php'; ?>

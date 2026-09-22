@@ -6,7 +6,7 @@
      1) 카드 등록창 띄우기        … subscribe_page.php (브라우저, 클라이언트 키)
      2) successUrl 로 돌아옴      … toss_billing_return.php
      3) 빌링키 발급              … tb_issue_billing_key()   ★ 이 키를 저장
-     4) 매달 결제 승인            … tb_charge()
+     4) 매년 결제 승인            … tb_charge()
 
    중요
      · 빌링키는 한 번 발급되면 다시 조회할 수 없습니다. 반드시 저장하세요.
@@ -16,6 +16,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/user_key.php';
+require_once __DIR__ . '/manager_common.php';
+require_once __DIR__.'/annual_plan.php';
 
 /* ── 설정 읽기 ───────────────────────────────────────────── */
 function tb_conf(): array {
@@ -142,8 +144,24 @@ function tb_issue_billing_key(string $authKey, string $customerKey): array {
 }
 
 /* ── 4) 결제 승인 ────────────────────────────────────────── */
-/** 저장해 둔 빌링키로 결제를 냅니다. 매달 이 함수를 호출하면 됩니다. */
+/** 저장해 둔 빌링키로 결제를 냅니다. 매년 이 함수를 호출하면 됩니다. */
 function tb_charge(int $amount, string $orderName): array {
+  $deny=static fn(string $message)=>['ok'=>false,'blocked'=>true,'code'=>0,'body'=>[],'error'=>$message];
+  if($amount!==AP_PRICE)return $deny('연간 결제 금액은 59,000원입니다. 이전 월간/연간 요금 결제는 중단되었습니다.');
+  if(!empty($_SESSION['_imp']))return $deny('대리 편집 중에는 결제할 수 없습니다.');
+  $dir=tb_dir();if($dir==='')return $deny('로그인 정보를 확인해 주세요.');
+  $lock=fopen($dir.'/annual_charge.lock','c+');
+  if(!$lock||!flock($lock,LOCK_EX))return $deny('결제 처리 중입니다. 잠시 후 확인해 주세요.');
+  try{
+    $current=tb_read();$status=(string)($current['status']??'');
+    if($status==='refund_pending')return $deny('환불 처리 중에는 새 결제를 할 수 없습니다.');
+    $end=(string)($current['expires_at']??$current['next_billing']??$current['next_at']??'');
+    if(($status==='active'||($status==='payment_failed'&&!empty($current['paid_at'])&&!in_array($current['failed_from_status']??'', ['canceled','refunded','expired'],true)))&&($end===''||strtotime($end)===false||strtotime($end)>time()))
+      return $deny('이미 결제한 이용기간이 남아 있습니다. 만료 후 연간 결제를 진행해 주세요.');
+    return tb_charge_annual_locked(AP_PRICE, AP_PLANS['yearly']['name']);
+  }finally{flock($lock,LOCK_UN);fclose($lock);}
+}
+function tb_charge_annual_locked(int $amount, string $orderName): array {
   $d  = tb_read();
   $bk = trim((string)($d['billing_key'] ?? ''));
   $ck = trim((string)($d['customer_key'] ?? ''));
@@ -161,6 +179,9 @@ function tb_charge(int $amount, string $orderName): array {
     'orderName'   => $orderName,
   ]);
 
+  if ($res['ok'] && (($res['body']['status'] ?? '') !== 'DONE' || ($res['body']['orderId'] ?? '') !== $orderId || (int)($res['body']['totalAmount'] ?? 0) !== $amount || empty($res['body']['paymentKey']))) {
+    $res['ok'] = false; $res['error'] = '결제 응답 확인이 필요합니다. 다시 결제하지 말고 관리자에게 문의해 주세요.';
+  }
   /* 성공·실패 모두 이력을 남깁니다 */
   $d = tb_read();
   $hist = is_array($d['history'] ?? null) ? $d['history'] : [];
@@ -169,6 +190,7 @@ function tb_charge(int $amount, string $orderName): array {
     'amount'  => $amount,
     'name'    => $orderName,
     'orderId' => $orderId,
+    'paymentKey' => $res['ok'] ? (string)$res['body']['paymentKey'] : '',
     'ok'      => $res['ok'],
     'msg'     => $res['ok'] ? '결제 완료' : $res['error'],
     'test'    => !tb_is_live(),
@@ -176,16 +198,31 @@ function tb_charge(int $amount, string $orderName): array {
   $d['history'] = array_slice($hist, 0, 50);
 
   if ($res['ok']) {
+    $d['last_payment_key'] = (string)$res['body']['paymentKey'];
+    $live = tb_is_live() && strpos(tb_conf()['secret'], 'live_') === 0;
+    if ($live && empty($d['manager_first_payment'])) {
+      $d['manager_first_payment'] = ['status'=>'DONE','live'=>true,'amount'=>$amount,'payment_key'=>$d['last_payment_key'],'order_id'=>$orderId,'at'=>date('c')];
+    }
     $d['status']     = 'active';
     $d['paid_at']    = date('Y-m-d H:i:s');
-    $d['next_at']    = date('Y-m-d', strtotime('+1 month'));
+    $d['plan']='yearly';$d['plan_name']=AP_PLANS['yearly']['name'];$d['price']=AP_PRICE;
+    $d['bill_day']=(int)date('j');
+    $d['next_at']=tb_next_billing(date('Y-m-d'),AP_MONTHS,$d['bill_day']);
+    $d['next_billing']=$d['next_at'];$d['expires_at']=$d['next_at'];
+    $d['next_billing_at']=$d['next_at'].' 00:00:00';
+    unset($d['plan_change'],$d['failed_from_status']);
     $d['last_error'] = '';
   } else {
+    if(($d['status']??'')!=='payment_failed')$d['failed_from_status']=(string)($d['status']??'none');
     $d['status']     = 'payment_failed';
     $d['last_error'] = $res['error'];
   }
-  tb_write($d);
-
+  $saved = tb_write($d);
+  if (!$saved) error_log('Billing subscription persistence failed; reconciliation required.');
+  if ($res['ok'] && !empty($d['manager_first_payment'])) {
+    try { mg_award(app_user_key(),$d['manager_first_payment']); }
+    catch (Throwable $e) { error_log('Manager reward deferred: '.$e->getMessage()); }
+  }
   return $res;
 }
 
@@ -196,4 +233,16 @@ function tb_cancel(): bool {
   $d['status']       = 'canceled';
   $d['canceled_at']  = date('Y-m-d H:i:s');
   return tb_write($d);
+}
+
+/* 월말 결제일은 대상 월의 마지막 날로 제한합니다. */
+if (!function_exists('tb_next_billing')) {
+  function tb_next_billing(string $from, int $months, int $billDay): string {
+    $base = DateTimeImmutable::createFromFormat('!Y-m-d', $from);
+    if (!$base || $base->format('Y-m-d') !== $from || $months < 1 || $billDay < 1 || $billDay > 31) {
+      throw new InvalidArgumentException('결제일 계산 값이 올바르지 않습니다.');
+    }
+    $month = $base->modify('first day of this month')->modify('+'.$months.' months');
+    return $month->setDate((int)$month->format('Y'),(int)$month->format('m'),min($billDay,(int)$month->format('t')))->format('Y-m-d');
+  }
 }

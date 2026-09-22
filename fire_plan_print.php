@@ -3,6 +3,8 @@
 //   입력한 15개 법정항목(시행령 제27조 1항)을 하나의 문서로 조립합니다.
 declare(strict_types=1);
 
+
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
 session_start();
@@ -397,3 +399,4 @@ table.d td{color:#243247;word-break:break-word;overflow-wrap:anywhere}
 <?php require_once __DIR__ . '/admin_quickmemo_widget.php'; ?>
 </body>
 </html>
+

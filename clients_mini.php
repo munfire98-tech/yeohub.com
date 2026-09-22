@@ -112,6 +112,16 @@ $COMPANY_NAME = trim((string)($SETTINGS['company'] ?? '')) !== ''
   ? trim((string)$SETTINGS['company'])
   : '거래처 관리 시스템';
 // buildings는 객체형(associative array) — client_id가 키
+/* 매니저와 연결된 유저 화면이 동일한 회원 이름을 사용합니다. */
+require_once __DIR__.'/manager_common.php';
+$managerHeaderName=null;
+try {
+  $headerUid=mg_uid();$headerMembers=mg_members();
+  if($headerUid!==''&&mg_active($headerMembers[$headerUid]??[],'agency'))
+    $managerHeaderName=(string)($headerMembers[$headerUid]['nickname']??$headerUid);
+}catch(Throwable $e){error_log('Manager header: '.$e->getMessage());}
+$headerTitle=$managerHeaderName!==null?$managerHeaderName.' 매니저':$COMPANY_NAME;
+
 $_braw = @file_get_contents($BUILDINGS_FILE);
 $buildings = ($_braw && trim($_braw)!=='') ? (json_decode($_braw, true) ?? []) : [];
 
@@ -1060,11 +1070,6 @@ usort($tasks_view, function($a,$b){
   $da=$a['due']??''; $db=$b['due']??''; if($da===$db) return 0; if($da===''||$db==='') return $da===''?1:-1; return strcmp($da,$db);
 });
 $task_total=count($tasks); $task_open=0; foreach($tasks as $t) if(empty($t['done'])) $task_open++;
-/* ── 자위소방대 편성표 전용 페이지 ── */
-if (($_GET['view'] ?? '') === 'fire') {
-  require __DIR__.'/fire_page.php';
-  exit;
-}
 
 /* ── 구독/결제 페이지 ── */
 if (($_GET['view'] ?? '') === 'subscribe') {
@@ -1077,13 +1082,15 @@ if (($_GET['view'] ?? '') === 'subscribe') {
 
 
 ?>
-<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title><?=h($COMPANY_NAME)?></title>
-
+<?php
+$PAGE_TITLE=$headerTitle;$NAV_MODE='account';$IS_LOGGED_IN=true;
+$ACCOUNT_NICK=$_SESSION['nickname']??'매니저';
+$ACCOUNT_IS_ADMIN=function_exists('is_admin')?is_admin():false;
+ob_start();require __DIR__.'/_header.php';$managerHeaderMarkup=ob_get_clean();
+$managerHeaderMarkup=str_replace('href="/notifications.php"','href="#manager-sidebar" data-ms-open="notifications"',$managerHeaderMarkup);
+$managerHeaderParts=explode('</head>',$managerHeaderMarkup,2);
+echo $managerHeaderParts[0];
+?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -2001,248 +2008,71 @@ select option { background: var(--bg3); }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-</head>
-<body>
+<link rel="stylesheet" href="/manager_sidebar.css?v=8">
+<style>
+#map .leaflet-control-attribution{margin:0;padding:3px 7px;background:rgba(255,255,255,.94);color:#475569;border-radius:6px 0 0 0;font:11px/1.5 system-ui,sans-serif;box-shadow:0 -1px 4px rgba(15,23,42,.06)}
+#map .leaflet-control-attribution a{color:#334155;text-decoration:underline;text-underline-offset:2px}
+#map .leaflet-control-attribution a:hover{color:#0f172a}
+#map .leaflet-control-attribution a:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+</style>
+<style>
+body .new-header{position:relative;top:auto;z-index:20}body .nav{z-index:300}
+body .main{max-width:1680px;margin:20px auto;padding:0 24px}
+body .main-cols{grid-template-columns:minmax(0,1fr) 370px;gap:20px;align-items:start}
+.focus-map{min-width:0;border:1px solid var(--bd);border-radius:16px;overflow:hidden;background:#fff}
+.focus-map-head{padding:18px 20px;border-bottom:1px solid var(--bd)}
+.focus-map-head h2{margin:0;font-size:17px;color:var(--fg)}
+.focus-map-head p{margin:6px 0 0;font-size:12px;color:var(--sub)}
+body .focus-map #map{height:calc(100dvh - 190px)!important;min-height:430px;margin:0;border-radius:0}
+body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
+@media(max-width:960px){body .main-cols{grid-template-columns:minmax(0,1fr)}body .main{padding:0 14px;margin:14px auto}body .focus-map #map{height:48dvh!important;min-height:300px}body .inactive-panel.ms-sidebar{max-height:none}body #ms-clients .inactive-panel-list{max-height:420px}}
+</style>
+<link rel="stylesheet" href="/manager_polish.css?v=9">
+<link rel="stylesheet" href="/manager_payout.css?v=1">
+</head><?= $managerHeaderParts[1] ?? '<body>' ?>
 
+    <?php require_once __DIR__.'/manager_sidebar.php';
+    try {$ms=ms_data();}catch(Throwable $e){$ms=['available'=>false];error_log('Manager sidebar: '.$e->getMessage());}
+    $msReady=!empty($ms['available']); ?>
 <header class="new-header">
   <!-- 1행: 브랜드 + KPI + 홈 -->
   <div class="nh-row1">
     <div class="nh-brand">
-      <div class="nh-icon">🗺</div>
-      <span><?=h($COMPANY_NAME)?></span>
-      <button type="button" onclick="editCompanyName()" title="상호명 변경"
+      <div class="nh-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 21V5l8-2v18M12 9h8v12M2 21h20M7 7h2M7 11h2M7 15h2M15 12h2M15 16h2"/></svg></div>
+      <span class="manager-identity"><strong><?=h($headerTitle)?></strong></span>
+      <button type="button" onclick="<?=$managerHeaderName!==null?'editManagerName()':'editCompanyName()'?>" title="<?=$managerHeaderName!==null?'매니저 이름 변경':'상호명 변경'?>" aria-label="<?=$managerHeaderName!==null?'매니저 이름 변경':'상호명 변경'?>"
         style="margin-left:6px;border:1px solid var(--bd2);background:var(--card2);color:var(--mut);border-radius:6px;cursor:pointer;font-size:11px;padding:2px 7px">✎</button>
     </div>
-    <div class="nh-kpis">
-      <div class="nh-kpi">
-        <span class="nh-kpi-l">월</span>
-        <span class="nh-kpi-v"><?=h($ym)?></span>
-      </div>
-      <div class="nh-kpi">
-        <span class="nh-kpi-l">할 일</span>
-        <span class="nh-kpi-v"><?=h((string)$task_open)?><span style="opacity:.4;font-weight:400">/</span><?=h((string)$task_total)?></span>
-      </div>
-      <button type="button" class="nh-kpi" onclick="openClientModal()" title="새 거래처 등록 (최대 200)"
-        style="border:1px solid var(--accent)!important;border-radius:var(--r-sm);cursor:pointer;font-family:inherit;background:var(--accent-dim);margin-left:10px">
-        <span class="nh-kpi-l" style="color:var(--accent)">+ 거래처등록</span>
-        <span class="nh-kpi-v" style="color:var(--accent)"><?= count($clients) ?><span style="opacity:.4;font-weight:400">/200</span></span>
-      </button>
-    </div>
-    <a class="nh-home" href="index.php">← 메인으로</a>
-  </div>
-  <!-- 2행: 탭 + 월이동 + 강조필터 -->
-  <div class="nh-row2">
-    <div class="nh-months">
-      <a href="?m=<?=h($prevYm)?>&type=<?=h($type)?>" class="nh-mbtn">◀ <?=h(substr($prevYm,5))?>월</a>
-      <a href="?m=<?=h(date('Y-m'))?>&type=<?=h($type)?>" class="nh-mbtn on">이번달</a>
-      <a href="?m=<?=h($nextYm)?>&type=<?=h($type)?>" class="nh-mbtn"><?=h(substr($nextYm,5))?>월 ▶</a>
-      <button type="button" class="nh-mbtn" onclick="openPrevMonthModal()" title="전월 점검/방문 목록">
-        📋 전월현황
-      </button>
-      <button type="button" class="nh-mbtn" onclick="openEstimateModal()" title="견적서 작성">
-        📄 견적서
-      </button>
-      <a href="?view=fire" class="nh-mbtn" title="자위소방대 편성표 작성">
-        🧯 소방편성표
-      </a>
-      <a href="?view=subscribe" class="nh-mbtn nh-mbtn--accent" title="구독 / 결제">
-        💳 구독하기
-      </a>
-      <?php if (count($ghostClients) > 0): ?>
-      <button type="button" class="nh-mbtn" onclick="openGhostModal()" title="지도 좌표 없는 거래처">
-        👻 유령 <?= count($ghostClients) ?>개
-      </button>
-      <?php endif; ?>
-    </div>
-    <div class="nh-vdiv"></div>
-    <div class="nh-pills" style="margin-left:auto">
-      <?php
-        $ftabs = ['visit'=>'방문','inspect'=>'점검','as'=>'AS','report'=>'보고서','submit'=>'이행완료','plan'=>'📅 방문예정'];
-        foreach ($ftabs as $t=>$label):
-      ?>
-        <a class="nh-pill <?= $t===$type?'on':'' ?>"
-           href="?m=<?=h($ym)?>&type=<?=h($t)?>"><?=h($label)?></a>
-      <?php endforeach; ?>
-    </div>
+    <?php if($msReady): ?><div class="manager-header-code"><?php ms_render_code($ms); ?></div><?php endif; ?>
+    <?php if($msReady): ?><button type="button" class="manager-header-wallet" data-wallet-open aria-haspopup="dialog" aria-controls="manager-wallet-dialog"><span class="header-wallet-icon" aria-hidden="true"><?=mg_icon('coin')?></span><span class="header-wallet-label">파이어코인<small>적립 내역 보기</small></span><strong><?=number_format((int)$ms['balance'])?><small>개</small></strong><span aria-hidden="true" class="wallet-chevron">›</span></button><?php endif; ?>
   </div>
 </header>
+<?php if($msReady)ms_render_wallet($ms); ?>
 
 
 
 <div class="main">
   <div class="main-cols">
 
-    <!-- 좌측: D-DAY 패널 + 아이템 가방 -->
-    <div style="display:flex;flex-direction:column;gap:14px">
-    <div class="dday-panel">
-      <div class="dday-panel-head">
-        <h3>📅 D-DAY</h3>
-        <div style="font-size:11px;color:var(--sub)"><?= count($ddayClients) ?>개 설정됨</div>
-      </div>
-      <div class="dday-panel-list" id="dd-list">
-        <?php if (empty($ddayClients)): ?>
-          <div class="dd-empty">설정된 D-DAY가 없습니다.<br><span style="font-size:10px;color:var(--sub)">거래처 클릭 → 📅 D-DAY</span></div>
-        <?php else: ?>
-          <?php foreach ($ddayClients as $dd):
-            $diff = $dd['diff'];
-            $label = $diff===0 ? 'D-DAY' : ($diff>0 ? "D-{$diff}" : "D+".abs($diff));
-            $cls   = $diff===0 ? 'today' : ($diff>0 && $diff<=7 ? 'soon' : ($diff>0 ? 'future' : 'past'));
-          ?>
-          <div class="dd-row" onclick="focusOnClient('<?=h($dd['id'])?>')" title="지도에서 보기">
-            <div class="dd-badge <?=h($cls)?>"><?=h($label)?></div>
-            <div class="dd-info">
-              <div class="dd-name"><?=h($dd['name'])?></div>
-              <div class="dd-date"><?=h($dd['dday'])?></div>
-            </div>
-            <button class="dd-edit" onclick="event.stopPropagation();openDdayModal('<?=h($dd['id'])?>')" title="D-DAY 수정">✏️</button>
-          </div>
-          <?php endforeach; ?>
-        <?php endif; ?>
-      </div>
-    </div><!-- /dday-panel -->
-
-    <!-- 아이템 가방 -->
-    <div class="qf-panel" id="qf-panel">
-      <div class="qf-head">
-        <h3>📁 자료실</h3>
-        <div style="display:flex;gap:5px;align-items:center">
-          <button class="qf-add-btn" onclick="qfOpenAddModal()">＋ 추가</button>
-          <button class="qf-add-btn" onclick="qfOpenGroupModal()">폴더</button>
-        </div>
-      </div>
-      <div class="qf-groups" id="qf-groups-bar"></div>
-      <div class="qf-grid" id="qf-grid"></div>
-      <div class="qf-footer">
-        <button class="qf-edit-btn" id="qf-edit-btn" onclick="qfToggleEdit()">편집</button>
-        <span class="qf-count" id="qf-count"></span>
-      </div>
-    </div>
-
-    </div><!-- /left-col wrapper -->
-
-    <!-- 가운데: 지도 + 달력 -->
-    <div>
-      <div id="map" style="border-radius:var(--r-lg);overflow:hidden"></div>
-
-      <!-- 달력 (Pro) -->
-      <div class="card cal-pro" style="margin-top:16px">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <button type="button" id="ms-toggle" onclick="msToggle()"
-              style="font-size:12px;padding:6px 12px;border-radius:7px;border:2px solid #ddd6fe;background:#f5f3ff;color:#7c3aed;cursor:pointer;font-weight:700">
-              📌 여러 날 선택 배정
-            </button>
-            <span id="ms-info" style="display:none;font-size:12px;color:var(--mut)">
-              <b id="ms-count" style="color:var(--accent)">0</b>일 선택됨
-              · 하루 <input type="number" id="ms-perday" value="5" min="1" max="30" style="width:50px;padding:4px;border-radius:6px;border:1px solid var(--bd2);background:var(--card2);color:var(--fg)">곳
-            </span>
-          </div>
-          <div style="display:flex;gap:6px">
-            <button type="button" id="ms-assign" onclick="msAssign()" style="display:none;font-size:12px;padding:6px 12px;border-radius:7px;border:2px solid #16a34a;background:#ecfdf3;color:#15803d;cursor:pointer;font-weight:700">선택한 날에 배정</button>
-            <button type="button" onclick="clearWholeMonth()"
-              style="font-size:11px;padding:6px 10px;border-radius:7px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;cursor:pointer">
-              🗑️ <?=h($ym)?> 전체 비우기
-            </button>
-          </div>
-        </div>
-        <div class="cal-head">
-          <?php foreach (['일','월','화','수','목','금','토'] as $wi=>$w): ?>
-            <div style="<?=$wi===0?'color:#ff5252':($wi===6?'color:#60a5fa':'')?>;"><?=h($w)?></div>
-          <?php endforeach; ?>
-        </div>
-        <div id="cal-grid" class="grid"></div>
-        <div class="legend">
-          <span class="chip visit">방문</span>
-          <span class="chip inspect">점검</span>
-          <span class="chip as">AS</span>
-          <span class="chip report">보고서</span>
-          <span class="chip submit">이행완료</span>
-          <span style="margin-left:auto;font-size:11px;opacity:.6">클릭 → 날짜 메모 / 이벤트 상세</span>
-        </div>
-      </div>
-    </div>
+    <section class="focus-map" aria-label="담당 건물 지도">
+      <link rel="stylesheet" href="/manager_map.css?v=3">
+      <div id="map"></div>
+    </section>
 
     <!-- 우측: 이번 달 미등록 마을 -->
-    <div class="inactive-panel">
-      <div class="inactive-panel-head">
-        <h3 id="ip-title">📋 미등록 거래처</h3>
-        <div class="ip-meta">
-          <?=h($ym)?> · <span id="ip-count"><?= count($inactiveClients) ?></span>개
-          <span style="color:var(--sub)"> / 전체 <?= count($clients) ?></span>
-        </div>
-      </div>
-      <div class="ip-tabs">
-        <button type="button" class="ip-tab active" data-tab="unreg" onclick="switchIpTab('unreg')">미등록 <span class="ip-tab-n"><?= count($inactiveClients) ?></span></button>
-        <button type="button" class="ip-tab" data-tab="all" onclick="switchIpTab('all')">전체 <span class="ip-tab-n"><?= count($clients) ?></span></button>
-      </div>
-      <div class="inactive-panel-search">
-        <input type="text" id="ip-search" placeholder="이름 검색…" oninput="filterInactive(this.value)">
-      </div>
 
-      <!-- 미등록 목록 -->
-      <div class="inactive-panel-list" id="ip-list">
-        <?php if (empty($inactiveClients)): ?>
-          <div class="ip-empty">🎉 이번 달 모든 마을에<br>등록이 완료되었습니다!</div>
-        <?php else: ?>
-          <?php foreach ($inactiveClients as $ic): ?>
-            <div class="ip-row" data-id="<?=h($ic['id'])?>" data-name="<?=h(mb_strtolower($ic['name']??''))?>"
-                 onclick="focusOnClient('<?=h($ic['id'])?>')" title="지도에서 보기">
-              <div style="min-width:0;flex:1">
-                <div class="ip-name"><?=h($ic['name']??'')?></div>
-                <?php if (!empty($ic['address']??$ic['addr']??'')): ?>
-                  <div class="ip-addr"><?=h($ic['address']??$ic['addr']??'')?></div>
-                <?php endif; ?>
-              </div>
-              <div class="ip-actions" onclick="event.stopPropagation()">
-                <button class="ip-btn" onclick="openVisitFor('<?=h($ic['id'])?>','<?=h(addslashes($ic['name']??''))?>')" title="일정 등록">＋</button>
-                <button class="ip-btn" onclick="openPlanFor('<?=h($ic['id'])?>','<?=h(addslashes($ic['name']??''))?>')" title="방문예정" style="color:#a78bfa;border-color:#2e1570">📅</button>
-              </div>
-            </div>
-          <?php endforeach; ?>
-        <?php endif; ?>
+    <aside class="inactive-panel ms-sidebar" id="manager-sidebar" data-initial-pending="<?=h((string)($ms['pending']??0))?>">
+      <div class="ms-head"><div><small>MY WORKSPACE</small><h3>내 워크스페이스</h3></div></div>
+      <div class="ms-tabs" role="tablist" aria-label="관리 패널">
+      <?php if($msReady): ?><button type="button" id="ms-tab-users" role="tab" aria-controls="ms-users" aria-selected="true" data-ms-tab="users">담당 유저</button><?php endif; ?>
+      <?php if($msReady): ?><button type="button" id="ms-tab-notifications" role="tab" aria-controls="ms-notifications" aria-selected="false" data-ms-tab="notifications">알림 <b class="ms-request-badge" data-request-badge <?=empty($ms['pending'])?'hidden':''?>><?=$ms['pending']??0?></b></button><?php endif; ?>
+      <?php if($msReady): ?><button type="button" id="ms-tab-months" role="tab" aria-controls="ms-months" aria-selected="false" data-ms-tab="months">사용승인월</button><?php endif; ?>
       </div>
-
-      <!-- 전체 목록 (기본 숨김) -->
-      <div class="inactive-panel-list" id="ip-list-all" style="display:none">
-        <?php if (empty($allClientsSorted)): ?>
-          <div class="ip-empty">등록된 거래처가 없습니다.</div>
-        <?php else: ?>
-          <?php foreach ($allClientsSorted as $ac): ?>
-            <?php $acId = (string)($ac['id']??''); $isDone = isset($activeThisMonth[$acId]); ?>
-            <div class="ip-row<?= $isDone ? ' ip-done' : '' ?>" data-id="<?=h($acId)?>" data-name="<?=h(mb_strtolower($ac['name']??''))?>"
-                 onclick="focusOnClient('<?=h($acId)?>')" title="지도에서 보기">
-              <div style="min-width:0;flex:1">
-                <div class="ip-name">
-                  <?php if ($isDone): ?><span class="ip-check" title="이번 달 등록 완료">✓</span><?php endif; ?>
-                  <?=h($ac['name']??'')?>
-                </div>
-                <?php if (!empty($ac['address']??$ac['addr']??'')): ?>
-                  <div class="ip-addr"><?=h($ac['address']??$ac['addr']??'')?></div>
-                <?php endif; ?>
-              </div>
-              <div class="ip-actions" onclick="event.stopPropagation()">
-                <button class="ip-btn" onclick="openVisitFor('<?=h($acId)?>','<?=h(addslashes($ac['name']??''))?>')" title="일정 등록">＋</button>
-                <button class="ip-btn" onclick="openPlanFor('<?=h($acId)?>','<?=h(addslashes($ac['name']??''))?>')" title="방문예정" style="color:#a78bfa;border-color:#2e1570">📅</button>
-              </div>
-            </div>
-          <?php endforeach; ?>
-        <?php endif; ?>
-      </div>
-    </div>
+      <?php if($msReady): ?><div class="ms-slide-controls"><button type="button" data-slide-prev aria-label="이전 탭">‹</button><span>좌우로 넘겨 확인하세요</span><button type="button" data-slide-next aria-label="다음 탭">›</button></div><?php ms_render($ms); endif; ?>
+      <?php if(!$msReady): ?><p class="ip-empty">담당 유저 정보를 불러올 수 없습니다. 잠시 후 새로고침해 주세요.</p><?php endif; ?>
+    </aside>
   </div>
 </div>
-
-<!-- 하단 일괄처리 액션바 -->
-<div id="bulk-action-bar">
-  <div id="bulk-count"><span id="bulk-count-num">0</span>개 선택됨</div>
-  <input type="date" id="bulk-date" style="padding:8px 10px;border-radius:8px;border:1px solid #e3e8f0;background:#ffffff;color:#1a2436;font-size:13px;">
-  <button class="bulk-act-btn visit"  onclick="bulkAction('visit','add')">✓ 방문</button>
-  <button class="bulk-act-btn inspect" onclick="bulkAction('inspect','add')">✓ 점검</button>
-  <button class="bulk-act-btn as"     onclick="bulkAction('as','inc')">＋ AS</button>
-  <button class="bulk-act-btn plan"   onclick="bulkAction('plan','add')">📅 방문예정</button>
-  <button class="bulk-act-btn cancel" onclick="exitSelectMode()">취소</button>
-</div>
-
 
 <!-- ★ 방문예정 등록 모달 -->
 <dialog id="planModal" style="min-width:min(92vw,340px)">
@@ -2826,6 +2656,14 @@ const INSPECTED_THIS_MONTH = <?= json_encode(array_keys($inspectedThisMonth), JS
 const PLANNED_THIS_MONTH = <?= json_encode(array_keys($plannedThisMonth), JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) ?>.reduce((m,id)=>{m[id]=true;return m;},{});
 const CSRF = <?= json_encode($CSRF) ?>;
 const COMPANY_NAME = <?= json_encode($COMPANY_NAME) ?>;
+const MANAGER_HEADER_NAME = <?=json_encode($managerHeaderName,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_INVALID_UTF8_SUBSTITUTE)?>;
+async function editManagerName(){
+  const name=prompt('매니저 이름을 입력하세요. (최대 30자)\n연결된 유저의 담당 매니저 이름에도 반영됩니다.',MANAGER_HEADER_NAME||'');
+  if(name===null)return;
+  const fd=new FormData();fd.append('csrf',CSRF);fd.append('name',name);
+  try{const response=await fetch('/manager_profile.php',{method:'POST',credentials:'same-origin',body:fd});const result=await response.json();if(response.ok&&result.ok)location.reload();else alert(result.message||'이름을 저장하지 못했습니다.');}
+  catch{alert('저장 결과를 확인하지 못했습니다. 새로고침 후 이름을 확인해 주세요.');}
+}
 async function editCompanyName(){
   const cur = (COMPANY_NAME && COMPANY_NAME !== '거래처 관리 시스템') ? COMPANY_NAME : '';
   const name = prompt('상호명(회사명)을 입력하세요.\n화면 상단·견적서·보고서 표지 등에 표시됩니다.', cur);
@@ -3144,7 +2982,7 @@ function refreshDdayPanel() {
 }
 
 /* ─── 미등록/전체 탭 전환 ─── */
-let _ipTab = 'unreg';   // unreg | all
+let _ipTab = 'all';   // unreg | all
 function switchIpTab(tab) {
   _ipTab = tab;
   document.querySelectorAll('.ip-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
@@ -3442,7 +3280,8 @@ function openDayNotes(dateStr){
 // ===== 지도 =====
 let map, markers, group, CURRENT_EDIT_ID = null;
 map = L.map('map', { zoomControl:true, attributionControl:true });
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
+map.attributionControl.setPrefix(false);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'}).addTo(map);
 markers = new Map(); group = L.featureGroup().addTo(map);
 
 function escapeHtmlLocal(s){ return (s+'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
@@ -3490,26 +3329,8 @@ function ddayClass(diff) {
 }
 
 function rebuildIcon(c, selected) {
-  const cls = selected ? ' selected' : getMarkerCls(c.id);
-  const unregBadge = (cls === ' unreg') ? '<span class="unreg-badge">미방문</span>' : '';
-  /* 메모가 있으면 마커에 표시를 붙인다. '중요'면 붉게 깜빡인다. */
-  const hasMemo = !!(c.memo && String(c.memo).trim());
-  const memoPin = hasMemo
-    ? `<span class="memo-pin${c.flag ? ' important' : ''}" title="${escapeHtmlLocal(String(c.memo).slice(0,60))}">!</span>`
-    : '';
-  const tipMemo = hasMemo ? '\n📌 '+String(c.memo).slice(0,60) : '';
-  const bubble = `<div class="bubble${cls}" title="${escapeHtmlLocal(c.name)}${c.addr?' · '+escapeHtmlLocal(c.addr):''}${escapeHtmlLocal(tipMemo)}">
-    <span class="dot"></span><span class="txt">${escapeHtmlLocal(c.name)}</span>${unregBadge}${memoPin}</div>`;
-
-  let html;
-  if (c.dday) {
-    const diff = calcDday(c.dday);
-    const tag = `<div class="dday-tag ${ddayClass(diff)}">${ddayLabel(diff)}</div>`;
-    html = `<div class="name-marker-wrap">${tag}${bubble}</div>`;
-  } else {
-    html = bubble;
-  }
-  return L.divIcon({ className:'name-marker', html, iconSize:null, iconAnchor:[12,12] });
+  const html = `<div class="bubble"><span class="dot"></span><span class="txt">${escapeHtmlLocal(c.name || '거래처')}</span></div>`;
+  return L.divIcon({className:'name-marker', html, iconSize:null, iconAnchor:[12,12]});
 }
 
 function updateActionBar() {
@@ -3581,72 +3402,12 @@ window.bulkAction = function(kind, action) {
 
 function putMarker(c) {
   const {id, lat, lng} = c; if (lat==null||lng==null) return;
-  const m = L.marker([lat,lng], { icon: rebuildIcon(c,false), zIndexOffset:200 }).addTo(map);
-
-  let pressTimer = null;
-  let longPressed = false;
-
-  // ── PC: mousedown / mouseup ──
-  m.on('mousedown', e => {
-    longPressed = false;
-    pressTimer = setTimeout(() => {
-      longPressed = true;
-      pressTimer = null;
-      enterSelectMode(id);
-    }, 500);
-  });
-  m.on('mouseup', e => {
-    if (pressTimer !== null) {
-      clearTimeout(pressTimer); pressTimer = null;
-      if (!longPressed) {
-        if (selectMode) toggleSelect(id);
-        else openVisitFor(id, c.name||'');
-      }
-    }
-  });
-  m.on('mousemove', () => {
-    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-  });
-
-  // ── 모바일: DOM 레벨 touch 이벤트 (Leaflet 우회) ──
-  const el = m.getElement ? null : null; // getElement는 addTo 후 사용
-  function attachTouch() {
-    const el = m.getElement();
-    if (!el) return;
-    let tTimer = null;
-    let tLong = false;
-
-    el.addEventListener('touchstart', e => {
-      tLong = false;
-      tTimer = setTimeout(() => {
-        tLong = true;
-        tTimer = null;
-        // 진동 피드백 (지원 기기)
-        if (navigator.vibrate) navigator.vibrate(50);
-        enterSelectMode(id);
-      }, 500);
-    }, { passive: true });
-
-    el.addEventListener('touchend', e => {
-      if (tTimer !== null) {
-        clearTimeout(tTimer); tTimer = null;
-        if (!tLong) {
-          e.preventDefault();
-          if (selectMode) toggleSelect(id);
-          else openVisitFor(id, c.name||'');
-        }
-      }
-    });
-
-    el.addEventListener('touchmove', () => {
-      if (tTimer) { clearTimeout(tTimer); tTimer = null; }
-    }, { passive: true });
-  }
-
-  // getElement()는 지도에 추가된 후 사용 가능
-  m.on('add', attachTouch);
-
-  markers.set(id, m); group.addLayer(m);
+  const m = L.marker([lat,lng], {icon:rebuildIcon(c,false), zIndexOffset:200});
+  const card = document.createElement('div');
+  const name = document.createElement('strong'); name.textContent = c.name || '거래처';
+  const address = document.createElement('p'); address.textContent = c.addr || c.address || '주소 미등록';
+  card.append(name, address); m.bindPopup(card);
+  markers.set(id,m); group.addLayer(m);
 }
 
 CLIENTS.forEach(putMarker);
@@ -3776,6 +3537,7 @@ window.focusOnClient = (id)=>{
   if (!markers || !markers.has(id)) { alert('지도에 등록된 좌표가 없습니다.'); return; }
   const m = markers.get(id);
   map.setView(m.getLatLng(), Math.max(15, map.getZoom()), { animate:true });
+  m.openPopup();
 };
 
 /* ===== Pro Calendar Renderer ===== */
@@ -5366,7 +5128,7 @@ ${photoPages}
   w.document.close();
 }
 
-qfLoad();</script>
+if(document.getElementById('qf-panel'))qfLoad();</script>
 
 <!-- === Floating Task Panel === -->
 
@@ -6443,5 +6205,10 @@ function estSavePdf() {
   });
 })();
 </script>
+<script src="/manager_map.js?v=6" defer></script>
+<script src="/manager_sidebar.js?v=7" defer></script>
+<script src="/manager_activity.js?v=6" defer></script>
+<?php require __DIR__ . '/manager_footer.php'; ?>
+<script src="/manager_payout.js?v=1" defer></script>
 </body>
 </html>

@@ -1,8 +1,13 @@
 <?php
 declare(strict_types=1);
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
+
+if(session_status()!==PHP_SESSION_ACTIVE){
 ini_set('session.cookie_httponly','1');
 if(PHP_VERSION_ID>=70300) session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']);
-session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+}
+
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');header('Pragma: no-cache');
 function h($v):string{return htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
 function epv_admin():bool{return(!empty($_SESSION['is_admin'])&&$_SESSION['is_admin'])||(!empty($_SESSION['ID_OK'])&&$_SESSION['ID_OK']==1);}
@@ -29,7 +34,8 @@ $hasPlan=!empty($floors)||trim((string)($plan['alarm_method']??''))!==''||trim((
 $emptyMessage=$bi===''?'로그인 사용자 정보를 확인할 수 없습니다. 다시 로그인한 뒤 작성해주세요.':($file!==''&&is_file($file)?'저장 파일은 있으나 내용이 비어 있습니다. 작성 화면에서 다시 저장해주세요.':'아직 저장된 피난계획이 없습니다.');
 ?><!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>피난 대피계획</title><style>
 :root{--blue:#2563eb;--ink:#172033;--mut:#667085;--line:#dfe6ef}*{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:var(--ink);font-family:Pretendard,"Noto Sans KR",system-ui,sans-serif}.wrap{max-width:980px;margin:auto;padding:24px 18px 70px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.back,.sub{font-size:13px;color:var(--mut);text-decoration:none}.hero,.card,.empty,.mini{background:#fff;border:1px solid var(--line);box-shadow:0 12px 35px rgba(16,24,40,.05)}.hero{border-radius:20px;padding:25px;margin-bottom:14px;display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.eyebrow{font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--blue)}h1{font-size:30px;letter-spacing:-.045em;margin:7px 0 8px}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid #ccd6e4;border-radius:10px;background:#fff;color:#344054;padding:10px 14px;font-size:13px;font-weight:750;text-decoration:none}.primary{background:var(--blue);border-color:var(--blue);color:#fff}.overview{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}.mini{border-radius:14px;padding:15px}.mini span,.row span{display:block;font-size:11px;color:var(--mut);margin-bottom:5px}.mini b{font-size:14px}.card{border-radius:18px;padding:21px;margin-bottom:11px}.card h2{font-size:17px;margin:0 0 4px}.applied{font-size:12px;color:var(--blue);margin-bottom:15px}.rows{display:grid;grid-template-columns:1fr 1fr;gap:11px 18px}.row p{font-size:13px;line-height:1.6;margin:0}.wide{grid-column:1/-1}.empty{text-align:center;border-radius:20px;padding:60px 20px}.empty h2{margin:7px 0 9px}.empty p{color:var(--mut);font-size:13px;margin:0 0 20px}@media(max-width:700px){.hero{display:block}.hero .actions{margin-top:18px}.overview{grid-template-columns:1fr 1fr}.rows{grid-template-columns:1fr}.wide{grid-column:auto}}
-</style></head><body><main class="wrap"><div class="top"><a class="back" href="<?=h($url('/building_manager.php'))?>">건물 관리로 돌아가기</a></div>
+</style></head><body>
+<?php require_once __DIR__.'/building_facilities_common.php';bf_render_reference(); ?><main class="wrap"><div class="top"><a class="back" href="<?=h($url('/building_manager.php'))?>">건물 관리로 돌아가기</a></div>
 <?php if(!$hasPlan):?><section class="empty"><div class="eyebrow">EVACUATION PLAN</div><h2><?=h($emptyMessage)?></h2><p>건축물 층수를 기준으로 같은 대피방법을 사용하는 층을 묶어 작성할 수 있습니다.</p><a class="btn primary" href="<?=h($url('/evacuation_plan_chat.php?return=/evacuation_plan.php'))?>">피난계획 작성하기</a></section>
 <?php else:?><section class="hero"><div><div class="eyebrow">EVACUATION PLAN</div><h1><?=h($building['name']??'건물')?> 피난 대피계획</h1><div class="sub"><?=h($building['address']??'')?> · 지상 <?=number_format((int)($building['floor_a']??0))?>층 / 지하 <?=number_format((int)($building['floor_b']??0))?>층</div></div><div class="actions"><a class="btn" href="<?=h($url('/evacuation_plan_chat.php?return=/evacuation_plan.php'.$tokenPart))?>">내용 수정</a><a class="btn primary" target="_top" href="<?=h($url('/evacuation_plan_chat.php?print=1'.$tokenPart))?>">인쇄·PDF</a></div></section>
 <section class="overview"><div class="mini"><span>상황 전파</span><b><?=h($plan['alarm_method']??'-')?></b></div><div class="mini"><span>119 신고</span><b><?=h($plan['reporter']??'-')?></b></div><div class="mini"><span>피난 지휘</span><b><?=h($plan['controller']??'-')?></b></div><div class="mini"><span>최종 집결지</span><b><?=h($plan['assembly_confirmed']??'-')?></b></div></section>

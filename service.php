@@ -24,10 +24,8 @@ $features = [
 ];
 
 /* ── 요금제 ── */
-$priceMonthly = 1900;
-$priceYearly  = 19000;
-$yearlyCompare = $priceMonthly * 12;                 // 22,800원
-$yearlySave    = $yearlyCompare - $priceYearly;      // 3,800원
+require_once __DIR__.'/annual_plan.php';
+$priceYearly=AP_PRICE;
 ?>
 
 <style>
@@ -42,7 +40,7 @@ $yearlySave    = $yearlyCompare - $priceYearly;      // 3,800원
 .svc-sec-d{margin:0 0 18px;font-size:13.5px;opacity:.75;line-height:1.7}
 
 /* 요금제 */
-.plan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-items:stretch}
+.plan-grid{max-width:620px;margin-inline:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-items:stretch}
 .plan{position:relative;display:flex;flex-direction:column;gap:12px}
 .plan__name{font-size:13px;font-weight:700;opacity:.75}
 .plan__price{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}
@@ -93,46 +91,26 @@ $yearlySave    = $yearlyCompare - $priceYearly;      // 3,800원
 
   <!-- 요금제 -->
   <h2 class="svc-sec-t">요금 안내</h2>
-  <p class="svc-sec-d">모든 기능을 제한 없이 사용합니다. 월 구독과 연 구독 중에 고르시면 됩니다.</p>
+  <p class="svc-sec-d">연 59,000원으로 12개월 동안 서비스를 이용합니다.</p>
 
   <div class="plan-grid">
-    <!-- 월 구독 -->
-    <div class="card plan">
-      <div class="plan__name">월 구독</div>
-      <div class="plan__price">
-        <span class="plan__num"><?=number_format($priceMonthly)?></span>
-        <span class="plan__unit">원 / 월</span>
-      </div>
-      <div class="plan__sub">부담 없이 시작해 보고 싶을 때. 언제든 해지할 수 있습니다.</div>
-      <ul class="plan__list">
-        <li>모든 기능 사용</li>
-        <li>거래처 등록 200곳까지</li>
-        <li>건축물대장 자동 조회</li>
-        <li>서식·문서 보관</li>
-      </ul>
-      <a class="plan__cta btn" href="/clients_mini.php?view=subscribe">월 구독 시작하기</a>
-    </div>
-
     <!-- 연 구독 -->
     <div class="card plan plan--year">
-      <span class="plan__badge">2개월 무료</span>
+      <span class="plan__badge">12개월 이용</span>
       <div class="plan__name">연 구독</div>
       <div class="plan__price">
         <span class="plan__num"><?=number_format($priceYearly)?></span>
         <span class="plan__unit">원 / 년</span>
-        <span class="plan__was"><?=number_format($yearlyCompare)?>원</span>
+        
       </div>
-      <div class="plan__sub">
-        월 구독으로 1년 쓰면 <?=number_format($yearlyCompare)?>원 —
-        연 구독은 <b><?=number_format($yearlySave)?>원 더 저렴</b>합니다(2개월분 무료).
-      </div>
+      <div class="plan__sub">59,000원 한 번 결제로 1년간 이용합니다.</div>
       <ul class="plan__list">
-        <li>월 구독의 모든 기능</li>
-        <li>2개월분 무료 (연 <?=number_format($yearlySave)?>원 절약)</li>
+        <li>모든 기능 사용</li>
+        <li>연간 단일 요금제</li>
         <li>1년 동안 요금 변동 없음</li>
         <li>결제 한 번으로 관리 간편</li>
       </ul>
-      <a class="plan__cta btn" href="/clients_mini.php?view=subscribe">연 구독 시작하기</a>
+      <a class="plan__cta btn" href="/subscribe_page.php">연 구독 시작하기</a>
     </div>
   </div>
 
@@ -158,8 +136,7 @@ $yearlySave    = $yearlyCompare - $priceYearly;      // 3,800원
     </div>
     <div class="card">
       <h4>중간에 요금제를 바꿀 수 있나요?</h4>
-      <p>월 구독에서 연 구독으로, 또는 그 반대로 변경하실 수 있습니다.
-         변경 시점 이후 기간부터 적용됩니다.</p>
+      <p>연간 요금제만 제공합니다. 기존에 결제한 이용기간은 유지되며, 새 결제에는 연 59,000원이 적용됩니다.</p>
     </div>
     <div class="card">
       <h4>여러 명이 함께 쓸 수 있나요?</h4>

@@ -11,6 +11,8 @@
    화면은 _header.php / _footer.php 를 그대로 씁니다 (blog.php·service.php 와 동일 구조).
    ============================================================= */
 declare(strict_types=1);
+
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax']); }
 session_start();

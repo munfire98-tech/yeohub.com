@@ -2,9 +2,13 @@
 // building_manager.php — 건물 소방안전관리자 전용 페이지
 declare(strict_types=1);
 
+
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
+if (session_status() !== PHP_SESSION_ACTIVE) {
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
 session_start();
+}
 
 function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -20,7 +24,7 @@ if (!is_logged_in()) { header('Location: /index.php'); exit; }
 
 // 유형이 건물 관리자가 아니면 자기 유형 페이지로 돌려보냄 (관리자는 통과)
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') {
+if (!defined('MANAGER_VIEW_UID') && !is_admin() && $role !== 'building') {
   header('Location: /clients_mini.php'); exit;
 }
 
@@ -46,6 +50,7 @@ $biProg = function_exists('bi_progress')
 $biDone = $biProg['filled'] >= $biProg['total'];
 
 $nick = $_SESSION['nickname'] ?? '사용자';
+if (defined('MANAGER_FULL_DASHBOARD')) $nick = (string)(mg_members()[$viewUid]['nickname'] ?? $viewUid);
 
 /* 알림 미확인 개수 — notifications.php 가 아직 없어도 안전하게 0으로 둡니다 */
 $unreadCount = 0;
@@ -124,7 +129,7 @@ if ($memberUid !== '' && is_file($reviewFile)) {
 
 /* ── 관리자가 배정한 피난 시뮬레이션 ── */
 require_once __DIR__ . '/evac_common.php';
-$evacUid    = $adminView ? $viewUid : evac_current_uid();
+$evacUid    = (defined('MANAGER_VIEW_UID') || $adminView) ? $viewUid : evac_current_uid();
 $evacModels = evac_models_for($evacUid);
 
 /* 배정이 없는 회원은 관리자에게 배정을 요청할 수 있다.
@@ -426,6 +431,7 @@ if (!$hasBi) {
 }
 ?>
 <?php
+if (defined('MANAGER_VIEW_UID') && !defined('MANAGER_FULL_DASHBOARD')) { require __DIR__ . '/manager_snapshot.php'; exit; }
 $PAGE_TITLE = '건물 소방안전관리';
 $NAV_MODE = 'account';
 $IS_LOGGED_IN = true;              // 이 페이지는 이미 위에서 로그인 필수 처리했으므로 항상 true
@@ -433,6 +439,8 @@ $ACCOUNT_NICK = $nick;
 $ACCOUNT_IS_ADMIN = is_admin();
 $ACCOUNT_UNREAD = $unreadCount;    // 위에서 이미 계산한 값을 그대로 재사용
 require __DIR__ . '/_header.php';
+require_once __DIR__ . '/manager_ui.php';
+echo '<link rel="stylesheet" href="/manager.css?v=3"><script src="/manager.js?v=2" defer></script>';
 ?>
 <style>
 /* building_manager.php 전용 -- _header.php 가 :root.nav.wrap.card.page-head 기본값을 이미 제공합니다.
@@ -1562,6 +1570,7 @@ a.pstep:hover{background:#f2f6fd}
                     </div>
                     <?php endif; ?>
 
+                    <?php mg_connect_card(true, 'building'); ?>
                     <div class="building-workspace">
                     <?php if (!$hasUser): ?>
                     <div class="mission mission--error">
@@ -2704,5 +2713,5 @@ function showQr(id, name){
 })();
 </script>
 
-<?php require __DIR__ . '/memo_widget.php'; ?>
+<?php if (!defined('MANAGER_FULL_DASHBOARD')) require __DIR__ . '/memo_widget.php'; ?>
 <?php require __DIR__ . '/_footer.php'; ?>

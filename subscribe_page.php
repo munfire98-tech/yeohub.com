@@ -1,22 +1,5 @@
 <?php
-/* =============================================================
-    2026 8월 26일 8시 26분 v2
-   subscribe_page.php — 구독 신청 / 관리 페이지 (틀)
-   ─────────────────────────────────────────────────────────────
-   지금은 "틀"입니다. 실제 결제(PG) 연동 전이라 아래처럼 동작합니다.
-
-     · 플랜 선택 → 신청 내역이 파일로 저장됨 (status: pending)
-     · 실제 카드결제·빌링키 발급은 아직 없음
-     · PG 연동을 붙일 자리에 ★PG연동 주석을 달아 두었습니다
-
-   실제 결제를 붙일 때 고칠 곳은 두 군데뿐입니다.
-     [1] act=subscribe  → 빌링키 발급 + 첫 결제 호출
-     [2] act=cancel     → PG 정기결제 해지 호출
-
-   요금: 월 1,900원 / 연 19,000원 (2개월 무료)
-
-   화면은 _header.php / _footer.php 를 그대로 씁니다 (blog.php·service.php 와 동일 구조).
-   ============================================================= */
+/* 연간 단일 요금제: 59,000원 / 12개월. 기존 결제 내역은 보존합니다. */
 declare(strict_types=1);
 
 ini_set('session.cookie_httponly', '1');
@@ -36,6 +19,7 @@ function is_logged_in(): bool {
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 
 require_once __DIR__ . '/user_key.php';
+require_once __DIR__ . '/manager_common.php';
 $UID = function_exists('app_user_key') ? app_user_key() : '';
 $hasUser = ($UID !== '');
 
@@ -44,10 +28,8 @@ if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
 $CSRF = $_SESSION['csrf'];
 
 /* ── 요금제 정의 (여기만 고치면 화면·저장값이 함께 바뀝니다) ── */
-const PLANS = [
-  'monthly' => ['name'=>'월 구독', 'price'=>2900,  'period'=>'월', 'months'=>1],
-  'yearly'  => ['name'=>'연 구독', 'price'=>29000, 'period'=>'년', 'months'=>12],
-];
+require_once __DIR__.'/annual_plan.php';
+const PLANS = AP_PLANS;
 
 /* ── 저장 위치 ── */
 function sub_file(): string {
@@ -82,7 +64,7 @@ function sub_latest_payment(array $sub): array {
   foreach ((array)($sub['history'] ?? []) as $row) {
     if (!is_array($row) || (int)($row['amount'] ?? 0) <= 0) continue;
     $type = (string)($row['type'] ?? '');
-    if (in_array($type, ['refund','refund_pending','refund_failed','cancel'], true) || (array_key_exists('ok',$row) && !$row['ok'])) continue;
+    if (in_array($type, ['refund','refund_pending','refund_failed','cancel','resubscribe'], true) || (array_key_exists('ok',$row) && !$row['ok'])) continue;
     $candidates[] = $row;
   }
   usort($candidates, fn($a,$b) => strcmp((string)($b['at'] ?? ''), (string)($a['at'] ?? '')));
@@ -132,7 +114,7 @@ function sub_toss_refund(string $paymentKey, int $amount, string $reason, string
 /* 현재 구독 상태
    status: none | pending | active | canceled | expired | payment_failed */
 $sub = sub_read();
-$status = (string)($sub['status'] ?? 'none');
+$status = ap_status($sub);
 
 /* ── 액션 처리 ────────────────────────────────────────────── */
 $flash = ''; $flashType = 'ok';
@@ -144,7 +126,8 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
   } elseif (!$hasUser) {
     $flash = '로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.'; $flashType = 'err';
   } else {
-
+    try {
+    if(in_array($act,['subscribe','resubscribe'],true)&&($_POST['offer']??'')!==AP_OFFER)throw new RuntimeException('요금이 연 59,000원으로 변경되었습니다. 새로고침 후 금액을 확인하고 결제해 주세요.');
     /* [1] 구독 신청 ------------------------------------------------
        ★PG연동 자리
        실제로는 여기서:
@@ -172,7 +155,8 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($bk === '') {
           $flash = '먼저 결제 카드를 등록해 주세요.'; $flashType = 'err';
         } else {
-          $res = tb_charge((int)$p['price'], $p['name']);   // 실제 결제
+          $res = tb_charge((int)$p['price'], $p['name']);
+          if(!empty($res['blocked']))throw new RuntimeException($res['error']);   // 실제 결제
 
           $sub = tb_read();                                // 결제 결과가 반영된 내용
           $sub['plan']         = $plan;
@@ -183,11 +167,10 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
           if ($res['ok']) {
             $sub['status']       = 'active';
             $sub['started_at']   = $sub['started_at'] ?? $now;
-            $sub['bill_day']     = $sub['bill_day'] ?? (int)date('j');   // 가입한 날짜(기준일)
+            $sub['bill_day']     = (int)date('j');   // 가입한 날짜(기준일)
             $sub['next_billing'] = tb_next_billing(date('Y-m-d'), (int)$p['months'], (int)$sub['bill_day']);
-            /* 크론을 짧은 주기로 시험할 때 쓰는 값입니다.
-               toss_billing_cron.php 의 TEST_MODE 가 true 일 때만 의미가 있습니다. */
-            $sub['next_billing_at'] = date('Y-m-d H:i:s', time() + 180);
+            /* 연간 결제일과 만료일을 동일하게 저장합니다. */
+            $sub['next_billing_at'] = $sub['next_billing'].' 00:00:00';
             $sub['expires_at']   = $sub['next_billing'];
             $flash = $p['name'] . ' 결제가 완료되었습니다.';
             $flashType = 'ok';
@@ -202,31 +185,7 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
       }
     }
 
-    /* [1-1] 요금제 변경 예약 — 현재 이용기간이 끝난 다음 결제부터 적용 */
-    if ($act === 'change_plan') {
-      $toPlan = (string)($_POST['to_plan'] ?? '');
-      $fromPlan = (string)($sub['plan'] ?? '');
-      if ($status !== 'active') {
-        $flash = '이용 중인 구독만 요금제를 변경할 수 있습니다.'; $flashType = 'err';
-      } elseif (!isset(PLANS[$fromPlan]) || !isset(PLANS[$toPlan]) || $toPlan === $fromPlan) {
-        $flash = '변경할 요금제를 다시 확인해 주세요.'; $flashType = 'err';
-      } else {
-        $effective = trim((string)($sub['next_billing'] ?? $sub['expires_at'] ?? ''));
-        if ($effective === '') {
-          $flash = '다음 결제일을 확인할 수 없어 변경을 예약하지 못했습니다.'; $flashType = 'err';
-        } else {
-          $now = date('Y-m-d H:i:s');
-          $sub['plan_change'] = [
-            'status'=>'scheduled', 'from'=>$fromPlan, 'to'=>$toPlan,
-            'requested_at'=>$now, 'effective_at'=>substr($effective,0,10),
-          ];
-          $sub['history'][] = ['at'=>$now,'type'=>'plan_change_scheduled','amount'=>PLANS[$toPlan]['price'],
-            'memo'=>PLANS[$fromPlan]['name'].' → '.PLANS[$toPlan]['name'].' · '.substr($effective,0,10).' 적용 예정'];
-          if (sub_write($sub)) $flash = PLANS[$toPlan]['name'].'으로 변경을 예약했습니다. 다음 결제일부터 적용됩니다.';
-          else { $flash='요금제 변경 예약을 저장하지 못했습니다.'; $flashType='err'; }
-        }
-      }
-    }
+    if($act==='change_plan'){throw new RuntimeException('연간 59,000원 단일 요금제만 제공합니다.');}
 
     if ($act === 'cancel_plan_change') {
       $change = (array)($sub['plan_change'] ?? []);
@@ -267,6 +226,11 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $idem='refund-'.substr(hash('sha256',$UID.'|'.$paymentKey.'|'.$quote['amount']),0,40);
             $refund=sub_toss_refund($paymentKey,$quote['amount'],'사용자 구독 해지',$idem);
             if ($refund['ok']) {
+              if (!empty($quote['full']) && ($refund['body']['status'] ?? '') === 'CANCELED' && ($refund['body']['paymentKey'] ?? '') === $paymentKey) {
+                $sub['manager_full_refunds'][] = $paymentKey;
+                $sub['manager_full_refunds'] = array_values(array_unique($sub['manager_full_refunds']));
+                try { mg_reverse($UID,$paymentKey); } catch (Throwable $e) { error_log('Manager reversal deferred: '.$e->getMessage()); }
+              }
               $sub['status']='refunded'; $sub['canceled_at']=$now; $sub['expires_at']=date('Y-m-d');
               unset($sub['plan_change']);
               $sub['refund']=['status'=>'done','refunded_at'=>$now,'amount'=>$quote['amount'],'reason'=>$quote['reason'],'payment_key'=>$paymentKey];
@@ -312,7 +276,7 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once __DIR__ . '/toss_billing.php';
         $cur  = tb_read();
         $bk   = trim((string)($cur['billing_key'] ?? ''));
-        $plan = (string)($cur['plan'] ?? 'monthly');
+        $plan = 'yearly';
 
         if ($bk === '') {
           $flash = '먼저 결제 카드를 등록해 주세요.'; $flashType = 'err';
@@ -322,6 +286,7 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
           $p   = PLANS[$plan];
           $now = date('Y-m-d H:i:s');
           $res = tb_charge((int)$p['price'], $p['name']);
+          if(!empty($res['blocked']))throw new RuntimeException($res['error']);
 
           $sub = tb_read();
           if ($res['ok']) {
@@ -363,9 +328,10 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $flash = '문의가 접수되었습니다. 확인 후 안내해 드리겠습니다.';
       }
     }
+    }catch(Throwable $e){$flash=$e->getMessage();$flashType='err';}
   }
   $sub = sub_read();
-  $status = (string)($sub['status'] ?? 'none');
+  $status = ap_status($sub);
 }
 
 /* 상태 표시용 */
@@ -382,9 +348,7 @@ $STATUS_LABEL = [
 [$statusText, $statusTone] = $STATUS_LABEL[$status] ?? $STATUS_LABEL['none'];
 $refundQuote = in_array($status, ['active','payment_failed'], true) ? sub_refund_quote($sub) : [];
 
-$monthly = PLANS['monthly']; $yearly = PLANS['yearly'];
-$yearCompare = $monthly['price'] * 12;          // 22,800
-$yearSave    = $yearCompare - $yearly['price']; // 3,800
+$yearly = PLANS['yearly'];
 
 $PAGE_TITLE = '구독';
 $NAV_MODE = 'account';
@@ -444,7 +408,7 @@ if (window.self !== window.top) document.documentElement.classList.add('subscrip
 
 .sub-sec-t{font-size:15px;font-weight:800;margin-bottom:12px}
 
-.sub-plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:14px}
+.sub-plans{max-width:620px;margin-inline:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:14px}
 .sub-plan{position:relative;display:block;background:var(--card2);border:1px solid var(--bd);
   border-radius:12px;padding:18px;cursor:pointer;transition:.14s}
 .sub-plan:hover{border-color:var(--brand)}
@@ -534,7 +498,7 @@ details.sub-fold{padding:0;overflow:hidden}
   <div class="page-head__inner">
     <div class="page-head__label"><span></span> 구독</div>
     <h1>구독</h1>
-    <p>모든 기능을 제한 없이 사용합니다. 월 구독과 연 구독 중에 선택하세요.</p>
+    <p>연 59,000원 한 번 결제로 12개월 동안 이용하세요.</p>
   </div>
 </header>
 
@@ -593,7 +557,7 @@ details.sub-fold{padding:0;overflow:hidden}
 
     <?php else: ?>
       <p class="tb-lead">
-        카드를 한 번 등록해 두시면, 매달 자동으로 결제됩니다.
+        카드를 등록한 뒤 연 59,000원을 결제하면 12개월 동안 이용할 수 있습니다.
         카드번호는 저희 서버에 저장되지 않고 토스페이먼츠가 안전하게 보관합니다.
       </p>
       <button class="btn btn--primary" type="button" onclick="registerCard()">💳 카드 등록하기</button>
@@ -730,8 +694,8 @@ details.sub-fold{padding:0;overflow:hidden}
       <?php
         require_once __DIR__ . '/toss_billing.php';
         $reCard = trim((string)(tb_read()['billing_key'] ?? '')) !== '';
-        $rePlan = (string)($sub['plan_name'] ?? '');
-        $rePrice = (int)($sub['price'] ?? 0);
+        $rePlan = PLANS['yearly']['name'];
+        $rePrice = AP_PRICE;
       ?>
       <div class="sub-again">
         <div class="sub-again__tx">
@@ -748,7 +712,7 @@ details.sub-fold{padding:0;overflow:hidden}
         <?php if ($reCard): ?>
           <form method="post">
             <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
-            <input type="hidden" name="act" value="resubscribe">
+            <input type="hidden" name="act" value="resubscribe"><input type="hidden" name="offer" value="<?=h(AP_OFFER)?>">
             <button class="btn btn--primary" type="submit"
               onclick="return confirm('<?=h($rePlan ?: '구독')?> <?=number_format($rePrice)?>원을 결제하고 다시 시작합니다.\n계속할까요?')">
               다시 구독하기
@@ -759,88 +723,36 @@ details.sub-fold{padding:0;overflow:hidden}
     <?php endif; ?>
   </div>
 
-  <?php if ($status === 'active' && isset(PLANS[$sub['plan'] ?? ''])):
-    $currentPlanKey=(string)$sub['plan'];
-    $targetPlanKey=$currentPlanKey==='monthly'?'yearly':'monthly';
-    $change=(array)($sub['plan_change'] ?? []);
-    $changeScheduled=(($change['status'] ?? '')==='scheduled' && isset(PLANS[$change['to'] ?? '']));
-  ?>
-  <details class="card sub-fold">
-    <summary><span class="sub-fold__title">요금제 변경</span><span class="sub-fold__hint"><?=$changeScheduled?h(PLANS[$change['to']]['name']).' 변경 예약됨':'다음 결제일부터 변경'?></span></summary>
-    <div class="sub-fold__body">
-    <div class="sub-sec-t">요금제 변경</div>
-    <?php if ($changeScheduled): $scheduledPlan=PLANS[$change['to']]; ?>
-      <div class="plan-change">
-        <div class="plan-change__flow">
-          <span class="plan-change__plan"><small>현재</small><b><?=h(PLANS[$currentPlanKey]['name'])?></b></span>
-          <span class="plan-change__arrow">→</span>
-          <span class="plan-change__plan"><small><?=h((string)$change['effective_at'])?>부터</small><b><?=h($scheduledPlan['name'])?> · <?=number_format($scheduledPlan['price'])?>원</b></span>
-        </div>
-        <form method="post"><input type="hidden" name="csrf" value="<?=h($CSRF)?>"><input type="hidden" name="act" value="cancel_plan_change"><button class="btn btn--ghost" type="submit" onclick="return confirm('요금제 변경 예약을 취소할까요?')">변경 예약 취소</button></form>
-      </div>
-    <?php else: $targetPlan=PLANS[$targetPlanKey]; ?>
-      <div class="plan-change">
-        <div class="plan-change__flow">
-          <span class="plan-change__plan"><small>현재 요금제</small><b><?=h(PLANS[$currentPlanKey]['name'])?> · <?=number_format(PLANS[$currentPlanKey]['price'])?>원</b></span>
-          <span class="plan-change__arrow">→</span>
-          <span class="plan-change__plan"><small>다음 결제부터</small><b><?=h($targetPlan['name'])?> · <?=number_format($targetPlan['price'])?>원</b></span>
-        </div>
-        <form method="post"><input type="hidden" name="csrf" value="<?=h($CSRF)?>"><input type="hidden" name="act" value="change_plan"><input type="hidden" name="to_plan" value="<?=h($targetPlanKey)?>"><button class="btn btn--primary" type="submit" onclick="return confirm('다음 결제일부터 <?=h($targetPlan['name'])?> <?=number_format($targetPlan['price'])?>원으로 변경할까요?\n현재 이용기간과 결제에는 영향이 없습니다.')"><?=h($targetPlan['name'])?>으로 변경 예약</button></form>
-      </div>
-    <?php endif; ?>
-    <p class="plan-change__note">현재 이용기간은 그대로 유지됩니다. 새 요금제는 다음 결제에 성공한 시점부터 적용되며, 적용 전에는 언제든 예약을 취소할 수 있습니다.</p>
-    </div>
-  </details>
-  <?php endif; ?>
-
   <!-- 플랜 선택 -->
-  <?php if (in_array($status, ['none','canceled','expired','refunded'], true)): ?>
+  <?php if (in_array($status, ['none','canceled','expired','refunded','payment_failed'], true)): ?>
   <div class="card">
     <div class="sub-sec-t">요금제 선택</div>
     <form method="post" id="planForm">
       <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
-      <input type="hidden" name="act" value="subscribe">
+      <input type="hidden" name="act" value="subscribe"><input type="hidden" name="offer" value="<?=h(AP_OFFER)?>">
       <input type="hidden" name="plan" id="planInput" value="yearly">
 
       <div class="sub-plans">
-        <!-- 월 -->
-        <label class="sub-plan" data-plan="monthly" onclick="pickPlan('monthly')">
-          <div class="sub-plan__name"><?=h($monthly['name'])?></div>
-          <div class="sub-plan__price">
-            <span class="sub-plan__num"><?=number_format($monthly['price'])?></span>
-            <span class="sub-plan__unit">원 / <?=h($monthly['period'])?></span>
-          </div>
-          <div class="sub-plan__sub">부담 없이 시작해 보고 싶을 때. 언제든 해지할 수 있습니다.</div>
-          <ul class="sub-plan__list">
-            <li>모든 기능 사용</li>
-            <li>거래처 200곳까지</li>
-            <li>건축물대장 자동 조회</li>
-          </ul>
-        </label>
-
         <!-- 연 -->
         <label class="sub-plan sel" data-plan="yearly" onclick="pickPlan('yearly')">
-          <span class="sub-plan__badge">2개월 무료</span>
+          <span class="sub-plan__badge">12개월 이용</span>
           <div class="sub-plan__name"><?=h($yearly['name'])?></div>
           <div class="sub-plan__price">
             <span class="sub-plan__num"><?=number_format($yearly['price'])?></span>
             <span class="sub-plan__unit">원 / <?=h($yearly['period'])?></span>
-            <span class="sub-plan__was"><?=number_format($yearCompare)?>원</span>
+            
           </div>
-          <div class="sub-plan__sub">
-            월 구독으로 1년이면 <?=number_format($yearCompare)?>원 —
-            <b><?=number_format($yearSave)?>원 더 저렴</b>합니다.
-          </div>
+          <div class="sub-plan__sub">59,000원 결제 후 12개월간 이용합니다.</div>
           <ul class="sub-plan__list">
-            <li>월 구독의 모든 기능</li>
-            <li>2개월분 무료</li>
+            <li>모든 기능 사용</li>
+            <li>연간 단일 요금제</li>
             <li>1년간 요금 변동 없음</li>
           </ul>
         </label>
       </div>
 
       <button class="btn btn--primary" type="submit" style="width:100%;justify-content:center"
-        <?= $hasUser ? '' : 'disabled' ?>>선택한 요금제로 신청하기</button>
+        <?= $hasUser ? '' : 'disabled' ?>>연 59,000원 결제하기</button>
     </form>
   </div>
   <?php endif; ?>
@@ -876,7 +788,7 @@ details.sub-fold{padding:0;overflow:hidden}
     <div class="sub-faq">
       <div>
         <div class="sub-faq__q">결제는 어떻게 이루어지나요?</div>
-        <div class="sub-faq__a">등록하신 카드로 선택한 주기(월 또는 연)마다 자동으로 청구됩니다.
+        <div class="sub-faq__a">등록하신 카드로 59,000원을 결제하면 12개월 동안 이용할 수 있습니다.
           결제는 토스페이먼츠 시스템에서 처리되며, 카드번호는 저희 서버에 저장되지 않습니다.
           결제사가 발급한 결제키만 보관합니다.</div>
       </div>
@@ -892,7 +804,7 @@ details.sub-fold{padding:0;overflow:hidden}
       </div>
       <div>
         <div class="sub-faq__q">요금제를 바꿀 수 있나요?</div>
-        <div class="sub-faq__a">월 구독과 연 구독은 서로 변경하실 수 있으며, 변경 시점 이후 기간부터 적용됩니다.</div>
+        <div class="sub-faq__a">연간 단일 요금제만 제공합니다. 기존 결제의 남은 이용기간은 유지되며 새 결제에는 연 59,000원이 적용됩니다.</div>
       </div>
       <div>
         <div class="sub-faq__q">세금계산서 발행이 되나요?</div>

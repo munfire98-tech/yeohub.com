@@ -1,10 +1,15 @@
 <?php
 // train.php — 소방훈련·교육 실시 결과 기록부 목록
 declare(strict_types=1);
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 
+
+if(session_status()!==PHP_SESSION_ACTIVE){
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+}
+
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -204,6 +209,7 @@ a{text-decoration:none}
     <p>실시한 소방훈련·교육의 결과를 법정서식으로 기록하고 보관합니다.</p>
   </div>
 </header>
+<?php require_once __DIR__.'/building_facilities_common.php';bf_render_reference(); ?>
 
 <main class="wrap">
   <div class="info">

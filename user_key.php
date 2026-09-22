@@ -43,6 +43,7 @@ const UK_KAKAO_KEYS = ['kakao_id', 'kakaoid', 'kakao_uid'];
  * 찾지 못하면 '' 를 돌려줍니다. (예전처럼 guest 로 묶지 않습니다)
  */
 function app_user_key(): string {
+  if (defined('MANAGER_VIEW_UID')) return (string)MANAGER_VIEW_UID;
   /* 관리자 대리보기는 회원 세션처럼 동작하지만, 화면 이동 중 GET uid가
      빠져도 같은 회원 저장소를 계속 사용해야 합니다. */
   $impUid = trim((string)($_SESSION['_imp']['uid'] ?? ''));

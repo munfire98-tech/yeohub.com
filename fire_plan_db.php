@@ -446,10 +446,22 @@ function fp_chat_sources(array $bi, array $evac, ?int $year = null, ?array $sele
     }
     if ($history) $d['11']['memo'] = implode("\n",$history); // 과거 실시일을 미래 계획일로 간주하지 않습니다.
   }
+  require_once __DIR__.'/building_info.php';require_once __DIR__.'/building_facilities_common.php';
+  $inventory=bf_load();
+  if(!empty($inventory['revision'])){
+    foreach(bf_catalog() as $category=>$group){
+      $values=(array)($d['2'][$category]??[]);
+      foreach($group[1] as $name){$v=$inventory['items'][bf_id($name)]['status']??'unknown';if($v==='yes')$values[]=$name;elseif($v==='no')$values=array_values(array_diff($values,[$name]));}
+      $d['2'][$category]=array_values(array_unique($values));
+    }
+    $counts=bf_counts($inventory);
+    $d['2']['memo']='시설현황: 설치 있음 '.$counts['present'].'종 / 미확인 '.$counts['unknown'].'종'."\n".bf_summary($inventory);
+    $names[]='건물 시설현황 체크리스트';
+  }
   $groups = [
     'basic'=>['title'=>'기본정보','detail'=>'현재 건물정보·관리자·진입로 메모','data'=>['1'=>$d['1'] ?? [],'14'=>isset($d['14']['memo'])?['memo'=>$d['14']['memo']]:[]]],
     'team'=>['title'=>'자위소방대 편성','detail'=>'현재 편성된 인원과 대원별 임무','data'=>['9'=>$d['9'] ?? []]],
-    'monthly'=>['title'=>'매월 기록','detail'=>($year ?? date('Y')).'년 기록 '.count($months).'개월 · 현재 시설 기본값','data'=>['2'=>$d['2'] ?? [],'13'=>$d['13'] ?? []]],
+    'monthly'=>['title'=>'시설현황·매월 기록','detail'=>($year ?? date('Y')).'년 기록 '.count($months).'개월 · 공통 시설현황 포함','data'=>['2'=>$d['2'] ?? [],'13'=>$d['13'] ?? []]],
     'jawi_education'=>['title'=>'자위소방대 교육','detail'=>isset($histories['jawi'])?'선택 연도의 실시 기록':'선택 연도의 기록 없음','data'=>['11'=>isset($histories['jawi'])?['memo'=>$histories['jawi']]:[]]],
     'training'=>['title'=>'소방훈련·교육','detail'=>isset($histories['train'])?'선택 연도의 실시 기록':'선택 연도의 기록 없음','data'=>['11'=>isset($histories['train'])?['memo'=>$histories['train']]:[]]],
     'evacuation'=>['title'=>'피난계획','detail'=>'현재 층별 피난경로·집결지·대응방법','data'=>['5'=>$d['5'] ?? [],'14'=>array_intersect_key($d['14'] ?? [],array_flip(['s1','s2','s5']))]],

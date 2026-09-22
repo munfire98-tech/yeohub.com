@@ -20,7 +20,7 @@ function bi_file(): string {
   $k = bi_user_key();
   if ($k === '') return '';
   $dir = __DIR__ . '/data/building/' . $k;
-  if (!is_dir($dir)) @mkdir($dir, 0775, true);
+  if (!defined('MANAGER_VIEW_UID') && !is_dir($dir)) @mkdir($dir, 0775, true);
   return $dir . '/info.json';
 }
 
@@ -39,6 +39,7 @@ function bi_read_json(string $f): array {
   return is_array($a) ? $a : [];
 }
 function bi_write_json(string $f, array $d): bool {
+  if (defined('MANAGER_VIEW_UID')) return false;
   if ($f === '') return false;
   if (!is_dir(dirname($f))) @mkdir(dirname($f), 0775, true);
   $tmp = $f . '.tmp';
@@ -147,7 +148,7 @@ function bi_load(): array {
       if ($perf !== '') {
         $d['mgrs'][] = ['name'=>$perf, 'appt'=>'', 'qual'=>'', 'type'=>'주', 'tel'=>''];
       }
-      bi_write_json(bi_file(), $d);
+      if (!defined('MANAGER_VIEW_UID')) bi_write_json(bi_file(), $d);
     }
   }
 

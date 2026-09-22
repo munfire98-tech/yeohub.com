@@ -11,6 +11,8 @@
 declare(strict_types=1);
 
 /* admin_members.php와 동일한 세션 설정 (같은 세션을 봐야 함) */
+
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 $SESSION_TTL = 60 * 60 * 24 * 30;
 ini_set('session.cookie_httponly', '1');
 ini_set('session.gc_maxlifetime', (string)$SESSION_TTL);

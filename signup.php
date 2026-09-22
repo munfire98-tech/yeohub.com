@@ -28,6 +28,7 @@ const USER_ID_PATTERN = '/^[a-z][a-z0-9_]{3,19}$/';
 const USER_PASSWORD_MIN = 8;
 const USER_PASSWORD_MAX_BYTES = 64;
 
+require_once __DIR__ . '/manager_common.php';
 $MEMBERS_FILE = __DIR__ . '/data/members.json';
 
 function normalize_role(string $role): string {
@@ -244,6 +245,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
           if (member_email_taken($members, $email)) {
             return ['ok' => false, 'error' => '이미 가입된 이메일입니다.'];
           }
+          $ref = mg_registration($members, $uid, $role, (string)($_POST['manager_code'] ?? ''), !empty($_POST['manager_consent']));
+          if (!$ref['ok']) return $ref;
           $members[$uid] = [
             'userid' => $uid,
             'nickname' => $nickname,
@@ -258,6 +261,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             'last_login' => $created,
             'pw_hash' => $passwordHash,
           ];
+          $members[$uid] = array_merge($members[$uid], $ref['fields']);
           return ['ok' => true, 'save' => true];
         });
 
@@ -287,7 +291,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
           $_SESSION['nickname'] = $nickname;
           $_SESSION['role'] = $role;
           $_SESSION['login_type'] = 'member';
-          header('Location: /index.php');
+          header('Location: ' . role_landing($role));
           exit;
         }
       }
@@ -360,6 +364,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
       'email'    => (string)($_POST['email'] ?? ''),
       'phone'    => (string)($_POST['phone'] ?? ''),
       'role'     => (string)($_POST['role'] ?? ''),
+      'manager_code' => (string)($_POST['manager_code'] ?? ''),
     ];
   } else {
     $_SESSION['login_old'] = ['userid' => (string)($_POST['userid'] ?? '')];

@@ -2,6 +2,8 @@
 // work_log_print.php — 특정 연도의 업무 수행 기록표를 모아서 인쇄/PDF
 declare(strict_types=1);
 
+
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }

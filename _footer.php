@@ -88,7 +88,7 @@
     </div>
     <div class="footer-info">
       <span><b>이메일</b>YEOHUB@YEOHUB.com</span>
-      <span><b>통신판매업</b>신고 준비중</span>
+      <span><b>통신판매업</b>2026-경기파주-3767</span>
     </div>
 
     <div class="footer-bottom">

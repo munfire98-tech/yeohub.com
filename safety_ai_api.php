@@ -1,10 +1,14 @@
 <?php
 // safety_ai_api.php — 소방안전관리 AI 도우미 (조회·안내 전용)
 declare(strict_types=1);
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 
+if(session_status()!==PHP_SESSION_ACTIVE){
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) session_set_cookie_params(['httponly'=>true, 'samesite'=>'Lax']);
-session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+}
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
@@ -55,7 +59,11 @@ $context = [
   'pending' => array_values(array_slice(array_map('strval', (array)($rawContext['pending'] ?? [])), 0, 10)),
 ];
 
+require_once __DIR__.'/building_info.php';require_once __DIR__.'/building_facilities_common.php';
+$inventory=bf_load();$context['facilities']=bf_summary($inventory);$context['facilities_unknown']=bf_counts($inventory)['unknown'];
+
 $fallback = static function(string $q, array $ctx): string {
+  if(preg_match('/(시설|설비|소화전|스프링클러)/u',$q))return '저장된 설치 시설:\n'.($ctx['facilities']?:'없음 또는 미확인').'\n미확인 '.$ctx['facilities_unknown'].'종입니다. 설치 여부와 정상 작동 여부는 다릅니다.';
   $name = $ctx['building_name'] !== '' ? $ctx['building_name'] : '이 건물';
   $task = $ctx['current_task'] !== '' ? $ctx['current_task'] : '기본정보 확인';
   if (preg_match('/(완료|진행|상태|뭐.*해야|무엇.*해야)/u', $q)) {

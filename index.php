@@ -70,6 +70,7 @@ function is_logged_in(): bool {
 }
 /* 현재 로그인 사용자의 유형에 맞는 업무페이지 경로 */
 function work_page(): string {
+  if (is_admin()) return '/admin_manager_payouts.php';
   // 카카오 사용자인데 아직 유형을 안 골랐으면 선택 페이지로
   if (!empty($_SESSION['kakao_id']) && empty($_SESSION['role']) && empty($_SESSION['is_admin'])) {
     return '/select_role.php';
@@ -315,7 +316,7 @@ if (($_POST['action'] ?? '') === 'login') {
     $_SESSION['ID_OK']      = 1;
     $_SESSION['login_type'] = 'admin';
     $notice = '로그인 성공';
-    if ($fromAdminPage) { header('Location: /building_manager.php'); exit; }
+    if ($fromAdminPage) { header('Location: /admin_manager_payouts.php'); exit; }
   } else {
     $notice = '아이디 또는 비밀번호가 올바르지 않습니다.';
     if ($fromAdminPage) { header('Location: /admin_login.php?err=1'); exit; }
@@ -641,6 +642,11 @@ footer a:hover{color:var(--fg)}
 @media(max-width:520px){.cta-box--work{padding:17px 15px 16px}}
 .nav__links .mobile-only{display:none}
 </style>
+<style>
+.hero__note--together{padding-left:14px;line-height:1.85}
+.hero__note--together strong{display:block;margin-bottom:5px;color:var(--fg);font-size:15px;font-weight:650;letter-spacing:-.3px}
+.hero__note--together span{display:block;color:var(--mut2);font-size:13px;word-break:keep-all;overflow-wrap:break-word}
+</style>
 </head>
 <body>
 
@@ -654,10 +660,16 @@ footer a:hover{color:var(--fg)}
       <?php endif; ?>
     </div>
     <ul class="nav__links" id="navLinks">
+      <?php if(is_admin()): ?>
+      <li><a href="/admin_manager_payouts.php">매니저·출금 관리</a></li>
+      <li><a href="/admin_members.php">회원 관리</a></li>
+      <li><a href="/admin_accounts.php">관리자 계정</a></li>
+      <?php else: ?>
       <li><a href="/faq.php">FAQ</a></li>
       <li><a href="/service.php">서비스</a></li>
       <li><a href="/ar.php">피난시뮬레이터</a></li>
       <li><a href="/pro_mode.php">PRO</a></li>
+      <?php endif; ?>
       <?php if (is_logged_in()): ?>
         <?php if (!empty($_SESSION['nickname'])): ?>
           <li class="mobile-only m-user"><?=h($_SESSION['nickname'])?>님으로 로그인됨</li>
@@ -676,9 +688,10 @@ footer a:hover{color:var(--fg)}
         <?php endif; ?>
 
         <div class="nw-icons">
-          <a class="nw-icobtn" href="<?=h(work_page())?>" title="<?= (($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리' : '업무페이지' ?>">
+          <a class="nw-icobtn" href="<?=h(work_page())?>" title="<?= is_admin() ? '매니저 관리' : ((($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리' : '업무페이지') ?>">
             <svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h1M11 8h1M7 12h1M11 12h1M7 16h1M11 16h1M17 14h1M17 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           </a>
+          <?php if(!is_admin()): ?>
           <a class="nw-icobtn" href="/subscribe_page.php" title="결제·구독">
             <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/><path d="M16 14h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           </a>
@@ -686,6 +699,7 @@ footer a:hover{color:var(--fg)}
             <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 18a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             <?php if ($unreadCount > 0): ?><span class="nw-dot"></span><?php endif; ?>
           </a>
+          <?php endif; ?>
           <div class="nw-profile" id="navProfile">
             <button type="button" class="nw-avatar<?= is_admin() ? ' admin' : '' ?>" id="navAvatarBtn"
               onclick="document.getElementById('navPop').classList.toggle('show')">
@@ -699,8 +713,12 @@ footer a:hover{color:var(--fg)}
               <div class="nw-pop__list">
                 <a class="nw-pop__item" href="<?=h(work_page())?>">
                   <svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h1M11 8h1M7 12h1M11 12h1M7 16h1M11 16h1M17 14h1M17 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                  <?= (($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리' : '업무페이지' ?>
+                  <?= is_admin() ? '매니저 관리' : ((($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리' : '업무페이지') ?>
                 </a>
+                <?php if(is_admin()): ?>
+                <a class="nw-pop__item" href="/admin_members.php">회원 관리</a>
+                <a class="nw-pop__item" href="/admin_accounts.php">관리자 계정 관리</a>
+                <?php else: ?>
                 <a class="nw-pop__item" href="/settings.php">
                   <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1-1.56 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34H9a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87V9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
                   내 정보
@@ -713,6 +731,7 @@ footer a:hover{color:var(--fg)}
                   <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                   알림
                 </a>
+                <?php endif; ?>
                 <div class="nw-pop__div"></div>
                 <a class="nw-pop__item nw-pop__item--danger" href="/?logout=1&csrf=<?=h($CSRF)?>"
                    onclick="return confirm('로그아웃할까요?');">
@@ -761,10 +780,9 @@ footer a:hover{color:var(--fg)}
           <a class="btn btn--primary" href="<?=h(work_page())?>"><?=h($workLabel)?></a>
         </div>
       <?php endif; ?>
-                    <p class="hero__note">
-                      건물 정보를 한 번만 입력하면 업무수행 기록표·소방계획서·자위소방대 편성표가
-                      법정서식 그대로 만들어집니다. 반복 입력은 줄이고, 필요한 순간 꺼내 쓸 수 있는
-                      업무수행 근거를 남겨드립니다.
+                    <p class="hero__note hero__note--together">
+                      <strong>함께 관리하고, 기록으로 안전을 이어갑니다.</strong>
+                      <span>건물관리자와 매니저가 한곳에서 업무를 확인하고,<br>필요한 기록을 함께 남겨보세요.</span>
                     </p>
       <?php if ($notice !== ''): ?>
         <div class="alert <?= is_admin() ? 'alert--ok' : 'alert--warn' ?>"
@@ -1006,11 +1024,12 @@ footer a:hover{color:var(--fg)}
 <main class="main">
   <?php if (is_admin()): ?>
       <div class="cta-box">
-        <p class="cta-box__msg">관리자 <span class="accent">메모</span>에서 목표·프로세스·할 일을 관리하세요.</p>
+        <p class="cta-box__msg"><span class="accent">매니저 관리</span>에서 가입 현황·보유 코인·출금 신청을 확인하세요.</p>
         <div class="cta-box__btns">
-          <a class="btn btn--primary btn--lg" href="/admin_memo.php">📝 메모 열기 →</a>
+          <a class="btn btn--primary btn--lg" href="/admin_manager_payouts.php">매니저 관리 →</a>
+          <a class="btn btn--lg btn--admin" href="/admin_memo.php">메모 열기 →</a>
           <a class="btn btn--lg btn--admin" href="/admin_members.php">👥 회원 관리 →</a>
-          <a class="btn btn--lg btn--admin" href="/fire_evac_sim.php">👥 시뮬레이터 →</a>
+          <a class="btn btn--lg btn--admin" href="/admin_accounts.php">관리자 계정 관리 →</a>
         </div>
       </div>
   <?php elseif (!is_logged_in()): ?>
@@ -1041,6 +1060,7 @@ footer a:hover{color:var(--fg)}
 </main>
 
 <!-- FOOTER -->
+<script src="/admin_logo_entry.js?v=1" defer></script>
 <?php require __DIR__ . '/_footer.php'; ?>
 
 <?php
@@ -1161,7 +1181,7 @@ $oldRole = (string)($oldSignup['role'] ?? '');
         <label>사용자 유형</label>
         <div class="roles">
           <label class="role"><input type="radio" name="role" value="building" <?= $oldRole !== 'agency' ? 'checked' : '' ?>> 건물 소방안전관리자</label>
-          <label class="role"><input type="radio" name="role" value="agency" <?= $oldRole === 'agency' ? 'checked' : '' ?>> 대행업체</label>
+          <label class="role"><input type="radio" name="role" value="agency" <?= $oldRole === 'agency' ? 'checked' : '' ?>> 매니저</label>
         </div>
       </div>
       <button class="btn btn--primary" type="submit" id="mo-submit" disabled

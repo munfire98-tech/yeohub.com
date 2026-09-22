@@ -49,7 +49,7 @@ if ($failCode !== '') {
       $title  = '카드가 등록되었습니다';
       $card   = tb_read()['card'] ?? [];
       $detail = trim(($card['company'] ?? '') . ' ' . ($card['number'] ?? ''));
-      if ($detail === '') $detail = '이제 구독을 시작하실 수 있습니다.';
+      if ($detail === '') $detail = '이제 연 59,000원 구독을 시작하실 수 있습니다.';
     } else {
       $title  = '카드 등록에 실패했습니다';
       $detail = $res['error'];
@@ -93,7 +93,7 @@ if ($failCode !== '') {
   <h1><?=h($title)?></h1>
   <p><?=h($detail)?></p>
 
-  <a class="btn" href="/subscribe_page.php">구독 페이지로</a>
+  <a class="btn" href="/subscribe_page.php">연간 구독 페이지로</a>
   <?php if (!$ok): ?>
     <a class="btn btn--ghost" href="/building_manager.php">나중에 할게요</a>
   <?php endif; ?>

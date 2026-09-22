@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 ini_set('session.cookie_httponly','1');
 if(PHP_VERSION_ID>=70300)session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']);
 session_start();
@@ -107,8 +109,24 @@ function groupPlan(s){if(!s.floorGroup)return null;let keys=s.floorGroup.floors.
 function value(s){if(!s.floor)return PLAN[s.key]||s.def||'';let r=groupPlan(s)||PLAN.floors[(s.floorGroup?s.floorGroup.floors[0]:s.floor).key];if(s.key==='routes')return[r.primary_route||'',r.alternate_route||''];if(s.key==='staff')return[r.guide||'',r.checker||''];return r[s.key]??''}
 function storeAnswer(s,v){let targets=s.floorGroup?s.floorGroup.floors:(s.floor?[s.floor]:[]);if(targets.length){let apply=r=>{if(s.key==='routes'){r.primary_route=v[0];r.alternate_route=v[1]}else if(s.key==='staff'){r.guide=v[0];r.checker=v[1]}else r[s.key]=s.type==='number'?Math.max(0,parseInt(v[0])||0):v[0]};targets.forEach(f=>apply(PLAN.floors[f.key]));let gp=groupPlan(s);if(gp)apply(gp)}else PLAN[s.key]=v[0]}
 function prog(){let n=steps.length;bar.style.width=Math.round(step/n*100)+'%';pt.textContent=step>=n?'계획 작성 완료':'피난계획 작성 중';pc.textContent=Math.min(step,n)+' / '+n}
-function save(done){state.textContent='저장 중…';let fd=new FormData();fd.append('act','save');fd.append('csrf',CSRF);fd.append('data',JSON.stringify(PLAN));fetch(location.href,{method:'POST',body:fd,credentials:'same-origin'}).then(async r=>{let t=await r.text(),j;try{j=JSON.parse(t)}catch(e){throw Error('저장 응답이 올바르지 않습니다. ('+r.status+')')}if(!r.ok||!j.ok)throw Error(j.error||'저장하지 못했습니다.');return j}).then(j=>{PLAN.updated=j.updated||PLAN.updated;state.textContent='저장됨 · '+(j.floor_count||0)+'개 층';if(typeof done==='function')done()}).catch(e=>{state.textContent='저장 실패';alert('피난계획 저장 실패\n'+e.message)})}
-function saveAndView(){let f=document.createElement('form');f.method='post';f.action=location.href;f.target='_top';[['act','final_save'],['csrf',CSRF],['data',JSON.stringify(PLAN)],['return_url',RETURN_URL]].forEach(([n,v])=>{let i=document.createElement('input');i.type='hidden';i.name=n;i.value=v;f.appendChild(i)});document.body.appendChild(f);state.textContent='최종 저장 중…';f.submit()}
+function save(done){
+ if(window.recordModalPending)return;
+ window.recordModalPending=1;window.recordModalDirty=true;
+ state.textContent='저장 중…';let fd=new FormData();fd.append('act','save');fd.append('csrf',CSRF);fd.append('data',JSON.stringify(PLAN));
+ fetch(location.href,{method:'POST',body:fd,credentials:'same-origin'}).then(async r=>{let t=await r.text(),j;try{j=JSON.parse(t)}catch(e){throw Error('저장 응답이 올바르지 않습니다. ('+r.status+')')}if(!r.ok||!j.ok)throw Error(j.error||'저장하지 못했습니다.');return j})
+ .then(j=>{window.recordModalPending=0;window.recordModalDirty=false;document.dispatchEvent(new Event('record-saved'));PLAN.updated=j.updated||PLAN.updated;state.textContent='저장됨 · '+(j.floor_count||0)+'개 층';if(typeof done==='function')done()})
+ .catch(e=>{window.recordModalPending=0;window.recordModalDirty=true;state.textContent='저장 실패';alert('피난계획 저장 실패\n'+e.message)});
+}
+function saveAndView(){
+ if(window.recordModalPending){alert('저장이 끝날 때까지 잠시 기다려 주세요.');return;}
+ let f=document.createElement('form');f.method='post';f.action=location.href;
+ const modal=new URLSearchParams(location.search).get('modal')==='1' && window.parent!==window;
+ f.target=modal?'_self':'_top';
+ [['act','final_save'],['csrf',CSRF],['data',JSON.stringify(PLAN)],['return_url',modal?'/evacuation_plan.php?modal=1&embed=1'+(new URLSearchParams(location.search).has('uid')?'&uid='+encodeURIComponent(new URLSearchParams(location.search).get('uid')):''):RETURN_URL]].forEach(([n,v])=>{let i=document.createElement('input');i.type='hidden';i.name=n;i.value=v;f.appendChild(i)});
+ document.body.appendChild(f);state.textContent='최종 저장 중…';window.recordModalPending=1;f.submit();
+}
+// 선택 버튼으로 채운 값도 미저장 변경으로 인식합니다.
+document.addEventListener('click',e=>{if(e.target.closest('.option'))e.target.closest('.answer')?.querySelector('input')?.dispatchEvent(new Event('input',{bubbles:true}));});
 function ask(){prog();if(step>=steps.length)return finish();let s=steps[step];bot(s.q);let box=document.createElement('section');box.className='answer';let ins=[];
  if(s.type==='pair'){let vals=value(s),g=document.createElement('div');g.className='grid';s.labels.forEach((x,i)=>{let w=document.createElement('div'),l=document.createElement('label'),inp=document.createElement('input');l.textContent=x;inp.value=vals[i]||'';inp.placeholder=s.ph[i];w.append(l);if(s.pairOptions)w.appendChild(options(s.pairOptions[i],inp));w.append(inp);g.appendChild(w);ins.push(inp)});box.appendChild(g)}else{let l=document.createElement('label'),inp=document.createElement('input');l.textContent=s.type==='number'?'최대 인원':'답변';if(s.type==='number'){inp.type='number';inp.min=0;inp.max=99999}inp.value=value(s);inp.placeholder=s.ph||'';box.append(l);if(s.options)box.appendChild(options(s.options,inp));box.append(inp);ins=[inp]}
  if(s.hint){let h=document.createElement('div');h.className='hint';h.textContent=s.hint;box.appendChild(h)}let ac=document.createElement('div');ac.className='actions';if(step>0){let b=document.createElement('button');b.className='btn';b.textContent='이전 답변 수정';b.onclick=()=>{box.remove();step--;ask()};ac.appendChild(b)}let go=document.createElement('button');go.className='btn primary';go.textContent='저장하고 다음';go.onclick=()=>{let v=ins.map(i=>i.value.trim());if(v.some(x=>x===''))return ins.find(i=>!i.value.trim()).focus();storeAnswer(s,v);box.remove();me((s.floorGroup?s.floorGroup.name+' · ':'')+v.join(' · '));save(()=>{step++;ask()})};ac.appendChild(go);box.appendChild(ac);chat.appendChild(box);ins[0].focus();down()}

@@ -3,10 +3,15 @@
 //   fire_plan.php 목록에서 링크로 진입. 이름 붙여넣기 → 자동 배치 → 저장/인쇄.
 //   2026-08 개편: 교육훈련 사진 섹션 제거, 좌측 목록 + 우측 단계형 작업영역 UI로 재구성.
 declare(strict_types=1);
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 
+
+if(session_status()!==PHP_SESSION_ACTIVE){
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+}
+
 
 function is_admin(): bool {
   return (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'])
@@ -756,6 +761,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
 </style>
 </head>
 <body>
+<?php require_once __DIR__.'/building_facilities_common.php';bf_render_reference(); ?>
 
 <div class="appbar no-print">
   <div class="appbar__in">

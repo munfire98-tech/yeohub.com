@@ -11,6 +11,8 @@
  */
 declare(strict_types=1);
 
+
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 require_once __DIR__ . '/evac_common.php';
 
 $id = evac_clean_id((string)($_GET['id'] ?? ''));
