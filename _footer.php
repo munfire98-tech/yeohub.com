@@ -16,7 +16,7 @@
 /* 상단: 브랜드 + 링크 */
 .footer-top{display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start;margin-bottom:30px}
 .footer-brand{flex:1 1 280px;min-width:0}
-.footer-logo{font-size:21px;font-weight:800;letter-spacing:.06em;color:var(--ft-fg);margin-bottom:9px}
+.footer-logo{font-size:21px;font-weight:800;letter-spacing:-.01em;color:var(--ft-fg);margin-bottom:9px}
 .footer-desc{font-size:13.5px;line-height:1.75;color:var(--ft-mut);margin:0;max-width:340px}
 
 .footer-cols{display:flex;gap:56px;flex-wrap:wrap}
@@ -54,10 +54,10 @@
 
     <div class="footer-top">
       <div class="footer-brand">
-        <div class="footer-logo">YEOHUB</div>
+        <div class="footer-logo">소방계획서.com</div>
         <p class="footer-desc">
-          소방계획서부터 점검 기록까지, 건물 정보를 한 번만 입력하면
-          필요한 서식이 이어서 만들어집니다.
+          건물관리자와 매니저가 함께 작성하는 업무 기록.<br>
+          필요한 서식을 한곳에서 작성하고 관리합니다.
         </p>
       </div>
 
@@ -65,12 +65,11 @@
         <div class="footer-col">
           <div class="footer-col__t">서비스</div>
           <a href="/service.php">서비스 안내</a>
-          <a href="/blog.php">블로그</a>
           <a href="/faq.php">자주 묻는 질문</a>
         </div>
         <div class="footer-col">
           <div class="footer-col__t">고객지원</div>
-          <a href="mailto:YEOHUB@YEOHUB.com">문의하기</a>
+          <a href="mailto:info@xn--989ay50awvdzmk18f.com">문의하기</a>
           <a href="/privacy.php">개인정보처리방침</a>
           <a href="/terms.php">이용약관</a>
           <a href="/business_info.php">사업자정보</a>
@@ -81,18 +80,19 @@
     <div class="footer-divider"></div>
 
     <div class="footer-info">
-      <span><b>상호</b>YEOHUB</span>
+      <span><b>상호</b>소방계획서.com</span>
       <span><b>대표</b>문현권</span>
       <span><b>사업자등록번호</b>751-38-01677</span>
       <span><b>주소</b>경기도 파주시 운정중앙로</span>
     </div>
     <div class="footer-info">
-      <span><b>이메일</b>YEOHUB@YEOHUB.com</span>
+      <span><b>고객센터</b><a href="tel:01057790918" style="color:inherit;text-decoration:none">010-5779-0918</a></span>
+      <span><b>이메일</b>info@소방계획서.com</span>
       <span><b>통신판매업</b>2026-경기파주-3767</span>
     </div>
 
     <div class="footer-bottom">
-      <p>© <?= date('Y') ?> YEOHUB. All rights reserved.</p>
+      <p>© <?= date('Y') ?> 소방계획서.com. All rights reserved.</p>
       <span class="footer-pay">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.2-2.9 8.1-7 9.5-4.1-1.4-7-5.3-7-9.5V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.5 12.2l1.8 1.8 3.4-3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         토스페이먼츠 안전결제

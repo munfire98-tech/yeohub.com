@@ -641,6 +641,11 @@ footer a:hover{color:var(--fg)}
 }
 @media(max-width:520px){.cta-box--work{padding:17px 15px 16px}}
 .nav__links .mobile-only{display:none}
+
+.hero__note--collaboration{padding:0;border:0;margin-top:22px;max-width:520px;word-break:keep-all}
+.hero__note--collaboration>strong{display:block;color:var(--fg);font-size:clamp(20px,2.2vw,24px);line-height:1.5;font-weight:700;letter-spacing:-.7px}
+.hero__note--collaboration>p{margin:10px 0 0;color:var(--mut2);font-size:13px;line-height:1.85;letter-spacing:-.1px}
+@media(max-width:520px){.hero__note--collaboration{margin-top:18px}.hero__note--collaboration>strong{font-size:21px}.collaboration-break{display:none}}
 </style>
 </head>
 <body>
@@ -757,8 +762,8 @@ footer a:hover{color:var(--fg)}
   <div class="hero">
    <div class="hero__grid">
     <div class="hero__col">
-      <div class="hero__label"><span></span>YEOHUB</div>
-                    <h1>안전관리 <em>업무지원</em></h1>
+      <div class="hero__label"><span></span>SB.PLAN</div>
+                    <h1>소방안전 <em>기록관리</em></h1>
                     <p class="hero__sub">소방안전관리, 수행에서 증명까지</p>
       <?php if (is_logged_in() && !is_admin()): ?>
         <?php
@@ -775,11 +780,10 @@ footer a:hover{color:var(--fg)}
           <a class="btn btn--primary" href="<?=h(work_page())?>"><?=h($workLabel)?></a>
         </div>
       <?php endif; ?>
-                    <p class="hero__note">
-                      건물 정보를 한 번만 입력하면 업무수행 기록표·소방계획서·자위소방대 편성표가
-                      법정서식 그대로 만들어집니다. 반복 입력은 줄이고, 필요한 순간 꺼내 쓸 수 있는
-                      업무수행 근거를 남겨드립니다.
-                    </p>
+                    <div class="hero__note hero__note--collaboration">
+                      <strong>함께 작성하고 관리하는<br>소방안전 업무 기록</strong>
+                      <p>건물관리자와 매니저가 업무 현황을 공유하고,<br class="collaboration-break"> 필요한 기록을 한곳에서 체계적으로 작성·관리합니다.</p>
+                    </div>
       <?php if ($notice !== ''): ?>
         <div class="alert <?= is_admin() ? 'alert--ok' : 'alert--warn' ?>"
              style="max-width:400px;margin:16px 0 0"><?=h($notice)?></div>
