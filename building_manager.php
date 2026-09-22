@@ -30,6 +30,8 @@ if (!defined('MANAGER_VIEW_UID') && !is_admin() && $role !== 'building') {
 
 require_once __DIR__ . '/building_info.php';
 $bi     = bi_load();
+require_once __DIR__.'/building_facilities_common.php';
+$facilityData=bf_load();$facilityDone=bf_complete($facilityData);$facilityCounts=bf_counts($facilityData);
 $biName = trim((string)$bi['name']);
 $hasBi  = $biName !== '';
 
@@ -398,6 +400,7 @@ $safetyAiCsrf = (string)$_SESSION['safety_ai_csrf'];
 $aiCompleted = [];
 $aiPending = [];
 if ($biDone) $aiCompleted[] = '건물 기본정보'; else $aiPending[] = '건물 기본정보';
+if ($facilityDone) $aiCompleted[]='소방시설 현황'; else $aiPending[]='소방시설 현황';
 if ($hasRoster) $aiCompleted[] = '자위소방대 편성'; else $aiPending[] = '자위소방대 편성';
 if ($doneWorkLog === true) $aiCompleted[] = '이번 달 업무수행 기록'; else $aiPending[] = '이번 달 업무수행 기록';
 if ($doneJawi === true) $aiCompleted[] = '자위소방대 교육'; else $aiPending[] = '자위소방대 교육';
@@ -410,12 +413,14 @@ $s3 = ($doneWorkLog === true);
 $s4 = ($doneJawi === true);
 $s5 = ($doneTrain === true);
 $s6 = $hasEvacuationPlan;
-$nowStep = !$s1 ? 1 : (!$s2 ? 2 : (!$s3 ? 3 : (!$s4 ? 4 : (!$s5 ? 5 : (!$s6 ? 6 : 7)))));
+$nowStep = !$s1 ? 1 : (!$facilityDone ? 2 : (!$s2 ? 3 : (!$s3 ? 4 : (!$s4 ? 5 : (!$s5 ? 6 : (!$s6 ? 7 : 8))))));
 
 if (!$hasBi) {
   $aiNextTask = '건물 기본정보 입력'; $aiNextAction = '기본정보 입력'; $aiNextUrl = $url('/building_setup_chat.php');
 } elseif (!$biDone) {
   $aiNextTask = '건물 기본정보 마무리'; $aiNextAction = '이어서 입력'; $aiNextUrl = $url('/building_setup_chat.php');
+} elseif (!$facilityDone) {
+  $aiNextTask='소방시설 현황 확인';$aiNextAction='시설현황 입력';$aiNextUrl=$url('/building_facilities.php');
 } elseif (!$hasRoster) {
   $aiNextTask = '자위소방대 편성'; $aiNextAction = '편성 시작'; $aiNextUrl = $url('/fire_plan_jawi.php');
 } elseif ($doneWorkLog !== true) {
@@ -1456,7 +1461,7 @@ a.pstep:hover{background:#f2f6fd}
         $s4 = ($doneJawi === true);
         $s5 = ($doneTrain === true);
         $s6 = $hasEvacuationPlan;
-        $nowStep = !$s1 ? 1 : (!$s2 ? 2 : (!$s3 ? 3 : (!$s4 ? 4 : (!$s5 ? 5 : (!$s6 ? 6 : 7)))));
+        $nowStep = !$s1 ? 1 : (!$facilityDone ? 2 : (!$s2 ? 3 : (!$s3 ? 4 : (!$s4 ? 5 : (!$s5 ? 6 : (!$s6 ? 7 : 8))))));
       ?>
       <?php
         /* 현재 해야 할 단계 바로 위에 클릭 유도 문구를 띄웁니다.
@@ -1477,10 +1482,12 @@ a.pstep:hover{background:#f2f6fd}
         <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
       </a>
 
-      <?php stepNudge(2, $nowStep, '이제 자위소방대를 편성하세요'); ?>
+      <?php stepNudge(2,$nowStep,'소방시설 설치 여부를 확인하세요'); ?>
+      <a class="pstep <?= $facilityDone?'pstep--done':($nowStep===2?'pstep--now pstep--first':'') ?>" href="<?=h($url('/building_facilities.php'))?>"><span class="no"><?=$facilityDone?'✓':'2'?></span><span class="pstep__label">소방시설 현황 체크리스트</span><span class="ptag <?=$facilityDone?'ptag--done':'ptag--no'?>"><?=$facilityDone?'확인 완료':$facilityCounts['confirmed'].'/'.$facilityCounts['total']?></span></a>
+      <?php stepNudge(3, $nowStep, '이제 자위소방대를 편성하세요'); ?>
       <!-- ② 자위소방대 편성 — 매월 기록·훈련 기록이 이 명단을 불러 쓰므로 먼저입니다 -->
-      <a class="pstep <?= $s2 ? 'pstep--done' : ($nowStep===2 ? 'pstep--now' : '') ?><?= $nowStep===2 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/fire_plan_jawi.php'))?>">
-        <span class="no"><?= $s2 ? '✓' : '2' ?></span><span class="pstep__label">자위소방대 편성</span>
+      <a class="pstep <?= $s2 ? 'pstep--done' : ($nowStep===3 ? 'pstep--now' : '') ?><?= $nowStep===3 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/fire_plan_jawi.php'))?>">
+        <span class="no"><?= $s2 ? '✓' : '3' ?></span><span class="pstep__label">자위소방대 편성</span>
         <?php if ($s2): ?><span class="ptag ptag--done"><?=$rosterCount?>건</span>
         <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
         <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
@@ -1489,46 +1496,46 @@ a.pstep:hover{background:#f2f6fd}
         <div class="psub psub--why"></div>
       <?php endif; ?>
 
-      <?php stepNudge(3, $nowStep, '이번 달 기록표를 작성하세요'); ?>
+      <?php stepNudge(4, $nowStep, '이번 달 기록표를 작성하세요'); ?>
       <!-- ③ 매월 기록 -->
-      <a class="pstep <?= $s3 ? 'pstep--done' : ($nowStep===3 ? 'pstep--now' : '') ?><?= $nowStep===3 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/work_log.php'))?>">
-        <span class="no"><?= $s3 ? '✓' : '3' ?></span>매월 기록 (<?=h($mon)?>)
+      <a class="pstep <?= $s3 ? 'pstep--done' : ($nowStep===4 ? 'pstep--now' : '') ?><?= $nowStep===4 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/work_log.php'))?>">
+        <span class="no"><?= $s3 ? '✓' : '4' ?></span>매월 기록 (<?=h($mon)?>)
         <?php if ($s3): ?><span class="ptag ptag--done">완료</span>
         <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
         <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
       </a>
 
-      <?php stepNudge(4, $nowStep, '자위소방대 교육을 기록하세요'); ?>
+      <?php stepNudge(5, $nowStep, '자위소방대 교육을 기록하세요'); ?>
       <!-- ④ 자위소방대 교육·훈련 -->
-      <a class="pstep <?= $s4 ? 'pstep--done' : ($nowStep===4 ? 'pstep--now' : '') ?><?= $nowStep===4 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
-        <span class="no"><?= $s4 ? '✓' : '4' ?></span><span class="pstep__label">자위소방대 교육</span>
+      <a class="pstep <?= $s4 ? 'pstep--done' : ($nowStep===5 ? 'pstep--now' : '') ?><?= $nowStep===5 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
+        <span class="no"><?= $s4 ? '✓' : '5' ?></span><span class="pstep__label">자위소방대 교육</span>
         <?php if ($s4): ?><span class="ptag ptag--done">완료</span>
         <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
         <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
       </a>
 
-      <?php stepNudge(5, $nowStep, '소방훈련·교육을 기록하세요'); ?>
+      <?php stepNudge(6, $nowStep, '소방훈련·교육을 기록하세요'); ?>
       <!-- ⑤ 소방훈련·교육 -->
-      <a class="pstep <?= $s5 ? 'pstep--done' : ($nowStep===5 ? 'pstep--now' : '') ?><?= $nowStep===5 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/train.php'))?>">
-        <span class="no"><?= $s5 ? '✓' : '5' ?></span><span class="pstep__label">소방훈련·교육</span>
+      <a class="pstep <?= $s5 ? 'pstep--done' : ($nowStep===6 ? 'pstep--now' : '') ?><?= $nowStep===6 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/train.php'))?>">
+        <span class="no"><?= $s5 ? '✓' : '6' ?></span><span class="pstep__label">소방훈련·교육</span>
         <?php if ($s5): ?><span class="ptag ptag--done">완료</span>
         <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
         <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
       </a>
 
       <!-- ⑥ 피난계획 -->
-      <?php stepNudge(6, $nowStep, '피난계획을 작성하세요'); ?>
-      <a class="pstep <?= $s6 ? 'pstep--done' : ($nowStep===6 ? 'pstep--now' : '') ?><?= $nowStep===6 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/evacuation_plan.php'))?>">
-        <span class="no"><?= $s6 ? '✓' : '6' ?></span><span class="pstep__label">피난계획</span>
+      <?php stepNudge(7, $nowStep, '피난계획을 작성하세요'); ?>
+      <a class="pstep <?= $s6 ? 'pstep--done' : ($nowStep===7 ? 'pstep--now' : '') ?><?= $nowStep===7 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/evacuation_plan.php'))?>">
+        <span class="no"><?= $s6 ? '✓' : '7' ?></span><span class="pstep__label">피난계획</span>
         <?php if ($s6): ?><span class="ptag ptag--done">완료</span>
         <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
         <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
       </a>
 
-      <?php stepNudge(7, $nowStep, '소방계획서를 확인하세요'); ?>
+      <?php stepNudge(8, $nowStep, '소방계획서를 확인하세요'); ?>
       <!-- ⑦ 소방계획서 -->
-      <a class="pstep <?= $nowStep===7 ? 'pstep--now pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/fire_plan.php'))?>">
-        <span class="no">7</span><span class="pstep__label">소방계획서</span>
+      <a class="pstep <?= $nowStep===8 ? 'pstep--now pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/fire_plan.php'))?>">
+        <span class="no">8</span><span class="pstep__label">소방계획서</span>
         <span class="ptag ptag--always">상시</span>
       </a>
 
@@ -1679,23 +1686,24 @@ a.pstep:hover{background:#f2f6fd}
                           <a class="building-task<?= $s1 ? ' is-done' : ($nowStep===1 ? ' is-now' : '') ?>" href="<?= $biDone ? h($url('/building_setup.php')) : h($url('/building_setup_chat.php')) ?>">
                             <span class="building-task__no"><?= $s1 ? '✓' : '1' ?></span><span>기본정보</span><small><?= $s1 ? '완료' : '시작' ?></small>
                           </a>
-                          <a class="building-task<?= $s2 ? ' is-done' : ($nowStep===2 ? ' is-now' : '') ?>" href="<?=h($url('/fire_plan_jawi.php'))?>">
-                            <span class="building-task__no"><?= $s2 ? '✓' : '2' ?></span><span>자위소방대 편성</span><small><?= $s2 ? '완료' : '미진행' ?></small>
+                          <a class="building-task<?= $facilityDone?' is-done':($nowStep===2?' is-now':'') ?>" href="<?=h($url('/building_facilities.php'))?>"><span class="building-task__no"><?=$facilityDone?'✓':'2'?></span><span>소방시설 현황</span><small><?=$facilityDone?'확인 완료':'미확인 '.$facilityCounts['unknown'].'종'?></small></a>
+                          <a class="building-task<?= $s2 ? ' is-done' : ($nowStep===3 ? ' is-now' : '') ?>" href="<?=h($url('/fire_plan_jawi.php'))?>">
+                            <span class="building-task__no"><?= $s2 ? '✓' : '3' ?></span><span>자위소방대 편성</span><small><?= $s2 ? '완료' : '미진행' ?></small>
                           </a>
-                          <a class="building-task<?= $s3 ? ' is-done' : ($nowStep===3 ? ' is-now' : '') ?>" href="<?=h($url('/work_log.php'))?>">
-                            <span class="building-task__no"><?= $s3 ? '✓' : '3' ?></span><span>매월 기록</span><small><?= $s3 ? '완료' : h($mon) ?></small>
+                          <a class="building-task<?= $s3 ? ' is-done' : ($nowStep===4 ? ' is-now' : '') ?>" href="<?=h($url('/work_log.php'))?>">
+                            <span class="building-task__no"><?= $s3 ? '✓' : '4' ?></span><span>매월 기록</span><small><?= $s3 ? '완료' : h($mon) ?></small>
                           </a>
-                          <a class="building-task<?= $s4 ? ' is-done' : ($nowStep===4 ? ' is-now' : '') ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
-                            <span class="building-task__no"><?= $s4 ? '✓' : '4' ?></span><span>자위소방대 교육</span><small><?= $s4 ? '완료' : '연간' ?></small>
+                          <a class="building-task<?= $s4 ? ' is-done' : ($nowStep===5 ? ' is-now' : '') ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
+                            <span class="building-task__no"><?= $s4 ? '✓' : '5' ?></span><span>자위소방대 교육</span><small><?= $s4 ? '완료' : '연간' ?></small>
                           </a>
-                          <a class="building-task<?= $s5 ? ' is-done' : ($nowStep===5 ? ' is-now' : '') ?>" href="<?=h($url('/train.php'))?>">
-                            <span class="building-task__no"><?= $s5 ? '✓' : '5' ?></span><span>소방훈련·교육</span><small><?= $s5 ? '완료' : '연간' ?></small>
+                          <a class="building-task<?= $s5 ? ' is-done' : ($nowStep===6 ? ' is-now' : '') ?>" href="<?=h($url('/train.php'))?>">
+                            <span class="building-task__no"><?= $s5 ? '✓' : '6' ?></span><span>소방훈련·교육</span><small><?= $s5 ? '완료' : '연간' ?></small>
                           </a>
-                          <a class="building-task<?= $s6 ? ' is-done' : ($nowStep===6 ? ' is-now' : '') ?>" href="<?=h($url('/evacuation_plan.php'))?>">
-                            <span class="building-task__no"><?= $s6 ? '✓' : '6' ?></span><span>피난계획</span><small><?= $s6 ? '완료' : '미진행' ?></small>
+                          <a class="building-task<?= $s6 ? ' is-done' : ($nowStep===7 ? ' is-now' : '') ?>" href="<?=h($url('/evacuation_plan.php'))?>">
+                            <span class="building-task__no"><?= $s6 ? '✓' : '7' ?></span><span>피난계획</span><small><?= $s6 ? '완료' : '미진행' ?></small>
                           </a>
-                          <a class="building-task<?= $nowStep===7 ? ' is-now' : '' ?>" href="<?=h($url('/fire_plan.php'))?>">
-                            <span class="building-task__no">7</span><span>소방계획서</span><small>상시</small>
+                          <a class="building-task<?= $nowStep===8 ? ' is-now' : '' ?>" href="<?=h($url('/fire_plan.php'))?>">
+                            <span class="building-task__no">8</span><span>소방계획서</span><small>상시</small>
                           </a>
                           <?php if ($isPro): ?>
                             <div class="building-tasknav__pro-title"><b>PRO 확장 업무</b><span>구독 중</span></div>
@@ -2160,7 +2168,7 @@ function setupRecordPopupFrame(frame, dialog, fromPrintAll = false){
   const win = frame.contentWindow, doc = frame.contentDocument;
   const current = new URL(win.location.href);
   const name = current.pathname.split('/').pop();
-  const pages = ['work_log.php','work_log_form.php','work_log_print.php','jawi.php','jawi_chat.php','jawi_edit.php','jawi_print.php','train.php','train_chat.php','train_edit.php','train_print.php','evacuation_plan.php','evacuation_plan_chat.php','fire_plan.php','fire_plan_new.php','fire_plan_chat.php','fire_plan_edit.php','fire_plan_print.php'];
+  const pages = ['building_facilities.php','work_log.php','work_log_form.php','work_log_print.php','jawi.php','jawi_chat.php','jawi_edit.php','jawi_print.php','train.php','train_chat.php','train_edit.php','train_print.php','evacuation_plan.php','evacuation_plan_chat.php','fire_plan.php','fire_plan_new.php','fire_plan_chat.php','fire_plan_edit.php','fire_plan_print.php'];
   pages.push('print_all.php');
   if(!pages.includes(name)) return null;
   const training = name.startsWith('train');
@@ -2168,7 +2176,7 @@ function setupRecordPopupFrame(frame, dialog, fromPrintAll = false){
   const firePlan = name.startsWith('fire_plan');
   const education = name.startsWith('jawi') || training;
   const printing = name.endsWith('_print.php') || (evacuation && current.searchParams.get('print') === '1');
-  const title = name==='print_all.php' ? '전체 인쇄 · PDF' : firePlan ? '소방계획서' : evacuation ? '피난계획' : training ? '소방훈련·교육' : education ? '자위소방대 교육·훈련' : '월별 업무기록';
+  const title = name==='building_facilities.php' ? '소방시설 현황' : name==='print_all.php' ? '전체 인쇄 · PDF' : firePlan ? '소방계획서' : evacuation ? '피난계획' : training ? '소방훈련·교육' : education ? '자위소방대 교육·훈련' : '월별 업무기록';
   dialog.querySelector('#buildingInfoDialogTitle').textContent = title;
   frame.title = title;
   // 서버 리다이렉트가 쿼리를 생략해도 다음 POST와 링크는 팝업 상태를 유지합니다.
@@ -2219,7 +2227,7 @@ function setupRecordPopupFrame(frame, dialog, fromPrintAll = false){
     if(next.pathname.endsWith('/building_manager.php')){
       event.preventDefault();event.stopImmediatePropagation();win.buildingInfoRequestClose();return;
     }
-    if(!pages.concat(['building_setup.php','building_setup_chat.php','fire_plan_jawi.php']).includes(next.pathname.split('/').pop()) || (next.pathname===current.pathname && next.search===current.search && next.hash)) return;
+    if(!pages.concat(['building_setup.php','building_setup_chat.php','fire_plan_jawi.php','building_facilities.php']).includes(next.pathname.split('/').pop()) || (next.pathname===current.pathname && next.search===current.search && next.hash)) return;
     event.preventDefault();event.stopImmediatePropagation();navigate(next.href);
   },true);
   doc.addEventListener('submit',function(event){
@@ -2233,7 +2241,7 @@ function setupRecordPopupFrame(frame, dialog, fromPrintAll = false){
   });
   doc.addEventListener('keydown',function(event){if(event.key==='Escape'){event.preventDefault();win.buildingInfoRequestClose();}});
   const back = dialog.querySelector('[data-list]');
-  back.hidden = name === 'jawi.php' || name === 'work_log.php' || name === 'train.php' || name === 'evacuation_plan.php' || name === 'fire_plan.php';
+  back.hidden = name === 'building_facilities.php' || name === 'jawi.php' || name === 'work_log.php' || name === 'train.php' || name === 'evacuation_plan.php' || name === 'fire_plan.php';
   back.textContent = evacuation ? '피난계획 보기' : '목록';
   back.onclick = function(){navigate(firePlan ? '/fire_plan.php' : evacuation ? '/evacuation_plan.php' : training ? '/train.php' : education ? '/jawi.php?stay=1' : '/work_log.php');};
   if(fromPrintAll){
@@ -2260,7 +2268,7 @@ function setupRecordPopupFrame(frame, dialog, fromPrintAll = false){
 function openBuildingInfoPopup(url){
   const target = new URL(url, location.origin);
   if(target.origin !== location.origin) return;
-  const popupTitle = target.pathname.endsWith('/fire_plan_jawi.php') ? '자위소방대 편성'
+  const popupTitle = target.pathname.endsWith('/building_facilities.php') ? '소방시설 현황' : target.pathname.endsWith('/fire_plan_jawi.php') ? '자위소방대 편성'
     : target.pathname.endsWith('/print_all.php') ? '전체 인쇄 · PDF'
     : /\/fire_plan(?:_new|_chat|_edit)?\.php$/.test(target.pathname) ? '소방계획서'
     : /\/evacuation_plan(?:_chat)?\.php$/.test(target.pathname) ? '피난계획'
@@ -2341,7 +2349,7 @@ document.addEventListener('click',function(event){
   const link = event.target.closest('a[href]');
   if(!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
   const target = new URL(link.href,location.origin);
-  if(target.origin !== location.origin || !/\/(print_all|building_setup(?:_chat)?|fire_plan(?:_jawi|_new|_chat|_edit)?|evacuation_plan(?:_chat)?|work_log|(?:jawi|train)(?:_chat|_edit)?)\.php$/.test(target.pathname)) return;
+  if(target.origin !== location.origin || !/\/(building_facilities|print_all|building_setup(?:_chat)?|fire_plan(?:_jawi|_new|_chat|_edit)?|evacuation_plan(?:_chat)?|work_log|(?:jawi|train)(?:_chat|_edit)?)\.php$/.test(target.pathname)) return;
   event.preventDefault();event.stopPropagation();openBuildingInfoPopup(target.href);
 },true);
 
@@ -2349,7 +2357,7 @@ function openOneStop(url, title){
   let target;
   try { target = new URL(url, window.location.origin); } catch (error) { return; }
   if (target.origin !== window.location.origin) return;
-  if (/\/(print_all|building_setup(?:_chat)?|fire_plan(?:_jawi|_new|_chat|_edit)?|evacuation_plan(?:_chat)?|work_log|(?:jawi|train)(?:_chat|_edit)?)\.php$/.test(target.pathname)) { openBuildingInfoPopup(target.href); return; }
+  if (/\/(building_facilities|print_all|building_setup(?:_chat)?|fire_plan(?:_jawi|_new|_chat|_edit)?|evacuation_plan(?:_chat)?|work_log|(?:jawi|train)(?:_chat|_edit)?)\.php$/.test(target.pathname)) { openBuildingInfoPopup(target.href); return; }
   target.searchParams.set('embed', '1');
   if (target.pathname === '/subscribe_page.php') title = 'PRO 구독 · 관리';
   const shell = document.querySelector('.dashboard-shell');
