@@ -642,11 +642,6 @@ footer a:hover{color:var(--fg)}
 @media(max-width:520px){.cta-box--work{padding:17px 15px 16px}}
 .nav__links .mobile-only{display:none}
 </style>
-<style>
-.hero__note--together{padding-left:14px;line-height:1.85}
-.hero__note--together strong{display:block;margin-bottom:5px;color:var(--fg);font-size:15px;font-weight:650;letter-spacing:-.3px}
-.hero__note--together span{display:block;color:var(--mut2);font-size:13px;word-break:keep-all;overflow-wrap:break-word}
-</style>
 </head>
 <body>
 
@@ -780,9 +775,10 @@ footer a:hover{color:var(--fg)}
           <a class="btn btn--primary" href="<?=h(work_page())?>"><?=h($workLabel)?></a>
         </div>
       <?php endif; ?>
-                    <p class="hero__note hero__note--together">
-                      <strong>함께 관리하고, 기록으로 안전을 이어갑니다.</strong>
-                      <span>건물관리자와 매니저가 한곳에서 업무를 확인하고,<br>필요한 기록을 함께 남겨보세요.</span>
+                    <p class="hero__note">
+                      건물 정보를 한 번만 입력하면 업무수행 기록표·소방계획서·자위소방대 편성표가
+                      법정서식 그대로 만들어집니다. 반복 입력은 줄이고, 필요한 순간 꺼내 쓸 수 있는
+                      업무수행 근거를 남겨드립니다.
                     </p>
       <?php if ($notice !== ''): ?>
         <div class="alert <?= is_admin() ? 'alert--ok' : 'alert--warn' ?>"
@@ -1041,9 +1037,9 @@ footer a:hover{color:var(--fg)}
 
   <section class="service-guide" aria-labelledby="serviceGuideTitle">
     <div class="service-guide__head">
-      <div class="service-guide__eyebrow">소방안전관리 업무 흐름</div>
-      <h2 id="serviceGuideTitle">건물 등록 한 번으로<br>필요한 소방 업무를 이어갑니다</h2>
-      <p class="service-guide__lead">건물 기본정보를 반복해서 입력하지 않아도 소방계획서 작성부터 교육·훈련과 업무수행 기록까지 하나의 흐름으로 관리할 수 있습니다.</p>
+      <div class="service-guide__eyebrow">함께하는 소방안전관리</div>
+      <h2 id="serviceGuideTitle">매니저와 함께 관리하고<br>기록으로 안전을 이어갑니다</h2>
+      <p class="service-guide__lead">건물 등록 한 번으로 필요한 소방 업무를 이어가세요. 담당 매니저와 함께 해야 할 일을 확인하고, 소방계획서부터 교육·훈련, 점검과 조치 내용까지 차근차근 기록할 수 있습니다.</p>
     </div>
     <div class="service-flow">
       <article class="service-step"><span class="service-step__num"></span><h3>건물 등록</h3><p>건축물 정보와 소방시설 현황을 한 번 입력합니다.</p></article>
@@ -1053,7 +1049,7 @@ footer a:hover{color:var(--fg)}
       <article class="service-step"><span class="service-step__num"></span><h3>소방계획서</h3><p>등록한 정보를 바탕으로 법정서식을 작성하고 관리합니다.</p></article>
     </div>
     <div class="service-guide__result">
-      <div><b>서류 작성이 아니라, 계속 이어지는 업무 관리</b><span>건물별 기록이 연결되어 필요할 때 바로 확인하고 출력할 수 있습니다.</span></div>
+      <div><b>함께 확인하고, 빠짐없이 남기는 업무 기록</b><span>담당 매니저와 건물별 업무 현황을 확인하고, 필요한 기록을 바로 찾아 출력하세요.</span></div>
       <?php if (is_logged_in()): ?><a class="btn" href="<?=h(work_page())?>">건물 관리 시작하기 →</a><?php else: ?><button class="btn" type="button" id="openAuth3">무료로 시작하기 →</button><?php endif; ?>
     </div>
   </section>
@@ -1217,7 +1213,7 @@ $oldRole = (string)($oldSignup['role'] ?? '');
       </div>
       <div class="amodal__check">
         <span class="ico">✓</span>
-        <div class="tx"><b>연 구독 2개월 무료</b><span>월 2,900원, 연 결제 시 29,000원</span></div>
+        <div class="tx"><b>1년 구독</b><span>59,000원</span></div>
       </div>
       <div class="amodal__more"><a href="/service.php">자세히 보기 →</a></div>
     </div>

@@ -64,13 +64,13 @@ if ($action === 'send') {
   ];
   $_SESSION['email_code_sent_at'][$email] = time();
 
-  $body = "안녕하세요, TWORIX입니다.\n\n"
+  $body = "안녕하세요, 소방계획서.com 입니다.\n\n"
         . "회원가입 인증번호는 다음과 같습니다.\n\n"
         . "        {$code}\n\n"
         . "인증번호는 5분간 유효합니다.\n"
         . "본인이 요청하지 않았다면 이 메일을 무시하세요.";
 
-  if (send_mail($email, '[TWORIX] 회원가입 인증번호', $body)) {
+  if (send_mail($email, '[소방계획서.com] 회원가입 인증번호', $body)) {
     out(['ok' => true, 'msg' => '인증번호를 보냈습니다. 메일함(스팸함 포함)을 확인해 주세요.']);
   }
   out(['ok' => false, 'msg' => '메일 발송에 실패했습니다. 잠시 후 다시 시도하세요.']);

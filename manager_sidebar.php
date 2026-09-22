@@ -61,7 +61,6 @@ function ms_render(array $data): void {
     <div class="ms-content" id="ms-notifications" role="tabpanel" aria-labelledby="ms-tab-notifications" hidden>
       <div class="ms-notification-head"><strong>연결 알림</strong><p>새 요청과 유저의 연결 해제 내역을 확인하세요.</p></div>
       <?php mg_notice(); ?>
-      <div id="manager-disconnect-notices" aria-live="polite"></div>
       <div id="manager-request-alert" class="ms-request-alert" role="status" hidden></div>
       <p class="ms-empty" data-notifications-empty <?=$data['pending']?'hidden':''?>>대기 중인 연결 요청이 없습니다.</p>
       <?php foreach($data['rows'] as $uid=>$m):if($m['_status']!=='pending')continue; ?>
@@ -70,6 +69,7 @@ function ms_render(array $data): void {
         <p><?=mg_e((string)$uid)?>님이 담당 매니저 연결을 요청했습니다.</p>
         <div class="ms-actions"><?php ms_action((string)$uid,$m,'accepted','수락');ms_action((string)$uid,$m,'rejected','거절'); ?></div>
       </article><?php endforeach; ?>
+      <div id="manager-disconnect-notices" aria-live="polite"></div>
     </div>
     <?php
 }

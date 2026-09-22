@@ -38,10 +38,11 @@
    const response=await fetch('/manager_notifications.php',options);const data=await response.json();if(!response.ok||!data.ok)throw Error();
    disconnectUnread=Number(data.unread)||0;updateBadge();noticeHost.replaceChildren();
    for(const n of data.notifications||[]){
+    if(n.read)continue;
     const card=node('article',undefined,'ms-user');const head=node('div',undefined,'ms-user-head');head.append(node('strong',n.name),node('span',n.kind==='disconnected'?'연결 해제':'요청 취소','ms-badge'));
     card.append(head,node('p',n.kind==='disconnected'?'유저가 매니저 연결을 해제했습니다. 건물 화면에 접근할 수 없습니다.':'유저가 연결 요청을 취소했습니다.'));
     const date=new Date(n.at);card.append(node('p',Number.isNaN(date.getTime())?n.at:date.toLocaleString('ko-KR')));
-    if(n.read){card.append(node('p','확인 완료'));}else{const actions=node('div',undefined,'ms-actions');const b=node('button','확인','ms-button ms-button--primary');b.type='button';b.addEventListener('click',()=>loadDisconnect(n.id));actions.append(b);card.append(actions);}noticeHost.append(card);
+    {const actions=node('div',undefined,'ms-actions');const b=node('button','확인 완료','ms-button ms-button--primary');b.type='button';b.addEventListener('click',()=>loadDisconnect(n.id));actions.append(b);card.append(actions);}noticeHost.append(card);
    }
   }catch{let msg=noticeHost.querySelector('[data-notice-error]');if(!msg){msg=node('p','연결 해제 알림을 불러오지 못했습니다. 새로고침해 주세요.','ms-empty');msg.dataset.noticeError='1';noticeHost.prepend(msg);}}
   finally{noticeBusy=false;}

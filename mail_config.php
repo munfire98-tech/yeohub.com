@@ -2,8 +2,8 @@
 /**
  * mail_config.php — 이메일 발송 설정 (Resend SMTP)
  *
- * ▸ RESEND_API_KEY 에 Resend에서 발급받은 API 키(re_로 시작)를 넣으세요.
- *   이 파일은 서버에만 두고 외부에 노출하지 마세요.
+ * ▸ API 키는 mail_secret.php 에서만 관리합니다. (.gitignore 대상 → 서버에 직접 업로드)
+ * ▸ 이 파일에는 키를 절대 적지 마세요. (git에 올라감)
  */
 
 require_once __DIR__ . '/PHPMailer/src/PHPMailer.php';
@@ -14,16 +14,24 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 // ─────────────────────────────────────────────
-//  ↓↓↓ 여기 API 키만 넣으세요 ↓↓↓
-
-$apiKey = require __DIR__ . '/mail_secret.php';   // ← re_로 시작하는 키
-//  ↑↑↑ 여기 API 키만 넣으세요 ↑↑↑
+// API 키 로드 (mail_secret.php 는 `return '키';` 또는 define() 방식 모두 지원)
+$secretFile = __DIR__ . '/mail_secret.php';
+if (is_file($secretFile)) {
+  $apiKey = require $secretFile;
+  if (!defined('RESEND_API_KEY') && is_string($apiKey) && trim($apiKey) !== '') {
+    define('RESEND_API_KEY', trim($apiKey));
+  }
+  unset($apiKey);
+} else {
+  error_log('메일 설정 오류: mail_secret.php 파일이 서버에 없습니다.');
+}
+unset($secretFile);
 
 define('SMTP_HOST', 'smtp.resend.com');
-define('SMTP_USER', 'resend');              // Resend는 아이디가 항상 'resend'
+define('SMTP_USER', 'resend');                          // Resend는 아이디가 항상 'resend'
 define('SMTP_PORT', 587);
-define('SMTP_FROM', 'info@tworix.com');     // DNS 인증된 도메인이어야 함
-define('SMTP_FROM_NAME', 'TWORIX');
+define('SMTP_FROM', 'info@xn--989ay50awvdzmk18f.com');  // Resend에서 Verified 된 도메인
+define('SMTP_FROM_NAME', '소방계획서.com');
 // ─────────────────────────────────────────────
 
 /**
@@ -31,6 +39,10 @@ define('SMTP_FROM_NAME', 'TWORIX');
  * @return bool 성공 여부
  */
 function send_mail(string $to, string $subject, string $body): bool {
+  if (!defined('RESEND_API_KEY') || !is_string(RESEND_API_KEY) || !str_starts_with(RESEND_API_KEY, 're_')) {
+    error_log('메일 발송 실패: mail_secret.php의 API 키 설정을 확인하세요.');
+    return false;
+  }
   $mail = new PHPMailer(true);
   try {
     $mail->isSMTP();

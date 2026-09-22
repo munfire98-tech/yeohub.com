@@ -6207,7 +6207,7 @@ function estSavePdf() {
 </script>
 <script src="/manager_map.js?v=6" defer></script>
 <script src="/manager_sidebar.js?v=7" defer></script>
-<script src="/manager_activity.js?v=6" defer></script>
+<script src="/manager_activity.js?v=7" defer></script>
 <?php require __DIR__ . '/manager_footer.php'; ?>
 <script src="/manager_payout.js?v=1" defer></script>
 </body>

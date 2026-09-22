@@ -16,7 +16,7 @@ try{
   if(!$found){http_response_code(404);echo '{"ok":false}';exit;}
  }elseif($method!=='GET'){http_response_code(405);header('Allow: GET, POST');echo '{"ok":false}';exit;}
  $state=mg_read(mg_state_file());$rows=[];$unread=0;
- foreach($state['connection_notifications']??[] as $n){if(!is_array($n)||!$owns($n))continue;$read=!empty($n['read_at']);if(!$read)$unread++;$rows[]=['id'=>$n['id'],'name'=>$n['name'],'kind'=>$n['kind'],'at'=>$n['at'],'read'=>$read];}
+ foreach($state['connection_notifications']??[] as $n){if(!is_array($n)||!$owns($n)||!empty($n['read_at']))continue;$read=false;$unread++;$rows[]=['id'=>$n['id'],'name'=>$n['name'],'kind'=>$n['kind'],'at'=>$n['at'],'read'=>$read];}
  usort($rows,static fn($a,$b)=>($a['read']<=>$b['read'])?:strcmp($b['at'],$a['at']));
  echo json_encode(['ok'=>true,'unread'=>$unread,'notifications'=>$rows],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
 }catch(Throwable $e){http_response_code(503);echo '{"ok":false,"error":"알림을 불러오지 못했습니다."}';}
