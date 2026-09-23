@@ -2047,6 +2047,8 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
     <?php if($msReady): ?><button type="button" class="manager-header-wallet" data-wallet-open aria-haspopup="dialog" aria-controls="manager-wallet-dialog"><span class="header-wallet-icon" aria-hidden="true"><?=mg_icon('coin')?></span><span class="header-wallet-label">파이어코인<small>적립 내역 보기</small></span><strong><?=number_format((int)$ms['balance'])?><small>개</small></strong><span aria-hidden="true" class="wallet-chevron">›</span></button><?php endif; ?>
   </div>
 </header>
+<?php if($managerHeaderName!==null): ?><script src="/manager_help.js?v=6" data-manager="1"></script><?php endif; ?>
+
 <?php if($msReady)ms_render_wallet($ms); ?>
 
 
@@ -6205,9 +6207,9 @@ function estSavePdf() {
   });
 })();
 </script>
-<script src="/manager_map.js?v=6" defer></script>
+<script src="/manager_map.js?v=7" defer></script>
 <script src="/manager_sidebar.js?v=7" defer></script>
-<script src="/manager_activity.js?v=7" defer></script>
+<script src="/manager_activity.js?v=8" defer></script>
 <?php require __DIR__ . '/manager_footer.php'; ?>
 <script src="/manager_payout.js?v=1" defer></script>
 </body>

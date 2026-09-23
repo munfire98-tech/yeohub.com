@@ -59,14 +59,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'save_ste
     }
   }
 
-  $ok = bi_save($cur);
+  require_once __DIR__.'/building_location_rules.php';
+  $locationError=bl_location_error($cur,$patch);
+  if($locationError!==''){echo json_encode(['ok'=>false,'error'=>$locationError],JSON_UNESCAPED_UNICODE);exit;}
+  $saveError='';
+  try {
+    $requestId=trim((string)($_POST['help_request_id']??''));
+    if($requestId!==''){
+      require_once __DIR__.'/manager_help_complete.php';
+      $editActor=(string)($_SESSION['_mge_actor']??'');
+      if($editActor==='')throw new RuntimeException('매니저 편집 화면에서 요청을 처리해 주세요.');
+      $ok=mh_save_requested_answer($editActor,app_user_key(),$requestId,$patch,static function()use($cur,$patch):bool{
+        if(!bi_save($cur))return false;
+        $savedMap=bi_load();
+        foreach(['assembly_lat','assembly_lng','assembly_kind','fire_engine_route'] as $key){if(array_key_exists($key,$patch)&&trim((string)($savedMap[$key]??''))!==trim((string)$patch[$key]))return false;}
+        return true;
+      });
+    }else{
+      require_once __DIR__.'/manager_help_complete.php';
+      if(mg_uid()===app_user_key()){
+        $ok=mh_save_own_answers(app_user_key(),$patch,static function()use($cur):bool{return bi_save($cur);},static function():array{return bi_load();},(string)($_POST['help_answer_field']??''));
+      }else{$ok=bi_save($cur);}
+    }
+  }catch(Throwable $e){$ok=false;$saveError='요청 항목을 저장하지 못했습니다. 연결 상태와 입력 내용을 확인하고 다시 시도해 주세요.';error_log('Requested answer: '.$e->getMessage());}
+  if($ok){
+    $persisted=bi_load();
+    foreach(['assembly_lat','assembly_lng','assembly_kind','fire_engine_route'] as $mapKey){
+      if(array_key_exists($mapKey,$patch)&&trim((string)($persisted[$mapKey]??''))!==trim((string)$patch[$mapKey])){
+        $ok=false;$saveError='지도 정보가 저장되지 않았습니다. 서버의 building_info.php 저장 항목을 확인해 주세요.';break;
+      }
+    }
+  }
   $p  = bi_progress();
   echo json_encode([
     'ok'      => $ok,
     'percent' => $p['percent'],
     'filled'  => $p['filled'],
     'total'   => $p['total'],
-    'error'   => $ok ? '' : '저장하지 못했습니다. data 폴더 쓰기 권한을 확인해 주세요.',
+    'error'   => $ok ? '' : ($saveError ?: '저장하지 못했습니다. data 폴더 쓰기 권한을 확인해 주세요.'),
   ], JSON_UNESCAPED_UNICODE);
   exit;
 }
@@ -404,10 +434,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'reset') 
   if (!hash_equals($CSRF, (string)($_POST['csrf'] ?? ''))) {
     http_response_code(403); exit('잘못된 요청입니다.');
   }
-  if (app_has_user_key()) {
-    $blank = bi_blank();
-    unset($blank['updated']);
-    bi_save($blank);
+  if (!app_has_user_key()) {
+    http_response_code(403); exit('초기화할 회원을 확인하지 못했습니다.');
+  }
+  require_once __DIR__.'/manager_help_reset.php';
+  try {
+    mh_reset_building_requests(app_user_key(), static function(): bool {
+      $blank = bi_blank();
+      unset($blank['updated']);
+      return bi_save($blank);
+    });
+  } catch (Throwable $e) {
+    error_log('Building help reset: '.$e->getMessage());
+    http_response_code(503);
+    exit('초기화를 완료하지 못했습니다. 기본정보와 요청 목록을 확인한 뒤 다시 시도해 주세요.');
   }
   header('Location: /building_setup_chat.php?reset=1');
   exit;
@@ -557,6 +597,8 @@ button{font:inherit;color:inherit;cursor:pointer}
   .msg__b{max-width:calc(100% - 42px)}
 }
 @media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+
+.pick-map-prompt{position:absolute;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;display:flex;align-items:center;gap:10px;width:max-content;max-width:calc(100% - 32px);padding:13px 16px;border:1px solid rgba(255,255,255,.9);border-radius:14px;background:rgba(255,255,255,.96);color:#176955;box-shadow:0 5px 24px rgba(15,55,48,.2);font:700 13px/1.5 system-ui;text-align:center}.pick-map-prompt svg{flex:0 0 26px}.pick-map-prompt[hidden]{display:none}.pick-next{padding:10px 12px!important;border-radius:10px;background:#eff8f4;color:#186b53!important;font-size:13px!important}.pick-next b{font-weight:800}.map-wrap.pick-awaiting{border:2px solid #43a98d}
 </style>
 </head>
 <body>
@@ -569,7 +611,7 @@ button{font:inherit;color:inherit;cursor:pointer}
     <a class="brand" href="/index.php">소방계획서.B_S_CHAT</a>
     <div style="display:flex;gap:8px">
       <form method="post" style="display:inline"
-            onsubmit="return confirm('입력한 건물 기본정보를 모두 지우고 처음부터 다시 시작합니다.\n계속할까요?')">
+            onsubmit="return confirm('건물 기본정보와 기존 작성 도움 요청(해결된 기록 포함)을 모두 삭제하고 처음부터 다시 시작합니다.\n계속할까요?')">
         <input type="hidden" name="act" value="reset">
         <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
         <button class="btn" type="submit">↺ 처음부터 다시</button>
@@ -600,6 +642,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   <div id="chat"></div>
 </main>
 
+<script src="/manager_help.js?v=6" data-uid="<?=h($viewUid)?>" data-reviewchat="1" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
 <script>
 var CSRF   = <?=json_encode($CSRF)?>;
 var KAKAO_JS_KEY = <?=json_encode($API['kakao_js'] ?? '')?>;
@@ -637,6 +680,7 @@ var NICK   = <?=json_encode($nick, JSON_UNESCAPED_UNICODE)?>;
 var chat = document.getElementById('chat');
 var answers = {};          // 이번 대화에서 새로 받은 값
 var step = 0;
+var REVIEW_MODE=false, REVIEW_CURRENT=null, REVIEW_DONE={}, REVIEW_SKIPPED={};
 
 /* ── 질문 목록 ────────────────────────────────────────────
    field  : building_info.php 의 항목 이름
@@ -896,8 +940,22 @@ function mkInput(type, ph){
 function esc(s){ return String(s==null?'':s)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function md(s){ return esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>'); }
-function down(){ requestAnimationFrame(function(){
-  window.scrollTo({top:document.body.scrollHeight, behavior:'smooth'}); }); }
+var scrollGeneration=0,scrollTimer=null,followChatUntil=0;
+function settleChatBottom(){
+  clearTimeout(scrollTimer);
+  var generation=scrollGeneration;
+  scrollTimer=setTimeout(function(){requestAnimationFrame(function(){requestAnimationFrame(function(){
+    if(generation!==scrollGeneration)return;
+    var root=document.scrollingElement||document.documentElement;
+    var bottom=Math.max(root.scrollHeight,document.body.scrollHeight,document.documentElement.scrollHeight);
+    window.scrollTo({top:bottom,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+  });});},60);
+}
+function down(){followChatUntil=Date.now()+1800;settleChatBottom();}
+function pauseChatFollow(){followChatUntil=0;scrollGeneration++;clearTimeout(scrollTimer);}
+window.addEventListener('wheel',function(e){if(e.deltaY<0)pauseChatFollow();},{passive:true});
+window.addEventListener('touchstart',pauseChatFollow,{passive:true});
+
 
 function bot(html, hint){
   var d=document.createElement('div'); d.className='msg';
@@ -916,8 +974,12 @@ function clearBox(){ var a=document.getElementById('ansBox'); if(a) a.remove(); 
 function box(){ clearBox(); var d=document.createElement('div');
   d.className='answer'; d.id='ansBox'; chat.appendChild(d); down(); return d; }
 
+function mapPointValid(lat,lng){return String(lat??'').trim()!==''&&String(lng??'').trim()!==''&&Number.isFinite(Number(lat))&&Number.isFinite(Number(lng))&&Math.abs(Number(lat))<=90&&Math.abs(Number(lng))<=180;}
+function savedRoutePoints(){try{var r=JSON.parse(SAVED.fire_engine_route||'[]');return Array.isArray(r)?r.filter(function(p){return p&&mapPointValid(p.lat,p.lng);}):[];}catch(e){return [];}}
 /* 이미 저장된 값이 있는지 */
 function filled(s){
+  if (s.field === '__assembly') return String(SAVED.assembly_kind||'').trim()!=='' && mapPointValid(SAVED.assembly_lat,SAVED.assembly_lng);
+  if (s.field === 'fire_engine_route') return savedRoutePoints().length>=2;
   if (s.field === '__search') return String(SAVED.name||'').trim() !== '';  // 이름이 이미 있으면 검색단계 건너뜀
   if (s.field === '__floors') return String(SAVED.floor_a||'').trim() !== '';
   if (s.field === '__areas')  return String(SAVED.area_t||'').trim() !== '' || String(SAVED.area_f||'').trim() !== '';
@@ -944,15 +1006,21 @@ function save(patch, done){
     settled = true;
     chatPending--;
     if(ok && version === chatEditVersion) chatUnsaved = false;
+    if(!ok){clearBox();ask(STEPS[step]);return;}
+    if(REVIEW_MODE&&ok&&REVIEW_CURRENT){REVIEW_DONE[REVIEW_CURRENT.id]=true;window.managerHelp.refresh();try{if(window.parent!==window)window.parent.managerHelp?.refresh();}catch(e){}}
+    if(ok&&!REVIEW_MODE){window.managerHelp.refresh();try{if(window.parent!==window)window.parent.managerHelp?.refresh();}catch(e){}}
     onDone(ok);
   };
   var fd = new FormData();
   fd.append('act','save_step'); fd.append('csrf',CSRF);
+  if(STEPS[step])fd.append('help_answer_field',STEPS[step].field);
+  if(REVIEW_MODE&&REVIEW_CURRENT)fd.append('help_request_id',REVIEW_CURRENT.id);
   fd.append('patch', JSON.stringify(patch));
   fetch(location.pathname + location.search, {method:'POST', body:fd, credentials:'same-origin'})
     .then(function(r){ return r.json(); })
     .then(function(j){
       if (j && j.ok){
+        Object.keys(patch).forEach(function(k){SAVED[k]=patch[k];});
         document.getElementById('pPct').textContent = j.percent + '%';
         document.getElementById('pNum').textContent = j.filled + '/' + j.total;
         document.getElementById('pBar').style.width = j.percent + '%';
@@ -966,7 +1034,25 @@ function save(patch, done){
 }
 
 /* ── 시작 ─────────────────────────────────────────────── */
-function start(){
+async function start(){
+  if(new URLSearchParams(location.search).get('reset')==='1' && window.parent!==window){
+    try{window.parent.managerHelp?.refresh();}catch(e){}
+  }
+  var help=await window.managerHelp.ready;
+  if(<?=!empty($_SESSION['_mge_actor'])?'true':'false'?>&&!help){
+    bot(md('요청 목록을 불러오지 못했습니다. 새로고침 후 다시 확인해 주세요.'));return;
+  }
+  if(help&&help.mode==='manager'){
+    var pending=help.rows.filter(function(r){return r.status==='pending'&&r.connection_active;});
+    if(!pending.length&&new URLSearchParams(location.search).has('help_field')){
+      bot(md('**현재 남아 있는 작성 요청이 없습니다.**\n이미 완료되었거나 초기화된 요청입니다.'));return;
+    }
+    if(pending.length){
+      var originalSteps=STEPS;
+      STEPS=pending.map(function(r){var s=originalSteps.find(function(x){return x.field===r.field;});return s?Object.assign({},s,{helpRequest:r}):null;}).filter(Boolean);
+      if(STEPS.length){REVIEW_MODE=true;step=0;bot(md('**확인 요청한 항목만 차례로 보여드립니다.**\n답변을 저장하면 해당 요청이 완료됩니다.'));next();return;}
+    }
+  }
   var anyFilled = STEPS.some(filled);
   if (anyFilled){
     bot(md('다시 오셨네요. 이어서 채워보겠습니다.\n이미 답하신 것은 건너뛰겠습니다.'));
@@ -980,6 +1066,17 @@ function start(){
 }
 
 function next(){
+  if(REVIEW_MODE){
+    if(REVIEW_CURRENT&&!REVIEW_DONE[REVIEW_CURRENT.id])REVIEW_SKIPPED[REVIEW_CURRENT.id]=true;
+    var index=STEPS.findIndex(function(s){return !REVIEW_DONE[s.helpRequest.id]&&!REVIEW_SKIPPED[s.helpRequest.id];});
+    if(index<0){
+      clearBox();var left=STEPS.filter(function(s){return !REVIEW_DONE[s.helpRequest.id];}).length;
+      bot(md(left?'**아직 확인할 요청이 '+left+'건 남아 있습니다.**\n건너뛴 항목은 완료 처리되지 않았습니다.':'**요청한 항목 작성을 모두 완료했습니다.**\n저장한 내용과 완료 상태가 유저에게 반영되었습니다.'));
+      if(left){var retry=document.createElement('button');retry.className='btn btn--pri';retry.textContent='남은 요청 이어서 작성';retry.onclick=function(){REVIEW_SKIPPED={};REVIEW_CURRENT=null;next();};box().appendChild(retry);}
+      window.managerHelp.refresh();return;
+    }
+    step=index;REVIEW_CURRENT=STEPS[index].helpRequest;typing(function(){ask(STEPS[step]);});return;
+  }
   while (step < STEPS.length && filled(STEPS[step])) step++;
   if (step >= STEPS.length){ finish(); return; }
 
@@ -1042,12 +1139,17 @@ function ask(s){
     mapEl.style.cssText='width:100%;height:280px;background:#eef2f7';
     var mapHelp = document.createElement('div');
     mapHelp.className='map-gesture';
-    mapHelp.textContent='마우스 휠·손가락으로 확대하고, 드래그로 이동할 수 있어요';
+    mapHelp.textContent='① 지도에서 모일 장소를 눌러 주세요';
     mapWrap.appendChild(mapEl); mapWrap.appendChild(mapHelp); b.appendChild(mapWrap);
+    mapWrap.classList.toggle('pick-awaiting',!mapPointValid(picked.lat,picked.lng));
+    var pickPrompt=document.createElement('div');pickPrompt.className='pick-map-prompt';pickPrompt.hidden=mapPointValid(picked.lat,picked.lng);
+    pickPrompt.innerHTML='<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 21s7-6 7-12a7 7 0 1 0-14 0c0 6 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/></svg><span>모일 장소를 지도에서 눌러주세요<br><small>위치를 찍으면 이름을 입력할 수 있어요</small></span>';
+    mapWrap.appendChild(pickPrompt);
 
     var tip = document.createElement('div');
     tip.style.cssText='font-size:12.5px;color:var(--mut);margin:0 0 12px';
-    tip.innerHTML = '<b>①</b> 지도를 눌러 집결지 위치를 찍어주세요.';
+    tip.className='pick-next';tip.setAttribute('role','status');
+    tip.innerHTML = '<b>먼저 위 지도를 눌러주세요.</b> 위치를 지정하면 이름 입력이 열립니다.';
     b.appendChild(tip);
 
     // 장소 유형
@@ -1075,12 +1177,14 @@ function ask(s){
       };
       kindBtns.push(btn); kindWrap.appendChild(btn);
     });
+    kindBtns.forEach(function(btn){btn.disabled=!mapPointValid(picked.lat,picked.lng);});
     b.appendChild(kindWrap);
 
     var kindInput = document.createElement('input');
     kindInput.type='text';
     kindInput.placeholder='또는 직접 입력 (예: 건너편 은행 주차장)';
     kindInput.value = SAVED.assembly_kind || '';
+    kindInput.disabled=!mapPointValid(picked.lat,picked.lng);
     kindInput.style.cssText='width:100%;padding:11px 14px;border:1px solid var(--bd2);border-radius:11px;font-size:14.8px;font-family:inherit;margin-top:8px';
     b.appendChild(kindInput);
 
@@ -1091,7 +1195,8 @@ function ask(s){
 
     /* 이름을 적으면 저장 버튼을 눈에 띄게 해서 다음 행동을 유도합니다 */
     function nudgeSave(){
-      var ready = kindInput.value.trim() !== '';
+      var ready = mapPointValid(picked.lat,picked.lng)&&kindInput.value.trim()!=='';
+      okBtn.disabled=!ready;
       okBtn.classList.toggle('btn--nudge', ready);
       if (ready){
         tip.innerHTML = '✅ 준비됐습니다. 아래 <b>집결지로 저장</b>을 눌러주세요.';
@@ -1103,10 +1208,9 @@ function ask(s){
 
     okBtn.onclick=function(){
       var kind = kindInput.value.trim();
-      if (!picked.lat && !kind){
-        tip.textContent = '지도에서 위치를 찍거나, 어떤 곳인지 적어주세요.';
-        tip.style.color = '#b91c1c';
-        return;
+      if(!mapPointValid(picked.lat,picked.lng)||!kind){
+        tip.textContent=!mapPointValid(picked.lat,picked.lng)?'지도에서 집결지 위치를 먼저 찍어 주세요.':'집결지 이름을 입력해 주세요.';
+        tip.style.color='#b91c1c';return;
       }
       var patch = { assembly_kind: kind };
       if (picked.lat && picked.lng){
@@ -1114,7 +1218,7 @@ function ask(s){
         patch.assembly_lng = String(picked.lng);
       }
       clearBox(); me('집결지: ' + (kind || '지도에 표시한 위치'));
-      save(patch, function(){ step++; next(); });
+      save(patch, function(ok){if(!ok)return;step++;next();});
     };
     var skipBtn=document.createElement('button');
     skipBtn.className='btn btn--sm'; skipBtn.type='button'; skipBtn.textContent='나중에 정할게요';
@@ -1128,6 +1232,8 @@ function ask(s){
       if (marker) marker.setMap(null);
       marker = new kakao.maps.Marker({ map: mapObj, position: latlng });
       picked.lat = latlng.getLat(); picked.lng = latlng.getLng();
+      pickPrompt.hidden=true;mapWrap.classList.remove('pick-awaiting');mapHelp.textContent='✓ 위치 선택 완료 · 다시 누르면 위치를 바꿀 수 있어요';
+      kindInput.disabled=false;kindBtns.forEach(function(btn){btn.disabled=false;});nudgeSave();
       tip.innerHTML = '✅ 위치를 찍었습니다. <b>이제 집결지 이름을 넣어주세요.</b>';
       tip.style.color = '#15803d';
       // 다음에 할 일(이름 넣기)을 눈에 띄게 강조합니다.
@@ -1137,7 +1243,7 @@ function ask(s){
       kindInput.style.borderColor = '#22c55e';
       kindInput.style.boxShadow = '0 0 0 3px rgba(34,197,94,.15)';
       okBtn.classList.add('btn--primary');
-      if (!kindInput.value.trim()) kindInput.focus();
+      if (!kindInput.value.trim()) kindInput.focus({preventScroll:true});
     }
 
     loadKakaoMap(function(){
@@ -1161,11 +1267,11 @@ function ask(s){
       if (picked.lat && picked.lng){
         setMarker(new kakao.maps.LatLng(parseFloat(picked.lat), parseFloat(picked.lng)));
       }
-      kakao.maps.event.addListener(mapObj, 'click', function(e){ setMarker(e.latLng); });
+      kakao.maps.event.addListener(mapObj, 'click', function(e){chatUnsaved=true;chatEditVersion++;setMarker(e.latLng);down();});
     }, function(){
-      // 지도를 못 불러온 경우에도 집결지 이름은 직접 저장할 수 있습니다.
+      // 위치가 지정되지 않으면 저장하지 않습니다.
       mapWrap.style.display = 'none';
-      tip.textContent = '지도를 불러오지 못했습니다. 아래에 집결지 이름을 직접 적어주세요.';
+      tip.textContent = '지도를 불러오지 못했습니다. 위치를 지정할 수 있도록 새로고침 후 다시 시도해 주세요.';
     });
 
     return;
@@ -1222,8 +1328,8 @@ function ask(s){
       saveBtn.classList.toggle('btn--nudge',path.length>=2);
       saveGuide.classList.toggle('is-show',path.length>=2);
     }
-    undo.onclick=function(){route.pop();redrawRoute();};
-    reset.onclick=function(){route=[];redrawRoute();};
+    undo.onclick=function(){chatUnsaved=true;chatEditVersion++;route.pop();redrawRoute();};
+    reset.onclick=function(){chatUnsaved=true;chatEditVersion++;route=[];redrawRoute();};
     skip.onclick=function(){clearBox();me('소방차 진입로는 나중에 표시할게요');step+=2;next();};
     saveBtn.onclick=function(){
       if(route.length<2){tip.textContent='진입로는 두 지점 이상 찍어주세요.';return;}
@@ -1248,7 +1354,7 @@ function ask(s){
         var ap=new kakao.maps.LatLng(aLat,aLng);
         new kakao.maps.CustomOverlay({map:mapObj,position:ap,yAnchor:1.5,content:'<div style="background:#15803d;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px">집결지</div>'});
       }
-      kakao.maps.event.addListener(mapObj,'click',function(e){route.push({lat:e.latLng.getLat(),lng:e.latLng.getLng()});redrawRoute();});
+      kakao.maps.event.addListener(mapObj,'click',function(e){chatUnsaved=true;chatEditVersion++;route.push({lat:e.latLng.getLat(),lng:e.latLng.getLng()});redrawRoute();});
       redrawRoute();
     },function(){mapWrap.style.display='none';tip.textContent='지도를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';saveBtn.disabled=true;});
     return;
@@ -1543,7 +1649,7 @@ function addMgrQuickFill(s, container, inp){
         save(patch, function(){
           /* 연락처까지 채웠으면 전화 질문은 건너뛴다 */
           step++;
-          if (patch.tel){
+          if (patch.tel&&!REVIEW_MODE){
             var nx = STEPS[step];
             if (nx && nx.field === 'tel') step++;
           }
@@ -1567,43 +1673,32 @@ function addMgrQuickFill(s, container, inp){
   if (!made && !row.children.length) row.remove();
 }
 
+function helpRequestLabel(mode, managerName){
+  var name=String(managerName||'').trim()||'담당 매니저';
+  if(mode==='accepted')return '잘 모르겠어요 · '+name+'에게 요청하기';
+  if(mode==='pending')return '잘 모르겠어요 · '+name+'에게 요청하기 (연결 수락 대기)';
+  return '잘 모르겠어요 · 로컬매니저 연결하고 요청하기';
+}
 function addYeohubReview(s, container){
   if (!container || !container.isConnected || container.querySelector('.yeohub-review')) return;
-  var row = document.createElement('div');
-  row.className = 'subrow yeohub-review';
-  var btn = document.createElement('button');
-  btn.className = 'btn btn--sm';
-  btn.type = 'button';
-  btn.textContent = '잘 모르겠어요 · YeoHub에 요청하기';
-  btn.onclick = function(){ requestYeohubReview(s, btn); };
-  row.appendChild(btn);
-  container.appendChild(row);
+  var row=document.createElement('div');row.className='subrow yeohub-review';
+  var btn=document.createElement('button');btn.className='btn btn--sm';btn.type='button';btn.disabled=true;btn.textContent='담당 매니저 확인 중…';
+  row.appendChild(btn);container.appendChild(row);
+  window.managerHelp.ready.then(function(j){
+    if(j&&j.mode==='manager'){row.remove();return;}
+    btn.disabled=false;btn.textContent=j?helpRequestLabel(j.mode,j.manager_name):'담당 매니저 확인하고 요청하기';
+  });
+  btn.onclick=function(){requestYeohubReview(s,btn);};
 }
-
-function requestYeohubReview(s, btn){
-  if (btn.disabled) return;
-  btn.disabled = true;
-  btn.textContent = '요청 중…';
-  var fd = new FormData();
-  fd.append('kind', 'review');
-  var group = s.reviewGroup || '건물 기본정보';
-  fd.append('text', group + ': ' + (s.label ? s.label + ' - ' : '') + s.q);
-  fetch('/assist_log.php', {method:'POST', body:fd, credentials:'same-origin'})
-    .then(function(r){ return r.json(); })
-    .then(function(j){
-      if (!j || !j.ok) throw new Error((j && j.error) || 'request');
-      btn.textContent = 'YeoHub 요청 완료 ✓';
-      clearBox();
-      me('YeoHub에 검토요청');
-      bot(md('**YeoHub에 검토를 요청했습니다.**\n관리자가 회원님의 입력내용을 확인할 수 있습니다.'));
-      step++;
-      setTimeout(next, 520);
-    })
-    .catch(function(){
-      btn.disabled = false;
-      btn.textContent = '잘 모르겠어요 · YeoHub에 요청하기';
-      alert('요청을 접수하지 못했습니다. 잠시 후 다시 시도해 주세요.');
-    });
+async function requestYeohubReview(s,btn){
+  if(btn.disabled)return;btn.disabled=true;var label=btn.textContent;btn.textContent='요청 중…';
+  try{
+    var j=await window.managerHelp.request(s.field||'general',(s.reviewGroup||'건물 기본정보')+': '+(s.label?s.label+' - ':'')+s.q);
+    if(!j){btn.disabled=false;btn.textContent=label;return;}
+    btn.textContent='요청 접수 완료 ✓';clearBox();me('매니저에게 작성 도움 요청');
+    bot(md(j.mode==='pending'?'**연결 요청과 질문이 접수되었습니다.**\n매니저가 연결을 수락하면 질문을 확인할 수 있습니다.':'**담당 매니저에게 요청했습니다.**\n요청함에서 처리 상태와 답변을 확인할 수 있습니다.'));
+    step++;setTimeout(next,520);
+  }catch(e){btn.disabled=false;btn.textContent=label;alert(e.message||'요청하지 못했습니다. 다시 시도해 주세요.');}
 }
 
 function mkGo(b, fn){
@@ -1625,6 +1720,7 @@ function addSkip(s, b){
 
 /* 저장된 값은 지우지 않고 이전 질문을 다시 열어 수정합니다. */
 function addBack(s,b){
+  if(REVIEW_MODE)return;
   if(step<=0 || !b || !b.isConnected || b.querySelector('.btn--back')) return;
   var row=b.querySelector('.subrow');
   if(!row){ row=document.createElement('div'); row.className='subrow'; b.appendChild(row); }
@@ -1843,7 +1939,8 @@ function finish(){
       ['소방안전관리자', (SAVED.mgrs&&SAVED.mgrs[0]) ? SAVED.mgrs[0].name : ''],
       ['대표자', SAVED.rep], ['전화번호', SAVED.tel]
     ];
-    if (SAVED.assembly_kind) rows.push(['집결지', SAVED.assembly_kind]);
+    rows.push(['집결지',mapPointValid(SAVED.assembly_lat,SAVED.assembly_lng)?(SAVED.assembly_kind||'지도 지정')+' · 위치 저장 완료':(SAVED.assembly_kind?SAVED.assembly_kind+' · 이름만 저장':'미지정')]);
+    rows.push(['소방차 진입로',savedRoutePoints().length>=2?'경로 저장 완료 · '+savedRoutePoints().length+'개 지점':'미지정']);
     if (SAVED.fire_engine_route_note) rows.push(['진입로 특이사항', SAVED.fire_engine_route_note]);
     var html='<h2>건물 기본정보</h2>';
     rows.forEach(function(r){
@@ -1895,6 +1992,12 @@ function finish(){
   });
   document.addEventListener('keydown',function(e){if(e.key==='Escape') window.buildingInfoRequestClose();});
 })();
+if(window.MutationObserver){new MutationObserver(function(records){
+  if(records.some(function(r){return !(r.target.nodeType===1&&r.target.closest('.map-wrap'));}))down();
+}).observe(chat,{childList:true,subtree:true});}
+if(window.ResizeObserver){new ResizeObserver(function(){if(Date.now()<followChatUntil)settleChatBottom();}).observe(chat);}
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){if(Date.now()<followChatUntil)settleChatBottom();});
+if(window.visualViewport)window.visualViewport.addEventListener('resize',function(){if(Date.now()<followChatUntil)settleChatBottom();});
 start();
 </script>
 <?php require __DIR__ . '/memo_widget.php'; ?>

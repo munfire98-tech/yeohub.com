@@ -27,9 +27,12 @@
   filter();
  }
 
- let disconnectUnread=0,noticeBusy=false;
+ let helpUnread=0,disconnectUnread=0,noticeBusy=false;
+ function helpChanged(data){helpUnread=(data?.rows||[]).filter(r=>r.status==='pending'&&r.connection_active).length;updateBadge();}
+ document.addEventListener('manager-help-updated',e=>helpChanged(e.detail));
+ helpChanged(window.managerHelp?.getState());
  const noticeHost=sidebar.querySelector('#manager-disconnect-notices');
- function updateBadge(){const n=Number(sidebar.dataset.pendingCount??sidebar.dataset.initialPending??0)+disconnectUnread;if(badge){badge.hidden=n===0;badge.textContent=String(n);badge.setAttribute('aria-label','확인할 알림 '+n+'건');}}
+ function updateBadge(){const n=Number(sidebar.dataset.pendingCount??sidebar.dataset.initialPending??0)+disconnectUnread+helpUnread;if(badge){badge.hidden=n===0;badge.textContent=String(n);badge.setAttribute('aria-label','확인할 알림 '+n+'건');}}
  async function loadDisconnect(id){
   if(!noticeHost||noticeBusy)return;noticeBusy=true;
   try{

@@ -1418,7 +1418,7 @@ a.pstep:hover{background:#f2f6fd}
       <div class="safety-ai__head">
         <div class="safety-ai__title" id="safetyAiTitle">
           <span class="safety-ai__mark">M</span>
-          진행관리
+          소방안전관리 매니저
         </div>
         <span class="safety-ai__mode" id="safetyAiMode">현재 상태 분석 완료</span>
       </div>
@@ -1754,14 +1754,14 @@ a.pstep:hover{background:#f2f6fd}
                         <div class="safety-assets" aria-label="설정된 핵심 안전자산">
                           <div class="safety-assets__label"><strong>핵심 안전자산</strong><span><?=$safetyAssetCount?>개 설정</span></div>
                           <?php if ($hasFireRoute): ?>
-                            <a class="safety-asset" href="<?=h($url('/building_setup.php'))?>">
+                            <a class="safety-asset" href="<?=h($url('/building_setup.php?asset_view=route'))?>">
                               <span class="safety-asset__icon">🚒</span>
                               <span class="safety-asset__copy"><b>소방차 진입로 확보</b><small><?=count($fireRoutePoints)?>개 지점으로 진입 경로 설정</small></span>
                               <span class="safety-asset__ok">✓ 설정</span>
                             </a>
                           <?php endif; ?>
                           <?php if ($hasAssemblyPoint): ?>
-                            <a class="safety-asset" href="<?=h($url('/building_setup.php'))?>">
+                            <a class="safety-asset" href="<?=h($url('/building_setup.php?asset_view=assembly'))?>">
                               <span class="safety-asset__icon">◎</span>
                               <span class="safety-asset__copy"><b>비상 집결지 지정</b><small><?=h((string)($bi['assembly_kind'] ?? '') ?: '집결 위치 저장 완료')?></small></span>
                               <span class="safety-asset__ok">✓ 설정</span>
@@ -2268,7 +2268,7 @@ function setupRecordPopupFrame(frame, dialog, fromPrintAll = false){
 function openBuildingInfoPopup(url){
   const target = new URL(url, location.origin);
   if(target.origin !== location.origin) return;
-  const popupTitle = target.pathname.endsWith('/building_facilities.php') ? '소방시설 현황' : target.pathname.endsWith('/fire_plan_jawi.php') ? '자위소방대 편성'
+  const popupTitle = target.searchParams.get('asset_view')==='route'?'저장된 소방차 진입로':target.searchParams.get('asset_view')==='assembly'?'저장된 비상 집결지':target.pathname.endsWith('/building_facilities.php') ? '소방시설 현황' : target.pathname.endsWith('/fire_plan_jawi.php') ? '자위소방대 편성'
     : target.pathname.endsWith('/print_all.php') ? '전체 인쇄 · PDF'
     : /\/fire_plan(?:_new|_chat|_edit)?\.php$/.test(target.pathname) ? '소방계획서'
     : /\/evacuation_plan(?:_chat)?\.php$/.test(target.pathname) ? '피난계획'
@@ -2320,7 +2320,7 @@ function openBuildingInfoPopup(url){
       recordPrinter = setupRecordPopupFrame(frame,dialog,target.pathname.endsWith('/print_all.php'));
       const standaloneForm = /\/(building_setup(?:_chat)?|fire_plan_jawi)\.php$/.test(currentPath);
       loaded = recordPrinter !== null || standaloneForm || currentPath === target.pathname;
-      if(standaloneForm) dialog.querySelector('#buildingInfoDialogTitle').textContent=currentPath.endsWith('/fire_plan_jawi.php')?'자위소방대 편성':'건물 기본정보';
+      if(standaloneForm){const view=new URL(frame.contentWindow.location.href).searchParams.get('asset_view');dialog.querySelector('#buildingInfoDialogTitle').textContent=view==='route'?'저장된 소방차 진입로':view==='assembly'?'저장된 비상 집결지':currentPath.endsWith('/fire_plan_jawi.php')?'자위소방대 편성':'건물 기본정보';}
       printButton.disabled = !loaded || recordPrinter === false;
       printButton.title = recordPrinter === false ? '인쇄할 기록을 먼저 선택해 주세요' : '';
     } catch(ignore){printButton.disabled = true;}

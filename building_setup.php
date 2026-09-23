@@ -55,7 +55,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
       'tel'  => $_POST['m_tel'][$i]  ?? '',
     ];
   }
-  $saved = bi_save(array_merge(bi_load(), $_POST, ['mgrs' => $mgrs]));
+  require_once __DIR__.'/building_location_rules.php';
+  $candidate=array_merge(bi_load(),$_POST,['mgrs'=>$mgrs]);
+  $locationError=bl_location_error($candidate,$_POST);
+  $saved=false;
+  if($locationError===''){
+    try{
+      require_once __DIR__.'/manager_help_complete.php';
+      if(mg_uid()===app_user_key()){
+        $saved=mh_save_own_answers(app_user_key(),array_merge($_POST,['mgrs'=>$mgrs]),static function()use($candidate):bool{return bi_save($candidate);},static function():array{return bi_load();});
+      }else{$saved=bi_save($candidate);}
+    }catch(Throwable $e){$locationError='저장 및 요청 상태 갱신을 완료하지 못했습니다. 다시 시도해 주세요.';error_log('Own answer save: '.$e->getMessage());}
+  }
   $saveErr = !$saved;
 }
 
@@ -67,15 +78,26 @@ $resetDone = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reset') {
   if (!hash_equals($CSRF, $_POST['csrf'] ?? '')) { http_response_code(403); exit('CSRF'); }
   if (trim((string)($_POST['confirm'] ?? '')) === '초기화') {
-    $resetDone = bi_save(bi_blank());   // 빈 구조로 덮어써서 전부 비운다
-    $resetErr  = !$resetDone;
+    require_once __DIR__.'/manager_help_reset.php';
+    try {
+      mh_reset_building_requests(app_user_key(), static function(): bool {
+        return bi_save(bi_blank());
+      });
+      $resetDone = true;
+      $resetErr = false;
+    } catch (Throwable $e) {
+      $resetDone = false;
+      $resetErr = true;
+      $resetMsg = '초기화를 완료하지 못했습니다. 기본정보와 요청 목록을 확인한 뒤 다시 시도해 주세요.';
+      error_log('Building setup reset: '.$e->getMessage());
+    }
   } else {
     $resetErr = true;
     $resetMsg = '확인 문구가 일치하지 않아 초기화하지 않았습니다.';
   }
 }
 
-$d = bi_load();
+$d = !empty($locationError)?$candidate:bi_load();
 $mgrs = $d['mgrs'];
 $nick = $_SESSION['nickname'] ?? '사용자';
 $viewUid = app_user_key();
@@ -85,6 +107,11 @@ $url = function(string $path) use ($adminQuery): string {
   if ($adminQuery === '') return $path;
   return $path . (strpos($path, '?') === false ? '?' : '&') . $adminQuery;
 };
+if(($_SERVER['REQUEST_METHOD']??'GET')==='GET'&&in_array($_GET['asset_view']??'', ['assembly','route'],true)){
+  define('BUILDING_ASSET_VIEW_READY',true);
+  require __DIR__.'/building_asset_view.php';
+  exit;
+}
 $v  = fn(string $k) => h($d[$k] ?? '');
 $mv = fn(int $i, string $k) => h($mgrs[$i][$k] ?? '');
 ?>
@@ -251,6 +278,15 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
   .tseg{gap:6px}
   .tseg label{flex:1;text-align:center;padding:9px}
 }
+
+.location-map{height:260px;width:100%;border:1px solid #dce5e9;border-radius:12px;background:#f4f7f9;overflow:hidden;margin-top:12px}
+.location-map-fallback{padding:20px;color:#64748b;font-size:13px}.location-guide{display:flex;gap:10px;align-items:center;color:#56716b;background:#eef8f4;padding:10px 14px;border-radius:10px;font-size:12px;flex-wrap:wrap}.location-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.location-print-meta{margin-top:10px;font-size:11px;color:#64748b}.location-assembly .sec__t .n{background:#19866d}.location-route .sec__t .n{background:#d85f45}#assemblyName[readonly]{background:#f3f6f8;color:#718096}
+@media print{.location-assembly{break-before:page;page-break-before:always}.location-sec{break-inside:avoid;page-break-inside:avoid}.location-map{height:260px!important;border-radius:3mm!important;border:1px solid #bbc7cc!important}.location-print-meta{font-size:9px;color:#333}.location-sec .sec__t{margin-bottom:2mm!important}.location-sec .row{margin-top:2mm!important}}
+
+.pick-map-prompt{position:absolute;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;display:flex;align-items:center;gap:10px;width:max-content;max-width:calc(100% - 32px);padding:13px 16px;border:1px solid rgba(255,255,255,.9);border-radius:14px;background:rgba(255,255,255,.96);color:#176955;box-shadow:0 5px 24px rgba(15,55,48,.2);font:700 13px/1.5 system-ui;text-align:center}.pick-map-prompt svg{flex:0 0 26px}.pick-map-prompt[hidden]{display:none}.pick-next{padding:10px 12px!important;border-radius:10px;background:#eff8f4;color:#186b53!important;font-size:13px!important}.pick-next b{font-weight:800}.map-wrap.pick-awaiting{border:2px solid #43a98d}
+
+.location-map-frame{position:relative}
+@media print{.pick-map-prompt{display:none!important}}
 </style>
 </head>
 <body>
@@ -289,7 +325,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
     </div>
   <?php elseif (!empty($saveErr)): ?>
     <div class="toast" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">
-      ✕ 저장하지 못했습니다. data 폴더 쓰기 권한을 확인하거나, 다시 로그인 후 시도해 주세요.</div>
+      ✕ <?=h($locationError ?? '저장하지 못했습니다. data 폴더 쓰기 권한을 확인하거나, 다시 로그인 후 시도해 주세요.')?></div>
   <?php elseif ($resetDone): ?>
     <div class="toast">✓ 기본정보를 모두 비웠습니다. 처음 입력하는 상태가 되었습니다.</div>
   <?php elseif (!empty($resetErr)): ?>
@@ -498,57 +534,44 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
       </table>
     </section>
 
-    <!-- 4. 집결지 -->
-    <section class="sec">
-      <div class="sec__t"><span class="n">5</span> 집결지, 소방차 진입로 <small>화재 시 대피 후 모이는 장소, 소방차 진입로 </small></div>
-      <div class="row">
-        <div class="fld" style="flex:1 1 100%">
-          <label>집결지 이름</label>
-          <input type="text" name="assembly_kind" value="<?=$v('assembly_kind')?>"
-                 placeholder="예: 앞 주차장, 건너편 공원">
-        </div>
-      </div>
-
-      <?php
-        $asmLat = trim((string)($d['assembly_lat'] ?? ''));
-        $asmLng = trim((string)($d['assembly_lng'] ?? ''));
-      ?>
-      <!-- 좌표는 숨겨서 함께 저장합니다(지도는 이 좌표로 매번 새로 그립니다) -->
+    <?php
+      require_once __DIR__.'/building_location_rules.php';
+      $asmLat=trim((string)($d['assembly_lat']??''));$asmLng=trim((string)($d['assembly_lng']??''));
+      $hasMapPoint=bl_point_valid($asmLat,$asmLng);
+      $mapRoute=json_decode((string)($d['fire_engine_route']??''),true);
+      $mapRoute=is_array($mapRoute)?array_values(array_filter($mapRoute,static function($p){return is_array($p)&&bl_point_valid($p['lat']??null,$p['lng']??null);})):[];
+      $mapCenterLat=bl_point_valid($d['bd_lat']??null,$d['bd_lng']??null)?(float)$d['bd_lat']:($hasMapPoint?(float)$asmLat:(float)($mapRoute[0]['lat']??37.5665));
+      $mapCenterLng=bl_point_valid($d['bd_lat']??null,$d['bd_lng']??null)?(float)$d['bd_lng']:($hasMapPoint?(float)$asmLng:(float)($mapRoute[0]['lng']??126.9780));
+    ?>
+    <section class="sec location-sec location-assembly">
+      <div class="sec__t"><span class="n">5</span> 집결지 <small>대피 후 함께 모이는 장소</small></div>
+      <div class="location-guide no-print"><b>01 위치 지정</b><span>→</span><b>02 이름 입력</b><span>→</span><b>03 저장</b></div>
+      <div class="location-map-frame"><div id="asmMap" class="location-map"><p class="location-map-fallback">지도를 불러오는 중입니다.</p></div><div id="assemblyPickPrompt" class="pick-map-prompt no-print" hidden><span>모일 장소를 지도에서 눌러주세요<br><small>위치를 찍으면 집결지 이름을 입력할 수 있어요</small></span></div></div>
       <input type="hidden" name="assembly_lat" id="asmLat" value="<?=h($asmLat)?>">
       <input type="hidden" name="assembly_lng" id="asmLng" value="<?=h($asmLng)?>">
-      <input type="hidden" name="fire_engine_route" id="fireEngineRoute" value="<?=h((string)($d['fire_engine_route'] ?? ''))?>">
-
-      <?php if ($asmLat !== '' && $asmLng !== ''): ?>
-        <div id="asmMap" style="width:100%;height:240px;border:1px solid var(--bd);
-             border-radius:10px;margin-top:10px;background:#eef2f7"></div>
-        <div class="hint" style="margin-top:8px">
-          기본 상태에서는 지도를 눌러 집결지를 옮길 수 있습니다.
-          <span id="asmSaved" style="color:var(--ok);font-weight:700;display:none">위치가 바뀌었습니다 — 아래 저장을 눌러주세요.</span>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-          <button class="btn" type="button" id="routeEditBtn">소방차 진입로 그리기</button>
-          <button class="btn" type="button" id="routeUndoBtn" style="display:none">마지막 점 취소</button>
-          <button class="btn" type="button" id="routeResetBtn" style="display:none">진입로 지우기</button>
-        </div>
-        <div class="hint" id="routeHint" style="margin-top:8px"></div>
-      <?php else: ?>
-        <div class="hint" style="margin-top:10px">
-          아직 지도에서 위치를 찍지 않았습니다.
-          <a href="/building_setup_chat.php">대화형 입력</a>에서 지도를 눌러 지정할 수 있습니다.
-        </div>
-      <?php endif; ?>
-
-      <div class="row" style="margin-top:16px">
-        <div class="fld fld--wide">
-          <label>소방차 진입로 특이사항</label>
-          <textarea name="fire_engine_route_note" rows="4"
-                    placeholder="예: 정문은 회전 공간이 좁아 대형 소방차는 후문으로 진입해야 합니다."
-                    style="padding:10px 12px;border:1px solid var(--bd2);border-radius:9px;font-size:14px;line-height:1.6;font-family:inherit;background:#fff;color:var(--fg);resize:vertical"><?=$v('fire_engine_route_note')?></textarea>
-          <div class="hint no-print">
-            예: 진입로 폭이 좁음 · 후문으로 진입 · 높이 제한 3.5m · 출입 차단기 있음 · 야간 관리실 연락 필요
-          </div>
-        </div>
+      <div class="row" style="margin-top:16px"><div class="fld fld--wide">
+        <label for="assemblyName">집결지 이름</label>
+        <input id="assemblyName" type="text" name="assembly_kind" value="<?=$v('assembly_kind')?>" placeholder="지도에 위치를 찍은 뒤 이름을 입력하세요" <?=$hasMapPoint?'':'readonly'?> >
+      </div></div>
+      <p id="asmSaved" class="hint pick-next no-print" role="status"><?=$hasMapPoint?'저장된 집결지입니다. 변경 후 아래 저장 버튼을 눌러 주세요.':'지도에서 집결지 위치를 먼저 찍어 주세요.'?></p>
+      <div class="location-print-meta" id="assemblyPrintLocation"><?=$hasMapPoint?'집결지 위치 · '.h($asmLat).' / '.h($asmLng):'집결지 위치 미지정'?></div>
+    </section>
+    <section class="sec location-sec location-route">
+      <div class="sec__t"><span class="n">6</span> 소방차 진입로 <small>도로에서 건물 입구까지의 경로</small></div>
+      <p class="hint no-print">아래 지도에서 진입로 그리기를 누른 뒤, 도로에서 건물 입구 방향으로 두 지점 이상 찍어 주세요.</p>
+      <div id="routeMap" class="location-map"><p class="location-map-fallback">지도를 불러오는 중입니다.</p></div>
+      <input type="hidden" name="fire_engine_route" id="fireEngineRoute" value="<?=h((string)($d['fire_engine_route']??''))?>">
+      <div class="location-actions no-print">
+        <button class="btn" type="button" id="routeEditBtn">진입로 그리기</button>
+        <button class="btn" type="button" id="routeUndoBtn">마지막 점 취소</button>
+        <button class="btn" type="button" id="routeResetBtn">진입로 지우기</button>
       </div>
+      <p class="hint no-print" id="routeHint" role="status">저장된 경로 <?=count($mapRoute)?>개 지점</p>
+      <div class="location-print-meta" id="routePrintLocation"><?=count($mapRoute)>=2?'진입 경로 · '.count($mapRoute).'개 지점':'소방차 진입로 미지정'?></div>
+      <div class="row" style="margin-top:16px"><div class="fld fld--wide">
+        <label>진입로 특이사항</label>
+        <textarea name="fire_engine_route_note" rows="3" placeholder="예: 후문 진입 · 높이 제한 · 출입 차단기" style="width:100%;padding:12px;border:1px solid var(--bd2);border-radius:10px;font:inherit"><?=$v('fire_engine_route_note')?></textarea>
+      </div></div>
     </section>
 
   </form>
@@ -561,12 +584,13 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
     <div style="font-size:12.5px;color:#991b1b;line-height:1.8;background:#fef2f2;
                 border:1px solid #fecaca;border-radius:9px;padding:12px 14px;margin-bottom:12px">
       위에 입력한 <b>대상물·규모·건축물대장·소방안전관리자·집결지</b>가 모두 비워집니다.<br>
+      <b>작성 도움 요청과 완료 기록</b>도 함께 삭제됩니다.<br>
       이 정보는 <b>업무수행 기록표·훈련 기록부·소방계획서</b>가 함께 쓰므로,
       비우면 그 서식들에서도 불러올 값이 없어집니다.<br>
       <b>되돌릴 수 없으니</b> 필요하면 먼저 내용을 따로 적어두세요.
     </div>
 
-    <form method="post" onsubmit="return confirm('기본정보를 모두 비웁니다.\n되돌릴 수 없습니다. 계속할까요?')">
+    <form method="post" onsubmit="return confirm('기본정보와 작성 도움 요청·완료 기록을 모두 삭제합니다.\n되돌릴 수 없습니다. 계속할까요?')">
       <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
       <input type="hidden" name="action" value="reset">
       <div class="row">
@@ -669,68 +693,11 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
   });
 </script>
 
-<?php if ($KAKAO_JS !== '' && $asmLat !== '' && $asmLng !== ''): ?>
+<?php if ($KAKAO_JS !== ''): ?>
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=<?=h($KAKAO_JS)?>&autoload=false"></script>
-<script>
-/* 집결지 지도 — 저장된 좌표로 매번 새로 그립니다(이미지를 따로 저장하지 않습니다).
-   지도를 누르면 마커가 옮겨지고, 숨은 입력칸의 좌표가 함께 바뀝니다. */
-(function(){
-  if (typeof kakao === 'undefined' || !kakao.maps) return;
-  kakao.maps.load(function(){
-    var el = document.getElementById('asmMap');
-    if (!el) return;
-    var lat = parseFloat(document.getElementById('asmLat').value);
-    var lng = parseFloat(document.getElementById('asmLng').value);
-    if (!lat || !lng) return;
-
-    var pos = new kakao.maps.LatLng(lat, lng);
-    var map = new kakao.maps.Map(el, { center: pos, level: 3 });
-    var marker = new kakao.maps.Marker({ map: map, position: pos });
-    var routeMode = false, routeLine = null, routeDots = [], route = [];
-    try { var parsed=JSON.parse(document.getElementById('fireEngineRoute').value||'[]'); if(Array.isArray(parsed)) route=parsed; } catch(e){}
-    function drawRoute(){
-      if(routeLine) routeLine.setMap(null);
-      routeDots.forEach(function(x){x.setMap(null);}); routeDots=[];
-      var path=route.filter(function(p){return p&&isFinite(p.lat)&&isFinite(p.lng);})
-        .map(function(p){return new kakao.maps.LatLng(Number(p.lat),Number(p.lng));});
-      if(path.length){
-        routeLine=new kakao.maps.Polyline({map:map,path:path,strokeWeight:6,strokeColor:'#dc2626',strokeOpacity:.9});
-        path.forEach(function(p){routeDots.push(new kakao.maps.Circle({map:map,center:p,radius:3,strokeWeight:2,strokeColor:'#fff',fillColor:'#dc2626',fillOpacity:1}));});
-      }
-      document.getElementById('fireEngineRoute').value=path.length?JSON.stringify(route):'';
-      var hint=document.getElementById('routeHint');
-      hint.textContent=routeMode?'도로에서 건물 입구 방향으로 차례대로 누르세요. 완료되면 아래 저장을 누릅니다.':(path.length?'소방차 진입로 '+path.length+'개 지점이 저장되어 있습니다.':'아직 소방차 진입로를 표시하지 않았습니다.');
-    }
-
-    // 건물 위치도 같이 보여주면 거리 감이 잡힙니다.
-    var bLat = parseFloat(<?=json_encode((string)($d['bd_lat'] ?? ''))?>);
-    var bLng = parseFloat(<?=json_encode((string)($d['bd_lng'] ?? ''))?>);
-    if (bLat && bLng){
-      var bPos = new kakao.maps.LatLng(bLat, bLng);
-      new kakao.maps.Circle({ map: map, center: bPos, radius: 6,
-        strokeWeight: 2, strokeColor: '#2563eb', strokeOpacity: 1,
-        fillColor: '#2563eb', fillOpacity: 0.9 });
-      new kakao.maps.CustomOverlay({ map: map, position: bPos, yAnchor: 2.2,
-        content: '<div style="background:#2563eb;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap">건물</div>' });
-    }
-
-    kakao.maps.event.addListener(map, 'click', function(e){
-      window.buildingInfoDirty = true;
-      if(routeMode){route.push({lat:e.latLng.getLat(),lng:e.latLng.getLng()});drawRoute();return;}
-      marker.setPosition(e.latLng);
-      document.getElementById('asmLat').value = e.latLng.getLat();
-      document.getElementById('asmLng').value = e.latLng.getLng();
-      var s = document.getElementById('asmSaved');
-      if (s) s.style.display = 'inline';
-    });
-    var editBtn=document.getElementById('routeEditBtn'), undoBtn=document.getElementById('routeUndoBtn'), resetBtn=document.getElementById('routeResetBtn');
-    editBtn.onclick=function(){routeMode=!routeMode;editBtn.textContent=routeMode?'진입로 그리기 완료':'소방차 진입로 그리기';undoBtn.style.display=resetBtn.style.display=routeMode?'':'none';drawRoute();};
-    undoBtn.onclick=function(){route.pop();window.buildingInfoDirty=true;drawRoute();};
-    resetBtn.onclick=function(){route=[];window.buildingInfoDirty=true;drawRoute();};
-    drawRoute();
-  });
-})();
-</script>
+<script src="/building_location_maps.js?v=2" data-center-lat="<?=h($mapCenterLat)?>" data-center-lng="<?=h($mapCenterLng)?>"></script>
+<?php else: ?>
+<script>document.querySelectorAll('.location-map-fallback').forEach(function(el){el.textContent='지도 키 설정을 확인해 주세요. 저장된 좌표와 정보는 유지됩니다.';});</script>
 <?php endif; ?>
 <script>
 /* 인쇄/PDF에는 사용자가 실제로 입력한 값만 표시합니다. */
@@ -762,6 +729,11 @@ window.top.location.replace(<?=json_encode($url('/building_manager.php'))?>);
 window.addEventListener('load', function(){
   window.setTimeout(function(){ window.print(); }, 900);
 });
+</script>
+<?php endif; ?>
+<?php if ($resetDone || $saved): ?>
+<script>
+try { if(window.parent!==window)window.parent.managerHelp?.refresh(); } catch(e) {}
 </script>
 <?php endif; ?>
 </body>

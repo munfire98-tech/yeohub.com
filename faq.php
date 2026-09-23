@@ -76,22 +76,17 @@ $faqs=json_decode(<<<'FAQ_JSON'
     "매니저 화면의 워크스페이스에서 연결 알림을 확인하세요. 수락 대기 요청이 위쪽에 표시되며 수락 또는 거절할 수 있습니다. 연결 해제·요청 취소 알림은 확인 완료를 누르면 목록에서 사라집니다."
   ],
   [
-    "구독·코인",
+    "구독",
     "PRO 구독료와 이용기간은 어떻게 되나요?",
     "현재 PRO 상품은 1년 단위 59,000원을 기준으로 운영합니다. 결제 전 구독 페이지에서 최종 금액, 제공 기능과 이용기간을 확인해 주세요."
   ],
   [
-    "구독·코인",
-    "가입하거나 테스트 결제해도 파이어코인이 적립되나요?",
-    "단순 가입이나 테스트 결제만으로는 적립되지 않습니다. 매니저 연결 및 실제 유료결제 등 적립 조건을 충족한 내역을 기준으로 처리됩니다. 결제와 연결 상태가 정상인데 적립 내역이 없다면 계정과 결제 식별정보를 알려 문의해 주세요."
+    "매니저 연결",
+    "매니저 리워드는 무엇인가요?",
+    "담당 유저의 업무 기록이 사전에 안내된 작성·관리 기준을 충족하고 완료 요건이 확인되었을 때 매니저에게 지급하는 보상입니다. 기록 작성과 관리를 지원한 활동을 보상하는 제도이며, 현장 점검 완료나 건물의 안전을 인증하는 의미는 아닙니다. 기록 완료 기준에 따른 지급 정책은 적용 시점과 세부 기준을 별도로 안내한 후 시행합니다."
   ],
   [
-    "구독·코인",
-    "매니저 코인은 어떻게 출금하나요?",
-    "매니저 화면의 파이어코인을 눌러 은행·예금주·계좌번호를 저장하고, 출금 가능한 코인으로 신청합니다. 현재 환산 기준은 1코인당 19,000원입니다. 운영자가 확인한 뒤 직접 송금하므로 신청 즉시 자동 입금되는 방식은 아닙니다. 실제 지급 일정과 세무 처리는 신청 전 고객센터에 확인해 주세요."
-  ],
-  [
-    "구독·코인",
+    "구독",
     "구독 취소나 환불은 어디에 요청하나요?",
     "고객센터에 계정 아이디와 결제일·주문번호 등 결제를 확인할 수 있는 정보를 알려주세요. 적용되는 약관과 관계 법령, 실제 제공·이용 내역을 확인해 안내합니다. 비밀번호나 카드번호 전체는 보내지 마세요."
   ],
@@ -120,7 +115,7 @@ $faqGroups=array_values(array_unique(array_column($faqs,0)));
 </style>
 <main class="faq-page">
 <header class="faq-head"><span class="faq-kicker">HELP CENTER</span><h1>자주 묻는 질문</h1><p>기록 작성부터 매니저 연결까지,<br>소방계획서.com 이용에 필요한 내용을 확인하세요.</p></header>
-<div class="faq-controls" hidden><input class="faq-search" type="search" id="faq-search" placeholder="궁금한 내용을 검색하세요. 예: 매니저, 시설, 출금" aria-label="자주 묻는 질문 검색"><div class="faq-filters" role="group" aria-label="질문 분류"><button class="faq-filter" type="button" data-category="" aria-pressed="true">전체</button><?php foreach($faqGroups as $group): ?><button class="faq-filter" type="button" data-category="<?=$faqEscape($group)?>" aria-pressed="false"><?=$faqEscape($group)?></button><?php endforeach; ?></div></div>
+<div class="faq-controls" hidden><input class="faq-search" type="search" id="faq-search" placeholder="궁금한 내용을 검색하세요. 예: 매니저, 시설, 구독" aria-label="자주 묻는 질문 검색"><div class="faq-filters" role="group" aria-label="질문 분류"><button class="faq-filter" type="button" data-category="" aria-pressed="true">전체</button><?php foreach($faqGroups as $group): ?><button class="faq-filter" type="button" data-category="<?=$faqEscape($group)?>" aria-pressed="false"><?=$faqEscape($group)?></button><?php endforeach; ?></div></div>
 <?php foreach($faqGroups as $group): ?><section class="faq-group"><h2><?=$faqEscape($group)?></h2><?php foreach($faqs as [$category,$question,$answer]):if($category!==$group)continue; ?><details class="faq-item" data-category="<?=$faqEscape($category)?>"><summary><?=$faqEscape($question)?></summary><p class="faq-answer"><?=$faqEscape($answer)?></p></details><?php endforeach; ?></section><?php endforeach; ?>
 <p id="faq-empty" class="faq-empty" role="status" hidden>검색 결과가 없습니다. 다른 단어로 검색하거나 고객센터에 문의해 주세요.</p>
 <aside class="faq-contact"><div><strong>찾으시는 답변이 없나요?</strong><p>계정 아이디와 문의 내용을 준비해 주세요.<br>비밀번호나 API 키는 알려주지 마세요.</p></div><a href="tel:01057790918">고객센터 010-5779-0918</a></aside>

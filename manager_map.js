@@ -4,7 +4,17 @@
   note.style.cssText='margin:6px 0;color:#786b8a;font-size:12px';mapElement.insertAdjacentElement('afterend',note);
   function status(message=''){note.textContent=message;note.hidden=!message;}
   let layer=null,version=0,controller=null,firstFit=true;
+  let helpCounts=new Map();
+  function countHelp(data){helpCounts=new Map();for(const r of data?.rows||[]){if(r.status==='pending'&&r.connection_active)helpCounts.set(r.uid,(helpCounts.get(r.uid)||0)+1);}byUid.forEach(paintHelp);}
+  function paintHelp(item){const count=helpCounts.get(item.row.uid)||0;
+    item.label.style.background=count?'#fff4df':'';item.label.style.borderColor=count?'#d97706':'';item.label.style.boxShadow=count?'0 0 0 3px rgba(245,158,11,.25)':'';
+    item.tag.textContent=count?'! 요청 '+count+'건':'담당';item.tag.style.background=count?'#b45309':'';item.tag.style.color=count?'#fff':'';
+    item.helpNote.textContent=count?'기본정보 작성 도움 요청 '+count+'건 · 건물관리 화면에서 확인하세요.':'';item.helpNote.hidden=!count;
+    item.marker.setZIndexOffset(count?1000:0);
+  }
   const byUid=new Map();let focusUid=null,selectedMonth='all';
+  document.addEventListener('manager-help-updated',e=>countHelp(e.detail));
+  countHelp(window.managerHelp?.getState());
   const matches=row=>selectedMonth==='all'||(selectedMonth==='unknown'?!row.approval_month:String(row.approval_month)===selectedMonth);
   function applyMonth(fit=false){
     if(typeof map==='undefined'||!map||!layer)return;
@@ -58,7 +68,7 @@
         const point=await locate(row);if(current!==version)return;
         if(point&&layer){
           const label=node('div',undefined,'mm-building-label');
-          label.append(node('span','담당','mm-building-tag'),node('span',row.name,'mm-building-name'));
+          const tag=node('span','담당','mm-building-tag');label.append(tag,node('span',row.name,'mm-building-name'));
           const marker=L.marker(point,{title:row.name,icon:L.divIcon({className:'mm-marker',html:label,iconSize:null,iconAnchor:[12,14],popupAnchor:[0,-16]})});
           const popup=node('div',undefined,'mm-popup');popup.append(node('strong',row.name),node('p',row.address||'주소 미입력'),viewer(row));const details=node('div',undefined,'mm-contact-details');
           details.append(node('p','사용승인일: '+(row.approval_date||'미입력')),node('p','대표자: '+(row.representative||'미입력')));
@@ -67,7 +77,7 @@
           details.append(node('strong','안전관리자'));
           if(!staff.length)details.append(node('p','미입력'));
           staff.forEach(m=>details.append(node('p',[m.name,m.type,m.tel].filter(Boolean).join(' · '))));
-          popup.append(details);marker.bindPopup(popup);if(matches(row))layer.addLayer(marker);byUid.set(row.uid,{marker,point,row});located++;
+          const helpNote=node('p');helpNote.style.cssText='color:#9a5208;font-weight:700';popup.append(helpNote,details);marker.bindPopup(popup);if(matches(row))layer.addLayer(marker);const item={marker,point,row,label,tag,helpNote};byUid.set(row.uid,item);paintHelp(item);located++;
         }
       }}
       await Promise.all([worker(),worker(),worker()]);if(current!==version)return;

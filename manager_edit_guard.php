@@ -8,7 +8,17 @@ $wasActive=session_status()===PHP_SESSION_ACTIVE;
 if(!$wasActive)session_start();
 $context=$_SESSION['_manager_edit']??null;
 // Without an explicit manager editing context, ordinary user sessions are unchanged.
-if(!is_array($context)){if(!$wasActive)session_write_close();return;}
+if(!is_array($context)){
+    $helpUid=mg_uid();
+    if($helpUid!==''&&($_SESSION['role']??'')==='building'&&basename((string)($_SERVER['SCRIPT_FILENAME']??''))==='building_manager.php'){
+        ob_start(static function(string $html)use($helpUid):string{
+            if(strpos($html,'data-dashboard="1"')!==false)return $html;
+            $tag='<script src="/manager_help.js?v=6" data-dashboard="1" data-uid="'.htmlspecialchars($helpUid,ENT_QUOTES,'UTF-8').'"></script>';
+            $pos=strripos($html,'</body>');return $pos===false?$html:substr($html,0,$pos).$tag.substr($html,$pos);
+        });
+    }
+    if(!$wasActive)session_write_close();return;
+}
 $actor=mg_uid();$target=(string)($context['uid']??'');
 try{
     $members=mg_members();
@@ -54,10 +64,13 @@ if(!in_array($_SERVER['REQUEST_METHOD']??'GET',['GET','HEAD'],true)){
 $editName=(string)$_SESSION['nickname'];session_write_close();header('Cache-Control: no-store');
 // Keep the return bar on the main dashboard only, never inside form popups.
 if($name!=='building_manager.php'||!empty($_GET['modal'])||!empty($_GET['embed']))return;
-ob_start(static function(string $html)use($editName,$actorCsrf):string{
+ob_start(static function(string $html)use($editName,$actorCsrf,$target):string{
     $pos=strripos($html,'</body>');if($pos===false)return $html;
     $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
     $bar='<style>body{padding-top:72px!important}.mge-bar{position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#5b21b6;color:white;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font:13px/1.5 system-ui}.mge-bar form{margin:0}.mge-bar button{border:0;border-radius:7px;background:white;color:#5b21b6;padding:8px 12px;cursor:pointer;font:600 12px system-ui}.mge-bar small{display:block;opacity:.85}@media print{.mge-bar{display:none}body{padding-top:0!important}}</style>'
     .'<div class="mge-bar"><div><strong>'.$e($editName).' · 건물정보 수정 중</strong><small>저장하면 이 유저에게 반영됩니다.</small></div><form action="/manager_view.php" method="post"><input type="hidden" name="action" value="stop"><input type="hidden" name="csrf" value="'.$e($actorCsrf).'"><button>매니저 화면으로 돌아가기</button></form></div>';
+    $panel='<script src="/manager_help.js?v=6" data-manager="1" data-dashboard="1" data-uid="'.$e($target).'"></script>';
+    $html=preg_replace('/(<body\b[^>]*>)/i','$1'.$panel,$html,1);
+    $pos=strripos($html,'</body>');
     return substr($html,0,$pos).$bar.substr($html,$pos);
 });
