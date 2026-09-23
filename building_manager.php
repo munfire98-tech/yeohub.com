@@ -1418,7 +1418,7 @@ a.pstep:hover{background:#f2f6fd}
       <div class="safety-ai__head">
         <div class="safety-ai__title" id="safetyAiTitle">
           <span class="safety-ai__mark">M</span>
-          소방안전관리 매니저
+          진행관리
         </div>
         <span class="safety-ai__mode" id="safetyAiMode">현재 상태 분석 완료</span>
       </div>
