@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 date_default_timezone_set('Asia/Seoul');
+if(session_status()!==PHP_SESSION_ACTIVE){
 ini_set('session.cookie_httponly','1');
 if (PHP_VERSION_ID >= 70300) session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']);
 session_start();
+}
 function h($s): string { return htmlspecialchars((string)$s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8'); }
 function is_admin(): bool { return !empty($_SESSION['is_admin']) || (!empty($_SESSION['ID_OK']) && $_SESSION['ID_OK'] == 1); }
 if (!is_admin() && empty($_SESSION['is_user'])) { header('Location: /index.php'); exit; }
@@ -87,7 +89,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
       if ($field['type'] === 'multi') {
         if (!is_array($v)) chat_reply(['ok'=>false,'error'=>'선택값을 확인해 주세요.'],400);
         foreach ($v as $item) if (!is_string($item)) chat_reply(['ok'=>false,'error'=>'선택값을 확인해 주세요.'],400);
-        $allowed = array_merge($field['options'],is_array($cur[$key] ?? null)?$cur[$key]:[]);
+        $allowed = array_merge($field['options'],is_array($cur[$key] ?? null)?$cur[$key]:[],is_array($sources['data'][$code][$key]??null)?$sources['data'][$code][$key]:[]);
         if (array_diff($v,$allowed)) chat_reply(['ok'=>false,'error'=>'지원하지 않는 선택값입니다.'],400);
         if (in_array('해당없음',$v,true) && count($v)>1) chat_reply(['ok'=>false,'error'=>'해당없음은 다른 항목과 함께 선택할 수 없습니다.'],400);
         $v = array_values(array_unique($v));
@@ -116,7 +118,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     }
     $cur['_chat_complete'] = true;
   } else chat_reply(['ok'=>false,'error'=>'잘못된 요청입니다.'],400);
-  if (!fp_save_section($planId,$code,$cur,!empty($cur['_chat_complete']))) chat_reply(['ok'=>false,'error'=>'저장하지 못했습니다. 다시 시도해 주세요.'],500);
+  require_once __DIR__.'/manager_fire_plan_help.php';
+  try{$ok=mfp_save(fp_user_key(),$planId,$code,$action==='answer'?$patch:[],static function()use($planId,$code,$cur):bool{return fp_save_section($planId,$code,$cur,!empty($cur['_chat_complete']));});}
+  catch(RuntimeException $e){chat_reply(['ok'=>false,'error'=>$e->getMessage()],400);}
+  if(!$ok)chat_reply(['ok'=>false,'error'=>'저장하지 못했습니다. 다시 시도해 주세요.'],500);
   if ($code === '1') {
     fp_apply_skips($planId,fp_skip_rules($cur));
     fp_update_shared($planId,(string)($cur['name'] ?? ''),fp_jawi_type($cur),(string)($cur['plan_date'] ?? ''));
@@ -158,9 +163,11 @@ a{color:inherit;text-decoration:none}button,input,textarea,select{font:inherit;c
 .saved-chat{margin-bottom:20px;border:1px solid var(--bd);border-radius:12px;background:rgba(255,255,255,.72);overflow:hidden}.saved-chat>summary{cursor:pointer;padding:11px 14px;color:var(--mut2);font-size:12px;font-weight:700}.saved-chat[open]>summary{border-bottom:1px solid var(--bd)}.saved-chat .chat-turn{padding:14px 14px 0}.saved-chat .msg__b{font-size:13px;padding:11px 14px}.saved-chat .msg:last-child{margin-bottom:0}
 @media(max-width:560px){.nav__in{padding:0 14px}.brand{font-size:18px}.nav__actions .btn:first-child{display:none}.prog__in{padding:10px 14px}.wrap{padding:16px 14px 48px}.chat-settings__body{grid-template-columns:1fr}.source-grid{grid-template-columns:1fr}.source-bar .btn{width:100%}.answer{margin-left:0}.msg__b{max-width:calc(100% - 42px);font-size:14px}.actions>.primary,.actions>.btn--pri{margin-left:0}.status{margin-left:0}}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+.prefill-note{padding:9px 12px;margin:10px 0;border:1px solid #cfe5df;border-radius:9px;background:#eff8f4;color:#33755d;font-size:12px;line-height:1.6}
 </style>
 <?php if (isset($context['modal'])): ?>
-<style>.nav{display:none}.prog{top:0}.wrap{max-width:none;padding:16px 22px 34px}.card{scroll-margin-top:98px}@media(max-width:540px){.wrap{padding:14px}}</style>
+<style>.nav{display:none}.prog{top:0}.wrap{max-width:none;padding:16px 22px 34px}.card{scroll-margin-top:98px}@media(max-width:540px){.wrap{padding:14px}}.prefill-note{padding:9px 12px;margin:10px 0;border:1px solid #cfe5df;border-radius:9px;background:#eff8f4;color:#33755d;font-size:12px;line-height:1.6}
+</style>
 <?php endif; ?>
 </head><body>
 <nav class="nav"><div class="nav__in">
@@ -173,9 +180,11 @@ a{color:inherit;text-decoration:none}button,input,textarea,select{font:inherit;c
   <div class="toolbar"><label for="sectionNav">작성 항목</label><select id="sectionNav" aria-label="작성 항목 선택"></select></div>
   <div class="source-bar"><span aria-hidden="true"></span><button type="button" class="btn btn--sm" id="changeSources">자료 다시 선택</button></div>
 </div></details>
+<script src="/manager_help.js?v=10" data-fireplan="<?=h($planId)?>" data-uid="<?=h(fp_user_key())?>" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
 <div id="chatLog" aria-label="작성 대화 기록"></div>
 <div id="stage"></div><div id="saveStatus" class="status" role="status"></div>
 </main><script>
+const HELP_PLAN_ID=<?=json_encode($planId)?>;
 const APP = <?=json_encode($boot,JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_INVALID_UTF8_SUBSTITUTE)?>;
 if(window.parent!==window)window.parent.postMessage({type:'fp-modal-year',year:APP.year},location.origin);
 let data = APP.sections, code = '1', fieldIndex = 0, busy = false, dirty = false, reviewAll = false, saveCurrentAnswer = null;
@@ -236,7 +245,11 @@ function chooseSources(){
   button('선택한 자료로 시작 →',async()=>{if(await saveSelection())resumeChat();},true);
   button('불러오지 않고 직접 작성',async()=>{if(!await send('sources',[]))return;recordTurn('직접 작성할게요');sourceSummary();resumeChat();});
 }
-function resumeChat(){const resume=codes.find(c=>!skipped(c)&&!data[c]._chat_complete);if(resume)enter(resume);else finish();}
+let helpJumpUsed=false;
+function resumeChat(){
+ const query=new URLSearchParams(location.search),c=query.get('help_code'),key=query.get('help_key');
+ if(!helpJumpUsed&&APP.schema[c]?.[key]){helpJumpUsed=true;code=c;reviewAll=true;updateProgress();fieldIndex=fields().findIndex(f=>f.key===key);if(fieldIndex>=0){askNext(true);return;}}
+ const resume=codes.find(c=>!skipped(c)&&!data[c]._chat_complete);if(resume)enter(resume);else finish();}
 function button(label,fn,primary=false){const b=document.createElement('button');b.type='button';b.className='btn'+(primary?' primary':'');b.textContent=label;b.onclick=()=>{if(!busy)fn();};document.getElementById('actions').appendChild(b);return b;}
 function reviewHtml(rows){return '<dl class="review">'+rows.map(f=>'<div><dt>'+esc(f.label)+'</dt><dd>'+esc(empty(value(f.key))?(answered(f.key)?'해당없음 / 추가 내용 없음':'미입력'):value(f.key))+'</dd></div>').join('')+'</dl>';}
 function quickPresets(f){
@@ -310,13 +323,13 @@ function quickPresets(f){
 }
 function renderQuickAnswers(area,input,f,current,onPick,onManual){
   const picks=quickPresets(f),box=document.createElement('div');box.className='quick-answer';
-  const label=document.createElement('span');label.className='quick-answer__label';label.textContent='자주 쓰는 답변';
+  const label=document.createElement('span');label.className='quick-answer__label';label.textContent=empty(current)?'자주 쓰는 답변':'다른 답변 선택';
   const choices=document.createElement('div');choices.className='quick-answer__choices';box.append(label,choices);
   const buttons=[];
   picks.forEach(p=>{const b=document.createElement('button');b.type='button';b.className='option'+(p.value.length>45?' option--long':'');b.textContent=p.label;b.title=p.label===p.value?'':p.value;b.onclick=async()=>{if(busy)return;input.value=p.value;input.dispatchEvent(new Event('input',{bubbles:true}));b.classList.add('on');if(onPick)await onPick();};choices.append(b);buttons.push([b,p.value]);});
   const manual=document.createElement('button');manual.type='button';manual.className='btn btn--sm quick-answer__manual';manual.textContent='✏️ 직접 입력';manual.onclick=()=>{box.hidden=true;input.hidden=false;if(onManual)onManual();input.focus();try{input.select();}catch(e){}};choices.append(manual);
   const sync=()=>{buttons.forEach(([b,val])=>b.classList.toggle('on',input.value.trim()===val));};
-  input.classList.add('direct-answer-input');input.hidden=true;input.addEventListener('input',sync);area.insertBefore(box,input);sync();
+  input.classList.add('direct-answer-input');input.hidden=empty(current);input.addEventListener('input',sync);if(empty(current))area.insertBefore(box,input);else area.append(box);sync();
 }
 async function send(act,patch={}) {
   if(busy)return false;busy=true;
@@ -326,7 +339,7 @@ async function send(act,patch={}) {
     const body = new FormData();body.set('csrf',APP.csrf);body.set('code',code);body.set('act',act);body.set('patch',JSON.stringify(patch));
     const r = await fetch(location.href,{method:'POST',body,credentials:'same-origin',signal:controller.signal});
     const j = await r.json();if(!r.ok || !j.ok)throw new Error(j.error || '저장하지 못했습니다.');
-    data = j.sections;if(j.sources){APP.sources=j.sources;APP.selection=j.selection;APP.selectionSet=true;}dirty=false;updateProgress();savedStatus.textContent='저장되었습니다';return true;
+    data = j.sections;if(j.sources){APP.sources=j.sources;APP.selection=j.selection;APP.selectionSet=true;}dirty=false;updateProgress();savedStatus.textContent='저장되었습니다';window.managerHelp?.refresh();try{if(window.parent!==window)window.parent.managerHelp?.refresh();}catch(e){}return true;
   }catch(e){document.getElementById('error').textContent=e.message || '연결을 확인하고 다시 시도해 주세요.';savedStatus.textContent='저장되지 않았습니다. 현재 답변을 다시 저장해 주세요.';return false;}
   finally{clearTimeout(timeout);busy=false;nav.disabled=!APP.selectionSet;stage.querySelectorAll('button,input,textarea').forEach(el=>{if(!el.closest('.source-option') || APP.sources.groups[el.value]?.available)el.disabled=false;});}
 }
@@ -338,19 +351,26 @@ function enter(c){code=c;fieldIndex=0;dirty=false;reviewAll=false;updateProgress
 function askNext(all){if(all!==undefined)reviewAll=all;
   const list=fields();while(fieldIndex<list.length && !reviewAll && answered(list[fieldIndex].key))fieldIndex++;
   if(fieldIndex>=list.length){sectionEnd();return;}
-  const f=list[fieldIndex], v='';
+  const f=list[fieldIndex];
+  const source=(APP.sources.data[code]||{})[f.key];
+  const hasStored=answered(f.key)||!empty(data[code][f.key]);
+  const v=hasStored?data[code][f.key]:source;
+  const hasValue=!empty(v);
+
   const prompts={name:'건물 이름이 어떻게 되나요?',addr:'건물 주소를 알려주세요.',grade:'소방안전관리 등급을 선택해 주세요.',approval:'건물 사용승인일은 언제인가요?',mgr_name:'소방안전관리자 이름을 알려주세요.'};
   card(prompts[f.key] || (f.label.endsWith('?')||f.label.endsWith('.')?f.label:f.label+' 내용을 알려주세요.'),'<div class="question-meta">이 항목의 '+(fieldIndex+1)+'번째 질문 / '+list.length+'</div><div id="inputArea"></div>'+(f.hint?'<p class="hint">'+esc(f.hint)+'</p>':''));
   const area=document.getElementById('inputArea');let read,quickInput=null;
+  if(hasValue){const notice=document.createElement('p');notice.className='prefill-note';notice.textContent=hasStored?'저장된 답변입니다. 확인하거나 수정해 주세요.':'선택한 자료에서 불러왔습니다. 내용을 확인해 주세요.';area.before(notice);}
+
   if(f.type==='multi' || f.type==='choice'){
-    const opts=[...f.options];
+    const opts=[...new Set([...f.options,...(f.type==='multi'&&Array.isArray(v)?v:[])])];
     area.className='options';area.setAttribute('role','group');area.setAttribute('aria-label',f.label);
-    opts.forEach(o=>{const label=document.createElement('label');label.className='option';const input=document.createElement('input');input.type=f.type==='multi'?'checkbox':'radio';input.name='answer';input.value=o;input.checked=false;label.append(input,document.createTextNode(o));area.append(label);
+    opts.forEach(o=>{const label=document.createElement('label');label.className='option';const input=document.createElement('input');input.type=f.type==='multi'?'checkbox':'radio';input.name='answer';input.value=o;input.checked=f.type==='multi'?(Array.isArray(v)&&v.includes(o)):v===o;label.append(input,document.createTextNode(o));area.append(label);
       input.addEventListener('change',()=>{dirty=true;if(f.type==='multi'&&input.checked){area.querySelectorAll('input').forEach(other=>{if(other!==input&&(o==='해당없음'||other.value==='해당없음'))other.checked=false;});}if(f.type==='choice')setTimeout(()=>submit(),0);});
       label.addEventListener('click',e=>{if(f.type==='choice'&&e.target===label&&input.checked)setTimeout(()=>submit(),0);});
     });read=()=>{const vs=[...area.querySelectorAll('input:checked')].map(i=>i.value);return f.type==='multi'?vs:vs[0]||'';};
   }else{
-    const input=document.createElement(f.type==='memo'?'textarea':'input');if(f.type!=='memo')input.type=['date','number'].includes(f.type)?f.type:'text';if(f.type==='number'){input.min='0';input.step='any';}input.value='';input.setAttribute('aria-label',f.label);area.append(input);input.addEventListener('input',()=>dirty=true);quickInput=input;read=()=>input.value.trim();
+    const input=document.createElement(f.type==='memo'?'textarea':'input');if(f.type!=='memo')input.type=['date','number'].includes(f.type)?f.type:'text';if(f.type==='number'){input.min='0';input.step='any';}input.value=empty(v)?'':text(v);input.setAttribute('aria-label',f.label);area.append(input);input.addEventListener('input',()=>dirty=true);quickInput=input;read=()=>input.value.trim();
   }
   const submit=async(blank=false,advance=true)=>{
     const val=blank?(f.type==='multi'?[]:''):read();
@@ -360,12 +380,26 @@ function askNext(all){if(all!==undefined)reviewAll=all;
   };
   saveCurrentAnswer=()=>submit(false,false);
   if(fieldIndex>0)button('이전',()=>{if(dirty&&!confirm('입력 중인 답변을 저장하지 않고 이전 질문으로 갈까요?'))return;dirty=false;fieldIndex--;askNext(true);});
-  let nextBtn=null;if(f.type!=='choice'){nextBtn=button(f.type==='multi'?'선택 완료 →':'다음 →',()=>submit(),true);if(quickInput)nextBtn.hidden=true;}
+  let nextBtn=null;if(f.type==='choice'&&hasValue){nextBtn=button('이 내용으로 저장 →',()=>submit(),true);}if(f.type!=='choice'){nextBtn=button(f.type==='multi'?'선택 완료 →':'다음 →',()=>submit(),true);if(quickInput)nextBtn.hidden=!hasValue;}
   const extra=document.createElement('div');extra.className='answer-extra';extra.setAttribute('role','group');extra.setAttribute('aria-label','다른 답변 선택');
   const extraButtons=document.createElement('div');extraButtons.className='extra-buttons';extra.append(extraButtons);
   document.getElementById('actions').before(extra);
   if(!(code==='1'&&['name','addr','mgr_name','grade'].includes(f.key))){const none=button('해당없음',()=>submit(true));extraButtons.append(none);}
-  const later=button('잘 모르겠어요',()=>{if(dirty&&!confirm('아직 저장하지 않은 답변이 있습니다. 건너뛸까요?'))return;dirty=false;recordTurn('잘 모르겠어요. 나중에 답할게요.');fieldIndex++;askNext();});later.title='미확인으로 남겨두고 나중에 답할 수 있어요';extraButtons.append(later);
+  const later=button('나중에 작성',()=>{if(dirty&&!confirm('저장하지 않은 답변을 두고 넘어갈까요?'))return;dirty=false;fieldIndex++;askNext();});extraButtons.append(later);
+  const request=button('담당 매니저 확인 중…',async()=>{
+    request.disabled=true;
+    try{const state=await window.managerHelp.request('__fp_'+HELP_PLAN_ID+'_'+code+'_'+f.key,APP.year+'년 소방계획서 · '+APP.titles[code]+' · '+f.label);
+      if(state){request.textContent='요청 접수 완료';savedStatus.textContent='담당 매니저에게 이 질문의 작성 도움을 요청했습니다.';try{window.parent.managerHelp?.refresh();}catch(e){}}
+      else request.disabled=false;
+    }catch(e){request.disabled=false;document.getElementById('error').textContent=e.message;}
+  });request.disabled=true;extraButtons.append(request);
+  window.managerHelp.ready.then(initial=>{
+    const state=window.managerHelp.getState()||initial;
+    if(state?.mode==='manager'){request.hidden=true;return;}
+    const field='__fp_'+HELP_PLAN_ID+'_'+code+'_'+f.key;
+    const pending=state?.rows.some(r=>r.field===field&&r.status==='pending'&&r.connection_active);
+    request.disabled=!!pending;request.textContent=pending?'요청 접수 완료':state?.mode==='local'?'잘 모르겠어요 · 로컬매니저 연결하고 요청하기':'잘 모르겠어요 · '+(state?.manager_name||'담당 매니저')+'에게 요청하기';
+  });
   const help=document.createElement('span');help.className='save-hint';help.textContent=f.type==='choice'?'답변을 누르면 바로 저장돼요':f.type==='multi'?'여러 답변을 고른 뒤 선택 완료를 눌러주세요':'일반 답변을 누르면 바로 다음으로 넘어가요';document.getElementById('actions').append(help);
   if(quickInput){renderQuickAnswers(area,quickInput,f,v,()=>submit(),()=>{if(nextBtn)nextBtn.hidden=false;help.textContent='내용을 적은 뒤 다음을 눌러주세요';});if(f.type!=='memo')quickInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submit();}});}
   stage.querySelector('.question').focus({preventScroll:true});

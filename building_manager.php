@@ -1265,9 +1265,9 @@ a.pstep:hover{background:#f2f6fd}
 .building-task__no{width:23px;height:23px;border-radius:7px;background:#e8edf5;color:#64748b;
   display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0}
 .building-task>span:nth-child(2){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;font-weight:750}
-.building-task small{margin-left:auto;color:#94a3b8;font-size:9.5px;white-space:nowrap}
+.building-task small{display:inline-flex;align-items:center;flex-shrink:0;margin-left:auto;color:#94a3b8;font-size:9.5px;white-space:nowrap}
 .building-task.is-done{border-color:#bfe6cb;background:rgba(240,253,244,.86);color:#15803d}
-.building-task.is-done .building-task__no{background:#22c55e;color:#fff}
+.building-task.is-done .building-task__no{background:#e8edf5;color:#64748b}.task-done{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;background:#eaf6f0;color:#238064;border:1px solid #d0e8dc;box-sizing:border-box}.task-done svg{display:block}.building-task__no{line-height:1;box-sizing:border-box}.building-task__no svg{display:block;flex-shrink:0}
 .building-task.is-now{border-color:#93b4ef;background:#eff6ff;color:#1d4ed8;box-shadow:0 0 0 2px rgba(37,99,235,.08)}
 .building-task.is-now .building-task__no{background:#2563eb;color:#fff}
 .building-tasknav__pro-title{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin-top:4px;padding:10px 2px 1px;
@@ -1684,23 +1684,23 @@ a.pstep:hover{background:#f2f6fd}
                         </div>
                         <div class="building-tasknav__grid">
                           <a class="building-task<?= $s1 ? ' is-done' : ($nowStep===1 ? ' is-now' : '') ?>" href="<?= $biDone ? h($url('/building_setup.php')) : h($url('/building_setup_chat.php')) ?>">
-                            <span class="building-task__no"><?= $s1 ? '✓' : '1' ?></span><span>기본정보</span><small><?= $s1 ? '완료' : '시작' ?></small>
+                            <span class="building-task__no">1</span><span>기본정보</span><small><?= $s1 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '시작' ?></small>
                           </a>
-                          <a class="building-task<?= $facilityDone?' is-done':($nowStep===2?' is-now':'') ?>" href="<?=h($url('/building_facilities.php'))?>"><span class="building-task__no"><?=$facilityDone?'✓':'2'?></span><span>소방시설 현황</span><small><?=$facilityDone?'확인 완료':'미확인 '.$facilityCounts['unknown'].'종'?></small></a>
+                          <a class="building-task<?= $facilityDone?' is-done':($nowStep===2?' is-now':'') ?>" href="<?=h($url('/building_facilities.php'))?>"><span class="building-task__no">2</span><span>소방시설 현황</span><small><?=$facilityDone?'<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>':'작성 전'?></small></a>
                           <a class="building-task<?= $s2 ? ' is-done' : ($nowStep===3 ? ' is-now' : '') ?>" href="<?=h($url('/fire_plan_jawi.php'))?>">
-                            <span class="building-task__no"><?= $s2 ? '✓' : '3' ?></span><span>자위소방대 편성</span><small><?= $s2 ? '완료' : '미진행' ?></small>
+                            <span class="building-task__no">3</span><span>자위소방대 편성</span><small><?= $s2 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '미진행' ?></small>
                           </a>
                           <a class="building-task<?= $s3 ? ' is-done' : ($nowStep===4 ? ' is-now' : '') ?>" href="<?=h($url('/work_log.php'))?>">
-                            <span class="building-task__no"><?= $s3 ? '✓' : '4' ?></span><span>매월 기록</span><small><?= $s3 ? '완료' : h($mon) ?></small>
+                            <span class="building-task__no">4</span><span>매월 기록</span><small><?= $s3 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : h($mon) ?></small>
                           </a>
                           <a class="building-task<?= $s4 ? ' is-done' : ($nowStep===5 ? ' is-now' : '') ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
-                            <span class="building-task__no"><?= $s4 ? '✓' : '5' ?></span><span>자위소방대 교육</span><small><?= $s4 ? '완료' : '연간' ?></small>
+                            <span class="building-task__no">5</span><span>자위소방대 교육</span><small><?= $s4 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '연간' ?></small>
                           </a>
                           <a class="building-task<?= $s5 ? ' is-done' : ($nowStep===6 ? ' is-now' : '') ?>" href="<?=h($url('/train.php'))?>">
-                            <span class="building-task__no"><?= $s5 ? '✓' : '6' ?></span><span>소방훈련·교육</span><small><?= $s5 ? '완료' : '연간' ?></small>
+                            <span class="building-task__no">6</span><span>소방훈련·교육</span><small><?= $s5 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '연간' ?></small>
                           </a>
                           <a class="building-task<?= $s6 ? ' is-done' : ($nowStep===7 ? ' is-now' : '') ?>" href="<?=h($url('/evacuation_plan.php'))?>">
-                            <span class="building-task__no"><?= $s6 ? '✓' : '7' ?></span><span>피난계획</span><small><?= $s6 ? '완료' : '미진행' ?></small>
+                            <span class="building-task__no">7</span><span>피난계획</span><small><?= $s6 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '미진행' ?></small>
                           </a>
                           <a class="building-task<?= $nowStep===8 ? ' is-now' : '' ?>" href="<?=h($url('/fire_plan.php'))?>">
                             <span class="building-task__no">8</span><span>소방계획서</span><small>상시</small>
@@ -2249,6 +2249,7 @@ function setupRecordPopupFrame(frame, dialog, fromPrintAll = false){
     back.onclick=function(){navigate('/print_all.php');};
   }
   if(name==='print_all.php'){back.hidden=true;return false;}
+  if(name==='building_facilities.php') return function(){win.focus();if(typeof win.buildingInfoPrint==='function')win.buildingInfoPrint();else win.print();};
   if(printing || name === 'work_log_form.php') return function(){win.focus();win.print();};
   let printUrl = null;
   if(firePlan && current.searchParams.get('id')) printUrl='/fire_plan_print.php?id='+encodeURIComponent(current.searchParams.get('id'));

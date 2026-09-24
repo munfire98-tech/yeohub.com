@@ -107,50 +107,27 @@ function worklog_legacy_defaults(string $sprinkler, string $hydrant = 'no'): arr
   ];
 }
 
-function worklog_note_defaults(string $sprinkler, string $hydrant = 'no'): array {
+function worklog_facility_groups(): array {
   global $facilityInventory;
-  if(empty($facilityInventory['revision']))return worklog_legacy_defaults($sprinkler,$hydrant);
-  $parts=['note_sobang'=>[], 'note_pinan'=>['피난통로·비상구']];
-  $major=[
-    '소화기구 및 자동소화장치'=>'소화기구·자동소화장치',
-    '옥내소화전설비'=>'옥내소화전',
-    '스프링클러설비'=>'스프링클러',
-    '자동화재탐지설비 및 시각경보기'=>'자동화재탐지설비·시각경보기',
-    '유도등'=>'유도등', '방화문'=>'방화문', '방화셔터'=>'방화셔터',
-  ];
-  $other=['note_sobang'=>false,'note_pinan'=>false];
+  $parts=['note_sobang'=>[], 'note_pinan'=>[]];
+  $short=['소화기구 및 자동소화장치'=>'소화기구·자동소화장치','자동화재탐지설비 및 시각경보기'=>'자동화재탐지·시각경보기','할로겐화합물 및 불활성기체소화설비'=>'할로겐·불활성기체 소화','상수도소화용수설비'=>'상수도 소화용수','소화수조 및 저수조'=>'소화수조·저수조','하향식피난구용내림식사다리'=>'하향식 피난사다리','화재조기진압용 스프링클러설비'=>'조기진압 스프링클러'];
   foreach(bf_catalog() as $groupKey=>$group)foreach($group[1] as $name){
-    if(($facilityInventory['items'][bf_id($name)]['status']??'unknown')!=='yes')continue;
+    if(($facilityInventory['items'][bf_id($name)]['status']??'')!=='yes')continue;
     $key=in_array($groupKey,['escape','fire_compartment'],true)?'note_pinan':'note_sobang';
-    if(isset($major[$name]))$parts[$key][]=$major[$name];else $other[$key]=true;
+    $parts[$key][]=$short[$name]??preg_replace('/설비$/u','',$name);
   }
-  if($other['note_sobang'])$parts['note_sobang'][]='기타 설치 소방시설';
-  if($other['note_pinan'])$parts['note_pinan'][]='기타 설치 피난·방화시설';
+  return $parts;
+}
+function worklog_note_defaults(string $sprinkler, string $hydrant = 'no'): array {
+  $parts=worklog_facility_groups();
   return [
-    'note_sobang'=>$parts['note_sobang']?implode('·',$parts['note_sobang']).' 상태 확인':'소방시설 현황의 누락·변경 여부 확인',
-    'note_pinan'=>implode('·',$parts['note_pinan']).' 상태 확인',
+    'note_sobang'=>$parts['note_sobang']?implode(' · ',$parts['note_sobang']).' 상태 확인':'선택한 소방시설 없음',
+    'note_pinan'=>$parts['note_pinan']?implode(' · ',$parts['note_pinan']).' 상태 확인':'선택한 피난·방화시설 없음',
     'note_hwagi'=>'화기취급 장소 주변 가연물 및 사용 후 안전조치 확인',
     'note_etc'=>'특이사항 및 관계인 전달사항 확인',
   ];
 }
-function worklog_sync_facility_note(string $note, string $sprinkler, string $hydrant): string {
-  global $facilityInventory;
-  if(!empty($facilityInventory['revision']))return $note;
-  $sprinklerText = '스프링클러 헤드 훼손·누수·살수 장애물 여부 확인';
-  $hydrantText = '옥내소화전함 주변 적치물 및 사용 가능 상태 확인';
-  $parts = preg_split('/\s*,\s*/u', trim($note)) ?: [];
-  $parts = array_values(array_filter(array_map('trim', $parts), static function(string $part) use ($sprinklerText, $hydrantText): bool {
-    return $part !== '' && $part !== $sprinklerText && $part !== $hydrantText;
-  }));
-  if (!$parts) {
-    $parts = ['소화기 비치 및 압력 상태 확인', '자동화재탐지설비 감지기·수신기 정상 상태 확인'];
-  }
-  $facilityParts = [];
-  if ($sprinkler === 'yes') $facilityParts[] = $sprinklerText;
-  if ($hydrant === 'yes') $facilityParts[] = $hydrantText;
-  array_splice($parts, min(1, count($parts)), 0, $facilityParts);
-  return implode(', ', $parts);
-}
+function worklog_sync_facility_note(string $note, string $sprinkler, string $hydrant): string {return $note;}
 /* 자동 생성본만 갱신하고 직접 편집한 문구는 유지합니다. */
 function worklog_apply_facility_defaults(array $fixed): array {
   global $facilityInventory;
@@ -174,6 +151,9 @@ $CSRF = $_SESSION['csrf'];
 $fixed = load_json($FIXED_FILE);
 require_once __DIR__.'/building_facilities_common.php';
 $facilityInventory=bf_load();
+$facilityGroups=worklog_facility_groups();
+$facilityLabels=array_merge($facilityGroups['note_sobang'],$facilityGroups['note_pinan']);
+$facilityReady=!empty($facilityInventory['revision'])&&bf_complete($facilityInventory);
 $facilityPrefill=[];foreach(['sprinkler'=>'스프링클러설비','hydrant'=>'옥내소화전설비'] as $k=>$name){$v=$facilityInventory['items'][bf_id($name)]['status']??'unknown';if(in_array($v,['yes','no'],true))$facilityPrefill[$k]=$v;}
 foreach($facilityPrefill as $key=>$value)$fixed[$key]=$value;
 $fixed=worklog_apply_facility_defaults($fixed);
@@ -241,6 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
       (string)$fixed['note_sobang'], (string)$fixed['sprinkler'], (string)$fixed['hydrant']
     );
     $missing = [];
+    if(!$facilityReady)$missing[]='소방시설 현황';
     if (!in_array($fixed['sprinkler'], ['yes','no'], true)) $missing[] = '스프링클러';
     if (!in_array($fixed['hydrant'], ['yes','no'], true)) $missing[] = '옥내소화전';
     foreach ([
@@ -274,9 +255,9 @@ $sprinkler = (string)($facilityPrefill['sprinkler']??$fixed['sprinkler']??'');
 $sprinklerSet = in_array($sprinkler, ['yes', 'no'], true);
 $hydrant = (string)($facilityPrefill['hydrant']??$fixed['hydrant']??'');
 $hydrantSet = in_array($hydrant, ['yes', 'no'], true);
-$setupComplete = $sprinklerSet && $hydrantSet
+$setupComplete = $facilityReady && $sprinklerSet && $hydrantSet
   && $noteProg['filled'] >= $noteProg['total'] && !empty($fixed['facility_setup_done']);
-$showQuickSetup = empty($fixed['facility_setup_done']) || !$sprinklerSet || !$hydrantSet;
+$showQuickSetup = false;
 $defaultsLocked = !$setupComplete;
 $missingDefaultLabels = [];
 if (!$sprinklerSet) $missingDefaultLabels[] = '스프링클러';
@@ -516,6 +497,7 @@ a{text-decoration:none}
 .page-actions .btn--home:hover{background:#15803d;border-color:#15803d;color:#fff}
 @media(max-width:560px){.page-actions{padding:8px}.page-actions__inner{gap:7px}.page-actions .btn{flex:1;min-width:0;padding:10px 8px;font-size:12.5px}}
 @media print{.page-actions{display:none!important}}
+.facility-summary{padding:16px 18px;background:#f7fafc;border:1px solid #dce6ed;border-radius:12px;margin:16px 0}.facility-summary-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.facility-summary-head a{font-size:12px;color:#087e97}.facility-summary-row{display:flex;gap:12px;margin-top:10px;font-size:12px}.facility-summary-row>span{flex:0 0 80px;color:#708291;padding-top:5px}.facility-summary-row>div{display:flex;flex-wrap:wrap;gap:6px}.facility-summary-row b{font-weight:500;background:white;border:1px solid #dfe9ee;color:#31536a;border-radius:7px;padding:4px 9px}.facility-summary p{font-size:12px;color:#6b7f8e}@media(max-width:540px){.facility-summary-row{display:block}.facility-summary-row>span{display:block;margin-bottom:6px}}
 </style>
 </head>
 <body>
@@ -561,8 +543,7 @@ a{text-decoration:none}
       <span class="setup-card__text">
         <b>확인내용 기본값</b>
         <small>
-          <?php if ($sprinklerSet): ?>스프링클러 <?= $sprinkler === 'yes' ? '있음' : '없음' ?> · <?=$noteProg['filled']?>/<?=$noteProg['total']?> 저장
-          <?php else: ?>스프링클러 여부만 확인하면 자동 저장<?php endif; ?>
+          <?=h($facilityLabels?implode(' · ',array_slice($facilityLabels,0,3)).(count($facilityLabels)>3?' 외 '.(count($facilityLabels)-3).'종':''): '소방시설 현황에서 시설을 선택해 주세요')?>
         </small>
       </span>
       <?php $defaultsComplete = $setupComplete; ?>
@@ -574,12 +555,6 @@ a{text-decoration:none}
     <summary style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer;list-style:none">
     <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0">
       소방시설 기본값 <?= $defaultsLocked ? '작성' : '수정' ?>
-      <?php if ($sprinklerSet): ?>
-        <span class="bcode-badge">스프링클러 <?= $sprinkler === 'yes' ? '있음' : '없음' ?></span>
-      <?php endif; ?>
-      <?php if ($hydrantSet): ?>
-        <span class="bcode-badge">옥내소화전 <?= $hydrant === 'yes' ? '있음' : '없음' ?></span>
-      <?php endif; ?>
       <?php if ($worklogReviewPending > 0): ?>
         <span class="bcode-badge" style="background:#fef3c7;border-color:#fde68a;color:#b45309">확인요청 <?=$worklogReviewPending?>건</span>
       <?php elseif ($worklogReviewResolvedRecent): ?>
@@ -599,35 +574,16 @@ a{text-decoration:none}
       <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
       <input type="hidden" name="facility_setup_done" value="1">
 
-      <div class="facility-checks" id="defaultSetup">
-        <div class="facility-check">
-          <span class="facility-check__title">스프링클러</span>
-          <?php if(isset($facilityPrefill['sprinkler'])): ?><input type="hidden" name="sprinkler" value="<?=h($sprinkler)?>"><span class="bcode-badge">시설현황 연동 · <?= $sprinkler==='yes'?'있음':'없음' ?></span><?php else: ?><div class="facility-check__options">
-            <label class="facility-option">
-              <input type="radio" name="sprinkler" value="yes" <?= $sprinkler === 'yes' ? 'checked' : '' ?> required>
-              <span>있음</span>
-            </label>
-            <label class="facility-option">
-              <input type="radio" name="sprinkler" value="no" <?= $sprinkler === 'no' ? 'checked' : '' ?>>
-              <span>없음</span>
-            </label>
-          </div><?php endif; ?>
-        </div>
-        <div class="facility-check">
-          <span class="facility-check__title">옥내소화전</span>
-          <?php if(isset($facilityPrefill['hydrant'])): ?><input type="hidden" name="hydrant" value="<?=h($hydrant)?>"><span class="bcode-badge">시설현황 연동 · <?= $hydrant==='yes'?'있음':'없음' ?></span><?php else: ?><div class="facility-check__options">
-            <label class="facility-option">
-              <input type="radio" name="hydrant" value="yes" <?= $hydrant === 'yes' ? 'checked' : '' ?> required>
-              <span>있음</span>
-            </label>
-            <label class="facility-option">
-              <input type="radio" name="hydrant" value="no" <?= $hydrant === 'no' ? 'checked' : '' ?>>
-              <span>없음</span>
-            </label>
-          </div><?php endif; ?>
-        </div>
+      <div class="facility-summary" id="defaultSetup">
+        <div class="facility-summary-head"><strong>연동된 소방시설</strong><a href="<?=h($url('/building_facilities.php'))?>">시설현황 수정 →</a></div>
+        <?php foreach(['note_sobang'=>'소방시설','note_pinan'=>'피난·방화시설'] as $key=>$label):if(!$facilityGroups[$key])continue;?>
+        <div class="facility-summary-row"><span><?=h($label)?></span><div><?php foreach($facilityGroups[$key] as $name):?><b><?=h($name)?></b><?php endforeach;?></div></div>
+        <?php endforeach;?>
+        <?php if(!$facilityLabels):?><p>선택한 시설이 없습니다. 소방시설 현황에서 설치된 시설을 선택해 주세요.</p><?php endif;?>
+        <?php if(!$facilityReady):?><p>소방시설 현황을 작성하고 저장하면 기본값에 반영됩니다.</p><?php endif;?>
+        <input type="hidden" name="sprinkler" value="<?=h($sprinkler)?>"><input type="hidden" name="hydrant" value="<?=h($hydrant)?>">
       </div>
-      <p class="facility-auto-note">저장된 소방시설 현황을 자동으로 반영합니다. 연동된 설치 여부는 소방시설 현황에서 수정해 주세요.</p>
+      <p class="facility-auto-note">포함한 동의 설치 시설을 중복 없이 모았습니다. 확인내용은 실제 업무에 맞게 수정해 주세요.</p>
 
       <div class="notehd">
         <h3>확인내용 기본값</h3>
@@ -649,9 +605,9 @@ a{text-decoration:none}
       <?php
         $noteSamples = worklog_note_defaults($sprinkler === 'yes' ? 'yes' : 'no', $hydrant === 'yes' ? 'yes' : 'no');
         $noteFields = [
-          'note_sobang' => ['소방시설', '소화기·스프링클러 등 건물에 설치된 소방시설을 점검한 내용',
+          'note_sobang' => ['소방시설', '선택한 소방시설을 확인한 내용',
             $noteSamples['note_sobang']],
-          'note_pinan' => ['피난방화시설', '비상구·피난통로·유도등·방화문 상태를 확인한 내용',
+          'note_pinan' => ['피난방화시설', '선택한 피난·방화시설을 확인한 내용',
             $noteSamples['note_pinan']],
           'note_hwagi' => ['화기취급감독', '불을 쓰는 곳과 그 주변을 살핀 내용',
             $noteSamples['note_hwagi']],
@@ -675,45 +631,14 @@ a{text-decoration:none}
       </div>
 
       <div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:18px;align-items:center">
-        <button class="btn btn--primary" type="submit">시설 선택과 기본값 저장</button>
+        <button class="btn btn--primary" type="submit">기본값 저장</button>
       </div>
     </form>
 
     <script>
     var NOTE_SAMPLES = <?=json_encode(array_map(fn($x) => $x[2], $noteFields), JSON_UNESCAPED_UNICODE)?>;
-    var FACILITY_INVENTORY_SAVED = <?=!empty($facilityInventory['revision'])?'true':'false'?>;
-    var FACILITY_NOTES = {
-      baseFirst: '소화기 비치 및 압력 상태 확인',
-      sprinkler: '스프링클러 헤드 훼손·누수·살수 장애물 여부 확인',
-      hydrant: '옥내소화전함 주변 적치물 및 사용 가능 상태 확인',
-      baseLast: '자동화재탐지설비 감지기·수신기 정상 상태 확인'
-    };
-    function facilityChoice(name){
-      var checked = document.querySelector('input[name="' + name + '"][type=hidden], input[name="' + name + '"]:checked');
-      return checked ? checked.value : '';
-    }
-    function syncFacilityNote(){
-      if(FACILITY_INVENTORY_SAVED)return;
-      var el = document.getElementById('note_sobang');
-      if (!el) return;
-      var parts = el.value.split(/\s*,\s*/).map(function(part){ return part.trim(); }).filter(function(part){
-        return part && part !== FACILITY_NOTES.sprinkler && part !== FACILITY_NOTES.hydrant;
-      });
-      if (!parts.length) parts = [FACILITY_NOTES.baseFirst, FACILITY_NOTES.baseLast];
-      var additions = [];
-      if (facilityChoice('sprinkler') === 'yes') additions.push(FACILITY_NOTES.sprinkler);
-      if (facilityChoice('hydrant') === 'yes') additions.push(FACILITY_NOTES.hydrant);
-      parts.splice.apply(parts, [Math.min(1, parts.length), 0].concat(additions));
-      el.value = parts.join(', ');
-    }
-    function currentSobangSample(){
-      if (FACILITY_INVENTORY_SAVED) return NOTE_SAMPLES.note_sobang || '';
-      var parts = [FACILITY_NOTES.baseFirst];
-      if (facilityChoice('sprinkler') === 'yes') parts.push(FACILITY_NOTES.sprinkler);
-      if (facilityChoice('hydrant') === 'yes') parts.push(FACILITY_NOTES.hydrant);
-      parts.push(FACILITY_NOTES.baseLast);
-      return parts.join(', ');
-    }
+    function syncFacilityNote(){}
+    function currentSobangSample(){return NOTE_SAMPLES.note_sobang || '';}
     function fillNote(key){
       var el = document.getElementById(key);
       if (!el) return;

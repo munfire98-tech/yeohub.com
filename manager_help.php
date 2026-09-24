@@ -21,6 +21,11 @@ try {
     if($action==='create') {
         $text=trim((string)($_POST['text']??''));$field=trim((string)($_POST['field']??''));
         if($text===''||strlen($text)>3000||!preg_match('/^[A-Za-z0-9_]{1,80}$/D',$field)) mh_fail('요청 항목을 확인해 주세요.');
+        if(strpos($field,'__fp_')===0){
+          if(!preg_match('/^__fp_([0-9]+)_([0-9]+)_([A-Za-z0-9_]+)$/D',$field,$fm))mh_fail('소방계획서 질문을 확인해 주세요.');
+          require_once __DIR__.'/fire_plan_db.php';
+          if(!fp_load_plan($fm[1])||!isset(fp_chat_schema()[$fm[2]][$fm[3]]))mh_fail('현재 계정의 소방계획서 질문을 확인해 주세요.');
+        }
         $members=mg_members();$me=$members[$actor]??[];$state=mg_read(mg_state_file());
         if(!mg_active($me,'building')) mh_fail('건물관리자만 요청할 수 있습니다.',403);
         $manager=mg_connection_manager($me,$members);$status=mg_link_status($actor,$me,$state);
@@ -65,6 +70,8 @@ try {
           if($action==='resolve'){
             $id=(string)($_POST['id']??'');
             if(!$isManager||!isset($rows[$id])||!$visible($rows[$id]))throw new RuntimeException('처리할 권한이 없습니다.');
+            if(strpos((string)($rows[$id]['field']??''),'__fp_')===0)throw new RuntimeException('소방계획서 문답에서 답변을 저장해 주세요.');
+            if(($rows[$id]['field']??'')==='__facilities')throw new RuntimeException('소방시설 현황 화면에서 설치 여부를 확인하고 저장해 주세요.');
             $reply=trim((string)($_POST['reply']??''));
             if($reply===''||strlen($reply)>3000)throw new RuntimeException('처리 내용을 1~1,000자 정도로 입력해 주세요.');
             if($rows[$id]['status']==='pending'){$rows[$id]['status']='resolved';$rows[$id]['reply']=$reply;$rows[$id]['resolved_at']=date('c');$rows[$id]['resolved_by']=$actor;}

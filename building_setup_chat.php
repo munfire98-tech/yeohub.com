@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'save_ste
   $allowed = array_keys(bi_blank());
   foreach ($patch as $k => $v) {
     if (!in_array($k, $allowed, true)) continue;
-    if ($k === 'mgrs' || $k === 'raw_bldg') {
+    if ($k === 'mgrs' || $k === 'raw_bldg' || $k === 'bd_dong_list') {
       $cur[$k] = is_array($v) ? $v : ($k === 'mgrs' ? [] : $cur[$k]);
     } else {
       $cur[$k] = is_string($v) ? $v : (string)$v;
@@ -642,7 +642,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   <div id="chat"></div>
 </main>
 
-<script src="/manager_help.js?v=6" data-uid="<?=h($viewUid)?>" data-reviewchat="1" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
+<script src="/manager_help.js?v=10" data-uid="<?=h($viewUid)?>" data-reviewchat="1" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
 <script>
 var CSRF   = <?=json_encode($CSRF)?>;
 var KAKAO_JS_KEY = <?=json_encode($API['kakao_js'] ?? '')?>;
@@ -1043,7 +1043,7 @@ async function start(){
     bot(md('요청 목록을 불러오지 못했습니다. 새로고침 후 다시 확인해 주세요.'));return;
   }
   if(help&&help.mode==='manager'){
-    var pending=help.rows.filter(function(r){return r.status==='pending'&&r.connection_active;});
+    var pending=help.rows.filter(function(r){return r.status==='pending'&&r.connection_active&&r.field!=='__facilities'&&!(r.field||'').startsWith('__fp_');});
     if(!pending.length&&new URLSearchParams(location.search).has('help_field')){
       bot(md('**현재 남아 있는 작성 요청이 없습니다.**\n이미 완료되었거나 초기화된 요청입니다.'));return;
     }

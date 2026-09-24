@@ -9,7 +9,7 @@
   function paintHelp(item){const count=helpCounts.get(item.row.uid)||0;
     item.label.style.background=count?'#fff4df':'';item.label.style.borderColor=count?'#d97706':'';item.label.style.boxShadow=count?'0 0 0 3px rgba(245,158,11,.25)':'';
     item.tag.textContent=count?'! 요청 '+count+'건':'담당';item.tag.style.background=count?'#b45309':'';item.tag.style.color=count?'#fff':'';
-    item.helpNote.textContent=count?'기본정보 작성 도움 요청 '+count+'건 · 건물관리 화면에서 확인하세요.':'';item.helpNote.hidden=!count;
+    item.helpNote.textContent=count?'작성 도움 요청 '+count+'건 · 건물관리 화면에서 확인하세요.':'';item.helpNote.hidden=!count;
     item.marker.setZIndexOffset(count?1000:0);
   }
   const byUid=new Map();let focusUid=null,selectedMonth='all';
