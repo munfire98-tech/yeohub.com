@@ -199,11 +199,19 @@ function fp_list_plans(): array {
 
 /* 계획서 삭제 */
 function fp_delete_plan(string $planId): void {
-  $file = fp_plan_file($planId);
-  if (file_exists($file)) @unlink($file);
-  $idx = fp_read_json(fp_index_file());
-  unset($idx[$planId]);
-  fp_write_json(fp_index_file(), $idx);
+  $uid=fp_user_key();
+  if(!preg_match('/^[0-9]{1,64}$/D',$planId)||!preg_match('/^[A-Za-z0-9_-]{1,100}$/D',$uid))throw new RuntimeException('삭제할 계획서를 확인해 주세요.');
+  require_once __DIR__.'/manager_common.php';
+  mg_tx(__DIR__.'/data/manager_help_requests.php',function(array &$rows)use($uid,$planId){
+    $file=fp_plan_file($planId);
+    if(file_exists($file)&&!@unlink($file))throw new RuntimeException('계획서를 삭제하지 못했습니다. 다시 시도해 주세요.');
+    $prefix='__fp_'.$planId.'_';
+    foreach($rows as $id=>$row){
+      if(is_array($row)&&($row['uid']??'')===$uid&&strpos((string)($row['field']??''),$prefix)===0)unset($rows[$id]);
+    }
+  },true);
+  $idx=fp_read_json(fp_index_file());unset($idx[$planId]);
+  if(!fp_write_json(fp_index_file(),$idx))throw new RuntimeException('계획서 목록을 갱신하지 못했습니다. 다시 시도해 주세요.');
 }
 
 /* 섹션 데이터 읽기 */
@@ -397,7 +405,7 @@ function fp_chat_sources(array $bi, array $evac, ?int $year = null, ?array $sele
     if (!$mgr) $mgr = $m;
     if (strpos((string)($m['type'] ?? ''),'주') === 0) { $mgr = $m; break; }
   }
-  foreach (['name'=>'name','addr'=>'address','rep_name'=>'rep','rep_tel'=>'tel','grade'=>'grade','main_use'=>'use','area'=>'area_t','structure'=>'bd_struct','height'=>'bd_height'] as $to=>$from) $d['1'][$to] = (string)($bi[$from] ?? '');
+  foreach (['name'=>'name','addr'=>'address','rep_name'=>'rep','rep_tel'=>'tel','grade'=>'grade','main_use'=>'use','area'=>'area_t','bld_area'=>'bd_area_arch','structure'=>'bd_struct','height'=>'bd_height'] as $to=>$from) $d['1'][$to] = (string)($bi[$from] ?? '');
   $d['1']['mgr_name'] = (string)($mgr['name'] ?? ''); $d['1']['mgr_tel'] = (string)($mgr['tel'] ?? '');
   $date = preg_replace('/\D/','',(string)($bi['bd_use_apr'] ?? ''));
   if (strlen($date) === 8 && checkdate((int)substr($date,4,2),(int)substr($date,6,2),(int)substr($date,0,4))) $d['1']['approval'] = substr($date,0,4).'-'.substr($date,4,2).'-'.substr($date,6,2);

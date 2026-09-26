@@ -1,18 +1,24 @@
 <?php
 /* =============================================================
-   building_setup_chat.php — 건물 기본정보 대화형 입력
+   manager_draft.php — 매니저 사전 등록용 기본정보 문답
    ─────────────────────────────────────────────────────────────
-   질문에 하나씩 답하면 building_info.php 에 저장됩니다.
+   질문에 답하면 해당 거래처의 사전 등록 저장소에 저장됩니다.
    한 문항 답할 때마다 바로 저장되므로 중간에 나가도 이어서 할 수 있습니다.
    기존 building_setup.php(표 형식)는 그대로 두고, 나중에 고칠 때 씁니다.
    ============================================================= */
 declare(strict_types=1);
 
 
-/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
+
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/manager_draft_common.php';
+try {
+ if(!empty($_SESSION['_imp'])||!empty($_SESSION['_mge_actor']))throw new RuntimeException('매니저 본인 화면에서 사전 등록을 열어 주세요.');
+ define('MD_ACTOR',mg_uid());define('MD_ID',(string)($_GET['id']??''));md_entry(MD_ACTOR,MD_ID);
+} catch(Throwable $e){http_response_code(403);exit(mg_e($e->getMessage()));}
+header('Cache-Control: no-store');header('X-Frame-Options: SAMEORIGIN');
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -22,7 +28,7 @@ function is_admin(): bool {
 function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']); }
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+
 
 require_once __DIR__ . '/building_info.php';
 require_once __DIR__ . '/user_key.php';
@@ -46,8 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'save_ste
   if (!is_array($patch)) $patch = [];
 
   /* 기존 값을 유지한 채 이번 답변만 덮어쓴다.
-     bi_save() 는 넘기지 않은 항목을 비워버리므로 반드시 합쳐서 넘겨야 한다. */
-  $cur = bi_load();
+     md_save() 는 넘기지 않은 항목을 비워버리므로 반드시 합쳐서 넘겨야 한다. */
+  $cur = md_load();
 
   $allowed = array_keys(bi_blank());
   foreach ($patch as $k => $v) {
@@ -63,34 +69,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'save_ste
   $locationError=bl_location_error($cur,$patch);
   if($locationError!==''){echo json_encode(['ok'=>false,'error'=>$locationError],JSON_UNESCAPED_UNICODE);exit;}
   $saveError='';
-  try {
-    $requestId=trim((string)($_POST['help_request_id']??''));
-    if($requestId!==''){
-      require_once __DIR__.'/manager_help_complete.php';
-      $editActor=(string)($_SESSION['_mge_actor']??'');
-      if($editActor==='')throw new RuntimeException('매니저 편집 화면에서 요청을 처리해 주세요.');
-      $ok=mh_save_requested_answer($editActor,app_user_key(),$requestId,$patch,static function()use($cur,$patch):bool{
-        if(!bi_save($cur))return false;
-        $savedMap=bi_read_saved();
-        foreach(['assembly_lat','assembly_lng','assembly_kind','fire_engine_route'] as $key){if(array_key_exists($key,$patch)&&trim((string)($savedMap[$key]??''))!==trim((string)$patch[$key]))return false;}
-        return true;
-      });
-    }else{
-      require_once __DIR__.'/manager_help_complete.php';
-      if(mg_uid()===app_user_key()){
-        $ok=mh_save_own_answers(app_user_key(),$patch,static function()use($cur):bool{return bi_save($cur);},static function():array{return bi_read_saved();},(string)($_POST['help_answer_field']??''));
-      }else{$ok=bi_save($cur);}
-    }
-  }catch(Throwable $e){$ok=false;$saveError='요청 항목을 저장하지 못했습니다. 연결 상태와 입력 내용을 확인하고 다시 시도해 주세요.';error_log('Requested answer: '.$e->getMessage());}
+  try{$ok=md_save($cur);}catch(Throwable $e){$ok=false;$saveError='사전 등록 내용을 저장하지 못했습니다. 연결 상태를 확인해 주세요.';}
   if($ok){
-    $persisted=bi_load();
+    $persisted=md_load();
     foreach(['assembly_lat','assembly_lng','assembly_kind','fire_engine_route'] as $mapKey){
       if(array_key_exists($mapKey,$patch)&&trim((string)($persisted[$mapKey]??''))!==trim((string)$patch[$mapKey])){
         $ok=false;$saveError='지도 정보가 저장되지 않았습니다. 서버의 building_info.php 저장 항목을 확인해 주세요.';break;
       }
     }
   }
-  $p  = bi_progress();
+  $p  = md_progress();
   echo json_encode([
     'ok'      => $ok,
     'percent' => $p['percent'],
@@ -359,7 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
     'bd_looked'    => date('Y-m-d H:i:s'),
   ];
   echo json_encode(['ok'=>true,'patch'=>$patch,'rawUse'=>$useNm,'code'=>$code,
-    'via'=>$usedLabel, 'dongCnt'=>count($dongList), 'dongList'=>$dongList], JSON_UNESCAPED_UNICODE); exit;
+    'via'=>$usedLabel, 'needs_address_check'=>empty($code['exact']), 'matched_address'=>trim((string)($head['newPlatPlc']??$head['platPlc']??$item['platPlc']??'')), 'matched_jibun'=>trim((string)($head['platPlc']??$item['platPlc']??'')), 'dongCnt'=>count($dongList), 'dongList'=>$dongList], JSON_UNESCAPED_UNICODE); exit;
 }
 
 /* ── 조회 헬퍼들 ─────────────────────────────────────────── */
@@ -367,7 +355,7 @@ function bldg_http_get(string $url, array $headers = []): array {
   $ch = curl_init($url);
   $h  = array_merge(['Accept: application/json'], $headers);
   curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>15,
-    CURLOPT_SSL_VERIFYPEER=>false, CURLOPT_SSL_VERIFYHOST=>false, CURLOPT_HTTPHEADER=>$h]);
+    CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2, CURLOPT_HTTPHEADER=>$h]);
   $b = curl_exec($ch); $c = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
   return ['body'=>(string)$b, 'code'=>$c];
 }
@@ -438,41 +426,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'reset') 
   if (!app_has_user_key()) {
     http_response_code(403); exit('초기화할 회원을 확인하지 못했습니다.');
   }
-  require_once __DIR__.'/manager_help_reset.php';
-  try {
-    mh_reset_building_requests(app_user_key(), static function(): bool {
-      $blank = bi_blank();
-      unset($blank['updated']);
-      return bi_save($blank, true);
-    });
-  } catch (Throwable $e) {
-    error_log('Building help reset: '.$e->getMessage());
-    http_response_code(503);
-    exit('초기화를 완료하지 못했습니다. 기본정보와 요청 목록을 확인한 뒤 다시 시도해 주세요.');
-  }
-  header('Location: /building_setup_chat.php?reset=1');
+  try{$ok=md_save(bi_blank());if(!$ok)throw new RuntimeException();}catch(Throwable $e){http_response_code(409);exit('사전 등록 내용을 초기화하지 못했습니다.');}
+  header('Location: /manager_draft.php?id='.rawurlencode(MD_ID).'&modal=1&reset=1');
   exit;
 }
 
 /* ── 화면 ────────────────────────────────────────────────── */
 $noUser = !app_has_user_key();
-$d      = bi_load();
-$prog   = bi_progress();
+$d      = md_load();
+$prog   = md_progress();
 $nick   = $_SESSION['nickname'] ?? '사용자';
 $viewUid = app_user_key();
 $adminView = is_admin() && trim((string)($_GET['uid'] ?? '')) !== '' && $viewUid !== '';
 $adminQuery = $adminView ? ('uid=' . rawurlencode($viewUid)) : '';
-$url = function(string $path) use ($adminQuery): string {
-  if ($adminQuery === '') return $path;
-  return $path . (strpos($path, '?') === false ? '?' : '&') . $adminQuery;
-};
+$url = function(string $path):string {return '/manager_addresses.php';};
 ?>
 <!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>건물 기본정보 입력 — YeoHub</title>
+<title>기본정보 사전 등록 — YeoHub</title>
 <style>
 :root{--bg:#f5f7fb;--card:#fff;--bd:#e3e8f0;--bd2:#d4dbe6;--fg:#1a2436;
   --mut:#7a8699;--mut2:#56627a;--brand:#2563eb;--brand2:#1d4ed8;--accent:#0891b2}
@@ -612,13 +586,13 @@ button{font:inherit;color:inherit;cursor:pointer}
     <a class="brand" href="/index.php">소방계획서.B_S_CHAT</a>
     <div style="display:flex;gap:8px">
       <form method="post" style="display:inline"
-            onsubmit="return confirm('건물 기본정보와 소방시설 현황을 함께 초기화합니다. 관련 작성 도움 요청과 완료 기록도 삭제하고 처음부터 다시 시작합니다.\n계속할까요?')">
+            onsubmit="return confirm('이 거래처에 사전 작성한 기본정보를 초기화합니다.\n계속할까요?')">
         <input type="hidden" name="act" value="reset">
         <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
         <button class="btn" type="submit">↺ 처음부터 다시</button>
       </form>
-      <a class="btn" href="<?=h($url('/building_setup.php'))?>">표로 입력</a>
-      <a class="btn" href="<?=h($url('/building_manager.php'))?>">← 메인</a>
+
+      <a class="btn" href="<?=h($url('/building_manager.php'))?>">← 사전 등록 목록</a>
     </div>
   </div>
 </nav>
@@ -626,7 +600,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 <div class="prog">
   <div class="prog__in">
     <div class="prog__row">
-      <span>건물 기본정보</span>
+      <span>기본정보 사전 등록</span>
       <span><b id="pPct"><?=$prog['percent']?>%</b> · <span id="pNum"><?=$prog['filled']?>/<?=$prog['total']?></span></span>
     </div>
     <div class="bar"><i id="pBar" style="width:<?=$prog['percent']?>%"></i></div>
@@ -643,7 +617,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   <div id="chat"></div>
 </main>
 
-<script src="/manager_help.js?v=10" data-uid="<?=h($viewUid)?>" data-reviewchat="1" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
+<script>window.managerHelp={ready:Promise.resolve(null),refresh:function(){}};if(new URLSearchParams(location.search).get('reset')==='1'&&window.parent!==window)window.parent.postMessage({type:'manager-addresses-changed'},location.origin);</script>
 <script>
 var CSRF   = <?=json_encode($CSRF)?>;
 var KAKAO_JS_KEY = <?=json_encode($API['kakao_js'] ?? '')?>;
@@ -674,9 +648,9 @@ function loadKakaoMap(onReady, onFail){
   };
   document.head.appendChild(sc);
 }
-var SAVED  = <?=json_encode($d, JSON_UNESCAPED_UNICODE)?>;
+var SAVED  = <?=json_encode($d, JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
 var NOUSER = <?=$noUser ? 'true' : 'false'?>;
-var NICK   = <?=json_encode($nick, JSON_UNESCAPED_UNICODE)?>;
+var NICK   = <?=json_encode($nick, JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
 
 var chat = document.getElementById('chat');
 var answers = {};          // 이번 대화에서 새로 받은 값
@@ -1009,7 +983,7 @@ function save(patch, done){
     if(ok && version === chatEditVersion) chatUnsaved = false;
     if(!ok){clearBox();ask(STEPS[step]);return;}
     if(REVIEW_MODE&&ok&&REVIEW_CURRENT){REVIEW_DONE[REVIEW_CURRENT.id]=true;window.managerHelp.refresh();try{if(window.parent!==window)window.parent.managerHelp?.refresh();}catch(e){}}
-    if(ok&&!REVIEW_MODE){window.managerHelp.refresh();try{if(window.parent!==window)window.parent.managerHelp?.refresh();}catch(e){}}
+    if(ok&&window.parent!==window)window.parent.postMessage({type:'manager-addresses-changed'},location.origin);
     onDone(ok);
   };
   var fd = new FormData();
@@ -1684,7 +1658,7 @@ function helpRequestLabel(mode, managerName){
   if(mode==='pending')return '잘 모르겠어요 · '+name+'에게 요청하기 (연결 수락 대기)';
   return '잘 모르겠어요 · 로컬매니저 연결하고 요청하기';
 }
-function addYeohubReview(s, container){
+function addYeohubReview(s, container){ return;
   if (!container || !container.isConnected || container.querySelector('.yeohub-review')) return;
   var row=document.createElement('div');row.className='subrow yeohub-review';
   var btn=document.createElement('button');btn.className='btn btn--sm';btn.type='button';btn.disabled=true;btn.textContent='담당 매니저 확인 중…';
@@ -1839,6 +1813,12 @@ function doLookupPick(a, s){
       .then(function(j){
         endLoading();
         if(!j || !j.ok){ showLookupRecovery(a,s,(j&&j.error)||'건축물대장 조회에 실패했습니다.'); return; }
+        if(j.needs_address_check){
+          var matched=[j.matched_address,j.matched_jibun].filter(Boolean).join('\n');
+          if(!confirm('정확한 지번에서 결과가 없어 본번 기준으로 추가 조회했습니다.\n\n선택한 주소: '+(a.road||a.jibun||'')+'\n대장에 나온 주소: '+(matched||'주소 정보 없음')+'\n건물명: '+((j.patch||{}).name||'미표시')+'\n\n같은 대상 건물이 맞는 경우에만 확인을 눌러 반영해 주세요.')){
+            showLookupRecovery(a,s,'추가 조회된 대장 반영을 취소했습니다. 주소를 확인하거나 직접 입력해 주세요.');return;
+          }
+        }
         var patch=j.patch||{};
         var lines=[];
         if(patch.name)    lines.push('**대상명** '+patch.name);
@@ -1956,50 +1936,18 @@ function finish(){
       html += '<div class="sum"><span class="sum__k">'+esc(r[0])+'</span>'+
               '<span class="sum__v'+(v?'':' none')+'">'+esc(v||'아직 비어 있음')+'</span></div>';
     });
-    html += '<div class="doneRow">' +
-    '<a class="btn btn--pri" target="_top" href="<?=h($url('/building_manager.php'))?>">메인으로 →</a>' +
-      '<a class="btn" href="<?=h($url('/building_setup.php'))?>">표에서 자세히 고치기</a>' +
-      '<a class="btn" href="<?=h($url('/work_log.php'))?>">이번 달 기록표 쓰러 가기</a></div>';
+    html += '<div class="doneRow"><a class="btn btn--pri" href="/manager_addresses.php">사전 등록 저장 완료 · 목록으로 →</a></div>';
     d.innerHTML=html;
     chat.appendChild(d); down();
   });
 }
 
-// 문답은 답변마다 저장합니다. 인쇄는 대화가 아닌 저장된 기본정보 서식으로 연결합니다.
-(function(){
-  var modal = new URLSearchParams(location.search).get('modal') === '1' && window.parent !== window;
-  if(!modal) return;
-  function canLeave(){
-    if(chatPending){ alert('답변을 저장하고 있습니다. 잠시 후 다시 눌러 주세요.'); return false; }
-    return !chatUnsaved || confirm('아직 답변을 확정하지 않은 내용이 있습니다. 계속하려면 취소 후 현재 질문의 다음 또는 저장 버튼을 눌러 주세요.\n저장된 답변만 남기고 이동할까요?');
-  }
-  function setupUrl(print){
-    var target = new URL(<?=json_encode($url('/building_setup.php'))?>,location.origin);
-    target.searchParams.set('embed','1'); target.searchParams.set('modal','1');
-    if(print) target.searchParams.set('print','1');
-    return target.href;
-  }
-  window.buildingInfoRequestClose = function(){
-    if(!canLeave()) return;
-    chatUnsaved = false;
-    window.parent.postMessage({type:'building-info-close'},location.origin);
-  };
-  window.buildingInfoPrint = function(){
-    if(canLeave()) { chatUnsaved = false; location.href = setupUrl(true); }
-  };
-  document.addEventListener('click',function(e){
-    var link = e.target.closest('a[href]');
-    if(!link || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-    var target = new URL(link.href,location.origin);
-    if(target.origin !== location.origin) return;
-    if(target.pathname.endsWith('/building_manager.php')){
-      e.preventDefault(); window.buildingInfoRequestClose();
-    } else if(target.pathname.endsWith('/building_setup.php')){
-      e.preventDefault(); if(canLeave()){chatUnsaved=false;location.href=setupUrl(false);}
-    }
-  });
-  document.addEventListener('keydown',function(e){if(e.key==='Escape') window.buildingInfoRequestClose();});
-})();
+// The parent dialog asks this page to confirm unsaved work before closing.
+window.managerDraftCanLeave=function(){
+ if(chatPending){alert('답변을 저장하고 있습니다. 잠시 후 닫아 주세요.');return false;}
+ return !chatUnsaved||confirm('아직 저장하지 않은 답변이 있습니다. 저장된 내용만 남기고 닫을까요?');
+};
+document.addEventListener('click',function(e){const a=e.target.closest('a[href]');if(a&&new URL(a.href,location.href).pathname==='/manager_addresses.php'&&!window.managerDraftCanLeave())e.preventDefault();});
 if(window.MutationObserver){new MutationObserver(function(records){
   if(records.some(function(r){return !(r.target.nodeType===1&&r.target.closest('.map-wrap'));}))down();
 }).observe(chat,{childList:true,subtree:true});}
@@ -2008,6 +1956,6 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){if(
 if(window.visualViewport)window.visualViewport.addEventListener('resize',function(){if(Date.now()<followChatUntil)settleChatBottom();});
 start();
 </script>
-<?php require __DIR__ . '/memo_widget.php'; ?>
+
 </body>
 </html>

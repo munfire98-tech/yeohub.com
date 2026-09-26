@@ -1173,9 +1173,9 @@ $oldRole = (string)($oldSignup['role'] ?? '');
         <div class="chk-msg" id="mo-phone-msg"></div>
       </div>
       <div class="field">
-        <label>닉네임 (표시 이름)</label>
+        <label>닉네임 (건물 이름)</label>
         <input class="inp" name="nickname" maxlength="20" value="<?=$ov('nickname')?>"
-               placeholder="비워두면 아이디로 표시" autocomplete="nickname">
+               placeholder="건물 이름 입력" autocomplete="nickname">
       </div>
       <div class="field">
         <label>사용자 유형</label>

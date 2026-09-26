@@ -17,22 +17,35 @@ function mg_read(string $file): array {
     return $a;
 }
 function mg_tx(string $file, callable $fn, bool $guard = false) {
-    $dir = dirname($file);
-    if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) throw new RuntimeException('저장 폴더를 만들 수 없습니다.');
-    $lock = fopen($file . '.lock', 'c+');
-    if (!$lock || !flock($lock, LOCK_EX)) throw new RuntimeException('저장소를 잠글 수 없습니다.');
-    $tmp = false;
+    static $held=[];
+    $dir=dirname($file);
+    if(!is_dir($dir)&&!mkdir($dir,0775,true)&&!is_dir($dir))throw new RuntimeException('저장 폴더를 만들 수 없습니다.');
+    $key=(realpath($dir)?:$dir).'/'.basename($file);
+    // Fail instead of waiting on our own lock. Nested writes must never silently overwrite each other.
+    if(isset($held[$key]))throw new RuntimeException('저장 중 같은 자료를 다시 변경하려는 요청이 발생했습니다.');
+    $lock=fopen($file.'.lock','c+');
+    if(!$lock)throw new RuntimeException('저장소를 열 수 없습니다.');
+    $locked=false;$tmp=false;
     try {
-        $a = mg_read($file); $before = $a; $result = $fn($a);
-        if ($before !== $a) {
-            $json = json_encode($a, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
-            $tmp = tempnam($dir, '.manager_');
-            if ($tmp === false || file_put_contents($tmp, ($guard ? "<?php exit; ?>\n" : '') . $json) === false || !rename($tmp, $file)) throw new RuntimeException('저장에 실패했습니다.');
+        $deadline=microtime(true)+3;
+        do {
+            $locked=flock($lock,LOCK_EX|LOCK_NB);
+            if($locked)break;
+            if(microtime(true)>=$deadline)throw new RuntimeException('다른 저장이 진행 중입니다. 잠시 후 다시 시도해 주세요.');
+            usleep(20000);
+        } while(true);
+        $held[$key]=true;
+        $a=mg_read($file);$before=$a;$result=$fn($a);
+        if($before!==$a){
+            $json=($guard?"<?php exit; ?>\n":'').json_encode($a,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT|JSON_THROW_ON_ERROR);
+            $tmp=tempnam($dir,'.manager_');
+            if($tmp===false||file_put_contents($tmp,$json)!==strlen($json)||!rename($tmp,$file))throw new RuntimeException('저장에 실패했습니다.');
         }
         return $result;
     } finally {
-        if ($tmp && is_file($tmp)) unlink($tmp);
-        flock($lock, LOCK_UN); fclose($lock);
+        if($tmp&&is_file($tmp))unlink($tmp);
+        if($locked){unset($held[$key]);flock($lock,LOCK_UN);}
+        fclose($lock);
     }
 }
 function mg_members(): array { return mg_read(__DIR__ . '/data/members.json'); }
@@ -141,30 +154,16 @@ function mg_decide(string $actor, string $target, string $action, string $reques
     });
 }
 /* Trusted server payment result only. There is deliberately no HTTP award endpoint. */
-function mg_award(string $uid, array $receipt): void {
-    if (($receipt['live'] ?? false) !== true || ($receipt['status'] ?? '') !== 'DONE' || (int)($receipt['amount'] ?? 0) <= 0 || empty($receipt['payment_key']) || empty($receipt['order_id'])) return;
-    $members = mg_members(); $m = $members[$uid] ?? [];
-    $manager = mg_referrer($m,$members);
-    if (($m['referral_reward_eligible'] ?? true) === false || !mg_active($m,'building') || $manager === '' || empty($m['referral_at']) || empty($m['manager_consent_at'])) return;
-    if (strtotime((string)$m['referral_at']) > strtotime((string)($receipt['at'] ?? ''))) return;
-    mg_state_tx(function(array &$s) use ($uid,$manager,$receipt,$members) {
-        if (isset($s['rewards'][$uid])) return; // lifetime UID dedup, including refunded rewards
-        $pk = (string)$receipt['payment_key'];
-        foreach ($s['rewards'] ?? [] as $r) if (($r['payment_key'] ?? '') === $pk) return;
-        $s['rewards'][$uid] = ['manager'=>$manager,'manager_created'=>(string)($members[$manager]['created'] ?? ''),'payment_key'=>$pk,'order_id'=>$receipt['order_id'],'at'=>$receipt['at'],'reversed'=>isset($s['refunds'][$pk])];
-    });
-}
+require_once __DIR__.'/manager_rewards.php';
+function mg_award(string $uid,array $receipt):void { mr_award($uid,$receipt); mr_reconcile($uid); }
 function mg_reverse(string $uid, string $paymentKey): void {
     if ($paymentKey === '') return;
     mg_state_tx(function(array &$s) use ($uid,$paymentKey) {
-        $s['refunds'][$paymentKey] = ['uid'=>$uid,'at'=>date('c')];
-        if (($s['rewards'][$uid]['payment_key'] ?? '') === $paymentKey) $s['rewards'][$uid]['reversed'] = true;
+        // Reconciliation runs during reads; preserve the original refund timestamp.
+        if (!isset($s['refunds'][$paymentKey])) $s['refunds'][$paymentKey] = ['uid'=>$uid,'at'=>date('c')];
+        foreach($s['rewards']??[] as $key=>$r)if(($r['payment_key']??'')===$paymentKey)$s['rewards'][$key]['reversed']=true;
+        foreach($s['monthly_rewards']??[] as $key=>$r)if(($r['payment_key']??'')===$paymentKey&&empty($r['closed_at']))$s['monthly_rewards'][$key]['closed_at']=date('c');
     });
 }
-function mg_reconcile(string $uid): void {
-    if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$uid)) return;
-    $d = mg_read(__DIR__.'/data/subscribe/'.$uid.'/subscription.json');
-    foreach ($d['manager_full_refunds'] ?? [] as $pk) mg_reverse($uid,(string)$pk);
-    if (!empty($d['manager_first_payment'])) mg_award($uid,$d['manager_first_payment']);
-}
+function mg_reconcile(string $uid):void { mr_reconcile($uid); }
 function mg_e($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8'); }

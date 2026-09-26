@@ -2,6 +2,7 @@
 /* 연간 단일 요금제: 59,000원 / 12개월. 기존 결제 내역은 보존합니다. */
 declare(strict_types=1);
 
+date_default_timezone_set('Asia/Seoul');
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
 session_start();
@@ -31,308 +32,39 @@ $CSRF = $_SESSION['csrf'];
 require_once __DIR__.'/annual_plan.php';
 const PLANS = AP_PLANS;
 
-/* ── 저장 위치 ── */
-function sub_file(): string {
-  $k = function_exists('app_user_key') ? app_user_key() : '';
-  if ($k === '') return '';
-  $dir = __DIR__ . '/data/subscribe/' . $k;
-  if (!is_dir($dir)) @mkdir($dir, 0775, true);
-  return $dir . '/subscription.json';
+require_once __DIR__.'/toss_billing.php';
+if(!$hasUser){http_response_code(403);exit('로그인 계정을 확인해 주세요.');}
+if(!empty($_SESSION['_imp'])||defined('MANAGER_VIEW_UID')||(is_admin()&&!empty($_REQUEST['uid']))){http_response_code(403);exit('구독과 카드 등록은 유저 본인 계정에서 진행해 주세요.');}
+function sub_file():string{return tb_file();}
+function sub_read():array{return tb_read();}
+function sub_latest_payment(array $d):array{return ab_latest_payment($d);}
+function sub_refund_quote(array $d,?int $now=null):array{return ab_refund_quote($d,$now);}
+$flash='';$flashType='ok';
+if(!empty($_SESSION['annual_flash'])){[$flash,$flashType]=$_SESSION['annual_flash'];unset($_SESSION['annual_flash']);}
+$proPopup=(($_GET['pro_popup']??'')==='1'||($_POST['pro_popup']??'')==='1');
+$act=(string)($_POST['act']??'');
+if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
+ try{
+  if(!hash_equals($CSRF,(string)($_POST['csrf']??'')))throw new RuntimeException('새로고침 후 다시 시도해 주세요.');
+  if(in_array($act,['subscribe','resubscribe'],true)){
+   if(($_POST['offer']??'')!==AP_OFFER||($_POST['renewal_consent']??'')!==AB_CONSENT)throw new RuntimeException('연 59,000원 자동결제 안내를 확인하고 동의해 주세요.');
+   if(($_POST['plan']??'yearly')!=='yearly')throw new RuntimeException('연간 요금제만 사용할 수 있습니다.');
+   ab_renewal($UID,true);$r=tb_charge(AP_PRICE,AP_PLANS['yearly']['name']);if(!$r['ok'])throw new RuntimeException($r['error']);$flash='59,000원 결제가 완료되었습니다. 다음 결제일과 자동갱신 설정을 확인해 주세요.';
+  }elseif($act==='renew_off'){ab_renewal($UID,false);$flash='자동갱신을 해제했습니다. 이미 결제한 기간까지 이용할 수 있습니다.';}
+  elseif($act==='renew_on'){
+   if(($_POST['renewal_consent']??'')!==AB_CONSENT)throw new RuntimeException('자동결제 안내에 동의해 주세요.');
+   $d=tb_read();if(ab_end($d)<=time()||($d['status']??'')!=='active')throw new RuntimeException('기간이 만료된 경우 구독 결제로 다시 시작해 주세요.');
+   ab_renewal($UID,true);$flash='연간 자동갱신을 설정했습니다. 다음 결제일에 59,000원이 청구됩니다.';
+  }elseif($act==='cancel'){$r=ab_refund_user($UID);if(!$r['ok'])throw new RuntimeException($r['error']);$flash='해지·환불 처리가 완료되었습니다.';}
+  elseif($act==='reconcile'){$d=tb_read();$r=in_array($d['refund_attempt']['state']??'',['prepared','unknown'],true)?ab_refund_user($UID,null,true):ab_charge_user($UID,'reconcile');$flash=$r['ok']?'기존 결제·환불 결과를 반영했습니다.':$r['error'];$flashType=$r['ok']?'ok':'err';}
+  elseif($act==='inquiry'){
+   $message=trim((string)($_POST['message']??''));if($message==='')throw new RuntimeException('문의 내용을 입력해 주세요.');
+   mg_tx(__DIR__.'/data/subscribe/inquiries.json',function(&$rows)use($UID,$message){$rows[]=['at'=>date('c'),'uid'=>$UID,'message'=>mb_substr($message,0,1000),'status'=>'open'];});$flash='문의가 접수되었습니다.';
+  }else throw new RuntimeException('지원하지 않는 요청입니다.');
+ }catch(Throwable $e){$flash=$e->getMessage();$flashType='err';}
+ $_SESSION['annual_flash']=[$flash,$flashType];header('Location: /subscribe_page.php'.($proPopup?'?embed=1&pro_popup=1':''));exit;
 }
-function sub_read(): array {
-  $f = sub_file();
-  if ($f === '' || !is_file($f)) return [];
-  $r = @file_get_contents($f);
-  if ($r === false || trim($r) === '') return [];
-  $a = json_decode($r, true);
-  return is_array($a) ? $a : [];
-}
-function sub_write(array $d): bool {
-  $f = sub_file();
-  if ($f === '') return false;
-  if (!is_dir(dirname($f))) @mkdir(dirname($f), 0775, true);
-  $tmp = $f . '.tmp';
-  if (file_put_contents($tmp, json_encode($d, JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT), LOCK_EX) === false) return false;
-  return @rename($tmp, $f);
-}
-
-/* ── 해지·환불 계산 -------------------------------------------------
-   정책: 결제 시각부터 7일 이내는 전액, 이후에는 결제금액 × 남은일수 ÷ 전체일수.
-   연 구독도 정가가 아니라 실제 결제한 금액을 기준으로 계산합니다. */
-function sub_latest_payment(array $sub): array {
-  $candidates = [];
-  foreach ((array)($sub['history'] ?? []) as $row) {
-    if (!is_array($row) || (int)($row['amount'] ?? 0) <= 0) continue;
-    $type = (string)($row['type'] ?? '');
-    if (in_array($type, ['refund','refund_pending','refund_failed','cancel','resubscribe'], true) || (array_key_exists('ok',$row) && !$row['ok'])) continue;
-    $candidates[] = $row;
-  }
-  usort($candidates, fn($a,$b) => strcmp((string)($b['at'] ?? ''), (string)($a['at'] ?? '')));
-  $last = $candidates[0] ?? [];
-  return [
-    'at' => (string)($last['at'] ?? $sub['paid_at'] ?? $sub['started_at'] ?? ''),
-    'amount' => (int)($last['amount'] ?? $sub['price'] ?? 0),
-    'payment_key' => trim((string)($last['paymentKey'] ?? $last['payment_key']
-      ?? $sub['last_payment_key'] ?? $sub['payment_key'] ?? '')),
-    'order_id' => (string)($last['orderId'] ?? $last['order_id'] ?? ''),
-  ];
-}
-function sub_refund_quote(array $sub, ?int $nowTs = null): array {
-  $nowTs = $nowTs ?? time();
-  $pay = sub_latest_payment($sub);
-  $startTs = strtotime($pay['at']);
-  $endRaw = (string)($sub['expires_at'] ?? $sub['next_billing'] ?? '');
-  $endTs = strtotime($endRaw);
-  if ($startTs === false || $endTs === false || $pay['amount'] <= 0) {
-    return ['ok'=>false,'amount'=>0,'full'=>false,'reason'=>'최근 결제정보 또는 이용기간을 확인할 수 없습니다.','payment'=>$pay,'start'=>'','end'=>'','total_days'=>0,'remaining_days'=>0];
-  }
-  $totalDays = max(1, (int)ceil(($endTs - $startTs) / 86400));
-  $remainingDays = max(0, min($totalDays, (int)ceil(($endTs - $nowTs) / 86400)));
-  $full = ($nowTs - $startTs) <= 7 * 86400;
-  $amount = $full ? $pay['amount'] : (int)floor($pay['amount'] * $remainingDays / $totalDays);
-  return ['ok'=>true,'amount'=>max(0,min($pay['amount'],$amount)),'full'=>$full,
-    'reason'=>$full?'결제 후 7일 이내 전액 환불':'남은 기간 일할 계산', 'payment'=>$pay,
-    'start'=>date('Y-m-d',$startTs),'end'=>date('Y-m-d',$endTs),
-    'total_days'=>$totalDays,'remaining_days'=>$remainingDays];
-}
-function sub_toss_refund(string $paymentKey, int $amount, string $reason, string $idemKey): array {
-  $__api = @include __DIR__ . '/api_keys.php';
-  $secret = is_array($__api) ? trim((string)($__api['toss_secret'] ?? '')) : '';
-  if ($secret === '' || strpos($secret, '여기에') !== false) return ['ok'=>false,'error'=>'토스 시크릿 키가 설정되지 않았습니다.'];
-  if ($paymentKey === '' || $amount <= 0) return ['ok'=>false,'error'=>'환불할 결제정보가 없습니다.'];
-  $ch = curl_init('https://api.tosspayments.com/v1/payments/' . rawurlencode($paymentKey) . '/cancel');
-  curl_setopt_array($ch, [CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>25,
-    CURLOPT_HTTPHEADER=>['Authorization: Basic '.base64_encode($secret.':'),'Content-Type: application/json','Idempotency-Key: '.$idemKey],
-    CURLOPT_POSTFIELDS=>json_encode(['cancelReason'=>$reason,'cancelAmount'=>$amount],JSON_UNESCAPED_UNICODE)]);
-  $raw=curl_exec($ch); $http=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE); $curlErr=curl_error($ch); curl_close($ch);
-  $body=json_decode((string)$raw,true); if(!is_array($body)) $body=[];
-  if($http>=200 && $http<300) return ['ok'=>true,'body'=>$body];
-  $error = trim((string)($body['message'] ?? $curlErr));
-  return ['ok'=>false,'error'=>$error !== '' ? $error : '환불 API 오류','code'=>(string)($body['code'] ?? '')];
-}
-
-/* 현재 구독 상태
-   status: none | pending | active | canceled | expired | payment_failed */
-$sub = sub_read();
-$status = ap_status($sub);
-
-/* ── 액션 처리 ────────────────────────────────────────────── */
-$flash = ''; $flashType = 'ok';
-$act = $_POST['act'] ?? '';
-
-if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-  if (!hash_equals($CSRF, (string)($_POST['csrf'] ?? ''))) {
-    $flash = '세션이 만료되었습니다. 새로고침 후 다시 시도해 주세요.'; $flashType = 'err';
-  } elseif (!$hasUser) {
-    $flash = '로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.'; $flashType = 'err';
-  } else {
-    try {
-    if(in_array($act,['subscribe','resubscribe'],true)&&($_POST['offer']??'')!==AP_OFFER)throw new RuntimeException('요금이 연 59,000원으로 변경되었습니다. 새로고침 후 금액을 확인하고 결제해 주세요.');
-    /* [1] 구독 신청 ------------------------------------------------
-       ★PG연동 자리
-       실제로는 여기서:
-         1. PG사 결제창 호출 → 카드 등록
-         2. 빌링키(billing_key) 발급받아 저장
-         3. 첫 결제 즉시 실행
-         4. 성공 시 status='active', 실패 시 'payment_failed'
-       지금은 신청 기록만 남기고 status='pending' 으로 둡니다. */
-    /* [1] 구독 신청 — 등록해 둔 카드로 첫 결제를 바로 실행합니다.
-       ★ 예전 코드는 여기서 $sub 를 통째로 새로 만들어,
-         이미 등록해 둔 billing_key(카드)를 빈 값으로 덮어썼습니다.
-         반드시 기존 내용을 읽어 와서 필요한 항목만 바꿔야 합니다. */
-    if ($act === 'subscribe') {
-      $plan = (string)($_POST['plan'] ?? '');
-      if (!isset(PLANS[$plan])) {
-        $flash = '요금제를 다시 선택해 주세요.'; $flashType = 'err';
-      } else {
-        require_once __DIR__ . '/toss_billing.php';
-        $p   = PLANS[$plan];
-        $now = date('Y-m-d H:i:s');
-
-        $cur = tb_read();                                  // 기존 내용(카드 포함)
-        $bk  = trim((string)($cur['billing_key'] ?? ''));
-
-        if ($bk === '') {
-          $flash = '먼저 결제 카드를 등록해 주세요.'; $flashType = 'err';
-        } else {
-          $res = tb_charge((int)$p['price'], $p['name']);
-          if(!empty($res['blocked']))throw new RuntimeException($res['error']);   // 실제 결제
-
-          $sub = tb_read();                                // 결제 결과가 반영된 내용
-          $sub['plan']         = $plan;
-          $sub['plan_name']    = $p['name'];
-          $sub['price']        = $p['price'];
-          $sub['requested_at'] = $sub['requested_at'] ?? $now;
-
-          if ($res['ok']) {
-            $sub['status']       = 'active';
-            $sub['started_at']   = $sub['started_at'] ?? $now;
-            $sub['bill_day']     = (int)date('j');   // 가입한 날짜(기준일)
-            $sub['next_billing'] = tb_next_billing(date('Y-m-d'), (int)$p['months'], (int)$sub['bill_day']);
-            /* 연간 결제일과 만료일을 동일하게 저장합니다. */
-            $sub['next_billing_at'] = $sub['next_billing'].' 00:00:00';
-            $sub['expires_at']   = $sub['next_billing'];
-            $flash = $p['name'] . ' 결제가 완료되었습니다.';
-            $flashType = 'ok';
-          } else {
-            $sub['status'] = 'payment_failed';
-            $flash = '결제에 실패했습니다: ' . $res['error'];
-            $flashType = 'err';
-          }
-          sub_write($sub);
-          $status = $sub['status'];
-        }
-      }
-    }
-
-    if($act==='change_plan'){throw new RuntimeException('연간 59,000원 단일 요금제만 제공합니다.');}
-
-    if ($act === 'cancel_plan_change') {
-      $change = (array)($sub['plan_change'] ?? []);
-      if (($change['status'] ?? '') !== 'scheduled') {
-        $flash = '취소할 요금제 변경 예약이 없습니다.'; $flashType = 'err';
-      } else {
-        $now = date('Y-m-d H:i:s');
-        $sub['history'][] = ['at'=>$now,'type'=>'plan_change_canceled','memo'=>'요금제 변경 예약 취소'];
-        unset($sub['plan_change']);
-        if (sub_write($sub)) $flash='요금제 변경 예약을 취소했습니다.';
-        else { $flash='변경 예약 취소를 저장하지 못했습니다.'; $flashType='err'; }
-      }
-    }
-
-    /* [2] 구독 해지·환불 ------------------------------------------- */
-    if ($act === 'cancel') {
-      if (in_array($status, ['refund_pending','refunded','canceled','expired'], true)) {
-        $flash = '이미 해지 또는 환불 처리가 접수된 구독입니다.'; $flashType = 'err';
-      } elseif ($sub) {
-        $now = date('Y-m-d H:i:s');
-        $quote = sub_refund_quote($sub);
-        if (!$quote['ok']) {
-          $flash = '자동 환불 금액을 계산하지 못했습니다. 관리자에게 문의해 주세요: '.$quote['reason']; $flashType='err';
-        } elseif ($quote['amount'] <= 0) {
-          $sub['status']='canceled'; $sub['canceled_at']=$now; $sub['expires_at']=date('Y-m-d');
-          unset($sub['plan_change']);
-          $sub['history'][]=['at'=>$now,'type'=>'cancel','amount'=>0,'memo'=>'사용자 해지 · 환불액 없음'];
-          sub_write($sub); $flash='구독이 해지되었습니다.'; $status='canceled';
-        } else {
-          $paymentKey=(string)$quote['payment']['payment_key'];
-          if ($paymentKey === '') {
-            $sub['status']='refund_pending'; $sub['cancel_requested_at']=$now;
-            unset($sub['plan_change']);
-            $sub['refund']=['status'=>'pending','requested_at'=>$now,'amount'=>$quote['amount'],'reason'=>$quote['reason'],'order_id'=>$quote['payment']['order_id']];
-            $sub['history'][]=['at'=>$now,'type'=>'refund_pending','amount'=>$quote['amount'],'memo'=>'결제키 확인 필요 · 관리자 환불 대기'];
-            sub_write($sub); $flash='해지 요청이 접수되었습니다. 결제 식별정보 확인 후 '.number_format($quote['amount']).'원을 환불해 드립니다.'; $flashType='ok'; $status='refund_pending';
-          } else {
-            $idem='refund-'.substr(hash('sha256',$UID.'|'.$paymentKey.'|'.$quote['amount']),0,40);
-            $refund=sub_toss_refund($paymentKey,$quote['amount'],'사용자 구독 해지',$idem);
-            if ($refund['ok']) {
-              if (!empty($quote['full']) && ($refund['body']['status'] ?? '') === 'CANCELED' && ($refund['body']['paymentKey'] ?? '') === $paymentKey) {
-                $sub['manager_full_refunds'][] = $paymentKey;
-                $sub['manager_full_refunds'] = array_values(array_unique($sub['manager_full_refunds']));
-                try { mg_reverse($UID,$paymentKey); } catch (Throwable $e) { error_log('Manager reversal deferred: '.$e->getMessage()); }
-              }
-              $sub['status']='refunded'; $sub['canceled_at']=$now; $sub['expires_at']=date('Y-m-d');
-              unset($sub['plan_change']);
-              $sub['refund']=['status'=>'done','refunded_at'=>$now,'amount'=>$quote['amount'],'reason'=>$quote['reason'],'payment_key'=>$paymentKey];
-              $sub['history'][]=['at'=>$now,'type'=>'refund','amount'=>$quote['amount'],'memo'=>$quote['reason'].' · 토스 환불 완료'];
-              sub_write($sub); $flash='구독이 해지되었고 '.number_format($quote['amount']).'원 환불이 접수되었습니다.'; $status='refunded';
-            } else {
-              $sub['history'][]=['at'=>$now,'type'=>'refund_failed','amount'=>$quote['amount'],'memo'=>'환불 실패: '.($refund['code']??'').' '.($refund['error']??'')];
-              sub_write($sub); $flash='환불 처리에 실패하여 구독을 해지하지 않았습니다: '.($refund['error']??'알 수 없는 오류'); $flashType='err';
-            }
-          }
-        }
-      }
-    }
-
-    /* [2-1] 해지 신청 취소 — 아직 환불이 나가기 전이면 되돌릴 수 있습니다.
-       이미 환불이 완료된 건은 되돌릴 수 없습니다(돈이 이미 나갔으므로). */
-    if ($act === 'cancel_revoke') {
-      if ($status !== 'refund_pending') {
-        $flash = '취소할 수 있는 해지 신청이 없습니다.'; $flashType = 'err';
-      } else {
-        $now = date('Y-m-d H:i:s');
-        /* 해지 신청 전 상태로 되돌립니다 */
-        $sub['status'] = 'active';
-        unset($sub['cancel_requested_at']);
-        if (isset($sub['refund']) && ($sub['refund']['status'] ?? '') === 'pending') {
-          $sub['refund']['status']    = 'revoked';
-          $sub['refund']['revoked_at'] = $now;
-        }
-        $sub['history'][] = ['at'=>$now, 'type'=>'cancel_revoke', 'amount'=>0,
-                             'memo'=>'사용자가 해지 신청을 취소함 · 구독 유지'];
-        sub_write($sub);
-        $flash = '해지 신청을 취소했습니다. 구독이 그대로 유지됩니다.';
-        $flashType = 'ok';
-        $status = 'active';
-      }
-    }
-
-    /* [2-2] 다시 구독하기 — 해지·환불이 끝난 뒤 같은 카드로 재시작합니다. */
-    if ($act === 'resubscribe') {
-      if (!in_array($status, ['canceled','refunded','expired'], true)) {
-        $flash = '이미 이용 중이거나 처리 중인 구독입니다.'; $flashType = 'err';
-      } else {
-        require_once __DIR__ . '/toss_billing.php';
-        $cur  = tb_read();
-        $bk   = trim((string)($cur['billing_key'] ?? ''));
-        $plan = 'yearly';
-
-        if ($bk === '') {
-          $flash = '먼저 결제 카드를 등록해 주세요.'; $flashType = 'err';
-        } elseif (!isset(PLANS[$plan])) {
-          $flash = '요금제를 다시 선택해 주세요.'; $flashType = 'err';
-        } else {
-          $p   = PLANS[$plan];
-          $now = date('Y-m-d H:i:s');
-          $res = tb_charge((int)$p['price'], $p['name']);
-          if(!empty($res['blocked']))throw new RuntimeException($res['error']);
-
-          $sub = tb_read();
-          if ($res['ok']) {
-            $sub['status']       = 'active';
-            $sub['plan']         = $plan;
-            $sub['plan_name']    = $p['name'];
-            $sub['price']        = $p['price'];
-            $sub['started_at']   = $now;
-            $sub['bill_day']     = (int)date('j');
-            $sub['next_billing'] = tb_next_billing(date('Y-m-d'), (int)$p['months'], (int)date('j'));
-            $sub['expires_at']   = $sub['next_billing'];
-            unset($sub['canceled_at'], $sub['cancel_requested_at'], $sub['refund']);
-            $sub['history'][] = ['at'=>$now,'type'=>'resubscribe','amount'=>$p['price'],
-                                 'memo'=>'해지 후 다시 구독'];
-            $flash = $p['name'].' 결제가 완료되었습니다. 다시 이용하실 수 있습니다.';
-            $flashType = 'ok'; $status = 'active';
-          } else {
-            $sub['status'] = 'payment_failed';
-            $flash = '결제에 실패했습니다: '.$res['error']; $flashType = 'err';
-            $status = 'payment_failed';
-          }
-          sub_write($sub);
-        }
-      }
-    }
-
-    /* [3] 문의 남기기 (결제 전 단계에서 유용) */
-    if ($act === 'inquiry') {
-      $msg = trim((string)($_POST['message'] ?? ''));
-      if ($msg === '') {
-        $flash = '문의 내용을 입력해 주세요.'; $flashType = 'err';
-      } else {
-        $f = __DIR__ . '/data/subscribe/inquiries.json';
-        if (!is_dir(dirname($f))) @mkdir(dirname($f), 0775, true);
-        $list = is_file($f) ? (json_decode((string)@file_get_contents($f), true) ?: []) : [];
-        $list[] = ['at'=>date('Y-m-d H:i:s'), 'uid'=>$UID,
-                   'message'=>mb_substr($msg, 0, 1000), 'status'=>'open'];
-        @file_put_contents($f, json_encode($list, JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT), LOCK_EX);
-        $flash = '문의가 접수되었습니다. 확인 후 안내해 드리겠습니다.';
-      }
-    }
-    }catch(Throwable $e){$flash=$e->getMessage();$flashType='err';}
-  }
-  $sub = sub_read();
-  $status = ap_status($sub);
-}
+$sub=sub_read();$status=ap_status($sub);
 
 /* 상태 표시용 */
 $STATUS_LABEL = [
@@ -498,12 +230,12 @@ details.sub-fold{padding:0;overflow:hidden}
   <div class="page-head__inner">
     <div class="page-head__label"><span></span> 구독</div>
     <h1>구독</h1>
-    <p>연 59,000원 한 번 결제로 12개월 동안 이용하세요.</p>
+    <p>매년 59,000원 자동결제로 12개월씩 이용하세요.</p>
   </div>
 </header>
 
 <main class="wrap">
-  <p class="subscription-payment-note">카드 등록·변경은 전체 화면으로 이동한 뒤 진행합니다.</p>
+  <p class="subscription-payment-note">카드 등록과 구독 결제를 이 팝업에서 이어서 진행하세요. 카드사 인증만 별도 보안창에서 열립니다.</p>
   <?php if ($flash): ?>
     <div class="sub-flash <?=h($flashType)?>"><?=h($flash)?></div>
   <?php endif; ?>
@@ -520,9 +252,9 @@ details.sub-fold{padding:0;overflow:hidden}
       결제 시스템을 연동하고 있습니다
     </div>
     <p class="sub-notice__d">
-      토스페이먼츠 가맹 계약은 완료되었고, 현재 연동 개발 중입니다.
-      지금 신청하시면 <b>사전 신청</b>으로 접수되며 <b>결제는 이루어지지 않습니다.</b>
-      준비가 끝나면 등록하신 이메일로 안내해 드립니다.
+      결제 시스템을 준비하고 있습니다.
+      준비가 완료되면 카드 등록과 구독 결제를 이용할 수 있습니다.
+      문의는 아래 문의하기를 이용해 주세요.
     </p>
   </div>
   <?php endif; ?>
@@ -533,7 +265,7 @@ details.sub-fold{padding:0;overflow:hidden}
     $tbCard  = $tbData['card'] ?? [];
     $hasCard = trim((string)($tbData['billing_key'] ?? '')) !== '';
   ?>
-  <details class="card sub-fold">
+  <details class="card sub-fold" <?=!$hasCard?'open':''?>>
     <summary><span class="sub-fold__title">결제카드 관리</span><span class="sub-fold__hint"><?=$hasCard?'등록된 카드 확인·변경':'카드 등록 필요'?></span></summary>
     <div class="sub-fold__body">
     <div class="sub-sec-t">결제 카드</div>
@@ -557,8 +289,8 @@ details.sub-fold{padding:0;overflow:hidden}
 
     <?php else: ?>
       <p class="tb-lead">
-        카드를 등록한 뒤 연 59,000원을 결제하면 12개월 동안 이용할 수 있습니다.
-        카드번호는 저희 서버에 저장되지 않고 토스페이먼츠가 안전하게 보관합니다.
+        카드 등록만으로는 결제되지 않습니다. 아래에서 자동결제에 동의하고 구독을 시작하면 첫 59,000원이 결제됩니다.
+        전체 카드번호 대신 토스에서 발급한 결제용 키와 마스킹된 카드정보만 저장합니다.
       </p>
       <button class="btn btn--primary" type="button" onclick="registerCard()">💳 카드 등록하기</button>
     <?php endif; ?>
@@ -572,28 +304,24 @@ details.sub-fold{padding:0;overflow:hidden}
     </div>
 
   <?php if (tb_ready()): ?>
-  <script src="https://js.tosspayments.com/v1/payment"></script>
   <script>
     /* 카드 등록창을 띄웁니다.
        성공하면 successUrl 로 authKey·customerKey 가 붙어 돌아오고,
        거기서 빌링키를 발급받아 저장합니다. */
+    let cardAuthWindow=null;
     function registerCard(){
-      if (window.self !== window.top) {
-        var fullPage = new URL(window.location.href);
-        fullPage.searchParams.delete('embed');
-        window.top.location.href = fullPage.href;
-        return;
-      }
-      var toss = TossPayments(<?=json_encode(tb_client_key())?>);
-      toss.requestBillingAuth('카드', {
-        customerKey: <?=json_encode(tb_customer_key())?>,
-        successUrl : location.origin + '/toss_billing_return.php',
-        failUrl    : location.origin + '/toss_billing_return.php'
-      }).catch(function(e){
-        if (e.code === 'USER_CANCEL') return;      // 사용자가 창을 닫은 경우
-        alert('카드 등록을 시작하지 못했습니다: ' + (e.message || e.code || ''));
-      });
+      if(cardAuthWindow&&!cardAuthWindow.closed){cardAuthWindow.focus();return;}
+      const host=window.top;
+      const width=Math.min(1000,screen.availWidth),height=Math.min(820,screen.availHeight);
+      const left=Math.round(host.screenX+(host.outerWidth-width)/2),top=Math.round(host.screenY+(host.outerHeight-height)/2);
+      cardAuthWindow=window.open('/pro_card_auth.php','sobangProCardAuth',`popup,width=${width},height=${height},left=${left},top=${top}`);
+      if(!cardAuthWindow){alert('카드 인증창이 차단되었습니다. 이 사이트의 팝업을 허용하고 다시 눌러 주세요.');return;}
+      cardAuthWindow.focus();
     }
+    window.addEventListener('message',function(e){
+      if(e.origin!==location.origin||!cardAuthWindow||e.source!==cardAuthWindow||e.data?.type!=='pro-card-return')return;
+      location.reload();
+    });
   </script>
   <?php endif; ?>
 
@@ -632,7 +360,7 @@ details.sub-fold{padding:0;overflow:hidden}
       </span>
       <div>
         <b>언제든 해지</b>
-        <span>약정 없이 원하실 때 그만두실 수 있습니다</span>
+        <span>자동갱신 해제 후에도 남은 이용기간은 유지됩니다</span>
       </div>
     </div>
   </div>
@@ -641,6 +369,15 @@ details.sub-fold{padding:0;overflow:hidden}
   <!-- 현재 상태 -->
   <div class="card">
     <div class="sub-sec-t">현재 상태</div>
+    <?php if(!empty($sub['billing_notice'])): ?><p role="status" class="tb-msg"><?=h($sub['billing_notice'])?></p><?php endif;?>
+    <?php if(in_array($sub['charge_attempt']['state']??'',['prepared','unknown'],true)): ?><form method="post"><input type="hidden" name="csrf" value="<?=h($CSRF)?>"><input type="hidden" name="act" value="reconcile"><button class="btn btn--ghost">기존 결제 결과 확인</button></form><?php endif;?>
+    <?php if($status==='active'||($sub['auto_renew']??false)): ?>
+    <div class="refund-box"><div class="refund-box__tx"><b><?=ab_auto($sub)?'자동갱신 켜짐':'자동갱신 꺼짐'?></b><span><?=ab_auto($sub)?'다음 결제일 '.h($sub['next_billing']??'').' · 59,000원':'이미 결제한 기간까지 이용할 수 있으며 다음 결제는 진행하지 않습니다.'?></span></div></div>
+    <form method="post"><input type="hidden" name="csrf" value="<?=h($CSRF)?>"><input type="hidden" name="act" value="<?=ab_auto($sub)?'renew_off':'renew_on'?>">
+    <?php if(!ab_auto($sub)): ?><label style="display:block;margin:12px 0"><input type="checkbox" name="renewal_consent" value="<?=h(AB_CONSENT)?>" required> 다음 결제일부터 매년 59,000원 자동결제에 동의합니다. 갱신 결제 실패 시 총 3회 시도합니다.</label><?php endif;?>
+    <button class="btn btn--ghost"><?=ab_auto($sub)?'자동갱신 해제 · 남은 기간 유지':'연간 자동갱신 설정'?></button></form>
+    <?php endif;?>
+
     <div class="sub-state">
       <span class="sub-badge <?=h($statusTone)?>"><?=h($statusText)?></span>
       <?php if (!empty($sub['plan_name'])): ?>
@@ -674,21 +411,11 @@ details.sub-fold{padding:0;overflow:hidden}
         <div class="refund-box__tx">
           <b>환불 확인 중</b>
           <span>관리자가 결제 식별정보를 확인한 뒤 환불을 완료합니다.
-            환불이 나가기 전이라면 아래에서 해지 신청을 취소하실 수 있습니다.</span>
+            확인 중에는 중복 환불을 보내지 않습니다.</span>
         </div>
         <strong class="refund-box__amount"><?=number_format((int)($sub['refund']['amount'] ?? 0))?>원</strong>
       </div>
-      <form method="post" class="sub-revoke">
-        <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
-        <input type="hidden" name="act" value="cancel_revoke">
-        <div class="sub-revoke__tx">
-          마음이 바뀌셨나요? 아직 환불이 나가기 전이라 되돌릴 수 있습니다.
-        </div>
-        <button class="btn btn--primary" type="submit"
-          onclick="return confirm('해지 신청을 취소하고 구독을 그대로 유지합니다.\n계속할까요?')">
-          해지 신청 취소하고 계속 이용하기
-        </button>
-      </form>
+      <form method="post"><input type="hidden" name="csrf" value="<?=h($CSRF)?>"><input type="hidden" name="act" value="reconcile"><button class="btn btn--ghost">환불 결과 다시 확인</button></form>
 
     <?php elseif (in_array($status, ['canceled','refunded','expired'], true)): ?>
       <?php
@@ -712,7 +439,7 @@ details.sub-fold{padding:0;overflow:hidden}
         <?php if ($reCard): ?>
           <form method="post">
             <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
-            <input type="hidden" name="act" value="resubscribe"><input type="hidden" name="offer" value="<?=h(AP_OFFER)?>">
+            <input type="hidden" name="act" value="resubscribe"><input type="hidden" name="offer" value="<?=h(AP_OFFER)?>"><label style="display:flex;gap:9px;align-items:flex-start;margin:15px 0;font-size:13px;line-height:1.7"><input type="checkbox" name="renewal_consent" value="<?=h(AB_CONSENT)?>" required style="margin-top:5px"><span>오늘 59,000원 결제 후, 자동갱신을 해제하기 전까지 매년 59,000원이 등록 카드로 결제되는 것에 동의합니다. 갱신 결제 실패 시 총 3회까지 시도하며, 이 화면에서 자동갱신을 해제할 수 있습니다.</span></label>
             <button class="btn btn--primary" type="submit"
               onclick="return confirm('<?=h($rePlan ?: '구독')?> <?=number_format($rePrice)?>원을 결제하고 다시 시작합니다.\n계속할까요?')">
               다시 구독하기
@@ -742,7 +469,7 @@ details.sub-fold{padding:0;overflow:hidden}
             <span class="sub-plan__unit">원 / <?=h($yearly['period'])?></span>
             
           </div>
-          <div class="sub-plan__sub">59,000원 결제 후 12개월간 이용합니다.</div>
+          <div class="sub-plan__sub">매년 59,000원 자동결제 · 12개월 이용</div>
           <ul class="sub-plan__list">
             <li>모든 기능 사용</li>
             <li>연간 단일 요금제</li>
@@ -751,8 +478,9 @@ details.sub-fold{padding:0;overflow:hidden}
         </label>
       </div>
 
+      <label style="display:flex;gap:9px;align-items:flex-start;margin:15px 0;font-size:13px;line-height:1.7"><input type="checkbox" name="renewal_consent" value="<?=h(AB_CONSENT)?>" required style="margin-top:5px"><span>오늘 59,000원 결제 후, 자동갱신을 해제하기 전까지 매년 59,000원이 등록 카드로 결제되는 것에 동의합니다. 갱신 결제 실패 시 총 3회까지 시도하며, 이 화면에서 자동갱신을 해제할 수 있습니다.</span></label>
       <button class="btn btn--primary" type="submit" style="width:100%;justify-content:center"
-        <?= $hasUser ? '' : 'disabled' ?>>연 59,000원 결제하기</button>
+        <?= $hasUser && $hasCard ? '' : 'disabled' ?>><?=$hasCard?'연 59,000원 결제하기':'카드 등록 후 결제할 수 있습니다'?></button>
     </form>
   </div>
   <?php endif; ?>
@@ -788,7 +516,7 @@ details.sub-fold{padding:0;overflow:hidden}
     <div class="sub-faq">
       <div>
         <div class="sub-faq__q">결제는 어떻게 이루어지나요?</div>
-        <div class="sub-faq__a">등록하신 카드로 59,000원을 결제하면 12개월 동안 이용할 수 있습니다.
+        <div class="sub-faq__a">처음 59,000원을 결제한 뒤 매년 같은 결제일에 59,000원이 자동 청구됩니다. 자동갱신을 해제하면 다음 청구가 중단되고 남은 기간까지 이용할 수 있습니다.
           결제는 토스페이먼츠 시스템에서 처리되며, 카드번호는 저희 서버에 저장되지 않습니다.
           결제사가 발급한 결제키만 보관합니다.</div>
       </div>
@@ -863,4 +591,17 @@ function pickPlan(p){
 }
 </script>
 
+<script>
+ document.querySelectorAll('form[method="post"]').forEach(form=>{
+  const context=document.createElement('input');context.type='hidden';context.name='pro_popup';context.value=<?=json_encode($proPopup?'1':'0')?>;form.append(context);
+  form.addEventListener('submit',event=>{
+   if(form.dataset.submitting==='1'){event.preventDefault();return;}
+   form.dataset.submitting='1';
+   form.querySelectorAll('button[type="submit"],button:not([type])').forEach(button=>{button.setAttribute('aria-disabled','true');button.style.pointerEvents='none';});
+  });
+ });
+ <?php if($flash!==''&&$flashType==='ok'): ?>
+ if(window.parent!==window)window.parent.postMessage({type:'pro-subscription-updated'},location.origin);
+ <?php endif; ?>
+</script>
 <?php require __DIR__ . '/_footer.php'; ?>

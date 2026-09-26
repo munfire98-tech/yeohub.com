@@ -10,7 +10,9 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
  }catch(Throwable $e){$_SESSION['payout_admin_notice']=$e->getMessage();}
  header('Location: /admin_manager_payouts.php',true,303);exit;
 }
-$members=mg_members();$state=mg_read(mg_state_file());$rows=array_values($state['payouts']??[]);usort($rows,fn($a,$b)=>(($a['status']!=='pending')<=>($b['status']!=='pending'))?:strcmp($b['at'],$a['at']));
+mp_migrate_rate();
+$members=mg_members();foreach($members as $mid=>$member)if(is_array($member)&&mg_active($member,'agency'))mr_sync_manager((string)$mid);
+$state=mg_read(mg_state_file());$rows=array_values($state['payouts']??[]);usort($rows,fn($a,$b)=>(($a['status']!=='pending')<=>($b['status']!=='pending'))?:strcmp($b['at'],$a['at']));
 $totals=['pending'=>0,'paid'=>0,'rejected'=>0];$pendingAmount=0;
 foreach($rows as $r){$totals[$r['status']]++;if($r['status']==='pending')$pendingAmount+=(int)$r['amount'];}
 
@@ -29,7 +31,7 @@ usort($managerRows,fn($a,$b)=>strcmp($b['created'],$a['created']));
 .top{display:flex;align-items:center;justify-content:space-between;gap:15px}h1{margin:10px 0}.subtitle{color:#64748b}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:22px 0}.stat{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px}.stat span{display:block;font-size:12px;color:#64748b}.stat b{font-size:25px;display:block;margin-top:5px}.filters{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}.filters input{flex:1;min-width:180px;background:white}.filters select{padding:10px;border:1px solid #ccd5e2;border-radius:8px;font:inherit;background:white}.payout-head{display:flex;justify-content:space-between;align-items:start;gap:12px}.payout-head strong{font-size:18px}.badge{font-size:12px;background:#eef2ff;color:#5146b8;border-radius:20px;padding:5px 10px}.account-box{background:#f7f9fc;border-radius:8px;padding:12px 14px;line-height:1.9}.code{font-size:12px;color:#718096}button[value=paid]{background:#5146cf;color:white;border-color:#5146cf}button:disabled{opacity:.4;cursor:default}input[name=note]{width:min(90%,420px)}[hidden]{display:none!important}@media(max-width:600px){main{margin:0;padding:16px}.stats{grid-template-columns:1fr}.stat{padding:12px}.stat b{font-size:21px}.payout-head{flex-wrap:wrap}}
 
 main{max-width:1280px}h2{font-size:19px;margin:32px 0 12px}.table-wrap{overflow:auto;border:1px solid #e1e6ef;border-radius:12px;background:white}table{border-collapse:collapse;width:100%;min-width:950px;text-align:left}th{font-size:12px;font-weight:600;color:#64748b;background:#f8fafc}td,th{padding:14px 16px;border-bottom:1px solid #eef1f5}td{font-size:13px}td small{display:block;margin-top:4px}td button{padding:5px 8px;font-size:11px;background:#f6f5ff;color:#5146b8}tbody tr:hover{background:#fafbfe}
-</style><main><a href="/clients_mini.php">매니저 화면</a><h1>매니저 · 코인 관리</h1><p class="subtitle">가입 현황부터 코인 잔액, 출금 처리까지 한곳에서 확인하세요.</p><p>1코인 = 19,000원 · 실제 송금은 은행에서 직접 진행하세요. 이 화면의 지급 완료 버튼은 송금을 실행하지 않습니다.</p>
+</style><main><a href="/clients_mini.php">매니저 화면</a><h1>매니저 · 코인 관리</h1><p class="subtitle">가입 현황부터 코인 잔액, 출금 처리까지 한곳에서 확인하세요.</p><p>1코인 = 1,500원 · 실제 송금은 은행에서 직접 진행하세요. 이 화면의 지급 완료 버튼은 송금을 실행하지 않습니다.</p>
 <?php if(isset($_SESSION['payout_admin_notice'])): ?><p role="status"><?=mg_e($_SESSION['payout_admin_notice'])?></p><?php unset($_SESSION['payout_admin_notice']);endif;?>
 
 <h2>전체 매니저 현황</h2>

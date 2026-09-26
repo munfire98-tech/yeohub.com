@@ -38,13 +38,29 @@ function bi_read_json(string $f): array {
   $a = json_decode($r, true);
   return is_array($a) ? $a : [];
 }
-function bi_write_json(string $f, array $d): bool {
-  if (defined('MANAGER_VIEW_UID')) return false;
-  if ($f === '') return false;
-  if (!is_dir(dirname($f))) @mkdir(dirname($f), 0775, true);
-  $tmp = $f . '.tmp';
-  if (file_put_contents($tmp, json_encode($d, JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT), LOCK_EX) === false) return false;
-  return @rename($tmp, $f);
+/** Read persisted values only: safe inside save callbacks, with no migration or extra locks. */
+function bi_read_saved(): array {
+  $file=bi_file();
+  if($file===''||!is_file($file))throw new RuntimeException('저장된 기본정보를 확인하지 못했습니다.');
+  $raw=file_get_contents($file);$data=$raw===false?null:json_decode($raw,true);
+  if(!is_array($data))throw new RuntimeException('저장된 기본정보를 읽지 못했습니다.');
+  return array_merge(bi_blank(),$data);
+}
+
+function bi_write_json(string $f, array $d, bool $resetFacilities = false): bool {
+  if (defined('MANAGER_VIEW_UID') || $f === '') return false;
+  require_once __DIR__.'/manager_common.php';
+  try {return mg_tx($f,function(array &$stored)use($d,$resetFacilities):bool{
+    $import=$stored['_manager_draft_import']??null;
+    $facilityReset=$stored['_facility_reset_token']??null;
+    $stored=$d;
+    // Commit the reset generation with basic information in the same atomic write.
+    if($resetFacilities)$stored['_facility_reset_token']=bin2hex(random_bytes(16));
+    elseif($facilityReset!==null)$stored['_facility_reset_token']=$facilityReset;
+    // Keep the one-time import marker through editing and reset.
+    if($import!==null){$import['user_saved_after_handoff']=true;$stored['_manager_draft_import']=$import;}
+    return true;
+  });}catch(Throwable $e){return false;}
 }
 
 /** 표준 구조 (빈 값 기본형) */
@@ -62,6 +78,7 @@ function bi_blank(): array {
     'floor_a'    => '',   // 지상층
     'area_t'     => '',   // 연면적
     'area_f'     => '',   // 바닥면적
+    'bd_area_arch' => '', // 건축면적(㎡), 건축물대장 archArea 또는 직접 입력
     'dongsu'     => '',   // 동수
     // 소방안전관리자 (최대 4명)
     'mgrs'       => [],   // [{name, appt, qual, type(주/보조), tel}]
@@ -121,14 +138,20 @@ function bi_blank(): array {
  * 공용 파일이 없으면 기존 work_log 건물정보를 자동으로 옮겨옵니다.
  */
 function bi_load(): array {
-  // 회원을 특정하지 못하면 아무것도 읽지 않는다 (남의 데이터 노출 방지)
-  if (bi_user_key() === '') return bi_blank();
+  return bi_load_uid(bi_user_key(),!defined('MANAGER_VIEW_UID'));
+}
 
-  $d = bi_read_json(bi_file());
+/** Explicit user loading for accepted draft handoff; never switches the session. */
+function bi_load_uid(string $uid,bool $persist=true): array {
+  // 회원을 특정하지 못하면 아무것도 읽지 않는다 (남의 데이터 노출 방지)
+  if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$uid)) return bi_blank();
+  $file=__DIR__.'/data/building/'.$uid.'/info.json';
+
+  $d = bi_read_json($file);
 
   // 최초 1회: 기존 work_log 건물정보 승계
   if (!$d) {
-    $old = bi_read_json(bi_legacy_file());
+    $old = bi_read_json(__DIR__.'/data/worklog/'.$uid.'/building.json');
     if ($old) {
       $d = bi_blank();
       $d['name']    = (string)($old['sangho']  ?? '');
@@ -148,14 +171,15 @@ function bi_load(): array {
       if ($perf !== '') {
         $d['mgrs'][] = ['name'=>$perf, 'appt'=>'', 'qual'=>'', 'type'=>'주', 'tel'=>''];
       }
-      if (!defined('MANAGER_VIEW_UID')) bi_write_json(bi_file(), $d);
+      // Legacy data is merged under the per-user handoff lock below.
     }
   }
 
+  require_once __DIR__.'/manager_draft_handoff.php';$d=md_handoff_load($uid,$d,$persist);
   return array_merge(bi_blank(), $d);
 }
 
-function bi_save(array $d): bool {
+function bi_save(array $d, bool $resetFacilities = false): bool {
   if (bi_user_key() === '') return false;   // 회원을 모르면 저장하지 않는다
 
   $base = bi_blank();
@@ -205,7 +229,7 @@ function bi_save(array $d): bool {
   $legacy['note_etc']    = $out['note_etc'];
   bi_write_json(bi_legacy_file(), $legacy);
 
-  return bi_write_json(bi_file(), $out);
+  return bi_write_json(bi_file(), $out, $resetFacilities);
 }
 
 /** 입력 완료 여부 (대상명 기준 — 기존 호환용) */

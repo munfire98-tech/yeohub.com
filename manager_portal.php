@@ -46,10 +46,11 @@ try{
         $members=mg_members();$me=$members[$actor];
     }
     if($manager){
+        mr_sync_manager($actor);
         foreach($members as $id=>$m){
             if(!is_array($m)||!mg_active($m,'building'))continue;
             if(mg_connection_manager($m,$members)===$actor)$rows[(string)$id]=$m;
-            if(mg_referrer($m,$members)===$actor)mg_reconcile((string)$id);
+
         }
     }else{mg_reconcile($actor);}
     $state=mg_read(mg_state_file());
@@ -70,13 +71,13 @@ $labels=['pending'=>'수락 대기','accepted'=>'연결됨','rejected'=>'거절�
 <div class="mp-help"><strong>매니저 코드가 없으신가요?</strong>담당 매니저에게 고유 코드를 요청해 주세요.<br>코드 없이도 기존 건물관리 기능은 이용할 수 있습니다.</div></aside></div>
 <?php else: mg_notice(); ?>
 <section class="mp-stats" aria-label="매니저 요약"><div class="mp-stat mp-stat--code"><div class="mp-stat__label"><?=mg_icon('link')?> 나의 매니저 코드</div><div class="mp-code-line"><code id="my-manager-code"><?=mg_e($me['manager_code'])?></code><button type="button" class="mp-copy" aria-label="매니저 코드 복사" data-copy-code><?=mg_icon('copy')?></button></div><p class="mp-stat__note" id="copy-result" role="status">건물관리자에게 이 코드를 전달해 주세요.</p></div>
-<div class="mp-stat mp-stat--coin"><div class="mp-stat__label"><?=mg_icon('coin')?> 파이어코인</div><div class="mp-stat__number"><?=$balance?><small>개</small></div><p class="mp-stat__note">최초 결제 보상</p></div>
+<div class="mp-stat mp-stat--coin"><div class="mp-stat__label"><?=mg_icon('coin')?> 파이어코인</div><div class="mp-stat__number"><?=$balance?><small>개</small></div><p class="mp-stat__note">월별 구독 리워드</p></div>
 <div class="mp-stat"><div class="mp-stat__label"><?=mg_icon('users')?> 함께 관리하는 유저</div><div class="mp-stat__number"><?=$accepted?><small>명</small></div><p class="mp-stat__note">새로운 요청 <?=$pending?>건</p></div></section>
 <section class="mp-panel"><div class="mp-panel__head"><h2>연결 요청 · 담당 유저<span class="mp-count"><?=count($rows)?></span></h2><p>요청을 수락하면 유저 현황을 조회할 수 있어요.</p></div>
 <?php if(!$rows): ?><div class="mp-empty"><span><?=mg_icon('users')?></span><h3>새로운 연결을 기다리고 있어요</h3><p>건물관리자가 내 코드를 등록하면 여기에 표시됩니다.</p></div>
 <?php else: ?><ul class="mp-rows"><?php foreach($rows as $uid=>$m):$s=mg_link_status($uid,$m,$state); ?><li class="mp-row"><span class="mc-avatar"><?=mg_icon('users')?></span><div class="mp-row__info"><h3><?=mg_e($m['nickname']??$uid)?></h3><p><?=mg_e($uid)?> · <?=mg_e(substr($m['manager_requested_at']??$m['referral_at']??'',0,10))?> 요청</p></div><span class="mc-status mc-status--<?=mg_e($s)?>"><i></i><?=mg_e($labels[$s]??$s)?></span><div class="mp-row__actions">
 <?php if($s==='pending'){mg_action_form($uid,$m,'accepted','수락하기','portal','primary');mg_action_form($uid,$m,'rejected','거절');}elseif($s==='accepted'){ ?><a class="mc-button mc-button--primary" href="/manager_view.php?uid=<?=rawurlencode($uid)?>">유저 현황 <?=mg_icon('arrow')?></a><?php mg_action_form($uid,$m,'revoked','연결 해제','portal','text');} ?>
 </div></li><?php endforeach; ?></ul><?php endif; ?></section>
-<section class="mp-panel"><div class="mp-panel__head"><h2>파이어코인 내역</h2><p>최초 정상 결제에 유저당 1개</p></div><?php if(!$ledger): ?><div class="mp-empty"><span><?=mg_icon('coin')?></span><h3>첫 번째 파이어코인을 기다리고 있어요</h3><p>코드를 등록한 유저가 처음 결제하면 코인이 적립됩니다.</p></div><?php else: ?><div class="mp-scroll"><table class="mp-ledger"><thead><tr><th>유저</th><th>최초 결제일</th><th>적립 내역</th></tr></thead><tbody><?php foreach($ledger as $uid=>$r): ?><tr><td><?=mg_e($uid)?></td><td><?=mg_e(substr($r['at'],0,10))?></td><td><?=empty($r['reversed'])?'+1 코인':'전액 환불 · 회수됨'?></td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?></section>
-<p class="mp-footer-note">코드 등록 전 이미 결제한 유저에게는 보상이 소급 적용되지 않습니다. 최초 등록된 추천 매니저에게 1회 지급되며, 해당 결제의 전액 환불 시 회수됩니다.</p>
+<section class="mp-panel"><div class="mp-panel__head"><h2>파이어코인 내역</h2><p>매월 1개 · 연간 총 12개 · 1개당 1,500원</p></div><?php if(!$ledger): ?><div class="mp-empty"><span><?=mg_icon('coin')?></span><h3>첫 번째 파이어코인을 기다리고 있어요</h3><p>코드를 등록한 유저가 처음 결제하면 코인이 적립됩니다.</p></div><?php else: ?><div class="mp-scroll"><table class="mp-ledger"><thead><tr><th>유저</th><th>적립일</th><th>적립 내역</th></tr></thead><tbody><?php foreach($ledger as $uid=>$r): ?><tr><td><?=mg_e($r['user']??$uid)?></td><td><?=mg_e(substr($r['at'],0,10))?></td><td><?=empty($r['reversed'])?'+1 코인':'전액 환불 · 회수됨'?></td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?></section>
+<p class="mp-footer-note">코드 등록 전 이미 결제한 유저에게는 보상이 소급 적용되지 않습니다. 실결제 당시 연결된 매니저에게 매월 1개씩 총 12개 지급됩니다. 연결 해제·환불 시 이후 지급이 중단되고 전액 환불 시 해당 결제의 적립분을 회수합니다.</p>
 <?php endif; ?></main></div><script src="/manager.js?v=2" defer></script></body></html>

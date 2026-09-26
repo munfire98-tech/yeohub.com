@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/manager_common.php';
+require_once __DIR__.'/pro_collaboration.php';
 function mg_icon(string $name): string {
     $paths = [
       'shield'=>'<path d="M12 3 4 6v6c0 4 5 8 8 9 3-1 8-5 8-9V6z"/><path d="m8 12 3 3 5-6"/>',
@@ -88,7 +89,7 @@ function mg_connect_card(bool $compact=false,string $returnTo='portal'): void {
     }
     ?>
     <section class="mc-connect<?=$compact?' mc-connect--compact':''?>" id="manager-connect" aria-labelledby="manager-connect-title">
-      <div class="mc-connect__top"><span class="mc-kicker"><?=mg_icon('shield')?> 담당 매니저</span><span class="mc-status mc-status--<?=mg_e($status)?>"><i></i><?=$isAccepted?'연결 완료':($isPending?'수락 대기':'연결 전')?></span></div>
+      <div class="mc-connect__top"><span class="mc-kicker"><?=mg_icon('shield')?> 담당 매니저</span><span class="mc-status mc-status--<?=mg_e($status)?>"><i></i><?=$isAccepted?(pc_active($uid)?'PRO 이용 중':'담당 매니저 연결됨'):($isPending?'수락 대기':'연결 전')?></span></div>
       <?php mg_notice(); ?>
       <?php if($formOpen): ?>
       <div class="mc-intro"><div><h2 id="manager-connect-title">담당 매니저와 연결하세요</h2><p>담당 매니저와 연결하고,<br class="mc-mobile-break"> 부족한 업무를 함께 확인하세요.</p></div><span class="mc-connect__symbol"><?=mg_icon('link')?></span></div>
@@ -103,6 +104,7 @@ function mg_connect_card(bool $compact=false,string $returnTo='portal'): void {
           <?php mg_local_connect_option($returnTo); ?>
       <?php else: ?>
       <div class="mc-person"><span class="mc-avatar"><?=mg_icon('users')?></span><div><h2 id="manager-connect-title"><?=mg_e($nickname)?><span> 매니저</span></h2><p><?=$isPending?'연결 요청을 보냈습니다. 매니저의 수락을 기다리고 있어요.':'이 건물의 정보와 업무 진행 현황을 함께 확인하고 있어요.'?></p></div></div>
+      <?php if($isAccepted&&!pc_active($uid)): ?><p class="mc-context">PRO로 소방안전 업무 기록을 한곳에서 작성·관리하세요. <a href="/subscribe_page.php">PRO 이용 안내 →</a></p><?php endif;?>
       <div class="mc-connection-detail"><span><?=mg_icon($isPending?'clock':'check')?> <?=$isPending?'수락 후에 건물정보가 공유됩니다.':'승인된 매니저만 현황을 조회할 수 있습니다.'?></span><?php mg_action_form($uid,$me,'revoked',$isPending?'요청 취소':'연결 해제',$returnTo,'text'); ?></div>
       <?php endif; ?>
       <ol class="mc-steps" aria-label="매니저 연결 순서"><li class="<?=$status!=='none'&&($isPending||$isAccepted)?'is-done':'is-now'?>"><span><?=$isPending||$isAccepted?mg_icon('check'):'01'?></span>코드 등록</li><li class="<?=$isAccepted?'is-done':($isPending?'is-now':'')?>"><span><?=$isAccepted?mg_icon('check'):'02'?></span>매니저 수락</li><li class="<?=$isAccepted?'is-now':''?>"><span>03</span>함께 관리</li></ol>
@@ -117,13 +119,36 @@ function mg_compact_card(string $uid,array $me,string $status,string $nickname,s
     $notice=$_SESSION['manager_notice']??null;
     $expand=is_array($notice)&&!empty($notice['error']);
     ?>
+    <style>
+    /* Compact manager details only; subscription and connection actions stay distinct. */
+    #manager-connect.mc-mini .mc-collab-invite{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 20px;margin:0 0 15px;border:1px solid #dce8e6;border-radius:12px;background:linear-gradient(120deg,#f3f9f8,#fbfdfd);box-sizing:border-box}
+    #manager-connect.mc-mini .mc-collab-invite__copy{min-width:0}
+    #manager-connect.mc-mini .mc-collab-invite__eyebrow{display:block;margin:0 0 7px;color:#26786e;font-size:10px;line-height:1.3;font-weight:750;letter-spacing:.06em}
+    #manager-connect.mc-mini .mc-collab-invite h3{margin:0 0 6px;color:#263e3a;font-family:inherit;font-size:15px;font-weight:700;line-height:1.5;letter-spacing:-.035em;word-break:keep-all;overflow-wrap:anywhere}
+    #manager-connect.mc-mini .mc-collab-invite p{margin:0;color:#6b7e79;font-size:12px;line-height:1.75;word-break:keep-all;overflow-wrap:anywhere}
+    #manager-connect.mc-mini .mc-collab-invite__link{display:inline-flex;align-items:center;justify-content:center;gap:12px;flex-shrink:0;min-height:42px;padding:10px 15px;border:1px solid #203e38;border-radius:9px;background:#203e38;color:#fff;font-size:12px;font-weight:650;line-height:1.5;text-decoration:none;white-space:nowrap;box-shadow:0 2px 4px #203e3810;transition:background .15s,border-color .15s}
+    #manager-connect.mc-mini .mc-collab-invite__link:hover{background:#2c5148;border-color:#2c5148;color:#fff}
+    #manager-connect.mc-mini .mc-collab-invite__link:focus-visible{outline:3px solid #70b8aa;outline-offset:3px}
+    #manager-connect.mc-mini .mc-collab-invite + .mc-mini__manage{padding-top:13px;border-top:1px solid #edf1ef;align-items:center}
+    #manager-connect.mc-mini .mc-collab-invite + .mc-mini__manage p{font-size:11px;color:#7d8a85;line-height:1.6}
+    #manager-connect.mc-mini .mc-collab-invite + .mc-mini__manage .mc-button{font-size:11px;min-height:32px;padding:5px 0 5px 12px;color:#87918d;white-space:nowrap}
+    #manager-connect.mc-mini .mc-collab-invite + .mc-mini__manage .mc-button:hover{color:#b54747}
+    @media(max-width:560px){
+      #manager-connect.mc-mini .mc-collab-invite{align-items:stretch;flex-direction:column;gap:14px;padding:16px}
+      #manager-connect.mc-mini .mc-collab-invite h3{font-size:14px}
+      #manager-connect.mc-mini .mc-collab-invite__link{justify-content:space-between;min-height:42px}
+      #manager-connect.mc-mini .mc-collab-invite + .mc-mini__manage{flex-direction:row;align-items:flex-start;gap:12px}
+      #manager-connect.mc-mini .mc-collab-invite__break{display:none}
+    }
+    @media(prefers-reduced-motion:reduce){#manager-connect.mc-mini .mc-collab-invite__link{transition:none}}
+    </style>
     <section class="mc-connect mc-mini" id="manager-connect" aria-labelledby="manager-connect-title">
       <?php if(is_array($notice)&&empty($notice['error'])) mg_notice(); ?>
       <details class="mc-mini__details"<?=$expand?' open':''?>>
         <summary class="mc-mini__summary">
           <span class="mc-mini__icon"><?=mg_icon($accepted?'users':'link')?></span>
           <span class="mc-mini__copy"><span class="mc-mini__title" id="manager-connect-title">담당 매니저</span><span class="mc-mini__subtitle"><?=mg_e($formOpen?($status==='rejected'?'이전 요청이 거절되었습니다.':($status==='revoked'?'연결이 해제되었습니다.':'전달받은 매니저 코드를 입력하세요.')):$nickname.' 매니저')?></span></span>
-          <?php if(!$formOpen): ?><span class="mc-status mc-status--<?=mg_e($status)?>"><i></i><?=$accepted?'연결됨':'수락 대기'?></span><?php endif; ?>
+          <?php if(!$formOpen): ?><span class="mc-status mc-status--<?=mg_e($status)?>"><i></i><?=$accepted?(pc_active($uid)?'PRO 이용 중':'담당 매니저 연결됨'):'수락 대기'?></span><?php endif; ?>
           <span class="mc-mini__toggle"><span><?=$formOpen?'매니저 연결':'관리'?></span><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span>
         </summary>
         <div class="mc-mini__body">
@@ -137,6 +162,16 @@ function mg_compact_card(string $uid,array $me,string $status,string $nickname,s
           </form>
           <?php mg_local_connect_option($returnTo); ?>
           <?php else: ?>
+          <?php if($accepted&&!pc_active($uid)): ?>
+          <div class="mc-collab-invite">
+            <div class="mc-collab-invite__copy">
+              <span class="mc-collab-invite__eyebrow">PRO 서비스</span>
+              <h3>소방안전 업무 기록을 체계적으로</h3>
+              <p>기본정보부터 소방계획서, 매월 업무 기록까지 작성·관리하고,<br class="mc-collab-invite__break"> 필요한 항목은 담당 매니저에게 작성 도움을 요청하세요.</p>
+            </div>
+            <a class="mc-collab-invite__link" href="/subscribe_page.php">PRO 이용 안내<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a>
+          </div>
+          <?php endif;?>
           <div class="mc-mini__manage"><p><?=$pending?'매니저가 수락하면 건물정보와 업무 현황이 공유됩니다.':'담당 매니저가 건물정보와 업무 현황을 조회할 수 있습니다.'?></p><?php mg_action_form($uid,$me,'revoked',$pending?'요청 취소':'연결 해제',$returnTo,'text'); ?></div>
           <?php endif; ?>
         </div>

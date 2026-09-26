@@ -270,10 +270,8 @@ $__api    = @include __DIR__ . '/api_keys.php';
 $TOSS_SECRET = is_array($__api) ? (string)($__api['toss_secret'] ?? '') : '';
 $TOSS_LIVE   = is_array($__api) ? (bool)($__api['toss_live'] ?? false) : false;
 
-const SUB_PLANS = [
-  'monthly' => ['name'=>'월 구독', 'price'=>2900,  'months'=>1],
-  'yearly'  => ['name'=>'연 구독', 'price'=>29000, 'months'=>12],
-];
+require_once __DIR__.'/annual_billing_engine.php';
+const SUB_PLANS = AP_PLANS;
 
 /** 다음 결제일 — 말일 처리를 맞춥니다(1/31 → 2/28 → 3/31) */
 function sub_next_billing(string $fromYmd, int $months, int $anchorDay = 0): string {
@@ -287,92 +285,9 @@ function sub_next_billing(string $fromYmd, int $months, int $anchorDay = 0): str
 }
 
 /** 토스 결제 승인 */
-function sub_charge_api(string $secret, string $bk, string $ck, int $amount, string $name): array {
-  $orderId = 'od_' . date('YmdHis') . '_' . bin2hex(random_bytes(4));
-  $ch = curl_init('https://api.tosspayments.com/v1/billing/' . rawurlencode($bk));
-  curl_setopt_array($ch, [
-    CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>25,
-    CURLOPT_HTTPHEADER=>['Authorization: Basic '.base64_encode($secret.':'), 'Content-Type: application/json'],
-    CURLOPT_POSTFIELDS=>json_encode(['customerKey'=>$ck,'amount'=>$amount,'orderId'=>$orderId,'orderName'=>$name], JSON_UNESCAPED_UNICODE),
-  ]);
-  $raw = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
-  $body = json_decode((string)$raw, true); if (!is_array($body)) $body = [];
-  if ($code >= 200 && $code < 300) return ['ok'=>true,'orderId'=>$orderId,'error'=>''];
-  $m2 = (string)($body['message'] ?? '알 수 없는 오류');
-  $ec = (string)($body['code'] ?? '');
-  return ['ok'=>false,'orderId'=>$orderId,'error'=>($ec!==''?"[$ec] ":'').$m2];
-}
-
-/** 한 회원 결제 — 성공 여부와 안내 문구를 돌려줍니다 */
-function sub_charge_member(string $uid, string $base, string $secret, bool $isLive, bool $checkDate): array {
-  $file = $base . '/' . $uid . '/subscription.json';
-  if (!is_file($file)) return ['ok'=>false,'skip'=>true,'msg'=>'구독 정보 없음'];
-  $d = json_decode((string)@file_get_contents($file), true);
-  if (!is_array($d)) return ['ok'=>false,'skip'=>true,'msg'=>'구독 정보를 읽지 못함'];
-
-  $status = (string)($d['status'] ?? '');
-  $bk = trim((string)($d['billing_key'] ?? ''));
-  $ck = trim((string)($d['customer_key'] ?? ''));
-  $plan = (string)($d['plan'] ?? '');
-  $next = trim((string)($d['next_billing'] ?? ''));
-  $today = date('Y-m-d');
-  $change = is_array($d['plan_change'] ?? null) ? $d['plan_change'] : [];
-  $applyPlanChange = ($change['status'] ?? '') === 'scheduled'
-    && (string)($change['effective_at'] ?? '') !== ''
-    && (string)$change['effective_at'] <= $today
-    && isset(SUB_PLANS[(string)($change['to'] ?? '')]);
-  $chargePlan = $applyPlanChange ? (string)$change['to'] : $plan;
-
-  if (!in_array($status, ['active','payment_failed'], true)) return ['ok'=>false,'skip'=>true,'msg'=>'구독 중이 아님'];
-  if ($bk === '' || $ck === '')      return ['ok'=>false,'skip'=>true,'msg'=>'카드 미등록'];
-  if (!isset(SUB_PLANS[$chargePlan])) return ['ok'=>false,'skip'=>true,'msg'=>'요금제 정보 없음'];
-  if ($checkDate && ($next === '' || $next > $today)) return ['ok'=>false,'skip'=>true,'msg'=>'아직 결제일 전'];
-
-  /* 같은 날 두 번 결제되지 않게 막습니다 */
-  if (substr((string)($d['paid_at'] ?? ''), 0, 10) === $today) {
-    return ['ok'=>false,'skip'=>true,'msg'=>'오늘 이미 결제됨'];
-  }
-
-  $p = SUB_PLANS[$chargePlan];
-  $res = sub_charge_api($secret, $bk, $ck, (int)$p['price'], $p['name']);
-
-  $hist = is_array($d['history'] ?? null) ? $d['history'] : [];
-  array_unshift($hist, [
-    'at'=>date('Y-m-d H:i:s'), 'amount'=>(int)$p['price'], 'name'=>$p['name'],
-    'orderId'=>$res['orderId'], 'ok'=>$res['ok'],
-    'msg'=>$res['ok'] ? '관리자 수동 결제' : $res['error'],
-    'test'=>!$isLive, 'manual'=>true,
-  ]);
-  $d['history'] = array_slice($hist, 0, 50);
-
-  if ($res['ok']) {
-    $d['status'] = 'active';
-    if ($applyPlanChange) {
-      $oldPlan = $plan;
-      $d['plan'] = $chargePlan;
-      $d['plan_name'] = $p['name'];
-      $d['price'] = (int)$p['price'];
-      $d['plan_change']['status'] = 'applied';
-      $d['plan_change']['applied_at'] = date('Y-m-d H:i:s');
-      $d['plan_change']['from'] = $oldPlan;
-    }
-    $d['paid_at'] = date('Y-m-d H:i:s');
-    $d['next_billing'] = sub_next_billing($next ?: date('Y-m-d'), (int)$p['months'], (int)($d['bill_day'] ?? 0));
-    $d['expires_at'] = $d['next_billing'];
-    $d['last_error'] = '';
-  } else {
-    $d['status'] = 'payment_failed';
-    $d['last_error'] = $res['error'];
-  }
-
-  $tmp = $file . '.tmp';
-  if (file_put_contents($tmp, json_encode($d, JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT), LOCK_EX) !== false) {
-    @rename($tmp, $file);
-  }
-
-  return $res['ok']
-    ? ['ok'=>true,'skip'=>false,'msg'=>'결제 완료' . ($applyPlanChange ? ' · '.$p['name'].' 변경 적용' : '') . ' (다음 ' . $d['next_billing'] . ')']
-    : ['ok'=>false,'skip'=>false,'msg'=>$res['error']];
+function sub_charge_member(string $uid,string $base,string $secret,bool $isLive,bool $checkDate):array {
+ try{$settings=ab_scheduler_settings();if(!$settings['enabled']||$settings['mode']!==ab_mode())throw new RuntimeException('관리자 결제 설정에서 실행을 활성화해 주세요.');$r=ab_charge_user($uid,'renewal');return ['ok'=>$r['ok'],'skip'=>!empty($r['blocked']),'msg'=>$r['ok']?'연간 결제 완료':$r['error']];}
+ catch(Throwable $e){return ['ok'=>false,'skip'=>true,'msg'=>$e->getMessage()];}
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'

@@ -11,6 +11,7 @@ if (!ini_get('date.timezone')) date_default_timezone_set('Asia/Seoul');
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']);
 session_start();
+header('Cache-Control: no-store');header('Referrer-Policy: no-referrer');
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -20,6 +21,7 @@ function is_admin(): bool {
 function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']); }
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 
+if(!empty($_SESSION['_imp'])||defined('MANAGER_VIEW_UID')){http_response_code(403);exit('카드 등록은 본인 계정에서 진행해 주세요.');}
 require_once __DIR__ . '/toss_billing.php';
 
 $ok      = false;
@@ -43,7 +45,7 @@ if ($failCode !== '') {
     $title  = '요청이 올바르지 않습니다';
     $detail = '구매자 정보가 일치하지 않습니다. 다시 시도해 주세요.';
   } else {
-    $res = tb_issue_billing_key($authKey, $customerKey);
+    try{$res = tb_issue_billing_key($authKey, $customerKey);}catch(Throwable $e){$res=['ok'=>false,'error'=>'카드 등록 결과 저장을 확인하지 못했습니다. 관리자에게 문의해 주세요.'];}
     if ($res['ok']) {
       $ok     = true;
       $title  = '카드가 등록되었습니다';
@@ -55,6 +57,9 @@ if ($failCode !== '') {
       $detail = $res['error'];
     }
   }
+}
+if(($_GET['pro_popup']??'')==='1'){
+ $_SESSION['annual_flash']=[$ok?'카드가 등록되었습니다. 요금과 자동갱신 안내를 확인한 후 결제해 주세요.':$title.' · '.$detail,$ok?'ok':'err'];
 }
 ?>
 <!doctype html>
@@ -93,7 +98,19 @@ if ($failCode !== '') {
   <h1><?=h($title)?></h1>
   <p><?=h($detail)?></p>
 
-  <a class="btn" href="/subscribe_page.php">연간 구독 페이지로</a>
+  <?php if(($_GET['pro_popup']??'')==='1'): ?>
+  <button class="btn" type="button" id="returnToPro">PRO 이용 안내로 돌아가기</button>
+  <script>
+  function returnToPro(){
+   try{if(window.opener&&!window.opener.closed){window.opener.postMessage({type:'pro-card-return'},location.origin);window.close();return;}}catch(e){}
+   location.replace('/building_manager.php?pro_popup=1');
+  }
+  // Remove authentication parameters before any subsequent navigation.
+  history.replaceState(null,'','/toss_billing_return.php?pro_popup=1');
+  document.getElementById('returnToPro').onclick=returnToPro;
+  if(window.opener)returnToPro();
+  </script>
+  <?php else: ?><a class="btn" href="/subscribe_page.php">연간 구독 페이지로</a><?php endif; ?>
   <?php if (!$ok): ?>
     <a class="btn btn--ghost" href="/building_manager.php">나중에 할게요</a>
   <?php endif; ?>

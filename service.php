@@ -5,22 +5,14 @@ require __DIR__ . '/_header.php';
 
 /* ── 서비스 기능 목록 (여기만 고치면 화면이 바뀝니다) ── */
 $features = [
-  ['icon'=>'🏢', 'title'=>'건축물대장 자동 조회',
-   'desc'=>'건물명이나 주소만 검색하면 연면적·층수·구조·용도·사용승인일이 자동으로 채워집니다. 일일이 옮겨 적을 필요가 없습니다.'],
-  ['icon'=>'📋', 'title'=>'건물 기본정보 한 번만 입력',
-   'desc'=>'한 번 입력한 대상물 정보를 소방계획서·업무수행기록표 등 여러 서식이 함께 씁니다. 같은 내용을 반복해서 적지 않습니다.'],
-  ['icon'=>'📝', 'title'=>'소방계획서 작성',
-   'desc'=>'저장된 건물 정보를 불러와 소방계획서를 작성합니다. 대상물 개요는 자동으로 채워집니다.'],
-  ['icon'=>'🗂', 'title'=>'법정 업무수행 기록표',
-   'desc'=>'작동점검·종합점검 등 법정 서식을 양식에 맞춰 작성하고 보관합니다.'],
-  ['icon'=>'🧯', 'title'=>'자위소방대 편성표',
-   'desc'=>'명단을 붙여넣으면 대장·부대장·활동조가 자동으로 배치됩니다. 인원이 바뀌어도 금방 다시 만듭니다.'],
-  ['icon'=>'🚪', 'title'=>'피난 시뮬레이션',
-   'desc'=>'건물 구조를 바탕으로 피난 동선을 그려 교육·훈련 자료로 활용합니다.'],
-  ['icon'=>'🔔', 'title'=>'사용승인월별 조회',
-   'desc'=>'사용승인일 기준으로 이번 달 점검 대상을 모아 봅니다. 매년 돌아오는 일정을 미리 챙길 수 있습니다.'],
-   ['icon'=>'🔔', 'title'=>'외국인 소방교육자료',
-   'desc'=>'외국 언어표기로 소방교육 자료를 제공합니다'],
+  ['icon'=>'🏢', 'title'=>'건축물대장 조회와 기본정보 관리', 'desc'=>'주소로 건축물대장을 조회하고 대상 건물과 동을 선택합니다. 불러온 정보를 확인·수정하고 다른 업무 서식에 활용할 수 있습니다.'],
+  ['icon'=>'🧯', 'title'=>'동별 소방시설 현황', 'desc'=>'관리할 동을 선택하고 각 동에 설치된 소방시설을 기록합니다. 저장된 시설 현황을 업무수행 기록 작성에 활용합니다.'],
+  ['icon'=>'📝', 'title'=>'문답으로 작성하는 소방계획서', 'desc'=>'작성 연도와 반영할 자료를 선택하면 저장된 정보를 불러옵니다. 질문을 따라 내용을 보완하고 계획서를 작성·인쇄합니다.'],
+  ['icon'=>'🗂', 'title'=>'월별 업무수행 기록', 'desc'=>'해당 월의 소방안전관리 업무 내용을 작성하고 보관합니다. 등록된 소방시설을 바탕으로 필요한 확인 내용을 기록합니다.'],
+  ['icon'=>'👥', 'title'=>'자위소방대와 교육·훈련 기록', 'desc'=>'자위소방대 편성, 교육 및 소방훈련 내용을 한곳에서 작성·관리합니다. 필요한 서류는 인쇄해 활용할 수 있습니다.'],
+  ['icon'=>'📍', 'title'=>'집결지와 소방차 진입로', 'desc'=>'지도에서 비상 집결지와 소방차 진입로를 각각 지정합니다. 저장한 위치를 팝업으로 확인하고 인쇄 자료에도 활용합니다.'],
+  ['icon'=>'💬', 'title'=>'담당 매니저에게 작성 도움 요청', 'desc'=>'기본정보·소방시설 현황·소방계획서에서 어려운 항목을 담당 매니저에게 요청합니다. 매니저는 요청 항목을 확인해 작성을 돕고 완료 상태를 공유합니다.'],
+  ['icon'=>'🗺', 'title'=>'매니저 거래처 관리와 사전등록', 'desc'=>'거래처를 지도에서 확인하고 사용승인월별로 조회합니다. 가입 전 건물 기본정보를 사전등록한 뒤 유저의 연결 요청을 수락하며 이어줄 수 있습니다.'],
 ];
 
 /* ── 요금제 ── */
@@ -50,8 +42,8 @@ $priceYearly=AP_PRICE;
 .plan__list{margin:0;padding:0;list-style:none;display:grid;gap:7px;font-size:13px}
 .plan__list li{display:flex;gap:7px;align-items:flex-start;line-height:1.6}
 .plan__list li::before{content:'✓';font-weight:800;opacity:.6;flex-shrink:0}
-.plan__cta{display:block;text-align:center;padding:11px 16px;border-radius:10px;
-  font-size:14px;font-weight:700;text-decoration:none;margin-top:auto}
+.plan__login-note{margin:8px 0 0;padding:14px 12px;border-top:1px solid #e2e8f0;text-align:center;font-size:14px;font-weight:700;line-height:1.7}
+.plan__login-note small{display:block;margin-top:4px;font-size:12px;font-weight:400;opacity:.7}
 .plan--year{border-color:#7fb069}
 .plan__badge{position:absolute;top:-10px;right:14px;background:#7fb069;color:#fff;
   font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px}
@@ -67,8 +59,8 @@ $priceYearly=AP_PRICE;
   <div class="page-head__inner">
     <div class="page-head__label"><span></span> 서비스 안내</div>
     <h1>서비스</h1>
-    <p>소방안전관리자를 위한 업무 플랫폼입니다. 건물 정보를 한 번만 입력하면
-       소방계획서부터 점검 기록까지 이어서 관리할 수 있습니다.</p>
+    <p>건물관리자와 담당 매니저가 업무 현황을 공유하고, 필요한 기록을 함께 작성·관리하는 공간입니다.
+       건물 기본정보부터 소방계획서와 월별 업무 기록까지 한곳에서 이어갑니다.</p>
   </div>
 </header>
 
@@ -89,59 +81,38 @@ $priceYearly=AP_PRICE;
     <?php endforeach; ?>
   </div>
 
-  <!-- 요금제 -->
-  <h2 class="svc-sec-t">요금 안내</h2>
-  <p class="svc-sec-d">연 59,000원으로 12개월 동안 서비스를 이용합니다.</p>
+  <h2 class="svc-sec-t">함께 작성하고 관리하는 방법</h2>
+  <div class="svc-faq">
+    <div class="card"><h4>1. 건물 정보를 등록합니다</h4><p>건축물대장을 조회하거나 직접 입력해 기본정보를 준비합니다. 건물의 실제 현황에 맞게 소방시설과 위치 정보를 정리합니다.</p></div>
+    <div class="card"><h4>2. 담당 매니저와 연결합니다</h4><p>매니저 코드를 입력하면 가입 시 입력한 건물명으로 연결을 요청합니다. 매니저가 사전등록한 거래처를 연결하면 해당 기본정보가 유저 화면에 반영됩니다.</p></div>
+    <div class="card"><h4>3. 기록을 작성하고 진행 상태를 확인합니다</h4><p>업무 카드에서 다음 업무와 완료 상태를 확인합니다. 작성 도움이 필요한 항목은 담당 매니저에게 요청하고, 처리 결과를 함께 확인합니다. 요청 기능의 이용 범위는 PRO 안내에서 확인해 주세요.</p></div>
+  </div>
 
+  <h2 class="svc-sec-t">PRO 이용 안내</h2>
+  <p class="svc-sec-d">기록 작성과 담당 매니저의 업무 지원을 이어갈 수 있는 연간 구독입니다.</p>
   <div class="plan-grid">
-    <!-- 연 구독 -->
     <div class="card plan plan--year">
       <span class="plan__badge">12개월 이용</span>
-      <div class="plan__name">연 구독</div>
-      <div class="plan__price">
-        <span class="plan__num"><?=number_format($priceYearly)?></span>
-        <span class="plan__unit">원 / 년</span>
-        
-      </div>
-      <div class="plan__sub">59,000원 한 번 결제로 1년간 이용합니다.</div>
+      <div class="plan__name">PRO 연간 구독</div>
+      <div class="plan__price"><span class="plan__num"><?=number_format($priceYearly)?></span><span class="plan__unit">원 / 년</span></div>
+      <div class="plan__sub">연 <?=number_format($priceYearly)?>원으로 12개월간 이용합니다.<br>자동갱신에 동의하면 매년 결제됩니다.</div>
       <ul class="plan__list">
-        <li>모든 기능 사용</li>
-        <li>연간 단일 요금제</li>
-        <li>1년 동안 요금 변동 없음</li>
-        <li>결제 한 번으로 관리 간편</li>
+        <li>담당 매니저와 업무 현황 공유 및 작성 도움 요청</li>
+        <li>구독 상태와 다음 결제일 확인</li>
+        <li>PRO 이용 안내에서 카드 등록과 구독 관리</li>
       </ul>
-      <a class="plan__cta btn" href="/subscribe_page.php">연 구독 시작하기</a>
+      <p class="plan__login-note">로그인 후 페이지에서 구독을 이용하세요.<small>건물관리 화면의 ‘PRO 이용 안내’에서 확인하실 수 있습니다.</small></p>
     </div>
   </div>
+  <div class="svc-note">· 카드 등록만으로 결제되지는 않습니다. 결제 전 금액과 자동갱신 안내를 확인해 주세요.<br>· 자동갱신을 해제해도 이미 결제한 기간까지 이용할 수 있습니다.</div>
 
-  <div class="svc-note">
-    · 표시 금액은 1인 계정 기준입니다.<br>
-    · 구독 기간에는 새로 추가되는 기능도 추가 비용 없이 함께 사용하실 수 있습니다.<br>
-    · 해지하셔도 입력하신 자료는 삭제되지 않으며, 다시 구독하면 이어서 사용할 수 있습니다.
-  </div>
-
-  <!-- 자주 묻는 질문 -->
   <h2 class="svc-sec-t">자주 묻는 질문</h2>
   <div class="svc-faq">
-    <div class="card">
-      <h4>건축물대장이 조회되지 않는 건물도 있나요?</h4>
-      <p>학교·관공서 등 공공기관 건물이나 신축·미등록 건물은 조회되지 않을 수 있습니다.
-         이 경우 주소와 좌표는 저장되며 나머지 정보는 직접 입력하시면 됩니다.
-         조회가 안 되는 건물은 서비스 안에서 바로 문의하실 수 있습니다.</p>
-    </div>
-    <div class="card">
-      <h4>조회된 건축물 정보는 정확한가요?</h4>
-      <p>공공데이터(건축물대장) 기준으로 제공되며 실제 현황과 다를 수 있습니다.
-         참고용으로 사용하시고, 중요한 내용은 대장 원본과 대조해 주세요.</p>
-    </div>
-    <div class="card">
-      <h4>중간에 요금제를 바꿀 수 있나요?</h4>
-      <p>연간 요금제만 제공합니다. 기존에 결제한 이용기간은 유지되며, 새 결제에는 연 59,000원이 적용됩니다.</p>
-    </div>
-    <div class="card">
-      <h4>여러 명이 함께 쓸 수 있나요?</h4>
-      <p>현재 요금은 1인 계정 기준입니다. 팀 단위 이용은 문의해 주시면 안내해 드리겠습니다.</p>
-    </div>
+    <div class="card"><h4>건축물대장이 조회되지 않으면 어떻게 하나요?</h4><p>조회 결과가 없거나 실제 현황과 다르면 기본정보를 직접 입력·수정할 수 있습니다. 조회된 정보도 대상 건물과 일치하는지 확인해 주세요.</p></div>
+    <div class="card"><h4>여러 동의 소방시설을 각각 관리할 수 있나요?</h4><p>시설 현황에 포함할 동을 선택하고 동별로 설치된 설비를 기록할 수 있습니다. 동마다 다른 시설 현황을 구분해 작성하세요.</p></div>
+    <div class="card"><h4>작성 방법을 잘 모르면 어떻게 하나요?</h4><p>담당 매니저가 연결되어 있고 요청 기능을 이용할 수 있는 경우, 해당 항목에서 작성 도움을 요청하세요. 매니저는 유저 화면의 알림 표시를 통해 요청한 내용을 확인할 수 있습니다.</p></div>
+    <div class="card"><h4>매니저 연결만으로 구독이 시작되나요?</h4><p>매니저 연결과 PRO 구독은 별개입니다. 로그인 후 건물관리 화면의 ‘PRO 이용 안내’에서 이용 조건을 확인하고 구독을 진행해 주세요.</p></div>
+    <div class="card"><h4>사전등록한 정보를 연결하면 어떻게 되나요?</h4><p>매니저가 연결 요청을 수락하며 사전등록 거래처를 선택하면 그 기본정보가 유저에게 반영됩니다. 기존 기본정보가 있어도 바뀔 수 있으므로 같은 건물인지 확인한 뒤 연결해 주세요.</p></div>
   </div>
 
 </main>

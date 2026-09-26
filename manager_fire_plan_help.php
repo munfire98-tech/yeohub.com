@@ -23,3 +23,17 @@ function mfp_save(string $uid,string $plan,string $code,array $patch,callable $s
   });
  });
 }
+
+function mfp_pending(string $uid,string $plan):array {
+ $members=mg_members();$state=mg_read(mg_state_file());$actor=(string)($_SESSION['_mge_actor']??'');
+ if($actor!==''? !mg_can_view($actor,$uid,$members,$state) : mg_uid()!==$uid)return [];
+ if(!mg_active($members[$uid]??[],'building'))return [];
+ $prefix='__fp_'.$plan.'_';$out=[];
+ foreach(mg_read(__DIR__.'/data/manager_help_requests.php') as $r){
+  if(!is_array($r)||($r['uid']??'')!==$uid||($r['status']??'')!=='pending'||strpos((string)($r['field']??''),$prefix)!==0
+   ||($r['user_created']??null)!==($members[$uid]['created']??null)||($r['link_key']??'')!==mg_link_key($uid,$members[$uid]))continue;
+  if($actor!==''&&(($r['manager']??'')!==$actor||($r['manager_created']??null)!==($members[$actor]['created']??null)))continue;
+  $out[]=['id'=>$r['id']??'','field'=>$r['field'],'text'=>$r['text']??'','created_at'=>$r['created_at']??''];
+ }
+ usort($out,static fn($a,$b)=>strcmp($a['created_at'],$b['created_at']));return $out;
+}

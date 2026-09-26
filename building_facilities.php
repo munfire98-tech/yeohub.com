@@ -9,7 +9,7 @@ if(!$admin&&(empty($_SESSION['is_user'])||($_SESSION['role']??'')!=='building'))
 if(bi_user_key()===''){http_response_code(403);exit('건물 계정을 선택해 주세요.');}
 function h($s):string{return htmlspecialchars((string)$s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
 if(empty($_SESSION['csrf']))$_SESSION['csrf']=bin2hex(random_bytes(24));
-$d=bf_load();$error='';$saved=false;$resetDone=false;$bi=bi_load();$options=bf_dong_options($bi);$scopes=bf_scopes($d,$options);
+$bi=bi_load();$d=bf_load();$error='';$saved=false;$resetDone=false;$options=bf_dong_options($bi);$scopes=bf_scopes($d,$options);
 if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
  if(!is_string($_POST['csrf']??null)||!hash_equals($_SESSION['csrf'],$_POST['csrf'])){http_response_code(403);exit('새로고침 후 다시 시도해 주세요.');}
  try{
@@ -43,6 +43,7 @@ $c=bf_counts(['scopes'=>$scopes]);
 </style></head><body><main>
 <p class="eyebrow">STEP 02 · FIRE FACILITIES</p><div class="heading"><div><h1>소방시설 현황</h1><p class="intro"><?=h($bi['name']??'')?> · 동을 선택하고 설치된 시설을 체크해 주세요.</p></div><span class="total">선택 <b id="selected-total"><?=$c['present']?></b>건</span></div>
 <?php if($saved):?><div role="status" class="notice"><?=$resetDone?'현황을 초기화했습니다. 설치된 시설을 다시 체크해 주세요.':'소방시설 현황을 저장했습니다.'?></div><?php endif;?><?php if($error):?><div role="alert" class="notice error"><?=h($error)?></div><?php endif;?>
+<?php if(!empty($d['_sync_notice'])):?><div role="status" class="notice"><?=h($d['_sync_notice'])?></div><?php endif;?>
 <div class="facility-help" id="facility-help-card">
 <strong>어떤 소방시설이 있는지 잘 모르겠나요?</strong>
 <p>설비를 잘 모르겠다면 저장하기 전에 담당 매니저에게 확인을 요청하세요.</p>
@@ -52,7 +53,7 @@ $c=bf_counts(['scopes'=>$scopes]);
 <button type="button" class="print-action" onclick="buildingInfoPrint()">인쇄 / PDF</button><div class="toolbar"><input class="search" id="facility-search" type="search" placeholder="시설 이름 검색" aria-label="시설 이름 검색"><label class="toggle"><input type="checkbox" id="selected-only">체크한 시설만</label></div>
 <form method="post" id="facility-form"><input type="hidden" name="checklist_form" value="1"><input type="hidden" name="csrf" value="<?=h($_SESSION['csrf'])?>"><input type="hidden" name="revision" value="<?=h($error?(string)($_POST['revision']??''):($d['revision']??''))?>">
 <input type="hidden" name="multi_scope_form" value="1">
-<div class="scope-picker"><strong>시설현황에 포함할 동</strong><p>기존 기록은 기본동에 유지됩니다. 추가 동은 해당 동의 설비를 따로 확인해 주세요.</p><div class="scope-choices">
+<div class="scope-picker"><strong>시설현황에 포함할 동</strong><p>기본정보에 등록된 동을 표시합니다. 각 동의 설비를 따로 확인해 주세요.</p><div class="scope-choices">
 <?php foreach($scopes as $sid=>$scope):?><label><input type="checkbox" class="scope-include" name="included[]" value="<?=h($sid)?>" <?=!empty($scope['included'])?'checked':''?> <?=$sid==='base'?'disabled':''?>> <?=h($scope['label'])?></label><?php endforeach;?></div>
 <?php if(count($scopes)===1):?><p>추가 동은 기본정보의 건물 조회에서 동별 정보를 등록하면 표시됩니다.</p><?php endif;?>
 <p>포함을 해제해도 저장한 동별 기록은 보관됩니다.</p></div>

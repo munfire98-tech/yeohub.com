@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
     try{
       require_once __DIR__.'/manager_help_complete.php';
       if(mg_uid()===app_user_key()){
-        $saved=mh_save_own_answers(app_user_key(),array_merge($_POST,['mgrs'=>$mgrs]),static function()use($candidate):bool{return bi_save($candidate);},static function():array{return bi_load();});
+        $saved=mh_save_own_answers(app_user_key(),array_merge($_POST,['mgrs'=>$mgrs]),static function()use($candidate):bool{return bi_save($candidate);},static function():array{return bi_read_saved();});
       }else{$saved=bi_save($candidate);}
     }catch(Throwable $e){$locationError='저장 및 요청 상태 갱신을 완료하지 못했습니다. 다시 시도해 주세요.';error_log('Own answer save: '.$e->getMessage());}
   }
@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reset
     require_once __DIR__.'/manager_help_reset.php';
     try {
       mh_reset_building_requests(app_user_key(), static function(): bool {
-        return bi_save(bi_blank());
+        return bi_save(bi_blank(), true);
       });
       $resetDone = true;
       $resetErr = false;
@@ -390,6 +390,8 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
       <div class="row">
         <div class="fld"><label>연면적 (㎡)</label>
           <input type="text" name="area_t" value="<?=$v('area_t')?>" placeholder="예: 12000"></div>
+        <div class="fld"><label>건축면적 (㎡)</label>
+          <input type="number" min="0" step="any" name="bd_area_arch" value="<?=$v('bd_area_arch')?>" placeholder="건축물대장의 건축면적"></div>
         <div class="fld"><label>바닥면적 (㎡)</label>
           <input type="text" name="area_f" value="<?=$v('area_f')?>" placeholder="예: 1200"></div>
       </div>
@@ -584,13 +586,13 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
     <div style="font-size:12.5px;color:#991b1b;line-height:1.8;background:#fef2f2;
                 border:1px solid #fecaca;border-radius:9px;padding:12px 14px;margin-bottom:12px">
       위에 입력한 <b>대상물·규모·건축물대장·소방안전관리자·집결지</b>가 모두 비워집니다.<br>
-      <b>작성 도움 요청과 완료 기록</b>도 함께 삭제됩니다.<br>
+      <b>소방시설 현황의 시설 선택·포함 동과 관련 작성 도움 요청·완료 기록</b>도 함께 초기화됩니다.<br>
       이 정보는 <b>업무수행 기록표·훈련 기록부·소방계획서</b>가 함께 쓰므로,
       비우면 그 서식들에서도 불러올 값이 없어집니다.<br>
       <b>되돌릴 수 없으니</b> 필요하면 먼저 내용을 따로 적어두세요.
     </div>
 
-    <form method="post" onsubmit="return confirm('기본정보와 작성 도움 요청·완료 기록을 모두 삭제합니다.\n되돌릴 수 없습니다. 계속할까요?')">
+    <form method="post" onsubmit="return confirm('기본정보와 소방시설 현황, 관련 작성 도움 요청·완료 기록을 함께 초기화합니다.\n되돌릴 수 없습니다. 계속할까요?')">
       <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
       <input type="hidden" name="action" value="reset">
       <div class="row">

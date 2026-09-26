@@ -45,6 +45,7 @@ $planYear=fp_plan_year($plan);
 if (isset($_GET['year']) && $requestedYear!==$planYear && ($_SERVER['REQUEST_METHOD'] ?? 'GET')==='GET') {
   header('Location: '.$url('/fire_plan_chat.php',['id'=>$planId,'year'=>$planYear]));exit;
 }
+require_once __DIR__.'/manager_fire_plan_help.php';
 $schema = fp_chat_schema();
 $bi = bi_load();
 $common = epc_load();
@@ -65,13 +66,36 @@ function chat_sections(array $plan): array {
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
   if (!hash_equals(fp_csrf(),(string)($_POST['csrf'] ?? ''))) chat_reply(['ok'=>false,'error'=>'세션이 만료되었습니다. 새로고침 후 다시 시도해 주세요.'],403);
   if (($_POST['act'] ?? '') === 'sources') {
-    $selected=json_decode((string)($_POST['patch'] ?? '[]'),true);
-    if (!is_array($selected)) chat_reply(['ok'=>false,'error'=>'반영할 자료를 선택해 주세요.'],400);
-    foreach ($selected as $id) if (!is_string($id) || !isset($sources['groups'][$id])) chat_reply(['ok'=>false,'error'=>'잘못된 자료 선택입니다.'],400);
-    $plan['plan_year']=$planYear;$plan['source_selection']=array_values(array_unique($selected));$plan['source_selection_set']=true;
-    if (!fp_write_json(fp_plan_file($planId),$plan)) chat_reply(['ok'=>false,'error'=>'선택을 저장하지 못했습니다.'],500);
+    require_once __DIR__.'/fire_plan_chat_import.php';
+    $selected=json_decode((string)($_POST['patch']??'[]'),true);
+    if(!is_array($selected))chat_reply(['ok'=>false,'error'=>'반영할 자료를 선택해 주세요.'],400);
+    foreach($selected as $id)if(!is_string($id)||!isset($sources['groups'][$id]))chat_reply(['ok'=>false,'error'=>'자료 선택을 확인해 주세요.'],400);
+    $selected=array_values(array_unique($selected));
+    $allSources=fp_chat_sources($bi,$common,$planYear,$selected);
+    if(in_array('monthly',$selected,true)&&function_exists('bf_load')){
+      $inventory=bf_load();
+      foreach(bf_catalog() as $category=>$group){
+        if(!isset($schema['2'][$category]))continue;
+        $allKnown=true;$present=[];
+        foreach($group[1] as $name){$status=$inventory['items'][bf_id($name)]['status']??'unknown';if(!in_array($status,['yes','no'],true))$allKnown=false;if($status==='yes')$present[]=$name;}
+        if($allKnown||$present){$allSources['data']['2'][$category]=$present;if($allKnown&&!$present)$allSources['known_empty']['2'][$category]=true;}
+      }
+      if(!empty($inventory['revision']))$allSources['data']['2']['memo']=bf_summary($inventory);
+    }
+    $plan=fp_chat_import($plan,$allSources,$schema);$plan['source_selection']=$selected;
+    $s1=(array)($plan['sections']['1']['data']??[]);$s3=(array)($plan['sections']['3']['data']??[]);
+    foreach($schema as $c=>$fields){
+      $answered=(array)($plan['sections'][$c]['data']['_chat_answers']??[]);$complete=true;
+      foreach($fields as $key=>$field)if(fp_chat_visible((string)$c,$key,$s1,$s3)&&!in_array($key,$answered,true)){$complete=false;break;}
+      $plan['sections'][$c]['data']['_chat_complete']=$complete;$plan['sections'][$c]['is_done']=$complete?1:0;
+    }
+    $skips=fp_skip_rules($s1);$allComplete=true;
+    foreach($schema as $c=>$fields)if(!isset($skips[$c])&&empty($plan['sections'][$c]['data']['_chat_complete']))$allComplete=false;
+    $plan['status']=$allComplete?'done':'draft';
+    if(!fp_write_json(fp_plan_file($planId),$plan))chat_reply(['ok'=>false,'error'=>'자료를 반영하지 못했습니다. 다시 시도해 주세요.'],500);
     fp_touch_index($planId,$plan);
-    chat_reply(['ok'=>true,'sections'=>chat_sections($plan),'sources'=>fp_chat_sources($bi,$common,$planYear,$plan['source_selection']),'selection'=>$plan['source_selection']]);
+    fp_apply_skips($planId,fp_skip_rules((array)($plan['sections']['1']['data']??[])));
+    chat_reply(['ok'=>true,'sections'=>chat_sections($plan),'sources'=>$allSources,'selection'=>$plan['source_selection'],'help_pending'=>mfp_pending(fp_user_key(),$planId)]);
   }
   if (empty($plan['source_selection_set'])) chat_reply(['ok'=>false,'error'=>'먼저 반영할 자료를 선택하거나 직접 작성을 선택해 주세요.'],400);
   $code = (string)($_POST['code'] ?? '');
@@ -104,10 +128,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         }
       }
       if ($code === '1' && in_array($key,['name','addr','mgr_name','grade'],true) && $v === '') chat_reply(['ok'=>false,'error'=>'기본 필수정보는 비워둘 수 없습니다. 나중에 답하기를 선택할 수 있습니다.'],400);
-      $cur[$key] = $v; $answered[] = $key;
+      $cur[$key] = $v; $answered[] = $key;unset($cur['_source_values'][$key]);
     }
     $cur['_chat_answers'] = array_values(array_unique($answered));
-    $cur['_chat_complete'] = false;
+    // Each successful answer updates completion using the current visibility rules.
+    $checkS1=$code==='1'?$cur:$s1; $checkS3=$code==='3'?$cur:$s3;
+    $cur['_chat_complete'] = true;
+    foreach($schema[$code] as $checkKey=>$checkField){
+      if(fp_chat_visible($code,$checkKey,$checkS1,$checkS3) && !in_array($checkKey,$cur['_chat_answers'],true)){$cur['_chat_complete']=false;break;}
+    }
     if ($code === '5' && isset($patch['route'])
         && $patch['route'] === ($sources['data']['5']['route'] ?? null)) {
       $cur['common_updated'] = (string)($sources['data']['5']['common_updated'] ?? '');
@@ -135,9 +164,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
   $complete = true; $skips = fp_skip_rules($all['1']);
   foreach ($schema as $c=>$fields) if (!isset($skips[$c]) && empty($all[$c]['_chat_complete'])) $complete = false;
   fp_set_status($planId,$complete?'done':'draft');
-  chat_reply(['ok'=>true,'sections'=>$all,'complete'=>$complete]);
+  chat_reply(['ok'=>true,'sections'=>$all,'complete'=>$complete,'help_pending'=>mfp_pending(fp_user_key(),$planId)]);
 }
-$boot = ['csrf'=>fp_csrf(),'year'=>$planYear,'selection'=>$selection,'selectionSet'=>!empty($plan['source_selection_set']),'schema'=>$schema,'titles'=>$sectionTitles,'sections'=>chat_sections($plan),'sources'=>$sources,
+$boot = ['help_pending'=>mfp_pending(fp_user_key(),$planId),'csrf'=>fp_csrf(),'year'=>$planYear,'selection'=>$selection,'selectionSet'=>!empty($plan['source_selection_set']),'schema'=>$schema,'titles'=>$sectionTitles,'sections'=>chat_sections($plan),'sources'=>$sources,
   'listUrl'=>$url('/fire_plan.php'),'editUrl'=>$url('/fire_plan_edit.php',['id'=>$planId]),
   'printUrl'=>$url('/fire_plan_print.php',['id'=>$planId])];
 ?>
@@ -164,6 +193,12 @@ a{color:inherit;text-decoration:none}button,input,textarea,select{font:inherit;c
 @media(max-width:560px){.nav__in{padding:0 14px}.brand{font-size:18px}.nav__actions .btn:first-child{display:none}.prog__in{padding:10px 14px}.wrap{padding:16px 14px 48px}.chat-settings__body{grid-template-columns:1fr}.source-grid{grid-template-columns:1fr}.source-bar .btn{width:100%}.answer{margin-left:0}.msg__b{max-width:calc(100% - 42px);font-size:14px}.actions>.primary,.actions>.btn--pri{margin-left:0}.status{margin-left:0}}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 .prefill-note{padding:9px 12px;margin:10px 0;border:1px solid #cfe5df;border-radius:9px;background:#eff8f4;color:#33755d;font-size:12px;line-height:1.6}
+
+.plan-help-card{display:grid;grid-template-columns:42px minmax(0,1fr);align-items:center;gap:10px 12px;margin-top:18px;padding:18px;border:1px solid #bedde5;border-radius:16px;background:linear-gradient(125deg,#eef9fb,#f7fbff);box-shadow:0 4px 14px #1b637009;color:#254855}.plan-help-card[hidden]{display:none!important}.plan-help-icon{display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:13px;background:#dceff3;color:#16788d}.plan-help-copy{min-width:0}.plan-help-copy strong{display:block;font-size:14px;font-weight:750;color:#204352;line-height:1.5}.plan-help-copy p{margin:4px 0 0;font-size:12px;line-height:1.6;color:#5b7783;word-break:keep-all}.plan-help-card .plan-help-button{grid-column:2;display:flex;justify-content:center;align-items:center;gap:10px;min-height:44px;width:100%;margin:3px 0 0;padding:11px 16px;border:1px solid #13788d;border-radius:10px;background:#13788d;color:#fff;font-size:13px;line-height:1.5;font-weight:700;white-space:normal;overflow-wrap:anywhere;text-align:center;box-shadow:0 3px 7px #13788d18;transition:background .15s}.plan-help-button::after{content:'→';flex-shrink:0;font-size:17px}.plan-help-card .plan-help-button:hover:not(:disabled){background:#0d6377;border-color:#0d6377}.plan-help-card .plan-help-button:focus-visible{outline:3px solid #78c6d6;outline-offset:3px}.plan-help-card .plan-help-button:disabled{cursor:default;opacity:.65}.plan-help-card.is-sent{background:#f1f8f4;border-color:#cfe4d8;box-shadow:none}.plan-help-card.is-sent .plan-help-icon{background:#e0f0e6;color:#387a59}.plan-help-card.is-sent .plan-help-button{opacity:1;background:#e0f0e6;border-color:#cfe4d8;color:#387a59;box-shadow:none}.plan-help-card.is-sent .plan-help-button::after{content:'✓'}@media(max-width:480px){.plan-help-card{padding:14px;gap:10px}.plan-help-card .plan-help-button{grid-column:1/-1}.plan-help-copy strong{font-size:13px}}@media print{.plan-help-card{display:none!important}}
+.plan-help-copy small{display:block;margin-top:7px;color:#647b85;font-size:11px;line-height:1.6}.plan-help-copy p{font-weight:650;color:#24576b}.help-question-label{padding:10px 12px;background:#fff5df;border:1px solid #f0d7a1;border-radius:9px;color:#936311;font-size:12px}.help-finished{background:#eef8f1;border:1px solid #cce6d4;border-radius:14px;padding:20px;color:#29704c}.help-finished p{font-size:13px;line-height:1.7;margin-bottom:0}
+
+/* Question number and the primary action stay together with the answer. */
+#stage{scroll-margin-top:105px}#stage .question-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px;padding:0;border:0;line-height:1.5}#stage .question-id{display:inline-flex;align-items:center;padding:5px 10px;border-radius:8px;background:#e8f2f8;color:#22637c;font-size:12px;font-weight:800;letter-spacing:.02em}#stage .question-section{font-size:12px;color:#63798b;font-weight:600}#stage .question-position{margin-left:auto;font-size:12px;font-weight:700;color:#718699;white-space:nowrap}#stage .question{font-size:21px;line-height:1.55;letter-spacing:-.5px}#stage .actions{align-items:center;gap:10px;margin-top:18px;padding:14px 0 0;border-top:1px solid #e3ebf1}#stage .actions .question-next{margin-left:auto;min-height:46px;padding:12px 22px;border-radius:11px;background:#176c89;border-color:#176c89;color:white;font-size:14px;font-weight:750;box-shadow:0 3px 8px #176c8915}#stage .actions .question-next:hover{background:#105a74}#stage .save-hint{text-align:right;font-size:11px;margin-top:0}#stage .answer-extra{margin-top:22px;border-top:1px dashed #dbe5ed;padding-top:12px}#stage .extra-buttons .btn{min-height:34px;padding:7px 11px;background:transparent;font-size:12px;color:#788b9b;border-color:#dfe7ed}#stage .error:empty{display:none}#stage .direct-answer-input{margin-bottom:10px}#stage .quick-answer{margin:10px 0 0}#stage .card{animation:questionReveal .18s ease-out}@keyframes questionReveal{from{opacity:.5;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}@media(max-width:540px){#stage .msg__av{display:none}#stage .answer{margin-left:0}#stage .msg__b{width:100%;min-width:0}#stage .question{font-size:19px}#stage .actions .question-next{flex:1;min-width:0;padding:12px 14px}#stage .question-section{max-width:58%;overflow-wrap:anywhere}#stage .question-meta{gap:6px}#stage .plan-help-card{margin-top:12px}}@media(prefers-reduced-motion:reduce){#stage .card{animation:none}}
 </style>
 <?php if (isset($context['modal'])): ?>
 <style>.nav{display:none}.prog{top:0}.wrap{max-width:none;padding:16px 22px 34px}.card{scroll-margin-top:98px}@media(max-width:540px){.wrap{padding:14px}}.prefill-note{padding:9px 12px;margin:10px 0;border:1px solid #cfe5df;border-radius:9px;background:#eff8f4;color:#33755d;font-size:12px;line-height:1.6}
@@ -176,14 +211,15 @@ a{color:inherit;text-decoration:none}button,input,textarea,select{font:inherit;c
 </div></nav>
 <div class="prog"><div class="prog__in"><div class="prog__row"><span><?=$planYear?>년 소방계획서</span><span><b id="progressPct">0%</b> · <span id="progressText"></span></span></div><div class="bar"><i id="progressBar"></i></div></div></div>
 <main class="wrap">
-<details class="chat-settings"><summary><span class="chat-settings__summary"><b>작성 설정</b><small id="sourceSummary">먼저 반영할 자료를 골라주세요.</small></span></summary><div class="chat-settings__body">
+<details class="chat-settings"><summary><span class="chat-settings__summary"><b>작성 설정</b><small id="sourceSummary">반영할 자료를 선택하면 자동으로 채워집니다.</small></span></summary><div class="chat-settings__body">
   <div class="toolbar"><label for="sectionNav">작성 항목</label><select id="sectionNav" aria-label="작성 항목 선택"></select></div>
-  <div class="source-bar"><span aria-hidden="true"></span><button type="button" class="btn btn--sm" id="changeSources">자료 다시 선택</button></div>
+  <div class="source-bar"><span aria-hidden="true"></span><button type="button" class="btn btn--sm" id="changeSources">반영 자료 선택</button></div>
 </div></details>
-<script src="/manager_help.js?v=10" data-fireplan="<?=h($planId)?>" data-uid="<?=h(fp_user_key())?>" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
+<script src="/manager_help.js?v=13" data-fireplan="<?=h($planId)?>" data-uid="<?=h(fp_user_key())?>" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
 <div id="chatLog" aria-label="작성 대화 기록"></div>
 <div id="stage"></div><div id="saveStatus" class="status" role="status"></div>
 </main><script>
+const IS_HELP_MANAGER=<?=!empty($_SESSION['_mge_actor'])?'true':'false'?>;
 const HELP_PLAN_ID=<?=json_encode($planId)?>;
 const APP = <?=json_encode($boot,JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_INVALID_UTF8_SUBSTITUTE)?>;
 if(window.parent!==window)window.parent.postMessage({type:'fp-modal-year',year:APP.year},location.origin);
@@ -197,7 +233,7 @@ const grade3 = () => String(data['1'].grade || '').replace(/\s/g,'') === '3급';
 const comp = () => data['3'].comprehensive === '포함' || (data['3'].comprehensive !== '제외' && !grade3());
 function skipped(c){return ({'7':'split','8':'joint','12':'hazmat'})[c] && data['1'][({'7':'split','8':'joint','12':'hazmat'})[c]] === '해당없음';}
 function visible(f){return !(code === '1' && ['ins_co','ins_term','ins_life','ins_prop'].includes(f.key) && data['1'].ins !== '가입') && !(code === '3' && f.key.startsWith('r2_') && !comp());}
-function fields(){return Object.values(APP.schema[code]).filter(visible);}
+function fields(){return helpMode&&activeHelp?Object.values(APP.schema[code]).filter(f=>f.key===activeHelp.key):Object.values(APP.schema[code]).filter(visible);}
 function answered(k){return (data[code]._chat_answers || []).includes(k);}
 function suggestion(k){
   const source = (APP.sources.data[code] || {})[k];
@@ -218,22 +254,28 @@ function suggestion(k){
 function value(k){return answered(k) || !empty(data[code][k]) ? data[code][k] : suggestion(k);}
 function updateProgress(){
   const active = codes.filter(c=>!skipped(c)), count = active.filter(c=>data[c]._chat_complete).length;
-  const pct = active.length ? Math.round(count/active.length*100) : 0;
-  document.getElementById('progressText').textContent = count+' / '+active.length+'항목 확인';
+  let total=0,done=0;
+  active.forEach(c=>Object.values(APP.schema[c]).forEach(f=>{
+    const hidden=(c==='1'&&['ins_co','ins_term','ins_life','ins_prop'].includes(f.key)&&data['1'].ins!=='가입')||(c==='3'&&f.key.startsWith('r2_')&&!comp());
+    if(!hidden){total++;if((data[c]._chat_answers||[]).includes(f.key))done++;}
+  }));
+  document.getElementById('progressText').textContent = '질문 '+done+' / '+total+' · 항목 '+count+' / '+active.length;
+
+  const pct=total?Math.round(done/total*100):0;
   document.getElementById('progressPct').textContent = pct+'%';
   document.getElementById('progressBar').style.width = pct+'%';
   nav.innerHTML = codes.map(c=>'<option value="'+c+'">'+c+'. '+esc(APP.titles[c])+(skipped(c)?' · 해당없음':data[c]._chat_complete?' · 확인 완료':'')+'</option>').join(''); nav.value = code;
 }
-function card(title, body='') {saveCurrentAnswer=null;stage.innerHTML='<section class="card"><div class="msg"><div class="msg__av" aria-hidden="true">🚒</div><div class="msg__b"><h2 class="question" tabindex="-1">'+esc(title)+'</h2></div></div><div class="answer">'+body+'<div class="actions" id="actions"></div><div class="error" id="error" role="alert"></div></div></section>';const meta=stage.querySelector('.question-meta');if(meta)stage.querySelector('.msg__b').append(meta);requestAnimationFrame(()=>stage.scrollIntoView({block:'start',behavior:'smooth'}));}
+function card(title, body='') {saveCurrentAnswer=null;stage.innerHTML='<section class="card"><div class="msg"><div class="msg__av" aria-hidden="true">🚒</div><div class="msg__b"><h2 class="question" tabindex="-1">'+esc(title)+'</h2></div></div><div class="answer">'+body+'<div class="actions" id="actions"></div><div class="error" id="error" role="alert"></div></div></section>';const meta=stage.querySelector('.question-meta');if(meta)stage.querySelector('.msg__b').prepend(meta);requestAnimationFrame(()=>stage.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}));}
 function recordTurn(answer){
   const log=document.getElementById('chatLog'),turn=document.createElement('div');turn.className='chat-turn';
   const question=document.createElement('div');question.className='msg';question.innerHTML='<div class="msg__av" aria-hidden="true">🚒</div><div class="msg__b chat-bot"></div>';question.querySelector('.chat-bot').textContent=stage.querySelector('.question')?.textContent || '내용 확인';
   const reply=document.createElement('div');reply.className='msg msg--me';reply.innerHTML='<div class="msg__av" aria-hidden="true">🙂</div><div class="msg__b chat-user"></div>';reply.querySelector('.chat-user').textContent=text(answer)||'해당없음';turn.append(question,reply);log.append(turn);
 }
-function sourceSummary(){document.getElementById('sourceSummary').textContent=APP.sources.names.length?'반영 자료 · '+APP.sources.names.join(' · '):'자료를 불러오지 않고 직접 작성';}
+function sourceSummary(){document.getElementById('sourceSummary').textContent=APP.sources.names.length?'반영 자료 · '+APP.sources.names.join(' · '):'자동 반영할 자료 없음 · 추가 내용을 작성해 주세요';}
 function chooseSources(){
   updateProgress();nav.disabled=true;
-  const html='<p class="hint">필요한 자료만 골라주세요. 선택한 자료는 답변을 확인할 때 반영돼요.</p><div class="source-grid">'+Object.entries(APP.sources.groups).map(([id,g])=>'<label class="source-option"><input type="checkbox" value="'+id+'" '+((APP.selectionSet?APP.selection.includes(id):g.available)?'checked ':'')+(!g.available?'disabled ':'')+'><span><b>'+esc(g.title)+'</b><small>'+esc(g.detail)+(g.available?'':' · 불러올 자료 없음')+'</small></span></label>').join('')+'</div><p class="hint">기본정보·편성·피난계획은 현재 자료입니다. '+APP.year+'년 당시 현황과 맞는지 확인해 주세요. 선택을 해제해도 이미 저장한 답변은 지워지지 않습니다.</p>';
+  const html='<p class="hint">필요한 자료만 골라주세요. 선택한 자료는 바로 저장되며, 해당 질문은 건너뜁니다.</p><div class="source-grid">'+Object.entries(APP.sources.groups).map(([id,g])=>'<label class="source-option"><input type="checkbox" value="'+id+'" '+((APP.selectionSet?APP.selection.includes(id):g.available)?'checked ':'')+(!g.available?'disabled ':'')+'><span><b>'+esc(g.title)+'</b><small>'+esc(g.detail)+(g.available?'':' · 불러올 자료 없음')+'</small></span></label>').join('')+'</div><p class="hint">기본정보·편성·피난계획은 현재 자료입니다. '+APP.year+'년 당시 현황과 맞는지 확인해 주세요. 직접 수정한 답변은 유지됩니다.</p>';
   card(APP.year+'년 계획서에 어떤 자료를 반영할까요?',html);
   stage.querySelectorAll('.source-option input').forEach(el=>el.addEventListener('change',()=>dirty=true));
   const saveSelection=async()=>{
@@ -242,11 +284,40 @@ function chooseSources(){
     recordTurn(APP.sources.names.length?APP.sources.names.join(' · ')+' 반영':'직접 작성할게요');sourceSummary();return true;
   };
   saveCurrentAnswer=saveSelection;
-  button('선택한 자료로 시작 →',async()=>{if(await saveSelection())resumeChat();},true);
+  button('선택한 자료 자동 반영 →',async()=>{if(await saveSelection())resumeChat();},true);
   button('불러오지 않고 직접 작성',async()=>{if(!await send('sources',[]))return;recordTurn('직접 작성할게요');sourceSummary();resumeChat();});
 }
-let helpJumpUsed=false;
+let helpJumpUsed=false,helpMode=false,activeHelp=null,helpRows=APP.help_pending||[],helpCompleted=0;
+const deferredHelp=new Set();
+function parseHelp(row){const m=/^__fp_([0-9]+)_([0-9]+)_([A-Za-z0-9_]+)$/.exec(row.field||'');return m&&m[1]===String(HELP_PLAN_ID)?{...row,code:m[2],key:m[3]}:null;}
+function pendingHelp(){return helpRows.map(parseHelp).filter(r=>r&&APP.schema[r.code]?.[r.key]);}
+function nextHelp(){
+ const pending=pendingHelp(),next=pending.find(r=>!deferredHelp.has(r.field));
+ if(next){activeHelp=next;code=next.code;fieldIndex=0;reviewAll=true;dirty=false;updateProgress();askNext(true);return;}
+ activeHelp=null;dirty=false;
+ if(helpRows.length&&!pending.length){card('요청 항목을 확인해 주세요.','<p class="hint">현재 문답에서 열 수 없는 요청이 남아 있습니다. 상단 요청 목록을 확인해 주세요.</p>');}
+ else if(pending.length){card('아직 요청사항이 남아 있습니다.','<p class="hint">나중에 작성으로 남긴 질문 '+pending.length+'건이 있습니다. 저장한 답변만 완료 처리됩니다.</p>');button('남은 요청 이어서 작성',()=>{deferredHelp.clear();nextHelp();},true);}
+ else{card('요청사항 작성 완료','<div class="help-finished"><b>이 계획서의 요청사항을 모두 작성했습니다.</b><p>답변이 저장되었고, 유저 화면에서도 요청 완료로 표시됩니다.</p></div>');}
+ button('전체 소방계획서 보기',()=>{helpMode=false;helpJumpUsed=true;resumeChat();});
+}
+function nextUserQuestion(fromCode=code,fromKey=null){
+ dirty=false;helpMode=false;activeHelp=null;code=fromCode;
+ if(fromKey!==null)fieldIndex=fields().findIndex(f=>f.key===fromKey);
+ const pending=new Set((window.managerHelp?.getState()?.rows||[]).filter(r=>r.status==='pending'&&r.connection_active).map(r=>r.field));
+ for(let ci=codes.indexOf(code);ci<codes.length;ci++){
+  const c=codes[ci];if(skipped(c))continue;const start=c===code?fieldIndex+1:0;code=c;
+  const list=fields();for(let i=start;i<list.length;i++)if(!answered(list[i].key)&&!pending.has('__fp_'+HELP_PLAN_ID+'_'+c+'_'+list[i].key)){fieldIndex=i;reviewAll=false;updateProgress();askNext(false);requestAnimationFrame(()=>stage.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}));return;}
+  fieldIndex=-1;
+ }
+ finish();
+}
+
 function resumeChat(){
+ if(IS_HELP_MANAGER&&!helpJumpUsed&&pendingHelp().length){
+  const q=new URLSearchParams(location.search),wanted='__fp_'+HELP_PLAN_ID+'_'+q.get('help_code')+'_'+q.get('help_key');
+  helpRows.sort((a,b)=>Number(b.field===wanted)-Number(a.field===wanted));
+  helpJumpUsed=true;helpMode=true;deferredHelp.clear();nextHelp();return;
+ }
  const query=new URLSearchParams(location.search),c=query.get('help_code'),key=query.get('help_key');
  if(!helpJumpUsed&&APP.schema[c]?.[key]){helpJumpUsed=true;code=c;reviewAll=true;updateProgress();fieldIndex=fields().findIndex(f=>f.key===key);if(fieldIndex>=0){askNext(true);return;}}
  const resume=codes.find(c=>!skipped(c)&&!data[c]._chat_complete);if(resume)enter(resume);else finish();}
@@ -323,13 +394,13 @@ function quickPresets(f){
 }
 function renderQuickAnswers(area,input,f,current,onPick,onManual){
   const picks=quickPresets(f),box=document.createElement('div');box.className='quick-answer';
-  const label=document.createElement('span');label.className='quick-answer__label';label.textContent=empty(current)?'자주 쓰는 답변':'다른 답변 선택';
+  const label=document.createElement('span');label.className='quick-answer__label';label.textContent='빠른 입력 · 선택 후 아래에서 저장';
   const choices=document.createElement('div');choices.className='quick-answer__choices';box.append(label,choices);
   const buttons=[];
   picks.forEach(p=>{const b=document.createElement('button');b.type='button';b.className='option'+(p.value.length>45?' option--long':'');b.textContent=p.label;b.title=p.label===p.value?'':p.value;b.onclick=async()=>{if(busy)return;input.value=p.value;input.dispatchEvent(new Event('input',{bubbles:true}));b.classList.add('on');if(onPick)await onPick();};choices.append(b);buttons.push([b,p.value]);});
-  const manual=document.createElement('button');manual.type='button';manual.className='btn btn--sm quick-answer__manual';manual.textContent='✏️ 직접 입력';manual.onclick=()=>{box.hidden=true;input.hidden=false;if(onManual)onManual();input.focus();try{input.select();}catch(e){}};choices.append(manual);
+  const manual=document.createElement('button');manual.type='button';manual.className='btn btn--sm quick-answer__manual';manual.textContent='직접 입력';manual.onclick=()=>{box.hidden=true;input.hidden=false;if(onManual)onManual();input.focus();try{input.select();}catch(e){}};choices.append(manual);
   const sync=()=>{buttons.forEach(([b,val])=>b.classList.toggle('on',input.value.trim()===val));};
-  input.classList.add('direct-answer-input');input.hidden=empty(current);input.addEventListener('input',sync);if(empty(current))area.insertBefore(box,input);else area.append(box);sync();
+  input.classList.add('direct-answer-input');input.hidden=false;input.addEventListener('input',sync);area.append(box);sync();
 }
 async function send(act,patch={}) {
   if(busy)return false;busy=true;
@@ -339,13 +410,13 @@ async function send(act,patch={}) {
     const body = new FormData();body.set('csrf',APP.csrf);body.set('code',code);body.set('act',act);body.set('patch',JSON.stringify(patch));
     const r = await fetch(location.href,{method:'POST',body,credentials:'same-origin',signal:controller.signal});
     const j = await r.json();if(!r.ok || !j.ok)throw new Error(j.error || '저장하지 못했습니다.');
-    data = j.sections;if(j.sources){APP.sources=j.sources;APP.selection=j.selection;APP.selectionSet=true;}dirty=false;updateProgress();savedStatus.textContent='저장되었습니다';window.managerHelp?.refresh();try{if(window.parent!==window)window.parent.managerHelp?.refresh();}catch(e){}return true;
+    data = j.sections;if(Array.isArray(j.help_pending)){helpRows=j.help_pending;window.managerHelp?.applyPlanPending?.(HELP_PLAN_ID,helpRows);}if(j.sources){APP.sources=j.sources;APP.selection=j.selection;APP.selectionSet=true;}dirty=false;updateProgress();savedStatus.textContent='저장되었습니다';window.managerHelp?.refresh();try{if(window.parent!==window)window.parent.managerHelp?.refresh();if(window.top!==window.parent)window.top.managerHelp?.refresh();if('BroadcastChannel' in window){const ch=new BroadcastChannel('manager-plan-changes');ch.postMessage('plan-saved');ch.close();}}catch(e){}return true;
   }catch(e){document.getElementById('error').textContent=e.message || '연결을 확인하고 다시 시도해 주세요.';savedStatus.textContent='저장되지 않았습니다. 현재 답변을 다시 저장해 주세요.';return false;}
   finally{clearTimeout(timeout);busy=false;nav.disabled=!APP.selectionSet;stage.querySelectorAll('button,input,textarea').forEach(el=>{if(!el.closest('.source-option') || APP.sources.groups[el.value]?.available)el.disabled=false;});}
 }
 function enter(c){code=c;fieldIndex=0;dirty=false;reviewAll=false;updateProgress();
   if(skipped(c)){card('일반현황에서 해당없음으로 선택한 항목입니다.');button('다음 항목',nextSection,true);return;}
-  if(fields().every(f=>answered(f.key))){card('이 항목은 이미 작성되어 있습니다.','<p class="hint">기존 답변은 문답 화면에 다시 표시하지 않습니다. 다시 작성할 때만 새 답변을 입력해 주세요.</p>');button('새로 다시 작성',()=>{fieldIndex=0;askNext(true);},true);button('다음 항목',nextSection);return;}
+  if(fields().every(f=>answered(f.key))){card('이 항목은 저장된 내용으로 채워졌습니다.',reviewHtml(fields()));button('새로 다시 작성',()=>{fieldIndex=0;askNext(true);},true);button('다음 항목',nextSection);return;}
   askNext(false);
 }
 function askNext(all){if(all!==undefined)reviewAll=all;
@@ -357,17 +428,23 @@ function askNext(all){if(all!==undefined)reviewAll=all;
   const v=hasStored?data[code][f.key]:source;
   const hasValue=!empty(v);
 
+  const sectionFields=Object.values(APP.schema[code]).filter(visible);
+  const questionNumber=Object.keys(APP.schema[code]).indexOf(f.key)+1;
+  const sectionPosition=Math.max(1,sectionFields.findIndex(item=>item.key===f.key)+1);
+  const questionMeta='<div class="question-meta"><span class="question-id">질문 '+esc(code)+'-'+questionNumber+'</span><span class="question-section">'+esc(APP.titles[code])+'</span><span class="question-position">'+(helpMode?'남은 요청 '+pendingHelp().length+'건':sectionPosition+' / '+sectionFields.length)+'</span></div>';
   const prompts={name:'건물 이름이 어떻게 되나요?',addr:'건물 주소를 알려주세요.',grade:'소방안전관리 등급을 선택해 주세요.',approval:'건물 사용승인일은 언제인가요?',mgr_name:'소방안전관리자 이름을 알려주세요.'};
-  card(prompts[f.key] || (f.label.endsWith('?')||f.label.endsWith('.')?f.label:f.label+' 내용을 알려주세요.'),'<div class="question-meta">이 항목의 '+(fieldIndex+1)+'번째 질문 / '+list.length+'</div><div id="inputArea"></div>'+(f.hint?'<p class="hint">'+esc(f.hint)+'</p>':''));
+  card(prompts[f.key] || (f.label.endsWith('?')||f.label.endsWith('.')?f.label:f.label+' 내용을 알려주세요.'),questionMeta+'<div id="inputArea"></div>'+(f.hint?'<p class="hint">'+esc(f.hint)+'</p>':''));
   const area=document.getElementById('inputArea');let read,quickInput=null;
+  if(helpMode){const info=document.createElement('p');info.className='help-question-label';info.textContent='유저가 요청한 질문 · '+APP.titles[code]+' · 남은 요청 '+pendingHelp().length+'건';area.before(info);}
+
   if(hasValue){const notice=document.createElement('p');notice.className='prefill-note';notice.textContent=hasStored?'저장된 답변입니다. 확인하거나 수정해 주세요.':'선택한 자료에서 불러왔습니다. 내용을 확인해 주세요.';area.before(notice);}
 
   if(f.type==='multi' || f.type==='choice'){
     const opts=[...new Set([...f.options,...(f.type==='multi'&&Array.isArray(v)?v:[])])];
     area.className='options';area.setAttribute('role','group');area.setAttribute('aria-label',f.label);
     opts.forEach(o=>{const label=document.createElement('label');label.className='option';const input=document.createElement('input');input.type=f.type==='multi'?'checkbox':'radio';input.name='answer';input.value=o;input.checked=f.type==='multi'?(Array.isArray(v)&&v.includes(o)):v===o;label.append(input,document.createTextNode(o));area.append(label);
-      input.addEventListener('change',()=>{dirty=true;if(f.type==='multi'&&input.checked){area.querySelectorAll('input').forEach(other=>{if(other!==input&&(o==='해당없음'||other.value==='해당없음'))other.checked=false;});}if(f.type==='choice')setTimeout(()=>submit(),0);});
-      label.addEventListener('click',e=>{if(f.type==='choice'&&e.target===label&&input.checked)setTimeout(()=>submit(),0);});
+      input.addEventListener('change',()=>{dirty=true;if(f.type==='multi'&&input.checked){area.querySelectorAll('input').forEach(other=>{if(other!==input&&(o==='해당없음'||other.value==='해당없음'))other.checked=false;});}});
+
     });read=()=>{const vs=[...area.querySelectorAll('input:checked')].map(i=>i.value);return f.type==='multi'?vs:vs[0]||'';};
   }else{
     const input=document.createElement(f.type==='memo'?'textarea':'input');if(f.type!=='memo')input.type=['date','number'].includes(f.type)?f.type:'text';if(f.type==='number'){input.min='0';input.step='any';}input.value=empty(v)?'':text(v);input.setAttribute('aria-label',f.label);area.append(input);input.addEventListener('input',()=>dirty=true);quickInput=input;read=()=>input.value.trim();
@@ -376,38 +453,48 @@ function askNext(all){if(all!==undefined)reviewAll=all;
     const val=blank?(f.type==='multi'?[]:''):read();
     if(!blank && f.type!=='multi' && empty(val)){document.getElementById('error').textContent='답변을 입력하거나 아래에서 해당없음 또는 잘 모르겠어요를 선택해 주세요.';return false;}
     if(!blank && [...area.querySelectorAll('input')].some(i=>!i.checkValidity())){document.getElementById('error').textContent='입력 형식을 확인해 주세요.';return false;}
-    if(await send('answer',{[f.key]:val})){recordTurn(empty(val)?'해당없음':val);if(advance){fieldIndex++;askNext();}return true;}return false;
+    if(await send('answer',{[f.key]:val})){recordTurn(empty(val)?'해당없음':val);if(advance){if(helpMode){helpCompleted++;nextHelp();}else{fieldIndex++;askNext();}}return true;}return false;
   };
   saveCurrentAnswer=()=>submit(false,false);
-  if(fieldIndex>0)button('이전',()=>{if(dirty&&!confirm('입력 중인 답변을 저장하지 않고 이전 질문으로 갈까요?'))return;dirty=false;fieldIndex--;askNext(true);});
-  let nextBtn=null;if(f.type==='choice'&&hasValue){nextBtn=button('이 내용으로 저장 →',()=>submit(),true);}if(f.type!=='choice'){nextBtn=button(f.type==='multi'?'선택 완료 →':'다음 →',()=>submit(),true);if(quickInput)nextBtn.hidden=!hasValue;}
+  if(!helpMode&&fieldIndex>0)button('이전',()=>{if(dirty&&!confirm('입력 중인 답변을 저장하지 않고 이전 질문으로 갈까요?'))return;dirty=false;fieldIndex--;askNext(true);});
+  const nextBtn=button(helpMode?'저장하고 다음 요청 →':'저장하고 다음 →',()=>submit(),true);nextBtn.classList.add('question-next');
+
   const extra=document.createElement('div');extra.className='answer-extra';extra.setAttribute('role','group');extra.setAttribute('aria-label','다른 답변 선택');
   const extraButtons=document.createElement('div');extraButtons.className='extra-buttons';extra.append(extraButtons);
-  document.getElementById('actions').before(extra);
+  document.getElementById('error').after(extra);
   if(!(code==='1'&&['name','addr','mgr_name','grade'].includes(f.key))){const none=button('해당없음',()=>submit(true));extraButtons.append(none);}
-  const later=button('나중에 작성',()=>{if(dirty&&!confirm('저장하지 않은 답변을 두고 넘어갈까요?'))return;dirty=false;fieldIndex++;askNext();});extraButtons.append(later);
+  const later=button('나중에 작성',()=>{if(dirty&&!confirm('저장하지 않은 답변을 두고 넘어갈까요?'))return;dirty=false;if(helpMode){deferredHelp.add(activeHelp.field);nextHelp();}else{fieldIndex++;askNext();}});extraButtons.append(later);
+  const requestCard=document.createElement('div');requestCard.className='plan-help-card';
+  const requestIcon=document.createElement('span');requestIcon.className='plan-help-icon';requestIcon.setAttribute('aria-hidden','true');
+  requestIcon.innerHTML='<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5a8 8 0 0 1-8 8H5l-3 2v-10a9 9 0 0 1 18 0Z"/><path d="M8.5 9a2.5 2.5 0 0 1 5 .5c0 1.5-2 1.5-2 3M11.5 15.5h.01"/></svg>';
+  const requestCopy=document.createElement('div');requestCopy.className='plan-help-copy';
+  const requestTitle=document.createElement('strong');requestTitle.textContent='이 질문의 작성을 요청할까요?';
+  const requestDesc=document.createElement('p');requestDesc.textContent=APP.titles[code]+' · '+f.label;requestDesc.setAttribute('role','status');
+  const requestHint=document.createElement('small');requestHint.textContent='지금 보이는 질문만 전달되며, 접수 후 다음 질문으로 넘어갑니다.';requestCopy.append(requestTitle,requestDesc,requestHint);requestCard.append(requestIcon,requestCopy);extra.append(requestCard);
+  function requestDone(){requestCard.classList.add('is-sent');requestTitle.textContent='매니저에게 요청을 보냈어요';requestDesc.textContent='답변이 작성되면 이 질문의 요청이 완료됩니다.';request.textContent='요청 접수 완료';request.disabled=true;}
+  const requestCode=code,requestKey=f.key;
   const request=button('담당 매니저 확인 중…',async()=>{
-    request.disabled=true;
-    try{const state=await window.managerHelp.request('__fp_'+HELP_PLAN_ID+'_'+code+'_'+f.key,APP.year+'년 소방계획서 · '+APP.titles[code]+' · '+f.label);
-      if(state){request.textContent='요청 접수 완료';savedStatus.textContent='담당 매니저에게 이 질문의 작성 도움을 요청했습니다.';try{window.parent.managerHelp?.refresh();}catch(e){}}
+    request.disabled=true;busy=true;nav.disabled=true;
+    try{const state=await window.managerHelp.request('__fp_'+HELP_PLAN_ID+'_'+requestCode+'_'+requestKey,APP.year+'년 소방계획서 · '+APP.titles[requestCode]+' · '+f.label);
+      if(state){requestDone();recordTurn('작성 도움 요청 · '+f.label);savedStatus.textContent='‘'+f.label+'’ 질문의 요청을 보냈습니다.';dirty=false;try{window.parent.managerHelp?.refresh();}catch(e){}nextUserQuestion(requestCode,requestKey);}
       else request.disabled=false;
-    }catch(e){request.disabled=false;document.getElementById('error').textContent=e.message;}
-  });request.disabled=true;extraButtons.append(request);
+    }catch(e){request.disabled=false;document.getElementById('error').textContent=e.message;}finally{busy=false;nav.disabled=false;}
+  });requestCard.hidden=IS_HELP_MANAGER;request.disabled=true;request.classList.add('plan-help-button');requestCard.append(request);
   window.managerHelp.ready.then(initial=>{
     const state=window.managerHelp.getState()||initial;
-    if(state?.mode==='manager'){request.hidden=true;return;}
+    if(IS_HELP_MANAGER||state?.mode==='manager'){requestCard.hidden=true;return;}
     const field='__fp_'+HELP_PLAN_ID+'_'+code+'_'+f.key;
     const pending=state?.rows.some(r=>r.field===field&&r.status==='pending'&&r.connection_active);
-    request.disabled=!!pending;request.textContent=pending?'요청 접수 완료':state?.mode==='local'?'잘 모르겠어요 · 로컬매니저 연결하고 요청하기':'잘 모르겠어요 · '+(state?.manager_name||'담당 매니저')+'에게 요청하기';
+    if(pending){requestDone();return;}request.disabled=false;request.textContent=state?.mode==='local'?'로컬매니저 연결하고 요청하기':(state?.manager_name||'담당 매니저')+'에게 요청하기';
   });
-  const help=document.createElement('span');help.className='save-hint';help.textContent=f.type==='choice'?'답변을 누르면 바로 저장돼요':f.type==='multi'?'여러 답변을 고른 뒤 선택 완료를 눌러주세요':'일반 답변을 누르면 바로 다음으로 넘어가요';document.getElementById('actions').append(help);
-  if(quickInput){renderQuickAnswers(area,quickInput,f,v,()=>submit(),()=>{if(nextBtn)nextBtn.hidden=false;help.textContent='내용을 적은 뒤 다음을 눌러주세요';});if(f.type!=='memo')quickInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submit();}});}
+  const help=document.createElement('span');help.className='save-hint';help.textContent='답변을 확인한 뒤 저장하고 다음을 눌러주세요.';document.getElementById('actions').append(help);
+  if(quickInput){renderQuickAnswers(area,quickInput,f,v,()=>{},()=>{if(nextBtn)nextBtn.hidden=false;help.textContent='내용을 적은 뒤 다음을 눌러주세요';});if(f.type!=='memo')quickInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submit();}});}
   stage.querySelector('.question').focus({preventScroll:true});
 }
 function sectionEnd(){
   const missing=fields().filter(f=>!answered(f.key));
   card(missing.length?'아직 확인할 내용이 남아 있어요.':'이 항목의 작성이 끝났습니다.',missing.length?'<p class="hint">미확인: '+missing.map(f=>esc(f.label)).join(' · ')+'</p>':'<p class="hint">작성한 내용은 소방계획서에 저장되었습니다. 필요하면 아래에서 이 항목을 새로 다시 작성할 수 있습니다.</p>');
-  if(!missing.length)button('이 항목 확인 완료',async()=>{if(await send('confirm'))nextSection();},true);
+  if(!missing.length)button('다음 항목으로 →',async()=>{if(data[code]._chat_complete || await send('confirm'))nextSection();},true);
   else button('남은 질문 답하기',()=>{fieldIndex=0;askNext(false);},true);
   button('처음부터 확인·수정',()=>{fieldIndex=0;askNext(true);});button('다음 항목',nextSection);
 }
@@ -416,7 +503,7 @@ function finish(){const pending=codes.filter(c=>!skipped(c)&&!data[c]._chat_comp
   pending.forEach(c=>button(c+'. '+APP.titles[c],()=>enter(c)));
   const actions=document.getElementById('actions');[['표에서 최종 확인',APP.editUrl],['인쇄 · PDF',APP.printUrl],['목록으로',APP.listUrl]].forEach(([label,href],index)=>{const a=document.createElement('a');a.className='btn'+(index===0?' btn--pri':'');a.href=href;a.textContent=label;if(label==='인쇄 · PDF'){a.target='_blank';a.rel='noopener';}actions.append(a);});
 }
-nav.addEventListener('change',()=>{const selected=nav.value;if(dirty&&!confirm('저장하지 않은 답변이 있습니다. 다른 항목으로 이동할까요?')){nav.value=code;return;}enter(selected);});
+nav.addEventListener('change',()=>{const selected=nav.value;if(dirty&&!confirm('저장하지 않은 답변이 있습니다. 다른 항목으로 이동할까요?')){nav.value=code;return;}helpMode=false;activeHelp=null;helpJumpUsed=true;enter(selected);});
 window.addEventListener('beforeunload',e=>{if(dirty||busy){e.preventDefault();e.returnValue='';}});
 function closePopup(){
   window.parent.postMessage({type:'fp-modal-request-close'},location.origin);
@@ -438,7 +525,7 @@ document.addEventListener('click',event=>{
     event.preventDefault();closePopup();
   }
 });
-document.getElementById('changeSources').addEventListener('click',()=>{if(busy)return;if(dirty&&!confirm('저장하지 않은 답변을 두고 자료 선택으로 이동할까요?'))return;dirty=false;chooseSources();});
+document.getElementById('changeSources').addEventListener('click',()=>{if(busy)return;if(dirty&&!confirm('입력 중인 답변을 두고 저장된 자료를 반영할까요?'))return;dirty=false;chooseSources();});
 sourceSummary();
 if(APP.selectionSet)resumeChat();else chooseSources();
 </script>

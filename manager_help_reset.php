@@ -8,7 +8,7 @@ function mh_reset_building_requests(string $uid, callable $resetBuilding): void 
     mg_tx(__DIR__.'/data/manager_help_requests.php',function(array &$rows)use($uid,$resetBuilding){
         if($resetBuilding()!==true) throw new RuntimeException('기본정보를 초기화하지 못했습니다. 다시 시도해 주세요.');
         foreach($rows as $id=>$row){
-            if(is_array($row)&&(string)($row['uid']??'')===$uid&&($row['field']??'')!=='__facilities'&&strpos((string)($row['field']??''),'__fp_')!==0) unset($rows[$id]);
+            if(is_array($row)&&(string)($row['uid']??'')===$uid&&strpos((string)($row['field']??''),'__fp_')!==0) unset($rows[$id]);
         }
     },true);
 }

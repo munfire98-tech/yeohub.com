@@ -2047,7 +2047,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
     <?php if($msReady): ?><button type="button" class="manager-header-wallet" data-wallet-open aria-haspopup="dialog" aria-controls="manager-wallet-dialog"><span class="header-wallet-icon" aria-hidden="true"><?=mg_icon('coin')?></span><span class="header-wallet-label">파이어코인<small>적립 내역 보기</small></span><strong><?=number_format((int)$ms['balance'])?><small>개</small></strong><span aria-hidden="true" class="wallet-chevron">›</span></button><?php endif; ?>
   </div>
 </header>
-<?php if($managerHeaderName!==null): ?><script src="/manager_help.js?v=7" data-manager="1"></script><?php endif; ?>
+<?php if($managerHeaderName!==null): ?><script src="/manager_help.js?v=20260926-inbox" data-manager="1"></script><?php endif; ?>
 
 <?php if($msReady)ms_render_wallet($ms); ?>
 
@@ -2058,16 +2058,20 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
 
     <section class="focus-map" aria-label="담당 건물 지도">
       <link rel="stylesheet" href="/manager_map.css?v=3">
+      <?php if($msReady): ?><div class="mm-management-bar"><h2>담당 건물</h2><div class="mm-management-actions"><a href="/manager_addresses.php" data-address-open class="mm-draft-list">사전등록 <b data-preregister-count><?=count($ms['preregistered']??[])?></b>곳</a><a href="/manager_addresses.php?new=1" data-address-open class="mm-draft-add"><span aria-hidden="true">＋</span> 건물 사전등록</a></div></div><?php endif; ?>
       <div id="map"></div>
     </section>
 
     <!-- 우측: 이번 달 미등록 마을 -->
 
     <aside class="inactive-panel ms-sidebar" id="manager-sidebar" data-initial-pending="<?=h((string)($ms['pending']??0))?>">
+      <link rel="stylesheet" href="/manager_inbox.css?v=2">
+      <?php if($msReady): ?><a href="/manager_addresses.php?requests=1" data-address-open class="ms-connect-banner" id="manager-connect-banner" <?=empty($ms['pending'])?'hidden':''?>><span class="ms-connect-icon" aria-hidden="true">＋</span><span><strong>새로운 연결 요청 <b data-connect-count><?=$ms['pending']??0?></b>건</strong><small data-connect-summary><?php $connectNames=[];foreach(($ms['rows']??[]) as $connectUid=>$connectMember){if(($connectMember['_status']??'')==='pending')$connectNames[]=trim((string)($connectMember['nickname']??''))?:(string)$connectUid;}echo mg_e($connectNames?($connectNames[0].(count($connectNames)>1?' 외 '.(count($connectNames)-1).'곳':'').'에서 연결을 요청했습니다.'):'매니저 코드로 연결을 요청한 유저입니다.'); ?></small><em>요청 확인하기 →</em></span></a><?php mg_notice(); endif; ?>
       <div class="ms-head"><div><small>MY WORKSPACE</small><h3>내 워크스페이스</h3></div></div>
       <div class="ms-tabs" role="tablist" aria-label="관리 패널">
       <?php if($msReady): ?><button type="button" id="ms-tab-users" role="tab" aria-controls="ms-users" aria-selected="true" data-ms-tab="users">담당 유저</button><?php endif; ?>
-      <?php if($msReady): ?><button type="button" id="ms-tab-notifications" role="tab" aria-controls="ms-notifications" aria-selected="false" data-ms-tab="notifications">알림 <b class="ms-request-badge" data-request-badge <?=empty($ms['pending'])?'hidden':''?>><?=$ms['pending']??0?></b></button><?php endif; ?>
+      <?php if($msReady): ?><button type="button" id="ms-tab-help" role="tab" aria-controls="ms-help" aria-selected="false" data-ms-tab="help">작성 요청 <b class="ms-request-badge" data-help-badge hidden>0</b></button><?php endif; ?>
+      <?php if($msReady): ?><button type="button" id="ms-tab-notifications" role="tab" aria-controls="ms-notifications" aria-selected="false" data-ms-tab="notifications">알림 <b class="ms-request-badge" data-request-badge hidden>0</b></button><?php endif; ?>
       <?php if($msReady): ?><button type="button" id="ms-tab-months" role="tab" aria-controls="ms-months" aria-selected="false" data-ms-tab="months">사용승인월</button><?php endif; ?>
       </div>
       <?php if($msReady): ?><div class="ms-slide-controls"><button type="button" data-slide-prev aria-label="이전 탭">‹</button><span>좌우로 넘겨 확인하세요</span><button type="button" data-slide-next aria-label="다음 탭">›</button></div><?php ms_render($ms); endif; ?>
@@ -6207,10 +6211,11 @@ function estSavePdf() {
   });
 })();
 </script>
-<script src="/manager_map.js?v=8" defer></script>
+<script src="/manager_addresses_modal.js?v=6" defer></script>
+<script src="/manager_map.js?v=20260926-preregister-bar" defer></script>
 <script src="/manager_sidebar.js?v=7" defer></script>
-<script src="/manager_activity.js?v=8" defer></script>
+<script src="/manager_activity.js?v=20260927-request-building" defer></script>
 <?php require __DIR__ . '/manager_footer.php'; ?>
-<script src="/manager_payout.js?v=1" defer></script>
+<script src="/manager_payout.js?v=20260926-monthly" defer></script>
 </body>
 </html>

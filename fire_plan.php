@@ -19,10 +19,14 @@ $context=[];
 if(($_GET['embed']??'')==='1')$context['embed']='1';
 if(is_admin()&&isset($_GET['uid'])&&is_string($_GET['uid']))$context['uid']=$_GET['uid'];
 $link=function(string $path,array $args=[])use($context):string{$q=array_merge($context,$args);return $path.($q?'?'.http_build_query($q):'');};
+$deleteError='';
 if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'&&($_POST['act']??'')==='delete'){
-  fp_csrf_check();$p=fp_load_plan((string)($_POST['id']??''));if($p)fp_delete_plan((string)$p['id']);
-  header('Location: '.$link('/fire_plan.php'));exit;
+  fp_csrf_check();
+  try{fp_delete_plan((string)($_POST['id']??''));header('Location: '.$link('/fire_plan.php',['deleted'=>'1']));exit;}
+  catch(RuntimeException $e){$deleteError=$e->getMessage();}
 }
+require_once __DIR__.'/manager_fire_plan_help.php';
+$isHelpManager=!empty($_SESSION['_mge_actor']);
 $thisYear=(int)date('Y');
 $focusYear=filter_var($_GET['year']??$thisYear,FILTER_VALIDATE_INT,['options'=>['min_range'=>1901,'max_range'=>2199]]);
 if($focusYear===false)$focusYear=$thisYear;
@@ -35,7 +39,8 @@ foreach(fp_list_plans() as $row){
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>연도별 소방계획서</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f7f8fa;color:#2d3848;font:14px/1.6 system-ui,-apple-system,"Apple SD Gothic Neo",sans-serif}a{color:inherit;text-decoration:none}button,input{font:inherit}.plan-page{max-width:1000px;margin:auto;padding:30px 24px 50px}.plan-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:28px}h1{font-size:23px;margin:0 0 6px;letter-spacing:-.04em}.muted{font-size:12px;color:#7b8593}.year-picker{display:flex;align-items:center;gap:6px}.year-picker input{width:84px;padding:7px;border:1px solid #e0e5ec;border-radius:7px;background:#fff}.btn{display:inline-flex;align-items:center;justify-content:center;padding:7px 11px;border:1px solid #e0e5ec;border-radius:7px;background:#fff;font-size:12px;color:#596578;cursor:pointer}.years{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.year-card{display:flex;flex-direction:column;gap:20px;min-height:175px;padding:22px;border:1px solid #e1e6ed;border-radius:12px;background:#fff}.year-card:hover{border-color:#9daec8;background:#fcfdff}.year-card.current{border-color:#b9c7dc}.year-label{font-size:11px;color:#8a94a2}.year-title{font-size:24px;font-weight:650;letter-spacing:-.04em}.year-title small{font-size:12px;font-weight:400;margin-left:6px;color:#7a8596}.year-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:#5e718f}.intro-note{margin:16px 2px 30px;color:#7b8593;font-size:12px}.records{background:#fff;border:1px solid #e1e6ed;border-radius:12px;padding:20px}.records h2{font-size:15px;margin:0 0 8px}.record{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 0;border-top:1px solid #edf0f4}.record-main{min-width:0}.record-main b{font-size:13px}.record-actions{display:flex;gap:6px;flex-wrap:wrap}.record-actions form{margin:0}.empty{padding:25px 0;color:#7b8593;font-size:13px}.status{font-size:10px;margin-left:6px;padding:3px 6px;border-radius:4px;background:#f2f5f9;color:#6b7b93}.help{margin-top:22px;font-size:12px;color:#758192}.help summary{cursor:pointer}.help p{line-height:1.8}a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid #7e96ba;outline-offset:3px}@media(max-width:640px){.plan-page{padding:22px 16px}.plan-head{align-items:flex-start;flex-direction:column}.years{grid-template-columns:1fr}.year-card{min-height:0;gap:12px;padding:18px}.record{align-items:flex-start;flex-direction:column}.record-actions{width:100%}}
-</style></head><body><main class="plan-page">
+.request-open{background:#fff4df;border-color:#edbc68;color:#975c10;font-weight:750}</style></head><body><main class="plan-page">
+<?php if($deleteError!==''): ?><p role="alert" style="padding:12px;border-radius:10px;background:#fff0eb;color:#963c29"><?=h($deleteError)?></p><?php endif;?>
 <header class="plan-head"><div><h1>어느 해의 소방계획서를 작성할까요?</h1><div class="muted">연도를 선택하고, 기존 자료를 골라 대화로 작성하세요.</div></div>
 <form class="year-picker" method="get">
 <?php foreach($context as $k=>$v):?><input type="hidden" name="<?=h($k)?>" value="<?=h($v)?>"><?php endforeach;?>
@@ -54,13 +59,16 @@ foreach(fp_list_plans() as $row){
 <p class="intro-note">기존 계획서가 있으면 이어서 열립니다. 선택한 연도와 실제 작성일은 별도로 보관합니다.</p>
 <section class="records"><h2>작성한 계획서</h2>
 <?php if(!$plans):?><div class="empty">아직 작성한 계획서가 없어요. 위에서 연도를 선택해 시작해 보세요.</div>
-<?php else:foreach($plans as $p):?>
+<?php else:foreach($plans as $p): $requests=$isHelpManager?mfp_pending(fp_user_key(),(string)$p['id']):[]; ?>
 <div class="record"><div class="record-main"><b><?= (int)$p['plan_year'] ?>년 소방계획서</b><span class="status"><?=($p['status']??'')==='done'?'작성 완료':'작성 중'?></span><div class="muted"><?=h((string)($p['building_name']?:'건물정보 입력 전'))?> · 수정 <?=h(substr((string)($p['updated_at']??''),0,16))?></div></div>
 <div class="record-actions">
+<?php if($requests && preg_match('/^__fp_[0-9]+_([0-9]+)_([A-Za-z0-9_]+)$/',$requests[0]['field'],$requestMatch)): ?>
+<a class="btn request-open" href="<?=h($link('/fire_plan_chat.php',['id'=>$p['id'],'help_code'=>$requestMatch[1],'help_key'=>$requestMatch[2]]))?>">요청 <?=count($requests)?>건 확인 →</a>
+<?php endif;?>
 <a class="btn" href="<?=h($link('/fire_plan_chat.php',['id'=>$p['id'],'year'=>$p['plan_year']]))?>">대화로 작성</a>
 <a class="btn" href="<?=h($link('/fire_plan_edit.php',['id'=>$p['id']]))?>">서식 확인</a>
 <a class="btn" target="_blank" rel="noopener" href="<?=h($link('/fire_plan_print.php',['id'=>$p['id']]))?>">인쇄</a>
-<form method="post" onsubmit="return confirm('이 계획서를 삭제할까요? 되돌릴 수 없습니다.')"><input type="hidden" name="act" value="delete"><input type="hidden" name="id" value="<?=h((string)$p['id'])?>"><input type="hidden" name="csrf" value="<?=h(fp_csrf())?>"><button class="btn">삭제</button></form>
+<form method="post" onsubmit="return confirm('이 계획서와 연결된 작성 도움 요청·완료 내역을 함께 삭제할까요? 되돌릴 수 없습니다.')"><input type="hidden" name="act" value="delete"><input type="hidden" name="id" value="<?=h((string)$p['id'])?>"><input type="hidden" name="csrf" value="<?=h(fp_csrf())?>"><button class="btn">삭제</button></form>
 </div></div>
 <?php endforeach;endif;?></section>
 <details class="help"><summary>어떤 자료를 활용할 수 있나요?</summary><p>기본정보 · 자위소방대 편성 · 매월 기록 · 자위소방대 교육 · 소방훈련·교육 · 피난계획 중 필요한 자료를 고를 수 있습니다. 자료를 불러오지 않고 직접 답변해도 됩니다.</p></details>
@@ -151,4 +159,7 @@ document.addEventListener('click',function(event){
 
 
 <?php if(is_file(__DIR__.'/admin_quickmemo_widget.php')) require_once __DIR__.'/admin_quickmemo_widget.php'; ?>
+<?php if(($_GET['deleted']??'')==='1'): ?><script>
+try{if('BroadcastChannel' in window){const channel=new BroadcastChannel('manager-plan-changes');channel.postMessage('plan-deleted');channel.close();}window.managerHelp?.refresh();if(window.parent!==window)window.parent.managerHelp?.refresh();if(window.top!==window.parent)window.top.managerHelp?.refresh();}catch(e){}
+</script><?php endif;?>
 </body></html>

@@ -209,7 +209,8 @@ if ($__subKey !== '') {
     }
   }
 }
-$isPro = ($proStatus === 'active');
+require_once __DIR__.'/pro_collaboration.php';
+$isPro = pc_active($__subKey);
 
 /* Pro 기능 링크 — 구독 중이면 원래 페이지로, 아니면 구독 페이지로 보냅니다.
    카드는 구독 여부와 상관없이 똑같이 보여줍니다(있는 줄 알아야 구독하니까요). */
@@ -445,6 +446,21 @@ $ACCOUNT_IS_ADMIN = is_admin();
 $ACCOUNT_UNREAD = $unreadCount;    // 위에서 이미 계산한 값을 그대로 재사용
 require __DIR__ . '/_header.php';
 require_once __DIR__ . '/manager_ui.php';
+// 수락이 완료된 연결에 PRO 이용 안내를 표시합니다.
+$proManagerConnected = false;
+try {
+    $proMembers = mg_members();
+    $proMember = $proMembers[$__subKey] ?? [];
+    $proManagerConnected = mg_active($proMember, 'building')
+        && mg_connection_manager($proMember, $proMembers) !== ''
+        && mg_link_status($__subKey, $proMember, mg_read(mg_state_file())) === 'accepted';
+} catch (Throwable $e) {
+    $proManagerConnected = false;
+}
+$proInvite = $proManagerConnected && !$isPro && empty($_SESSION['_mge_actor']);
+$proButtonClass = $isPro ? ' plan-link--on' : ($proInvite ? ' plan-link--collaborate' : ($proStatus === 'pending' ? ' plan-link--wait' : ''));
+$proButtonLabel = $isPro ? 'PRO 이용 중' : ($proStatus === 'pending' ? 'PRO 신청 확인' : 'PRO 이용 안내');
+
 echo '<link rel="stylesheet" href="/manager.css?v=3"><script src="/manager.js?v=2" defer></script>';
 ?>
 <style>
@@ -1370,6 +1386,24 @@ a.pstep:hover{background:#f2f6fd}
 .building-board__head .plan-link--on:hover{background:#dcfce7;border-color:#4ade80;color:#15803d}
 .building-board__head .plan-link--wait{border-color:#cbd5e1;background:#f8fafc;color:#64748b;box-shadow:none}
 
+
+/* 연결 완료 후 구독 안내: 6초마다 짧게 빛이 지나갑니다. */
+.dashboard-shell .plan-link--collaborate{position:relative;isolation:isolate;overflow:hidden;
+  flex-direction:column;align-items:flex-start;gap:4px;min-height:58px;padding:11px 16px;
+  border:1px solid #319caa;border-radius:12px;background:#111827;color:#fff;
+  box-shadow:0 4px 14px rgba(15,23,42,.12),inset 0 1px 0 rgba(153,246,228,.12)}
+.dashboard-shell .plan-link--collaborate::before{content:"";position:absolute;inset:0;z-index:-1;
+  background:linear-gradient(110deg,transparent 25%,rgba(153,246,228,.04) 38%,rgba(153,246,228,.23) 50%,rgba(153,246,228,.04) 62%,transparent 75%);
+  transform:translateX(-140%);animation:pro-collaboration-shine 6s ease-in-out infinite;pointer-events:none}
+.plan-link__hint{font-size:10px;line-height:1.4;font-weight:500;color:#b1cbd1;white-space:nowrap}
+.plan-link__label{display:inline-flex;align-items:center;gap:12px;line-height:1.5}
+.plan-link__arrow{color:#67e8d5;font-size:17px;line-height:1}
+.dashboard-shell .plan-link--collaborate:hover{background:#172333;border-color:#5eead4;color:#fff}
+.plan-link:focus-visible{outline:3px solid #0891b2;outline-offset:4px}
+@keyframes pro-collaboration-shine{0%{transform:translateX(-140%)}22%,100%{transform:translateX(140%)}}
+@media(prefers-reduced-motion:reduce){.dashboard-shell .plan-link--collaborate::before{animation:none;display:none}}
+@media(max-width:480px){.dashboard-shell .plan-link--collaborate{padding:9px 11px;min-height:54px}.plan-link__hint{font-size:9px}.plan-link__label{gap:8px}}
+
 /* ── 원스톱 업무 작업 공간 ─────────────────────────────── */
 .one-stop{display:none;grid-column:1/-1;border:1px solid var(--bd);border-radius:18px;background:#fff;
   overflow:hidden;box-shadow:0 8px 26px rgba(15,30,60,.07);scroll-margin-top:78px}
@@ -1394,6 +1428,19 @@ a.pstep:hover{background:#f2f6fd}
   .one-stop__head{align-items:flex-start;flex-wrap:wrap}.one-stop__copy{min-width:160px}
   .one-stop__state{width:100%;order:4}.one-stop__frame-wrap{height:72vh;min-height:500px}
 }
+
+/* Keep the original task-card dimensions; accent only numbers, checks and the next task. */
+.building-task:not(.building-task--pro) .building-task__no{background:#dbeafe;color:#2563eb}
+.building-task.is-now .building-task__no{background:#2563eb;color:#fff}
+.building-task .task-done{background:#16845b;color:#fff;border-color:#16845b;border-radius:5px}
+.building-task.is-now{border-color:#6097ed;animation:building-next-border-glow 2.8s ease-in-out infinite}
+@keyframes building-next-border-glow{
+  0%,100%{border-color:#86aceb;box-shadow:0 0 0 1px rgba(59,130,246,.08)}
+  50%{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.15),0 0 9px rgba(59,130,246,.14)}
+}
+@media(prefers-reduced-motion:reduce){
+  .building-task.is-now{animation:none;border-color:#6097ed;box-shadow:0 0 0 2px rgba(59,130,246,.12)}
+}
 </style>
 
 <div class="dashboard-shell">
@@ -1406,9 +1453,10 @@ a.pstep:hover{background:#f2f6fd}
           <h1>건물 소방안전관리</h1>
           <p>필요한 업무와 진행 상태를 한 화면에서 확인하세요.</p>
         </div>
-        <a class="plan-link<?= $isPro ? ' plan-link--on' : ($proStatus === 'pending' ? ' plan-link--wait' : '') ?>"
+        <a class="plan-link<?=h($proButtonClass)?>"
            href="<?=h($url('/subscribe_page.php'))?>">
-          <?= $isPro ? 'PRO 관리' : ($proStatus === 'pending' ? 'PRO 신청 확인' : 'PRO 구독') ?>
+          <?php if ($proInvite): ?><span class="plan-link__hint">소방안전 업무 기록을 한곳에서 관리하세요</span><?php endif; ?>
+                          <span class="plan-link__label"><?=h($proButtonLabel)?><?php if ($proInvite): ?><span class="plan-link__arrow" aria-hidden="true">↗</span><?php endif; ?></span>
         </a>
       </div>
     </div>
@@ -1672,9 +1720,10 @@ a.pstep:hover{background:#f2f6fd}
                              </div>
                            <?php endif; ?>
                         </div>
-                        <a class="plan-link<?= $isPro ? ' plan-link--on' : ($proStatus === 'pending' ? ' plan-link--wait' : '') ?>"
+                        <a class="plan-link<?=h($proButtonClass)?>"
                            href="<?=h($url('/subscribe_page.php'))?>">
-                          <?= $isPro ? 'PRO 관리' : ($proStatus === 'pending' ? 'PRO 신청 확인' : 'PRO 구독') ?>
+                          <?php if ($proInvite): ?><span class="plan-link__hint">소방안전 업무 기록을 한곳에서 관리하세요</span><?php endif; ?>
+                          <span class="plan-link__label"><?=h($proButtonLabel)?><?php if ($proInvite): ?><span class="plan-link__arrow" aria-hidden="true">↗</span><?php endif; ?></span>
                         </a>
                       </div>
                       <nav class="building-tasknav" aria-label="소방안전관리 업무">
@@ -2360,7 +2409,7 @@ function openOneStop(url, title){
   if (target.origin !== window.location.origin) return;
   if (/\/(building_facilities|print_all|building_setup(?:_chat)?|fire_plan(?:_jawi|_new|_chat|_edit)?|evacuation_plan(?:_chat)?|work_log|(?:jawi|train)(?:_chat|_edit)?)\.php$/.test(target.pathname)) { openBuildingInfoPopup(target.href); return; }
   target.searchParams.set('embed', '1');
-  if (target.pathname === '/subscribe_page.php') title = 'PRO 구독 · 관리';
+  if (target.pathname === '/subscribe_page.php' && window.openProSubscription) { window.openProSubscription(); return; }
   const shell = document.querySelector('.dashboard-shell');
   const workspace = document.getElementById('oneStopWorkspace');
   const frame = document.getElementById('oneStopFrame');
@@ -2723,4 +2772,6 @@ function showQr(id, name){
 </script>
 
 <?php if (!defined('MANAGER_FULL_DASHBOARD')) require __DIR__ . '/memo_widget.php'; ?>
+<script src="/pro_collaboration.js?v=1" data-pro="<?=$isPro?'1':'0'?>" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
+<link rel="stylesheet" href="/pro_subscription_popup.css?v=2"><script src="/pro_subscription_popup.js?v=1" defer></script>
 <?php require __DIR__ . '/_footer.php'; ?>
