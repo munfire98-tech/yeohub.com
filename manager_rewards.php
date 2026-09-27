@@ -8,7 +8,7 @@ function mr_month_at(string $start,int $month):string {
     return $target->setDate((int)$target->format('Y'),(int)$target->format('m'),min((int)$base->format('d'),(int)$target->format('t')))->format(DATE_ATOM);
 }
 function mr_award(string $uid,array $receipt):void {
-    if(!preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$uid)||($receipt['live']??false)!==true||($receipt['status']??'')!=='DONE'||(int)($receipt['amount']??0)!==59000||empty($receipt['payment_key'])||empty($receipt['order_id'])||strtotime((string)($receipt['at']??''))===false)return;
+    if(!preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$uid)||($receipt['live']??false)!==true||($receipt['status']??'')!=='DONE'||!in_array((int)($receipt['amount']??0),[59000,69000],true)||empty($receipt['payment_key'])||empty($receipt['order_id'])||strtotime((string)($receipt['at']??''))===false)return;
     mg_member_tx(function(array &$members)use($uid,$receipt){
         $m=$members[$uid]??[];$manager=mg_connection_manager($m,$members);
         if(!mg_active($m,'building')||$manager==='')return;

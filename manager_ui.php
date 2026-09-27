@@ -57,7 +57,7 @@ function mg_local_connect_option(string $returnTo): void {
       <summary><span>담당 매니저가 없으신가요?</span><span class="mc-local-choice__link">로컬매니저 연결 <?=mg_icon('arrow')?></span></summary>
     <div class="mc-local">
       <div class="mc-local__head"><span><?=mg_icon('users')?></span><strong>로컬매니저에게 연결 요청</strong></div>
-      <p>연결을 요청하면 로컬매니저가 확인합니다.<br>수락 후 건물정보와 업무 현황이 공유됩니다.</p>
+      <p>연결을 요청하면 로컬매니저가 확인합니다.<br>수락 후 건물정보와 업무 현황이 공유됩니다.</p><p><strong>초기 고객 PRO 프로모션</strong><br>프로모션 기간에 가입하고 로컬 매니저 연결이 완료되면, 첫 구독부터 구독을 유지하는 동안 연 59,000원 혜택을 받을 수 있습니다. 프로모션 기간 중에는 대상 고객이 구독 종료 후 다시 구독해도 연 59,000원이 적용됩니다. 프로모션 종료 후에도 구독을 계속 유지하면 할인 가격이 유지되며, 종료 후 구독이 끊긴 상태에서 다시 구독하면 당시 정상가가 적용됩니다. 적용 여부와 가격은 PRO 이용 안내에서 확인해 주세요.</p>
       <form method="post" action="/manager_portal.php">
         <input type="hidden" name="csrf" value="<?=mg_e($_SESSION['csrf'])?>">
         <input type="hidden" name="action" value="register_code">

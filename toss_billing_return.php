@@ -51,7 +51,7 @@ if ($failCode !== '') {
       $title  = '카드가 등록되었습니다';
       $card   = tb_read()['card'] ?? [];
       $detail = trim(($card['company'] ?? '') . ' ' . ($card['number'] ?? ''));
-      if ($detail === '') $detail = '이제 연 59,000원 구독을 시작하실 수 있습니다.';
+      if ($detail === '') $detail = '이제 PRO 이용 안내에서 적용 가격을 확인하고 구독을 시작하실 수 있습니다.';
     } else {
       $title  = '카드 등록에 실패했습니다';
       $detail = $res['error'];

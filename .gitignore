@@ -55,3 +55,4 @@ Thumbs.db
 *.gz
 
 mail_secret.php
+.DS_Store

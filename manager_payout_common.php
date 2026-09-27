@@ -8,7 +8,7 @@ function mp_migrate_rate():void {
   foreach($s['payouts']??[] as $id=>$r){
    if(($r['status']??'')==='pending'&&(int)($r['amount']??0)!==(int)$r['coins']*MP_RATE){
     $s['payouts'][$id]['status']='rejected';$s['payouts'][$id]['processed_at']=date('c');
-    $s['payouts'][$id]['processed_by']='rate-migration';$s['payouts'][$id]['note']='1코인 1,500원 기준으로 변경되었습니다. 새 기준으로 다시 신청해 주세요.';
+    $s['payouts'][$id]['processed_by']='rate-migration';$s['payouts'][$id]['note']='파이어 마일리지 1개 1,500원 기준으로 변경되었습니다. 새 기준으로 다시 신청해 주세요.';
    }
   }
   $s['coin_rate_version']='monthly1500-v1';
@@ -50,7 +50,7 @@ function mp_apply(string $uid,string $action,array $input):void{
  $token=(string)($input['token']??'');if(!preg_match('/^[a-f0-9]{32,64}$/D',$token))throw new RuntimeException('새로고침 후 다시 신청해 주세요.');
  $id=hash('sha256',$key.':'.$token);if(isset($s['payouts'][$id]))return;
  $a=$s['payout_accounts'][$key]??null;if(!$a)throw new RuntimeException('먼저 계좌정보를 저장해 주세요.');
- $b=mp_balance($s,$uid,$me);if(!$coins||$coins>$b['available'])throw new RuntimeException('출금 가능한 코인이 부족합니다.');
+ $b=mp_balance($s,$uid,$me);if(!$coins||$coins>$b['available'])throw new RuntimeException('출금 가능한 마일리지가 부족합니다.');
  $s['payouts'][$id]=['id'=>$id,'manager'=>$uid,'manager_created'=>(string)($me['created']??''),'name'=>(string)($me['nickname']??$uid),'coins'=>$coins,'amount'=>$coins*MP_RATE,'account'=>$a,'status'=>'pending','at'=>date('c'),'processed_at'=>null,'note'=>''];
  });});
 }
@@ -62,7 +62,7 @@ function mp_process(string $admin,string $id,string $decision,string $note):void
   $r=$s['payouts'][$id]??null;if(!$r||$r['status']!=='pending')throw new RuntimeException('이미 처리되었거나 없는 신청입니다.');
   if($decision==='paid'){
    $me=$members[$r['manager']]??[];if(!mg_active($me,'agency')||!mp_owned($r,$r['manager'],$me))throw new RuntimeException('매니저 계정 상태를 확인해 주세요.');
-   if(mp_balance($s,$r['manager'],$me)['deficit']>0)throw new RuntimeException('환불 등으로 코인이 부족해졌습니다. 송금하지 말고 신청을 검토해 주세요.');
+   if(mp_balance($s,$r['manager'],$me)['deficit']>0)throw new RuntimeException('환불 등으로 마일리지가 부족해졌습니다. 송금하지 말고 신청을 검토해 주세요.');
   }
   if($decision==='rejected'&&trim($note)==='')throw new RuntimeException('반려 사유를 입력해 주세요.');
   $s['payouts'][$id]['status']=$decision;$s['payouts'][$id]['processed_at']=date('c');$s['payouts'][$id]['processed_by']=$admin;$s['payouts'][$id]['note']=$note;

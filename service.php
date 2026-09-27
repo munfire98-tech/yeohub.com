@@ -92,10 +92,10 @@ $priceYearly=AP_PRICE;
   <p class="svc-sec-d">기록 작성과 담당 매니저의 업무 지원을 이어갈 수 있는 연간 구독입니다.</p>
   <div class="plan-grid">
     <div class="card plan plan--year">
-      <span class="plan__badge">12개월 이용</span>
+      <span class="plan__badge">사전등록 초기 고객 혜택</span>
       <div class="plan__name">PRO 연간 구독</div>
-      <div class="plan__price"><span class="plan__num"><?=number_format($priceYearly)?></span><span class="plan__unit">원 / 년</span></div>
-      <div class="plan__sub">연 <?=number_format($priceYearly)?>원으로 12개월간 이용합니다.<br>자동갱신에 동의하면 매년 결제됩니다.</div>
+      <div class="plan__price"><span class="plan__was">정상가 <?=number_format($priceYearly)?>원</span><span class="plan__num"><?=number_format(AP_PROMO_PRICE)?></span><span class="plan__unit">원 / 년</span></div>
+      <div class="plan__sub">초기 프로모션 기간에 가입 후 사전등록 거래처 연결 또는 로컬 매니저 연결을 완료한 고객 대상.<br>구독을 유지하는 동안 매년 <?=number_format(AP_PROMO_PRICE)?>원으로 이용하세요. 프로모션이 종료되어도 유지됩니다.</div>
       <ul class="plan__list">
         <li>담당 매니저와 업무 현황 공유 및 작성 도움 요청</li>
         <li>구독 상태와 다음 결제일 확인</li>
@@ -104,7 +104,7 @@ $priceYearly=AP_PRICE;
       <p class="plan__login-note">로그인 후 페이지에서 구독을 이용하세요.<small>건물관리 화면의 ‘PRO 이용 안내’에서 확인하실 수 있습니다.</small></p>
     </div>
   </div>
-  <div class="svc-note">· 카드 등록만으로 결제되지는 않습니다. 결제 전 금액과 자동갱신 안내를 확인해 주세요.<br>· 자동갱신을 해제해도 이미 결제한 기간까지 이용할 수 있습니다.</div>
+  <div class="svc-note">· <?=h(ap_promotion_period_text())?> 일반 고객의 기본 요금은 연 69,000원입니다.<br>· 프로모션 기간 중에는 대상 고객이 구독 종료 후 다시 구독해도 연 59,000원이 적용됩니다. 프로모션 종료 후에도 구독을 계속 유지하면 할인 가격이 유지되며, 종료 후 구독이 끊긴 상태에서 다시 구독하면 당시 정상가가 적용됩니다.<br>· 카드 등록만으로 결제되지는 않습니다. 결제 전 금액과 자동갱신 안내를 확인해 주세요.<br>· 자동갱신을 해제해도 이미 결제한 기간까지 이용할 수 있습니다.</div>
 
   <h2 class="svc-sec-t">자주 묻는 질문</h2>
   <div class="svc-faq">

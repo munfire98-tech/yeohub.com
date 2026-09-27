@@ -1,11 +1,12 @@
 <?php
 // work_log_setup_chat.php — 업무수행 기록표 기본값 대화형 설정
 declare(strict_types=1);
+require_once __DIR__.'/manager_edit_guard.php';
 
 if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)session_start();
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {

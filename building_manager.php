@@ -2708,70 +2708,20 @@ function showQr(id, name){
   showBuilding(0);
 })();
 </script>
-<!-- 첫 방문 안내 팝업 -->
-<div class="gdov" id="gdov">
-  <div class="gdbox">
-    <div class="gdbox__ico">👋</div>
-    <h4>무엇부터 하면 되는지 알려드릴게요</h4>
-    <p>
-      화면 <span class="gdbox__hi">우측 상단의 진행 현황</span>을 보시면<br>
-      지금 해야 할 일이 순서대로 표시됩니다.<br>
-      항목을 눌러 하나씩 진행해 주세요.
-    </p>
-    <button class="gdbox__btn" type="button" id="gdClose">알겠습니다</button>
-    <label class="gdbox__again">
-      <input type="checkbox" id="gdNever"> 다음부터 보지 않기
-    </label>
-  </div>
-</div>
-
-<script>
-(function(){
-  /* 첫 방문 안내 — "다음부터 보지 않기"는 쿠키에 1년간 기록합니다. */
-  var KEY = 'bm_guide_hide';
-
-  function getCookie(name){
-    var m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-    return m ? m.pop() : '';
-  }
-  function setCookie(name, val, days){
-    var d = new Date();
-    d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
-    document.cookie = name + '=' + val + ';expires=' + d.toUTCString() + ';path=/;SameSite=Lax';
-  }
-
-  var ov    = document.getElementById('gdov');
-  var btn   = document.getElementById('gdClose');
-  var never = document.getElementById('gdNever');
-  var prog  = document.querySelector('.prog');
-  if (!ov || !btn) return;
-
-  if (getCookie(KEY) === '1') return;   // 이미 "보지 않기"를 선택한 경우
-
-  // 화면이 그려진 뒤 잠깐 있다가 띄웁니다.
-  setTimeout(function(){ ov.classList.add('on'); }, 400);
-
-  function close(){
-    if (never && never.checked) setCookie(KEY, '1', 365);
-    ov.classList.remove('on');
-    // 닫은 직후, 안내가 가리킨 진행 현황을 잠깐 강조해 줍니다.
-    if (prog){
-      prog.classList.add('gd-hi');
-      prog.scrollIntoView({ behavior:'smooth', block:'nearest' });
-      setTimeout(function(){ prog.classList.remove('gd-hi'); }, 2200);
-    }
-  }
-
-  btn.addEventListener('click', close);
-  // 바깥을 눌러도 닫힙니다(체크박스 선택은 그대로 반영).
-  ov.addEventListener('click', function(e){ if (e.target === ov) close(); });
-  document.addEventListener('keydown', function(e){
-    if (e.key === 'Escape' && ov.classList.contains('on')) close();
-  });
-})();
-</script>
+<?php if (!$proManagerConnected && empty($_SESSION['_mge_actor']) && !defined('MANAGER_FULL_DASHBOARD') && !defined('MANAGER_VIEW_UID')): ?>
+<style>
+#building-connect-guide{position:fixed;inset:0;margin:auto;width:min(580px,calc(100vw - 28px));max-height:calc(100dvh - 32px);padding:24px;border:1px solid #dce7ef;border-radius:20px;background:#fff;color:#233d50;box-shadow:0 24px 80px #17324740;overflow:auto}#building-connect-guide::backdrop{background:#172e4866;backdrop-filter:blur(3px)}#building-connect-guide .bc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}#building-connect-guide h2{font-size:22px;line-height:1.5;margin:8px 0}#building-connect-guide .bc-kicker{font-size:12px;color:#238779;font-weight:700}#building-connect-guide .bc-description{font-size:14px;line-height:1.8;color:#60758a;margin:10px 0 20px}#building-connect-guide [data-connect-close]{border:0;border-radius:9px;background:#edf3f7;color:#4e6577;width:34px;height:34px;font-size:24px;cursor:pointer;flex-shrink:0}#building-connect-guide button:focus-visible{outline:3px solid #439adc;outline-offset:3px}#building-connect-guide #manager-connect{margin:0;width:100%}#building-connect-guide .mc-mini__summary{display:none}#building-connect-guide .mc-mini__body{padding:16px}#building-connect-guide .bc-note{font-size:12px;color:#718395;line-height:1.7;margin:16px 0 0}@media(max-width:480px){#building-connect-guide{padding:18px}#building-connect-guide h2{font-size:20px}#building-connect-guide .mc-code-row{flex-wrap:wrap}#building-connect-guide .mc-code-row .mc-input-wrap{min-width:0;flex:1 1 100%}}
+</style>
+<dialog id="building-connect-guide" aria-labelledby="building-connect-guide-title" aria-describedby="building-connect-guide-description">
+ <div class="bc-head"><div><span class="bc-kicker">서비스 이용을 위한 첫 단계</span><h2 id="building-connect-guide-title">매니저와 연결 후 사용해 주세요</h2></div><button type="button" data-connect-close aria-label="연결 안내 닫기">×</button></div>
+ <p class="bc-description" id="building-connect-guide-description" data-connect-description>담당 매니저가 없으면 <b>로컬 매니저</b>를 선택해 주세요.<br>담당 매니저가 있으면 전달받은 <b>매니저 코드</b>를 입력해 주세요.</p>
+ <div data-connect-body></div><p class="bc-note">연결 요청 후 매니저가 수락하면 연결이 완료됩니다. 연결 완료 후에는 이 안내가 표시되지 않습니다.</p>
+</dialog>
+<script src="/building_connect_popup.js?v=1" defer></script>
+<?php endif; ?>
 
 <?php if (!defined('MANAGER_FULL_DASHBOARD')) require __DIR__ . '/memo_widget.php'; ?>
-<script src="/pro_collaboration.js?v=1" data-pro="<?=$isPro?'1':'0'?>" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
+<script src="/pro_collaboration.js?v=20260927-price-retention" data-pro="<?=$isPro?'1':'0'?>" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
 <link rel="stylesheet" href="/pro_subscription_popup.css?v=2"><script src="/pro_subscription_popup.js?v=1" defer></script>
+<script src="/building_service_access.js?v=1" data-connected="<?=$proManagerConnected?'1':'0'?>" data-paid="<?=pc_active($__subKey)?'1':'0'?>" defer></script>
 <?php require __DIR__ . '/_footer.php'; ?>

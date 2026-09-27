@@ -4,11 +4,13 @@ if(defined('MG_EDIT_GUARD_READY'))return;
 define('MG_EDIT_GUARD_READY',true);
 require_once __DIR__.'/manager_common.php';
 require_once __DIR__.'/manager_edit_bootstrap.php';
+require_once __DIR__.'/building_service_access.php';
 $wasActive=session_status()===PHP_SESSION_ACTIVE;
 if(!$wasActive)session_start();
 $context=$_SESSION['_manager_edit']??null;
 // Without an explicit manager editing context, ordinary user sessions are unchanged.
 if(!is_array($context)){
+    bsa_enforce();
     $helpUid=mg_uid();
     if($helpUid!==''&&($_SESSION['role']??'')==='building'&&basename((string)($_SERVER['SCRIPT_FILENAME']??''))==='building_manager.php'){
         ob_start(static function(string $html)use($helpUid):string{
@@ -64,6 +66,7 @@ if(($_SESSION['_mge_generation']??'')!==$generation||($_SESSION['_mge_actor']??'
     if(!empty($m['kakao_id']))$_SESSION['kakao_id']=(string)$m['kakao_id'];
 }
 if(($_SESSION['member_id']??'')!==$target){session_write_close();http_response_code(403);exit('편집 대상이 일치하지 않습니다. 매니저 화면에서 다시 열어 주세요.');}
+bsa_enforce();
 if(!in_array($_SERVER['REQUEST_METHOD']??'GET',['GET','HEAD'],true)){
     try{mg_tx(__DIR__.'/data/manager_edit_audit.php',function(&$rows)use($actor,$target,$name){$rows[]=['at'=>date('c'),'actor'=>$actor,'target'=>$target,'page'=>$name,'event'=>'write_request'];if(count($rows)>3000)$rows=array_slice($rows,-3000);},true);}
     catch(Throwable $e){session_write_close();http_response_code(503);exit('편집 기록을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.');}

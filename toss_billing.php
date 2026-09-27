@@ -14,9 +14,11 @@ function tb_issue_billing_key(string $authKey,string $customerKey):array {
  if(!empty($_SESSION['_imp'])||defined('MANAGER_VIEW_UID'))return ab_result(false,'대리 보기에서는 카드를 등록할 수 없습니다.',true);
  return ab_register(app_user_key(),$authKey,$customerKey);
 }
-function tb_charge(int $amount,string $name):array {
- if($amount!==AP_PRICE||!empty($_SESSION['_imp'])||defined('MANAGER_VIEW_UID'))return ab_result(false,'결제 금액 또는 로그인 계정을 확인해 주세요.',true);
- return ab_charge_user(app_user_key());
+function tb_charge(int $amount,string $name,string $quoteId=''):array {
+ if(!in_array($amount,[AP_PRICE,AP_PROMO_PRICE],true)||!empty($_SESSION['_imp'])||defined('MANAGER_VIEW_UID'))return ab_result(false,'결제 금액 또는 로그인 계정을 확인해 주세요.',true);
+ $quote=ap_quote(app_user_key(),tb_read());
+ if($amount!==$quote['amount']||!hash_equals($quote['id'],$quoteId))return ab_result(false,'결제 금액을 다시 확인해 주세요.',true);
+ return ab_charge_user(app_user_key(),'manual',null,$quoteId);
 }
 function tb_cancel():bool{ab_renewal(app_user_key(),false);return true;}
 function tb_next_billing(string $date,int $months,int $day):string{if($months!==12)throw new RuntimeException('연간 결제만 지원합니다.');return ab_next($date,$day);}

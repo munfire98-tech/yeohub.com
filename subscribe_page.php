@@ -1,5 +1,5 @@
 <?php
-/* 연간 단일 요금제: 59,000원 / 12개월. 기존 결제 내역은 보존합니다. */
+/* 연간 단일 요금제: 69,000원 / 12개월. 기존 결제 내역은 보존합니다. */
 declare(strict_types=1);
 
 date_default_timezone_set('Asia/Seoul');
@@ -47,14 +47,16 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
  try{
   if(!hash_equals($CSRF,(string)($_POST['csrf']??'')))throw new RuntimeException('새로고침 후 다시 시도해 주세요.');
   if(in_array($act,['subscribe','resubscribe'],true)){
-   if(($_POST['offer']??'')!==AP_OFFER||($_POST['renewal_consent']??'')!==AB_CONSENT)throw new RuntimeException('연 59,000원 자동결제 안내를 확인하고 동의해 주세요.');
+   if(($_POST['offer']??'')!==AP_OFFER||($_POST['renewal_consent']??'')!==AB_CONSENT)throw new RuntimeException('표시된 금액과 자동결제 안내를 확인하고 동의해 주세요.');
    if(($_POST['plan']??'yearly')!=='yearly')throw new RuntimeException('연간 요금제만 사용할 수 있습니다.');
-   ab_renewal($UID,true);$r=tb_charge(AP_PRICE,AP_PLANS['yearly']['name']);if(!$r['ok'])throw new RuntimeException($r['error']);$flash='59,000원 결제가 완료되었습니다. 다음 결제일과 자동갱신 설정을 확인해 주세요.';
+   $quote=ap_quote($UID,tb_read());
+   if(!hash_equals($quote['id'],(string)($_POST['quote_id']??'')))throw new RuntimeException('프로모션 대상 또는 금액이 변경되었습니다. 새로고침 후 다시 확인해 주세요.');
+   ab_renewal($UID,true);$r=tb_charge($quote['amount'],AP_PLANS['yearly']['name'],$quote['id']);if(!$r['ok'])throw new RuntimeException($r['error']);$flash=number_format((int)($r['body']['totalAmount']??$quote['amount'])).'원 결제가 완료되었습니다. 다음 결제일과 자동갱신 설정을 확인해 주세요.';
   }elseif($act==='renew_off'){ab_renewal($UID,false);$flash='자동갱신을 해제했습니다. 이미 결제한 기간까지 이용할 수 있습니다.';}
   elseif($act==='renew_on'){
    if(($_POST['renewal_consent']??'')!==AB_CONSENT)throw new RuntimeException('자동결제 안내에 동의해 주세요.');
    $d=tb_read();if(ab_end($d)<=time()||($d['status']??'')!=='active')throw new RuntimeException('기간이 만료된 경우 구독 결제로 다시 시작해 주세요.');
-   ab_renewal($UID,true);$flash='연간 자동갱신을 설정했습니다. 다음 결제일에 59,000원이 청구됩니다.';
+   ab_renewal($UID,true);$flash='연간 자동갱신을 설정했습니다. 다음 결제일에 '.number_format((int)(tb_read()['renewal_consent']['price']??AP_PRICE)).'원이 청구됩니다.';
   }elseif($act==='cancel'){$r=ab_refund_user($UID);if(!$r['ok'])throw new RuntimeException($r['error']);$flash='해지·환불 처리가 완료되었습니다.';}
   elseif($act==='reconcile'){$d=tb_read();$r=in_array($d['refund_attempt']['state']??'',['prepared','unknown'],true)?ab_refund_user($UID,null,true):ab_charge_user($UID,'reconcile');$flash=$r['ok']?'기존 결제·환불 결과를 반영했습니다.':$r['error'];$flashType=$r['ok']?'ok':'err';}
   elseif($act==='inquiry'){
@@ -65,6 +67,12 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
  $_SESSION['annual_flash']=[$flash,$flashType];header('Location: /subscribe_page.php'.($proPopup?'?embed=1&pro_popup=1':''));exit;
 }
 $sub=sub_read();$status=ap_status($sub);
+$quote=ap_quote($UID,$sub);$checkoutPrice=$quote['amount'];$renewalPrice=$quote['renewal_amount'];$promoEligible=$quote['retain_price'];
+$promoCustomerType=(string)($quote['customer_type']??'');
+$promoNewCustomer=!ap_has_paid($sub,ab_mode());
+$promoConfig=require __DIR__.'/promotion_config.php';
+$promoEnd=trim((string)($promoConfig['ends_on']??''));
+$promoOpen=$promoEnd===''||date('Y-m-d')<=$promoEnd;
 
 /* 상태 표시용 */
 $STATUS_LABEL = [
@@ -80,7 +88,7 @@ $STATUS_LABEL = [
 [$statusText, $statusTone] = $STATUS_LABEL[$status] ?? $STATUS_LABEL['none'];
 $refundQuote = in_array($status, ['active','payment_failed'], true) ? sub_refund_quote($sub) : [];
 
-$yearly = PLANS['yearly'];
+$yearly = PLANS['yearly'];$yearly['price']=$checkoutPrice;
 
 $PAGE_TITLE = '구독';
 $NAV_MODE = 'account';
@@ -224,13 +232,22 @@ details.sub-fold{padding:0;overflow:hidden}
 .sub-fold>summary::after{margin-left:0}.sub-fold__body{padding:0 18px 18px;border-top:1px solid var(--bd);padding-top:16px}
 .sub-fold .sub-sec-t{display:none}.sub-fold .trust{margin:0 18px 18px}
 @media(max-width:560px){.sub-fold__hint{display:none}}
+
+.sub-promo-note{display:flex;gap:12px;align-items:flex-start;padding:17px 18px;margin:0 0 20px;border:1px solid #bbdfcd;border-radius:14px;background:#f0faf5;color:#245d43}
+.sub-promo-note__icon{flex:0 0 27px;width:27px;height:27px;display:grid;place-items:center;border-radius:8px;background:#17825b;color:white;font-weight:800}
+.sub-promo-note strong{display:block;font-size:15px;line-height:1.5;margin-bottom:5px}
+.sub-promo-note p{margin:0;font-size:13px;line-height:1.8}
+.sub-promo-note small{display:block;margin-top:6px;font-size:12px;line-height:1.7;opacity:.85}
+.sub-promo-note--connect{background:#f3f7ff;border-color:#d3def3;color:#334e7b}
+.sub-promo-note--connect .sub-promo-note__icon{background:#4269ac}
+.sub-promo-note a{display:inline-block;margin-top:10px;color:#25599d;text-decoration:underline;text-underline-offset:3px;font-size:13px;font-weight:700}
 </style>
 
 <header class="page-head">
   <div class="page-head__inner">
     <div class="page-head__label"><span></span> 구독</div>
     <h1>구독</h1>
-    <p>매년 59,000원 자동결제로 12개월씩 이용하세요.</p>
+    <p>프로모션 기간에 구독하고, 연 59,000원 혜택을 계속 누리세요.<br>소방안전관리 업무를 이어가며 구독을 유지하는 동안, 프로모션 종료 후에도 매년 59,000원으로 이용할 수 있습니다.</p>
   </div>
 </header>
 
@@ -289,7 +306,7 @@ details.sub-fold{padding:0;overflow:hidden}
 
     <?php else: ?>
       <p class="tb-lead">
-        카드 등록만으로는 결제되지 않습니다. 아래에서 자동결제에 동의하고 구독을 시작하면 첫 59,000원이 결제됩니다.
+        카드 등록만으로는 결제되지 않습니다. 아래에서 자동결제에 동의하고 구독을 시작하면 <?=number_format($checkoutPrice)?>원이 결제됩니다.
         전체 카드번호 대신 토스에서 발급한 결제용 키와 마스킹된 카드정보만 저장합니다.
       </p>
       <button class="btn btn--primary" type="button" onclick="registerCard()">💳 카드 등록하기</button>
@@ -372,9 +389,9 @@ details.sub-fold{padding:0;overflow:hidden}
     <?php if(!empty($sub['billing_notice'])): ?><p role="status" class="tb-msg"><?=h($sub['billing_notice'])?></p><?php endif;?>
     <?php if(in_array($sub['charge_attempt']['state']??'',['prepared','unknown'],true)): ?><form method="post"><input type="hidden" name="csrf" value="<?=h($CSRF)?>"><input type="hidden" name="act" value="reconcile"><button class="btn btn--ghost">기존 결제 결과 확인</button></form><?php endif;?>
     <?php if($status==='active'||($sub['auto_renew']??false)): ?>
-    <div class="refund-box"><div class="refund-box__tx"><b><?=ab_auto($sub)?'자동갱신 켜짐':'자동갱신 꺼짐'?></b><span><?=ab_auto($sub)?'다음 결제일 '.h($sub['next_billing']??'').' · 59,000원':'이미 결제한 기간까지 이용할 수 있으며 다음 결제는 진행하지 않습니다.'?></span></div></div>
+    <div class="refund-box"><div class="refund-box__tx"><b><?=ab_auto($sub)?'자동갱신 켜짐':'자동갱신 꺼짐'?></b><span><?=ab_auto($sub)?'다음 결제일 '.h($sub['next_billing']??'').' · '.number_format($renewalPrice).'원':'이미 결제한 기간까지 이용할 수 있으며 다음 결제는 진행하지 않습니다.'?></span></div></div>
     <form method="post"><input type="hidden" name="csrf" value="<?=h($CSRF)?>"><input type="hidden" name="act" value="<?=ab_auto($sub)?'renew_off':'renew_on'?>">
-    <?php if(!ab_auto($sub)): ?><label style="display:block;margin:12px 0"><input type="checkbox" name="renewal_consent" value="<?=h(AB_CONSENT)?>" required> 다음 결제일부터 매년 59,000원 자동결제에 동의합니다. 갱신 결제 실패 시 총 3회 시도합니다.</label><?php endif;?>
+    <?php if(!ab_auto($sub)): ?><label style="display:block;margin:12px 0"><input type="checkbox" name="renewal_consent" value="<?=h(AB_CONSENT)?>" required> 다음 결제일부터 매년 <?=number_format($renewalPrice)?>원 자동결제에 동의합니다. 갱신 결제 실패 시 총 3회 시도합니다.</label><?php endif;?>
     <button class="btn btn--ghost"><?=ab_auto($sub)?'자동갱신 해제 · 남은 기간 유지':'연간 자동갱신 설정'?></button></form>
     <?php endif;?>
 
@@ -422,7 +439,7 @@ details.sub-fold{padding:0;overflow:hidden}
         require_once __DIR__ . '/toss_billing.php';
         $reCard = trim((string)(tb_read()['billing_key'] ?? '')) !== '';
         $rePlan = PLANS['yearly']['name'];
-        $rePrice = AP_PRICE;
+        $rePrice = $checkoutPrice;
       ?>
       <div class="sub-again">
         <div class="sub-again__tx">
@@ -439,7 +456,7 @@ details.sub-fold{padding:0;overflow:hidden}
         <?php if ($reCard): ?>
           <form method="post">
             <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
-            <input type="hidden" name="act" value="resubscribe"><input type="hidden" name="offer" value="<?=h(AP_OFFER)?>"><label style="display:flex;gap:9px;align-items:flex-start;margin:15px 0;font-size:13px;line-height:1.7"><input type="checkbox" name="renewal_consent" value="<?=h(AB_CONSENT)?>" required style="margin-top:5px"><span>오늘 59,000원 결제 후, 자동갱신을 해제하기 전까지 매년 59,000원이 등록 카드로 결제되는 것에 동의합니다. 갱신 결제 실패 시 총 3회까지 시도하며, 이 화면에서 자동갱신을 해제할 수 있습니다.</span></label>
+            <input type="hidden" name="act" value="resubscribe"><input type="hidden" name="offer" value="<?=h(AP_OFFER)?>"><input type="hidden" name="quote_id" value="<?=h($quote['id'])?>"><label style="display:flex;gap:9px;align-items:flex-start;margin:15px 0;font-size:13px;line-height:1.7"><input type="checkbox" name="renewal_consent" value="<?=h(AB_CONSENT)?>" required style="margin-top:5px"><span>오늘 <?=number_format($checkoutPrice)?>원 결제 후, 자동갱신을 해제하기 전까지 매년 <?=number_format($renewalPrice)?>원이 등록 카드로 결제되는 것에 동의합니다. 갱신 결제 실패 시 총 3회까지 시도하며, 이 화면에서 자동갱신을 해제할 수 있습니다.</span></label>
             <button class="btn btn--primary" type="submit"
               onclick="return confirm('<?=h($rePlan ?: '구독')?> <?=number_format($rePrice)?>원을 결제하고 다시 시작합니다.\n계속할까요?')">
               다시 구독하기
@@ -450,37 +467,57 @@ details.sub-fold{padding:0;overflow:hidden}
     <?php endif; ?>
   </div>
 
+  <?php if(!empty($sub['auto_renew'])&&($sub['renewal_consent']['version']??'')!==AB_CONSENT): ?>
+  <p class="card">요금 정책이 변경되어 기존 자동결제 동의는 적용되지 않습니다. 현재 이용기간은 유지되며, 다음 갱신을 원하시면 표시된 갱신 금액에 다시 동의해 주세요.</p>
+  <?php endif; ?>
+  <?php if($promoEligible): ?>
+  <section class="sub-promo-note" aria-label="적용된 프로모션">
+    <span class="sub-promo-note__icon" aria-hidden="true">✓</span>
+    <div><strong><?=$promoCustomerType==='local_manager'?'로컬 매니저 연결 고객 혜택이 적용되었습니다':'사전등록 고객 프로모션이 적용되었습니다'?></strong>
+    <p>프로모션 이용 요금 <b>연 <?=number_format($checkoutPrice)?>원</b><br>소방안전관리 업무를 이어가며 구독을 유지하는 동안, 프로모션 종료 후에도 매년 59,000원으로 이용할 수 있습니다.</p>
+    <small>프로모션 대상 고객에게 적용됩니다. 프로모션 기간 중에는 구독 종료 후 다시 구독해도 59,000원이 적용되며, 프로모션 종료 후 구독이 끊긴 상태에서 재구독하면 당시 요금이 적용됩니다.</small></div>
+  </section>
+  <?php elseif($promoNewCustomer&&$promoOpen): ?>
+  <section class="sub-promo-note sub-promo-note--connect" aria-label="매니저 연결 프로모션 안내">
+    <span class="sub-promo-note__icon" aria-hidden="true">＋</span>
+    <div><strong>매니저와 먼저 연결하고 프로모션 혜택을 받으세요</strong>
+    <p>담당 매니저의 사전등록 거래처와 연결하거나, 로컬 매니저의 연결 수락을 받으면 프로모션 대상이 될 수 있습니다.<br>프로모션 기간에 구독하면 <b>연 <?=number_format(AP_PROMO_PRICE)?>원</b>으로 시작하고, 소방안전관리 업무를 이어가며 구독을 유지하는 동안 같은 가격으로 이용할 수 있습니다.</p>
+    <small>요청 대기 중에는 적용되지 않습니다. 연결 완료 후 이 화면을 다시 열어 적용 가격을 확인해 주세요.</small>
+    <a href="/building_manager.php#manager-connect" target="_top">담당·로컬 매니저 연결 확인하기 →</a></div>
+  </section>
+  <?php endif; ?>
   <!-- 플랜 선택 -->
   <?php if (in_array($status, ['none','canceled','expired','refunded','payment_failed'], true)): ?>
   <div class="card">
     <div class="sub-sec-t">요금제 선택</div>
     <form method="post" id="planForm">
       <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
-      <input type="hidden" name="act" value="subscribe"><input type="hidden" name="offer" value="<?=h(AP_OFFER)?>">
+      <input type="hidden" name="act" value="subscribe"><input type="hidden" name="offer" value="<?=h(AP_OFFER)?>"><input type="hidden" name="quote_id" value="<?=h($quote['id'])?>">
       <input type="hidden" name="plan" id="planInput" value="yearly">
 
       <div class="sub-plans">
         <!-- 연 -->
         <label class="sub-plan sel" data-plan="yearly" onclick="pickPlan('yearly')">
-          <span class="sub-plan__badge">12개월 이용</span>
+          <span class="sub-plan__badge"><?=$promoEligible?'초기 고객 가격 유지':'12개월 이용'?></span>
           <div class="sub-plan__name"><?=h($yearly['name'])?></div>
           <div class="sub-plan__price">
             <span class="sub-plan__num"><?=number_format($yearly['price'])?></span>
             <span class="sub-plan__unit">원 / <?=h($yearly['period'])?></span>
             
           </div>
-          <div class="sub-plan__sub">매년 59,000원 자동결제 · 12개월 이용</div>
+          <div class="sub-plan__sub">매년 <?=number_format($renewalPrice)?>원 자동결제 · 12개월 이용</div>
           <ul class="sub-plan__list">
             <li>모든 기능 사용</li>
             <li>연간 단일 요금제</li>
-            <li>1년간 요금 변동 없음</li>
+            <li><?=$promoEligible?'프로모션 종료 후에도 구독 유지 시 같은 가격':'12개월 이용'?></li>
           </ul>
         </label>
       </div>
 
-      <label style="display:flex;gap:9px;align-items:flex-start;margin:15px 0;font-size:13px;line-height:1.7"><input type="checkbox" name="renewal_consent" value="<?=h(AB_CONSENT)?>" required style="margin-top:5px"><span>오늘 59,000원 결제 후, 자동갱신을 해제하기 전까지 매년 59,000원이 등록 카드로 결제되는 것에 동의합니다. 갱신 결제 실패 시 총 3회까지 시도하며, 이 화면에서 자동갱신을 해제할 수 있습니다.</span></label>
+      <p style="font-size:12px;line-height:1.7;color:#64748b">프로모션 대상 고객에게 적용됩니다. 프로모션 기간 중에는 구독 종료 후 다시 구독해도 59,000원이 적용되며, 프로모션 종료 후 구독이 끊긴 상태에서 재구독하면 당시 요금이 적용됩니다. 자동갱신을 꺼도 남은 이용기간은 유지됩니다.</p>
+      <label style="display:flex;gap:9px;align-items:flex-start;margin:15px 0;font-size:13px;line-height:1.7"><input type="checkbox" name="renewal_consent" value="<?=h(AB_CONSENT)?>" required style="margin-top:5px"><span>오늘 <?=number_format($checkoutPrice)?>원 결제 후, 자동갱신을 해제하기 전까지 매년 <?=number_format($renewalPrice)?>원이 등록 카드로 결제되는 것에 동의합니다. 갱신 결제 실패 시 총 3회까지 시도하며, 이 화면에서 자동갱신을 해제할 수 있습니다.</span></label>
       <button class="btn btn--primary" type="submit" style="width:100%;justify-content:center"
-        <?= $hasUser && $hasCard ? '' : 'disabled' ?>><?=$hasCard?'연 59,000원 결제하기':'카드 등록 후 결제할 수 있습니다'?></button>
+        <?= $hasUser && $hasCard ? '' : 'disabled' ?>><?=$hasCard?number_format($checkoutPrice).'원 결제하기':'카드 등록 후 결제할 수 있습니다'?></button>
     </form>
   </div>
   <?php endif; ?>
@@ -516,7 +553,7 @@ details.sub-fold{padding:0;overflow:hidden}
     <div class="sub-faq">
       <div>
         <div class="sub-faq__q">결제는 어떻게 이루어지나요?</div>
-        <div class="sub-faq__a">처음 59,000원을 결제한 뒤 매년 같은 결제일에 59,000원이 자동 청구됩니다. 자동갱신을 해제하면 다음 청구가 중단되고 남은 기간까지 이용할 수 있습니다.
+        <div class="sub-faq__a">프로모션 기간에 구독하고, 연 59,000원 혜택을 계속 누리세요. 소방안전관리 업무를 이어가며 구독을 유지하는 동안, 프로모션 종료 후에도 매년 59,000원으로 이용할 수 있습니다. 사전등록 거래처 또는 로컬 매니저 연결이 완료된 프로모션 대상 고객에게 적용됩니다. 프로모션 대상 고객에게 적용됩니다. 프로모션 기간 중에는 구독 종료 후 다시 구독해도 59,000원이 적용되며, 프로모션 종료 후 구독이 끊긴 상태에서 재구독하면 당시 요금이 적용됩니다. 자동갱신을 해제하면 다음 청구가 중단되고 남은 기간까지 이용할 수 있습니다.
           결제는 토스페이먼츠 시스템에서 처리되며, 카드번호는 저희 서버에 저장되지 않습니다.
           결제사가 발급한 결제키만 보관합니다.</div>
       </div>
@@ -532,7 +569,7 @@ details.sub-fold{padding:0;overflow:hidden}
       </div>
       <div>
         <div class="sub-faq__q">요금제를 바꿀 수 있나요?</div>
-        <div class="sub-faq__a">연간 단일 요금제만 제공합니다. 기존 결제의 남은 이용기간은 유지되며 새 결제에는 연 59,000원이 적용됩니다.</div>
+        <div class="sub-faq__a">연간 단일 요금제만 제공합니다. 기존 결제의 남은 이용기간은 유지됩니다. 프로모션 적용 여부와 최종 금액은 결제 화면에서 확인할 수 있습니다.</div>
       </div>
       <div>
         <div class="sub-faq__q">세금계산서 발행이 되나요?</div>

@@ -1217,7 +1217,7 @@ $oldRole = (string)($oldSignup['role'] ?? '');
       </div>
       <div class="amodal__check">
         <span class="ico">✓</span>
-        <div class="tx"><b>1년 구독</b><span>59,000원</span></div>
+        <div class="tx"><b>1년 구독 69,000원</b><span>사전등록·로컬 매니저 연결 고객 구독 유지 시 59,000원</span></div>
       </div>
       <div class="amodal__more"><a href="/service.php">자세히 보기 →</a></div>
     </div>

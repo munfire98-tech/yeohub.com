@@ -1,7 +1,8 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/annual_plan.php';
-const AB_CONSENT='annual_59000_autorenew_v1';
+require_once __DIR__.'/annual_promotion.php';
+const AB_CONSENT='annual_retained_59000_or_69000_v3';
 function ab_dir(string $uid):string {
  if(!preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$uid)||$uid[0]==='_')throw new RuntimeException('회원 식별정보를 확인해 주세요.');
  $dir=__DIR__.'/data/subscribe/'.$uid;
@@ -74,7 +75,7 @@ function ab_register(string $uid,string $auth,string $customer,?callable $transp
  });
 }
 function ab_valid_payment(array $b,array $a):bool {
- return ($b['status']??'')==='DONE'&&($b['orderId']??'')===$a['order_id']&&(int)($b['totalAmount']??0)===AP_PRICE&&!empty($b['paymentKey'])&&($b['currency']??'KRW')==='KRW';
+ return ($b['status']??'')==='DONE'&&($b['orderId']??'')===$a['order_id']&&(int)($b['totalAmount']??0)===(int)($a['amount']??59000)&&!empty($b['paymentKey'])&&($b['currency']??'KRW')==='KRW';
 }
 function ab_commit_payment(string $uid,string $dir,array $d,array $a,array $b):array {
  if(!ab_valid_payment($b,$a))throw new RuntimeException('결제 결과의 주문번호·금액·상태가 일치하지 않습니다.');
@@ -82,12 +83,18 @@ function ab_commit_payment(string $uid,string $dir,array $d,array $a,array $b):a
  ab_store($dir.'/charge_receipt.php',['attempt'=>$a,'payment'=>$b]);
  $d['charge_attempt']=$a;$d['charge_attempt']['state']='done';$d['charge_attempt']['payment_key']=$b['paymentKey'];
  $paid=strtotime((string)($b['approvedAt']??''));$at=$paid?date('Y-m-d H:i:s',$paid):date('Y-m-d H:i:s');
- $d['status']='active';$d['plan']='yearly';$d['plan_name']=AP_PLANS['yearly']['name'];$d['price']=AP_PRICE;$d['paid_at']=$at;$d['started_at']=$d['started_at']??$at;
+ $d['status']='active';$d['plan']='yearly';$d['plan_name']=AP_PLANS['yearly']['name'];$d['price']=(int)($a['amount']??59000);$d['paid_at']=$at;$d['started_at']=$d['started_at']??$at;
  $d['bill_day']=$a['anchor_day'];$d['next_billing']=$a['period_end'];$d['next_at']=$a['period_end'];$d['expires_at']=$a['period_end'];$d['next_billing_at']=$a['period_end'].' 00:00:00';
  $d['last_payment_key']=$b['paymentKey'];$d['last_error']='';$d['retry_count']=0;unset($d['retry_after'],$d['billing_notice'],$d['refund'],$d['refund_attempt'],$d['failed_from_status']);
- if($a['mode']==='live'&&empty($d['manager_first_payment']))$d['manager_first_payment']=['status'=>'DONE','live'=>true,'amount'=>AP_PRICE,'payment_key'=>$b['paymentKey'],'order_id'=>$a['order_id'],'at'=>$at];
+ if($a['mode']==='live'&&empty($d['manager_first_payment']))$d['manager_first_payment']=['status'=>'DONE','live'=>true,'amount'=>(int)($a['amount']??59000),'payment_key'=>$b['paymentKey'],'order_id'=>$a['order_id'],'at'=>$at];
  $history=(array)($d['history']??[]);$exists=false;foreach($history as $r)if(($r['orderId']??'')===$a['order_id'])$exists=true;
- if(!$exists)$history[]=['at'=>$at,'type'=>$a['kind']==='renewal'?'renewal':'payment','amount'=>AP_PRICE,'orderId'=>$a['order_id'],'paymentKey'=>$b['paymentKey'],'ok'=>true,'memo'=>'연간 59,000원 결제 완료','test'=>$a['mode']!=='live'];
+ if(!$exists)$history[]=['at'=>$at,'type'=>$a['kind']==='renewal'?'renewal':'payment','amount'=>(int)($a['amount']??59000),'orderId'=>$a['order_id'],'paymentKey'=>$b['paymentKey'],'ok'=>true,'memo'=>'연간 '.number_format((int)($a['amount']??59000)).'원 결제 완료','test'=>$a['mode']!=='live'];
+ if(!empty($a['promotion'])){ap_finish($uid,$a,true);$d['promotion_used'][$a['mode']]=['code'=>$a['promotion'],'source'=>$a['promotion_source'],'order_id'=>$a['order_id'],'at'=>$at];}
+ if(!empty($a['retain_price'])){
+  $oldLock=$d['price_lock']??[];
+  $d['price_lock']=['code'=>AP_PROMOTION,'mode'=>$a['mode'],'state'=>'active','amount'=>AP_PROMO_PRICE,'source'=>$a['promotion_source'],'started_at'=>$oldLock['started_at']??$at,'customer_type'=>$a['customer_type']??'preregistered'];
+ }elseif(isset($d['price_lock'])){$d['price_lock']['state']='ended';}
+ $d['renewal_price']=(int)($a['renewal_amount']??AP_PRICE);
  $d['history']=array_slice($history,-100);ab_store($dir.'/subscription.json',$d);return ['ok'=>true,'body'=>$b,'error'=>'','recovered'=>true];
 }
 function ab_reconcile_locked(string $uid,string $dir,array $d,?callable $transport):array {
@@ -100,8 +107,8 @@ function ab_reconcile_locked(string $uid,string $dir,array $d,?callable $transpo
  $d['charge_attempt']['state']='unknown';$d['billing_notice']='결제 결과를 확인 중입니다. 추가 결제는 중단되어 있습니다.';ab_store($dir.'/subscription.json',$d);
  return ab_result(false,$d['billing_notice'],true); // Even NOT_FOUND is not permission to make another charge.
 }
-function ab_charge_user(string $uid,string $kind='manual',?callable $transport=null):array {
- $res=ab_lock($uid,function($dir)use($uid,$kind,$transport){
+function ab_charge_user(string $uid,string $kind='manual',?callable $transport=null,string $expectedQuote=''):array {
+ $res=ab_lock($uid,function($dir)use($uid,$kind,$transport,$expectedQuote){
   $d=ab_read($uid);$a=$d['charge_attempt']??[];
   if(in_array($a['state']??'',['prepared','unknown'],true))return ab_reconcile_locked($uid,$dir,$d,$transport);
   if($kind==='reconcile')return ab_result(false,'확인할 결제가 없습니다.',true);
@@ -115,12 +122,16 @@ function ab_charge_user(string $uid,string $kind='manual',?callable $transport=n
    if(!in_array($d['status']??'',['active','payment_failed'],true)||ab_end($d)===0)return ab_result(false,'자동결제 대상이 아닙니다.',true);
    if((int)($d['retry_count']??0)>=3||strtotime((string)($d['retry_after']??''))>time())return ab_result(false,'재시도 대기 또는 관리자 확인 대상입니다.',true);
   }
+  $quote=ap_quote($uid,$d,$kind);
+  if($kind==='renewal'&&(int)($d['renewal_consent']['price']??0)!==$quote['amount'])return ab_result(false,'갱신 금액이 변경되어 새 동의가 필요합니다.',true);
+  if($kind!=='renewal'&&($expectedQuote===''||!hash_equals($quote['id'],$expectedQuote)))return ab_result(false,'할인 대상 또는 결제 금액이 변경되었습니다. 새로고침 후 다시 동의해 주세요.',true);
   $date=date('Y-m-d');$day=(int)date('j');
   // Scheduled renewals preserve the anniversary. A job delayed >= one year is held for review.
   if($kind==='renewal'){$date=date('Y-m-d',ab_end($d));$day=(int)($d['bill_day']??date('j',ab_end($d)));if(strtotime(ab_next($date,$day))<=time())return ab_result(false,'장기간 미처리된 갱신입니다. 관리자 확인이 필요합니다.',true);}
-  $a=['state'=>'prepared','order_id'=>'annual_'.bin2hex(random_bytes(16)),'idem'=>bin2hex(random_bytes(24)),'mode'=>$mode,'merchant'=>hash('sha256',ab_config()['client']),'kind'=>$kind,'created_at'=>date('c'),'period_end'=>ab_next($date,$day),'anchor_day'=>$day];
+  $a=['state'=>'prepared','order_id'=>'annual_'.bin2hex(random_bytes(16)),'idem'=>bin2hex(random_bytes(24)),'mode'=>$mode,'merchant'=>hash('sha256',ab_config()['client']),'kind'=>$kind,'created_at'=>date('c'),'period_end'=>ab_next($date,$day),'anchor_day'=>$day,'amount'=>$quote['amount'],'promotion'=>$quote['promotion'],'promotion_source'=>$quote['source'],'renewal_amount'=>$quote['renewal_amount'],'retain_price'=>$quote['retain_price'],'customer_type'=>$quote['customer_type']];
+  ap_reserve($uid,$a);
   $d['charge_attempt']=$a;ab_store($dir.'/subscription.json',$d); // Must succeed BEFORE an external charge.
-  $r=ab_api($transport,'POST','/v1/billing/'.rawurlencode($d['billing_key']),['customerKey'=>$d['customer_key'],'amount'=>AP_PRICE,'orderId'=>$a['order_id'],'orderName'=>AP_PLANS['yearly']['name']],$a['idem']);
+  $r=ab_api($transport,'POST','/v1/billing/'.rawurlencode($d['billing_key']),['customerKey'=>$d['customer_key'],'amount'=>$a['amount'],'orderId'=>$a['order_id'],'orderName'=>AP_PLANS['yearly']['name']],$a['idem']);
   if($r['ok']&&ab_valid_payment($r['body'],$a))return ab_commit_payment($uid,$dir,$d,$a,$r['body']);
   // Only explicit payment declines are retryable; transport/API ambiguity is reconciled by GET.
   $declines=['EXCEED_MAX_CARD_INSTALLMENT_PLAN','EXCEED_MAX_DAILY_PAYMENT_COUNT','EXCEED_MAX_PAYMENT_AMOUNT','EXCEED_MAX_ONE_DAY_AMOUNT','EXCEED_MAX_MONTHLY_PAYMENT_AMOUNT','EXCEED_MAX_CARD_LIMIT','EXCEED_MAX_AMOUNT','NOT_ENOUGH_BALANCE','INVALID_CARD_EXPIRATION','INVALID_CARD_NUMBER','REJECT_CARD_PAYMENT','REJECT_ACCOUNT_PAYMENT','STOPPED_CARD','INVALID_BILL_KEY'];
@@ -128,6 +139,7 @@ function ab_charge_user(string $uid,string $kind='manual',?callable $transport=n
   $d['charge_attempt']['state']=$failed?'failed':'unknown';$d['last_error']=$r['error'];
   if($failed){$d['failed_from_status']=$d['status']??'none';$d['status']='payment_failed';$n=(int)($d['retry_count']??0)+1;$d['retry_count']=$n;$d['retry_after']=date('c',time()+($n===1?86400:3*86400));}
   $d['billing_notice']=$failed?'결제하지 못했습니다. 카드 정보와 한도를 확인해 주세요.':'결제 결과 확인 중입니다. 다시 청구하지 않고 기존 주문을 조회합니다.';ab_store($dir.'/subscription.json',$d);
+  if($failed)ap_finish($uid,$a,false);
   return ab_result(false,$d['billing_notice'],!$failed);
  });
  if($res['ok'])ab_rewards($uid);return $res;
@@ -137,8 +149,10 @@ function ab_rewards(string $uid):void {
 }
 function ab_renewal(string $uid,bool $enabled):void {
  ab_lock($uid,function($dir)use($uid,$enabled){$d=ab_read($uid);if($enabled&&($d['status']??'')==='refund_pending')throw new RuntimeException('환불 확인 중에는 자동갱신을 켤 수 없습니다.');
+ $renewalQuote=ap_quote($uid,$d);
+ if(isset($d['price_lock'])&&!ap_price_retained($d,ab_mode()))$d['price_lock']['state']='ended';
  $d['auto_renew']=$enabled;$d['renewal_changed_at']=date('c');if(!$enabled&&($d['notice_kind']??'')==='upcoming'){unset($d['billing_notice'],$d['notice_kind']);}
- if($enabled)$d['renewal_consent']=['version'=>AB_CONSENT,'at'=>date('c'),'price'=>AP_PRICE,'months'=>12];
+ if($enabled)$d['renewal_consent']=['version'=>AB_CONSENT,'at'=>date('c'),'price'=>$renewalQuote['renewal_amount'],'months'=>12];
  ab_store($dir.'/subscription.json',$d);});
 }
 
@@ -187,6 +201,7 @@ function ab_commit_refund(string $dir,array $d,array $r,array $body):array {
  if(!ab_refund_match($body,$r))throw new RuntimeException('환불 응답 확인이 필요합니다.');
  ab_store($dir.'/refund_receipt.php',['attempt'=>$r,'payment'=>$body]);
  $d['refund_attempt']=$r;$d['refund_attempt']['state']='done';$d['status']='refunded';$d['auto_renew']=false;$d['canceled_at']=date('Y-m-d H:i:s');$d['expires_at']=date('Y-m-d');
+ if(isset($d['price_lock']))$d['price_lock']['state']='ended';
  $d['refund']=['status'=>'done','amount'=>$r['amount'],'payment_key'=>$r['payment_key'],'refunded_at'=>date('c')];unset($d['billing_notice']);
  $d['history'][]=['at'=>date('Y-m-d H:i:s'),'type'=>'refund','amount'=>$r['amount'],'memo'=>'해지·환불 완료'];
  if(($body['status']??'')==='CANCELED'){$d['manager_full_refunds'][]=$r['payment_key'];$d['manager_full_refunds']=array_values(array_unique($d['manager_full_refunds']));}
@@ -243,10 +258,10 @@ function ab_batch(bool $execute=false,?callable $transport=null):array {
   $dirs=glob($base.'/*',GLOB_ONLYDIR)?:[];sort($dirs);$cursor=(string)($settings['cursor']??'');$dirs=array_merge(array_filter($dirs,fn($x)=>basename($x)>$cursor),array_filter($dirs,fn($x)=>basename($x)<=$cursor));
   $last='';foreach($dirs as $dir){if(microtime(true)-$start>5)break;if($execute){$currentSettings=ab_scheduler_settings();if(!$currentSettings['enabled']||$currentSettings['mode']!==$mode)break;}$uid=basename($dir);if(!preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/D',$uid))continue;$last=$uid;
    try{$d=ab_read($uid);
-    if($execute&&ab_auto($d)&&($d['status']??'')==='active'&&ab_end($d)>time()&&ab_end($d)<=time()+7*86400){ab_lock($uid,function($dir)use($uid){$fresh=ab_read($uid);if(ab_auto($fresh)&&($fresh['status']??'')==='active'&&ab_end($fresh)>time()&&ab_end($fresh)<=time()+7*86400){$fresh['billing_notice']=''.($fresh['next_billing']??'').'에 연간 구독료 59,000원이 자동결제될 예정입니다.';$fresh['notice_kind']='upcoming';ab_store($dir.'/subscription.json',$fresh);}});}
+    if($execute&&ab_auto($d)&&($d['status']??'')==='active'&&ab_end($d)>time()&&ab_end($d)<=time()+7*86400){ab_lock($uid,function($dir)use($uid){$fresh=ab_read($uid);if(ab_auto($fresh)&&($fresh['status']??'')==='active'&&ab_end($fresh)>time()&&ab_end($fresh)<=time()+7*86400){$fresh['billing_notice']=''.($fresh['next_billing']??'').'에 연간 구독료 '.number_format(ap_quote($uid,$fresh,'renewal')['amount']).'원이 자동결제될 예정입니다.';$fresh['notice_kind']='upcoming';ab_store($dir.'/subscription.json',$fresh);}});}
     if(in_array($d['refund_attempt']['state']??'',['prepared','unknown'],true)){$r=$execute?ab_refund_user($uid,$transport,true):ab_result(false,'환불 결과 조회 예정',true);}
     elseif(in_array($d['charge_attempt']['state']??'',['prepared','unknown'],true)){$r=$execute?ab_charge_user($uid,'reconcile',$transport):ab_result(false,'결제 결과 조회 예정',true);}
-    else{$reason=ab_due_reason($uid,$d);if($reason!==''){$r=ab_result(false,$reason,true);}else{$r=$execute?ab_charge_user($uid,'renewal',$transport):ab_result(false,'59,000원 갱신 대상 · 모의 실행',true);}}
+    else{$reason=ab_due_reason($uid,$d);if($reason!==''){$r=ab_result(false,$reason,true);}else{$r=$execute?ab_charge_user($uid,'renewal',$transport):ab_result(false,number_format(ap_quote($uid,$d,'renewal')['amount']).'원 갱신 대상 · 모의 실행',true);}}
     $results[]=['uid'=>$uid,'ok'=>$r['ok'],'message'=>$r['ok']?'처리 완료':$r['error']];
    }catch(Throwable $e){$results[]=['uid'=>$uid,'ok'=>false,'message'=>'저장 또는 처리 오류 · 관리자 확인 필요'];}
   }

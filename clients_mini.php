@@ -2044,7 +2044,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
         style="margin-left:6px;border:1px solid var(--bd2);background:var(--card2);color:var(--mut);border-radius:6px;cursor:pointer;font-size:11px;padding:2px 7px">✎</button>
     </div>
     <?php if($msReady): ?><div class="manager-header-code"><?php ms_render_code($ms); ?></div><?php endif; ?>
-    <?php if($msReady): ?><button type="button" class="manager-header-wallet" data-wallet-open aria-haspopup="dialog" aria-controls="manager-wallet-dialog"><span class="header-wallet-icon" aria-hidden="true"><?=mg_icon('coin')?></span><span class="header-wallet-label">파이어코인<small>적립 내역 보기</small></span><strong><?=number_format((int)$ms['balance'])?><small>개</small></strong><span aria-hidden="true" class="wallet-chevron">›</span></button><?php endif; ?>
+    <?php if($msReady): ?><button type="button" class="manager-header-wallet" data-wallet-open aria-haspopup="dialog" aria-controls="manager-wallet-dialog"><span class="header-wallet-icon" aria-hidden="true"><?=mg_icon('coin')?></span><span class="header-wallet-label">파이어 마일리지<small>적립 내역 보기</small></span><strong><?=number_format((int)$ms['balance'])?><small>개</small></strong><span aria-hidden="true" class="wallet-chevron">›</span></button><?php endif; ?>
   </div>
 </header>
 <?php if($managerHeaderName!==null): ?><script src="/manager_help.js?v=20260926-inbox" data-manager="1"></script><?php endif; ?>
@@ -2058,7 +2058,10 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
 
     <section class="focus-map" aria-label="담당 건물 지도">
       <link rel="stylesheet" href="/manager_map.css?v=3">
-      <?php if($msReady): ?><div class="mm-management-bar"><h2>담당 건물</h2><div class="mm-management-actions"><a href="/manager_addresses.php" data-address-open class="mm-draft-list">사전등록 <b data-preregister-count><?=count($ms['preregistered']??[])?></b>곳</a><a href="/manager_addresses.php?new=1" data-address-open class="mm-draft-add"><span aria-hidden="true">＋</span> 건물 사전등록</a></div></div><?php endif; ?>
+      <style>
+.mm-management-actions .mm-draft-add{display:inline-flex;align-items:center;gap:10px;padding:11px 16px;border:1px solid #9fcac2;border-radius:12px;background:linear-gradient(120deg,#e8f5ef,#eef7fb);color:#205f57;box-shadow:0 3px 12px #285b5010;text-decoration:none;transition:background .18s,box-shadow .18s}.mm-management-actions .mm-draft-add:hover{background:#def0e8;box-shadow:0 4px 16px #285b5020}.mm-draft-add .mm-draft-copy{display:flex;flex-direction:column;gap:3px}.mm-draft-add .mm-draft-copy b{font-size:13px;font-weight:750}.mm-draft-add .mm-draft-copy small{font-size:11px;font-weight:400;color:#5d7c76}.mm-management-actions .mm-draft-add:focus-visible{outline:3px solid #409d8c;outline-offset:3px}
+</style>
+<?php if($msReady): ?><div class="mm-management-bar"><h2>담당 건물</h2><div class="mm-management-actions"><button type="button" class="mi-guide-open" data-manager-intro-open aria-haspopup="dialog" aria-controls="manager-intro"><span aria-hidden="true">ⓘ</span> 리워드·이용 안내</button><a href="/manager_addresses.php" data-address-open class="mm-draft-list">사전등록 <b data-preregister-count><?=count($ms['preregistered']??[])?></b>곳</a><a href="/manager_addresses.php?new=1" data-address-open class="mm-draft-add"><span aria-hidden="true">＋</span><span class="mm-draft-copy"><b>건물 사전등록</b><small>유저 연결 전에 미리 준비하세요</small></span></a></div></div><?php endif; ?>
       <div id="map"></div>
     </section>
 
@@ -6215,7 +6218,6 @@ function estSavePdf() {
 <script src="/manager_map.js?v=20260926-preregister-bar" defer></script>
 <script src="/manager_sidebar.js?v=7" defer></script>
 <script src="/manager_activity.js?v=20260927-request-building" defer></script>
-<?php require __DIR__ . '/manager_footer.php'; ?>
+<?php if($msReady)require __DIR__.'/manager_intro.php'; ?>
 <script src="/manager_payout.js?v=20260926-monthly" defer></script>
-</body>
-</html>
+<?php require __DIR__ . '/_footer.php'; ?>
