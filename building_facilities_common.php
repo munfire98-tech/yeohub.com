@@ -25,6 +25,8 @@ function bf_source():array {
  $address=preg_replace('/\s+/u','',trim((string)($bi['address']??'')));
  $options=bf_dong_options($bi);$sorted=$options;ksort($sorted);
  $source=['reset_token'=>(string)($bi['_facility_reset_token']??''),'address'=>$address,'name_key'=>$address===''?trim((string)($bi['name']??'')):'','options'=>$sorted];
+ $dl=$bi['bd_dong_list']??[];if(is_string($dl))$dl=json_decode($dl,true);
+ if(is_array($dl)&&$dl&&!empty($dl[0]['managed']))$source['managed_selection']=true;
  $source['signature']=hash('sha256',json_encode($source,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
  return $source;
 }
@@ -52,7 +54,7 @@ function bf_align(array $stored,array $source):array {
  foreach($options as $id=>$label){
   $key=$id==='base'?preg_replace('/ · 기본동$/u','',$label):$label;
   $scope=!empty($matched[$key])?array_shift($matched[$key]):['included'=>false,'items'=>[]];
-  $scope['label']=$label;$scope['included']=$id==='base'||!empty($scope['included']);$scopes[$id]=$scope;
+  $scope['label']=$label;$scope['included']=$id==='base'||!empty($scope['included'])||!empty($source['managed_selection']);$scopes[$id]=$scope;
  }
  $out=$stored;$out['scopes']=$scopes;$out['items']=bf_aggregate($scopes);$out['basic_source']=$source;
  // Changes to basic information invalidate previously opened facility forms as well.

@@ -462,47 +462,8 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
         <div class="fld fld--wide"><label>도로명 대지위치</label>
           <input type="text" name="bd_road_addr" value="<?=$v('bd_road_addr')?>"></div>
       </div>
-      <?php if (trim((string)($d['bd_dongs'] ?? '')) !== ''): ?>
-      <div class="row">
-        <div class="fld fld--wide"><label>동별 층수·구조 (여러 동)
-          <?php if (trim((string)($d['bd_dong_pick'] ?? '')) !== ''): ?>
-            <span style="font-weight:600;color:var(--brand2)">— 선택: <?= h($d['bd_dong_pick']==='ALL' ? '전체 동' : $d['bd_dong_pick']) ?></span>
-          <?php endif; ?>
-        </label>
-          <textarea name="bd_dongs" rows="4" style="padding:10px 12px;border:1px solid var(--bd2);border-radius:9px;font-size:14px;font-family:inherit;background:#f8fafc;color:var(--fg);resize:vertical"><?=$v('bd_dongs')?></textarea></div>
-      </div>
-      <?php
-        /* 동별 상세(구조화)는 시뮬레이션이 쓰는 값이라 화면에서는 읽기 전용으로 보여주고
-           원본 배열은 hidden 으로 그대로 되돌려 저장합니다(수정 시 유실 방지). */
-        $dl = $d['bd_dong_list'] ?? [];
-        if (is_array($dl) && $dl):
-      ?>
-      <div class="row">
-        <div class="fld fld--wide"><label>동별 상세 (시뮬레이션 연동용 · 자동)</label>
-          <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff">
-            <tr style="background:#f3f6fa">
-              <th style="border:1px solid var(--bd);padding:6px 8px;text-align:left">동</th>
-              <th style="border:1px solid var(--bd);padding:6px 8px;text-align:left">지상/지하</th>
-              <th style="border:1px solid var(--bd);padding:6px 8px;text-align:left">구조</th>
-              <th style="border:1px solid var(--bd);padding:6px 8px;text-align:left">높이</th>
-              <th style="border:1px solid var(--bd);padding:6px 8px;text-align:left">연면적</th>
-            </tr>
-            <?php foreach ($dl as $g): ?>
-            <tr>
-              <td style="border:1px solid var(--bd);padding:6px 8px"><?=h($g['dong'] ?? '')?></td>
-              <td style="border:1px solid var(--bd);padding:6px 8px"><?=h($g['floor_a'] ?? '')?>/<?=h($g['floor_b'] ?? '')?>층</td>
-              <td style="border:1px solid var(--bd);padding:6px 8px"><?=h($g['struct'] ?? '')?></td>
-              <td style="border:1px solid var(--bd);padding:6px 8px"><?=h($g['height'] ?? '')?><?= ($g['height']??'')!=='' ? 'm' : '' ?></td>
-              <td style="border:1px solid var(--bd);padding:6px 8px"><?= ($g['area']??'')!=='' ? number_format((float)$g['area']).'㎡' : '' ?></td>
-            </tr>
-            <?php endforeach; ?>
-          </table>
-        </div>
-      </div>
-      <?php endif; ?>
-      <?php else: ?>
-        <input type="hidden" name="bd_dongs" value="<?=$v('bd_dongs')?>">
-      <?php endif; ?>
+      <?php require __DIR__.'/building_dong_tabs.php'; ?>
+      <input type="hidden" name="bd_dongs" value="<?=$v('bd_dongs')?>">
       <input type="hidden" name="bd_dong_pick" value="<?=$v('bd_dong_pick')?>">
       <input type="hidden" name="bd_dong_list" value="<?=h(json_encode($d['bd_dong_list'] ?? [], JSON_UNESCAPED_UNICODE))?>">
       <input type="hidden" name="bd_looked" value="<?=$v('bd_looked')?>">

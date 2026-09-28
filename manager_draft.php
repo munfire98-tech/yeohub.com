@@ -127,16 +127,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
   if (!hash_equals($CSRF, (string)($_POST['csrf'] ?? ''))) {
     echo json_encode(['ok'=>false,'error'=>'세션이 만료되었습니다. 새로고침 후 다시 시도해 주세요.']); exit;
   }
+  // Network waits must not hold the login session lock.
+  if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
   $road  = trim((string)($_POST['road']  ?? ''));
   $jibun = trim((string)($_POST['jibun'] ?? ''));
   $place = trim((string)($_POST['place'] ?? ''));
   $lat   = trim((string)($_POST['lat']   ?? ''));   // 검색 결과의 좌표 (지도 표시용)
   $lng   = trim((string)($_POST['lng']   ?? ''));
 
+  require_once __DIR__.'/building_address_recovery.php';
+  $roadRetry = (string)($_POST['road_retry'] ?? '') === '1';
   // 1) juso 로 시군구·법정동 코드 확보 (지번 우선, 실패 시 도로명)
+  if ($roadRetry) {
+    $jusoRoad = bar_road_code($API, $road);
+    $jusoJibun = null;
+    $base = $jusoRoad;
+    if (!$base) {
+      echo json_encode(['ok'=>false,'retryable'=>false,'error'=>'선택한 도로명주소의 지번을 명확히 확인하지 못했습니다. 주소를 다시 검색하거나 직접 입력해 주세요.'], JSON_UNESCAPED_UNICODE); exit;
+    }
+  } else {
   $jusoJibun = bldg_juso_code($API, $jibun);
   $jusoRoad  = bldg_juso_code($API, $road);
   $base = $jusoJibun ?: $jusoRoad;
+  }
   if (!$base) {
     echo json_encode(['ok'=>true,'partial'=>true,
       'patch'=>['name'=>$place, 'address'=>($road ?: $jibun), 'bd_lat'=>$lat, 'bd_lng'=>$lng],
@@ -168,6 +181,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
   $addCand('카카오 본번', $kj['bun'], 0, $kj['mtYn'], false);
   if ($jusoJibun) $addCand('juso 본번', (int)$jusoJibun['bun'], 0, $jusoJibun['platGbCd'], false);
   if ($jusoRoad)  $addCand('juso 도로명', (int)$jusoRoad['bun'], 0, $jusoRoad['platGbCd'], false);
+
+  if ($roadRetry) {
+    $cands = [$base + ['label'=>'도로명주소 재조회', 'exact'=>true]];
+  }
 
   // 3) 건축HUB 조회 — 후보를 순서대로 시도, 데이터 나오는 첫 후보 채택
   //    (총괄표제부: 면적·용적률·주차 / 표제부: 층수·구조·높이 — 동별)
@@ -221,6 +238,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
   }
   if (!$code) $code = $cands[0] ?? $base;   // 전부 실패해도 주소 정보는 남긴다
   $code['roadAddr'] = $base['roadAddr'] ?? ($road ?: $jibun);
+  if ($roadRetry) {
+    $recapList = bar_matching_items($recapList, $road);
+    $titleList = bar_matching_items($titleList, $road);
+    if (!$titleList) {
+      echo json_encode(['ok'=>false,'retryable'=>false,'error'=>'선택한 주소와 일치하는 동별 건축물대장을 확인하지 못했습니다. 기존 정보는 변경하지 않았습니다. 주소를 다시 검색하거나 직접 입력해 주세요.'], JSON_UNESCAPED_UNICODE); exit;
+    }
+  }
+
 
   // 총괄표제부(단지 요약) — 있으면 첫 건
   $recap = (is_array($recapList) && $recapList) ? $recapList[0] : null;
@@ -271,6 +296,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
     if ($dn === '' || $dn === ' ') $dn = '(동명 미상)';
     if (($t['mainAtchGbCd'] ?? '0') === '1') $dn .= ' (부속)';
     $dongList[] = [
+      'patch' => ['use'=>bldg_map_use(trim((string)($t['mainPurpsCdNm']??''))),
+        'bd_area_plat'=>trim((string)($t['platArea']??'')),
+        'bd_area_vl'=>trim((string)($t['vlRatEstmTotArea']??'')),
+        'bd_bcrat'=>trim((string)($t['bcRat']??'')),
+        'bd_vlrat'=>trim((string)($t['vlRat']??'')),
+        'bd_main_bld'=>trim((string)($t['mainBldCnt']??'')),
+        'bd_atch_bld'=>trim((string)($t['atchBldCnt']??'')),
+        'bd_road_addr'=>trim((string)($t['newPlatPlc']??'')),
+        'bd_struct_etc'=>trim((string)($t['etcStrct']??'')),
+        'bd_use_etc'=>trim((string)($t['etcPurps']??'')),
+        'bd_park'=>trim((string)($t['totPkngCnt']??'')),
+        'bd_elev'=>trim((string)($t['rideUseElvtCnt']??'')),
+        'bd_hhld'=>trim((string)($t['hhldCnt']??'')),
+        'bd_family'=>trim((string)($t['fmlyCnt']??'')),
+        'bd_ho'=>trim((string)($t['hoCnt']??'')),
+        'bd_energy'=>trim((string)($t['engrGrade']??'')),
+        'bd_seismic_ablty'=>trim((string)($t['rserthqkAblty']??'')),
+        'bd_use_apr'=>$fmtDay($t['useAprDay']??''),
+        'bd_pms_day'=>$fmtDay($t['pmsDay']??''),
+        'bd_stcns_day'=>$fmtDay($t['stcnsDay']??''),
+        'bd_seismic'=>(($t['rserthqkDsgnApplyYn']??'')==='1'?'적용':(($t['rserthqkDsgnApplyYn']??'')==='0'?'미적용':''))],
       'dong'    => $dn,
       'floor_a' => (string)(int)($t['grndFlrCnt'] ?? 0),
       'floor_b' => (string)(int)($t['ugrndFlrCnt'] ?? 0),
@@ -343,21 +389,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
     'bd_road_addr' => trim((string)($val('newPlatPlc'))),
     'bd_dongs'     => $dongDetail,   // 여러 동일 때 동별 층수·구조(요약 텍스트)
     'bd_dong_list' => $dongList,     // 동별 상세(구조화) — 시뮬레이션용
-    'bd_dong_pick' => (string)($dongList[0]['dong'] ?? ''), // 가장 큰 동을 대표 기준동으로 고정
+    'bd_dong_pick' => count($dongList)===1 ? (string)$dongList[0]['dong'] : '', // 여러 동은 사용자가 지정
     'bd_looked'    => date('Y-m-d H:i:s'),
   ];
   echo json_encode(['ok'=>true,'patch'=>$patch,'rawUse'=>$useNm,'code'=>$code,
-    'via'=>$usedLabel, 'needs_address_check'=>empty($code['exact']), 'matched_address'=>trim((string)($head['newPlatPlc']??$head['platPlc']??$item['platPlc']??'')), 'matched_jibun'=>trim((string)($head['platPlc']??$item['platPlc']??'')), 'dongCnt'=>count($dongList), 'dongList'=>$dongList], JSON_UNESCAPED_UNICODE); exit;
+    'via'=>$usedLabel, 'needs_address_check'=>($roadRetry || empty($code['exact'])), 'matched_address'=>trim((string)($head['newPlatPlc']??$head['platPlc']??$item['platPlc']??'')), 'matched_jibun'=>trim((string)($head['platPlc']??$item['platPlc']??'')), 'dongCnt'=>count($dongList), 'dongList'=>$dongList], JSON_UNESCAPED_UNICODE); exit;
 }
 
 /* ── 조회 헬퍼들 ─────────────────────────────────────────── */
 function bldg_http_get(string $url, array $headers = []): array {
-  $ch = curl_init($url);
-  $h  = array_merge(['Accept: application/json'], $headers);
-  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>15,
-    CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2, CURLOPT_HTTPHEADER=>$h]);
-  $b = curl_exec($ch); $c = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
-  return ['body'=>(string)$b, 'code'=>$c];
+  require_once __DIR__.'/building_registry_http.php';
+  $r=br_http_get($url,$headers);
+  if(!empty($r['lookup_error'])&&($_POST['act']??'')==='lookup'){
+    http_response_code(503);header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['ok'=>false,'error'=>$r['lookup_error'],'retryable'=>(bool)($r['retryable']??false)],JSON_UNESCAPED_UNICODE);exit;
+  }
+  return $r;
 }
 /** 지번주소 문자열에서 본번/부번을 뽑는다.
  *  예) "경기 파주시 탄현면 문지리 16-1" → bun=16, ji=1
@@ -618,6 +665,10 @@ button{font:inherit;color:inherit;cursor:pointer}
 </main>
 
 <script>window.managerHelp={ready:Promise.resolve(null),refresh:function(){}};if(new URLSearchParams(location.search).get('reset')==='1'&&window.parent!==window)window.parent.postMessage({type:'manager-addresses-changed'},location.origin);</script>
+<script src="/building_registry_retry.js?v=1"></script>
+<script src="/building_address_recovery.js?v=1"></script>
+<script src="/building_address_coordinates.js?v=1"></script>
+<script src="/manager_draft_name.js?v=2"></script>
 <script>
 var CSRF   = <?=json_encode($CSRF)?>;
 var KAKAO_JS_KEY = <?=json_encode($API['kakao_js'] ?? '')?>;
@@ -635,7 +686,7 @@ function loadKakaoMap(onReady, onFail){
   _kakaoMapState = 'loading';
 
   var sc = document.createElement('script');
-  sc.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' + encodeURIComponent(KAKAO_JS_KEY) + '&autoload=false';
+  sc.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' + encodeURIComponent(KAKAO_JS_KEY) + '&autoload=false&libraries=services';
   sc.onload = function(){
     kakao.maps.load(function(){
       _kakaoMapState = 'ready';
@@ -1790,7 +1841,8 @@ function appendDirectAddrOption(list, kw, s){
 }
 
 /* ── 후보 클릭 → juso+건축HUB 조회 → 기본정보 한번에 저장 ── */
-function doLookupPick(a, s){
+function doLookupPick(a, s, roadRetry){
+  function recover(message){showLookupRecovery(a,s,message,!!roadRetry);}
   clearBox(); me(a.place + (a.road?(' · '+a.road):''));
   typing(function(){
     var loading=bot('<div class="lookup-loading"><span class="lookup-spinner" aria-hidden="true"></span><div><b>건축물대장을 가져오는 중입니다</b><span>주소 확인 후 건축물 정보를 조회하고 있습니다. 잠시만 기다려 주세요.</span></div></div>');
@@ -1799,33 +1851,56 @@ function doLookupPick(a, s){
       if(loadingBody) loadingBody.innerHTML='<div class="lookup-loading"><span class="lookup-spinner" aria-hidden="true"></span><div><b>조회가 평소보다 오래 걸리고 있습니다</b><span>공공데이터 응답을 기다리는 중입니다. 화면을 닫지 않아도 됩니다.</span></div></div>';
     },4500);
     var verySlowTimer=setTimeout(function(){
-      if(loadingBody) loadingBody.innerHTML='<div class="lookup-loading"><span class="lookup-spinner" aria-hidden="true"></span><div><b>여러 건축물 정보를 확인하고 있습니다</b><span>최대 30초 정도 걸릴 수 있습니다. 응답이 없으면 재시도할 수 있게 안내해 드립니다.</span></div></div>';
+      if(loadingBody) loadingBody.innerHTML='<div class="lookup-loading"><span class="lookup-spinner" aria-hidden="true"></span><div><b>여러 건축물 정보를 확인하고 있습니다</b><span>응답이 늦으면 자동으로 다시 확인합니다. 최대 약 85초 이내에 안내합니다.</span></div></div>';
     },12000);
     var controller=window.AbortController?new AbortController():null;
-    var abortTimer=controller?setTimeout(function(){controller.abort();},35000):null;
+    var abortTimer=null;
+    var cancel=document.createElement('button');cancel.type='button';cancel.className='btn btn--sm';cancel.textContent='조회 중단';cancel.onclick=function(){if(controller)controller.abort();};loading.appendChild(cancel);
     function endLoading(){ clearTimeout(slowTimer); clearTimeout(verySlowTimer); if(abortTimer) clearTimeout(abortTimer); if(loading&&loading.isConnected) loading.remove(); }
     var fd=new FormData();
-    fd.append('act','lookup'); fd.append('csrf',CSRF);
+    fd.append('road_retry',roadRetry?'1':'0'); fd.append('act','lookup'); fd.append('csrf',CSRF);
     fd.append('place',a.place||''); fd.append('road',a.road||''); fd.append('jibun',a.jibun||'');
     fd.append('lat',a.lat||''); fd.append('lng',a.lng||'');
-    fetch(location.pathname+location.search,{method:'POST',body:fd,credentials:'same-origin',signal:controller?controller.signal:undefined})
-      .then(function(r){return r.json();})
-      .then(function(j){
+    buildingRegistryLookup(location.pathname+location.search,{method:'POST',body:fd,credentials:'same-origin',signal:controller?controller.signal:undefined},function(attempt,total){
+      if(attempt>1){clearTimeout(slowTimer);clearTimeout(verySlowTimer);}
+      if(loadingBody)loadingBody.innerHTML='<div class="lookup-loading"><span class="lookup-spinner" aria-hidden="true"></span><div><b>'+(attempt===1?'건축물대장을 조회하고 있습니다':'응답이 늦어 자동으로 다시 확인하고 있습니다')+'</b><span>'+attempt+' / '+total+'차 조회 · 다시 누르지 않아도 됩니다. 최대 약 85초 이내에 안내합니다.</span></div></div>';
+    })
+      .then(async function(j){
         endLoading();
-        if(!j || !j.ok){ showLookupRecovery(a,s,(j&&j.error)||'건축물대장 조회에 실패했습니다.'); return; }
+        if(!j || !j.ok){ recover((j&&j.error)||'건축물대장 조회에 실패했습니다.'); return; }
         if(j.needs_address_check){
-          var matched=[j.matched_address,j.matched_jibun].filter(Boolean).join('\n');
-          if(!confirm('정확한 지번에서 결과가 없어 본번 기준으로 추가 조회했습니다.\n\n선택한 주소: '+(a.road||a.jibun||'')+'\n대장에 나온 주소: '+(matched||'주소 정보 없음')+'\n건물명: '+((j.patch||{}).name||'미표시')+'\n\n같은 대상 건물이 맞는 경우에만 확인을 눌러 반영해 주세요.')){
-            showLookupRecovery(a,s,'추가 조회된 대장 반영을 취소했습니다. 주소를 확인하거나 직접 입력해 주세요.');return;
+          var choice=await buildingAddressConfirm(a,j,!!roadRetry);
+          if(choice!=='accept'){
+            if(choice==='retry' && !roadRetry && a.road){
+              bot('선택하신 도로명주소로 다시 확인하고 있습니다. 기존 정보는 변경하지 않습니다.');
+              doLookupPick(a,s,true);
+            }else{
+              recover(choice==='cancel'?'조회 결과를 반영하지 않았습니다.': '일치하는 건물을 확인하지 못했습니다. 주소를 다시 검색하거나 직접 입력해 주세요.');
+            }
+            return;
           }
         }
         var patch=j.patch||{};
+        if(roadRetry || !mapPointValid(patch.bd_lat,patch.bd_lng)){
+          var coordinateNotice=bot('확인된 주소의 지도 위치를 찾고 있습니다.');
+          var coordinates=await buildingAddressCoordinates(patch.address||a.road||a.jibun,loadKakaoMap);
+          if(coordinateNotice&&coordinateNotice.isConnected)coordinateNotice.remove();
+          if(!coordinates){
+            recover('주소의 지도 위치를 확인하지 못해 저장하지 않았습니다. 주소를 정확히 입력해 다시 조회해 주세요.');
+            return;
+          }
+          patch.bd_lat=coordinates.bd_lat;patch.bd_lng=coordinates.bd_lng;
+        }
+
+        var confirmedName=await confirmDraftBuildingName(patch.name||a.place||'',box());
+        if(confirmedName===null){recover('대상명 확인을 취소했습니다. 조회 결과는 저장하지 않았습니다.');return;}
+        patch.name=confirmedName;
         var lines=[];
         if(patch.name)    lines.push('**대상명** '+patch.name);
         if(patch.address) lines.push('**소재지** '+patch.address);
         if(patch.use)     lines.push('**용도** '+patch.use);
-        if(patch.bd_area_arch) lines.push('**건축면적** '+Number(patch.bd_area_arch).toLocaleString()+'㎡ (대표동 기준)');
-        if(patch.area_t)  lines.push('**연면적** '+Number(patch.area_t).toLocaleString()+'㎡ (가장 큰 동 기준)');
+        if(j.dongCnt<=1 && patch.bd_area_arch) lines.push('**건축면적** '+Number(patch.bd_area_arch).toLocaleString()+'㎡ (대표동 기준)');
+        if(j.dongCnt<=1 && patch.area_t)  lines.push('**연면적** '+Number(patch.area_t).toLocaleString()+'㎡ (기준 동 선택 후 반영)');
 
         // 동이 2개 이상이면 → 어느 동인지 사용자가 고르게 한다
         if (j.dongCnt > 1 && j.dongList && j.dongList.length > 1) {
@@ -1841,73 +1916,65 @@ function doLookupPick(a, s){
         for(var k in patch){ if(patch[k]!=='' && patch[k]!==null) SAVED[k]=patch[k]; }
         save(patch, function(){ step++; setTimeout(next,500); });
       })
-      .catch(function(err){ endLoading(); showLookupRecovery(a,s,(err&&err.name==='AbortError')?'조회 시간이 35초를 초과했습니다.':'조회 중 연결이 끊겼습니다.'); });
+      .catch(function(err){ endLoading(); recover((err&&err.name==='AbortError')?'사용자가 조회를 중단했습니다.':((err&&err.message)||'조회 중 연결이 끊겼습니다.')); });
   });
 }
 
-function showLookupRecovery(a,s,message){
+function showLookupRecovery(a,s,message,roadRetry){
   bot(md('건축물 정보를 가져오지 못했습니다.\n\n'+message));
   var b=box();
   var notice=document.createElement('div'); notice.className='lookup-recovery';
-  notice.textContent='공공데이터가 일시적으로 늦거나 해당 주소의 대장이 제공되지 않을 수 있습니다.';
+  notice.textContent='지금 조회를 완료하지 못했습니다. 잠시 후 다시 조회하거나 직접 입력으로 계속할 수 있습니다. 입력한 내용은 그대로 유지됩니다.';
   b.appendChild(notice);
   var row=document.createElement('div'); row.className='subrow';
   var retry=document.createElement('button'); retry.className='btn btn--pri'; retry.type='button'; retry.textContent='다시 조회하기';
-  retry.onclick=function(){ clearBox(); doLookupPick(a,s); };
+  retry.onclick=function(){ clearBox(); doLookupPick(a,s,!!roadRetry); };
   var manual=document.createElement('button'); manual.className='btn'; manual.type='button'; manual.textContent='직접 입력으로 계속';
   manual.onclick=function(){ clearBox(); me('직접 입력으로 계속'); step++; next(); };
-  row.appendChild(retry); row.appendChild(manual); b.appendChild(row);
+  var search=document.createElement('button');search.className='btn';search.type='button';search.textContent='주소 다시 검색';search.onclick=function(){clearBox();next();};
+  row.appendChild(retry); row.appendChild(search); row.appendChild(manual); b.appendChild(row);
 }
 
 /* ── 여러 동 안내 ─────────────────────────────────────────
    합산하지 않고 연면적이 가장 큰 첫 번째 동을 대표 기준동으로 저장합니다.
    나머지 동은 bd_dong_list 에 그대로 보존해 관리 화면에서 함께 표시합니다. */
 function askDongPick(j, patch){
-  bot(md('여러 동을 하나로 합산하지 않습니다.\n\n연면적이 가장 큰 **'+((j.dongList[0]&&j.dongList[0].dong)||'첫 번째 동')+'**을 기준동으로 사용하고, 나머지 동은 별도로 표시합니다.'), '층수·연면적·구조·높이는 기준동 값으로 저장됩니다.');
-  var b = box();
-  var list = j.dongList || [];
-
-  var w = document.createElement('div'); w.className='opts';
-  list.forEach(function(g, i){
-    var btn=document.createElement('div'); btn.className='opt';
-    var sub = '지상'+g.floor_a+'/지하'+g.floor_b+'층';
-    if (g.struct) sub += ' · '+g.struct;
-    if (g.area)   sub += ' · '+Number(g.area).toLocaleString()+'㎡';
-    btn.style.cursor='default';
-    if(i===0){ btn.style.background='#eef4ff'; btn.style.borderColor='var(--brand)'; }
-    btn.innerHTML = '<b>'+esc(g.dong)+'</b>'+(i===0?' <span style="font-size:10px;color:var(--brand2);font-weight:800">기준동</span>':' <span style="font-size:10px;color:var(--mut);font-weight:700">별도 표시</span>')+'<br><span style="font-size:11.5px;color:var(--mut)">'+esc(sub)+'</span>';
-    w.appendChild(btn);
+  bot(md('**주로 관리하는 본관·주동을 먼저 선택해 주세요.**\n처음 선택한 동이 기본정보의 기준동으로 지정됩니다. 함께 관리할 동도 추가로 선택할 수 있습니다.'),'층수·면적·용도는 선택한 기준 동의 값으로 저장됩니다.');
+  var b=box(), list=j.dongList||[], selected=new Set(), primary=-1;
+  var w=document.createElement('div');w.className='opts';
+  var controls=[],ok=document.createElement('button'),note=document.createElement('p');
+  note.style.cssText='font-size:12px;color:#526b7e;line-height:1.7';note.setAttribute('aria-live','polite');
+  function render(){controls.forEach(function(c,i){c.check.checked=selected.has(i);c.base.hidden=!selected.has(i);c.change.hidden=primary===i;c.badge.hidden=primary!==i;c.row.style.borderColor=primary===i?'#218b80':'#dce5ec';c.row.style.background=primary===i?'#f0faf6':'#fff';});ok.disabled=!selected.size||!selected.has(primary);note.textContent=selected.size+'개 동 선택 · '+(primary>=0?'기준 동: '+list[primary].dong:'본관·주동을 먼저 선택해 주세요.');}
+  list.forEach(function(g,i){
+    var row=document.createElement('div');row.className='opt';row.style.cssText='display:block;padding:14px;border:1px solid #dce5ec;border-radius:12px;cursor:default';
+    var label=document.createElement('label');label.style.cssText='display:flex;gap:9px;align-items:center;cursor:pointer';
+    var check=document.createElement('input');check.type='checkbox';check.style.cssText='appearance:auto;position:static;width:17px;height:17px';
+    var title=document.createElement('b');title.textContent=g.dong;label.append(check,title);row.append(label);
+    var info=document.createElement('p');info.style.cssText='margin:8px 0;font-size:12px;color:#637b8c';info.textContent=[g.use||'용도 미상','지상 '+g.floor_a+' / 지하 '+g.floor_b+'층',g.area?Number(g.area).toLocaleString()+'㎡':'면적 미상'].join(' · ');row.append(info);
+    var base=document.createElement('div');base.style.cssText='margin-top:8px';
+    var badge=document.createElement('span');badge.textContent='✓ 기준동 · 기본정보에 표시';badge.style.cssText='color:#218b80;font-size:12px;font-weight:700';
+    var change=document.createElement('button');change.type='button';change.textContent='기준동으로 변경';change.style.cssText='border:1px solid #cbdcd8;border-radius:7px;background:white;color:#36786d;padding:6px 10px;font-size:12px;cursor:pointer';
+    base.append(badge,change);row.append(base);
+    check.onchange=function(){if(check.checked){selected.add(i);if(primary<0)primary=i;}else{selected.delete(i);if(primary===i)primary=selected.size?selected.values().next().value:-1;}render();};
+    change.onclick=function(){if(!selected.has(i))return;primary=i;render();};
+    controls.push({row:row,check:check,base:base,change:change,badge:badge});w.append(row);
   });
-  b.appendChild(w);
-
-  var row=document.createElement('div'); row.className='subrow';
-  var okBtn=document.createElement('button');
-  okBtn.className='btn btn--primary btn--sm'; okBtn.type='button';
-  okBtn.textContent='기준동으로 저장하고 계속';
-  okBtn.onclick=function(){ applyDongPick(j, patch); };
-  row.appendChild(okBtn);
-  b.appendChild(row);
+  ok.type='button';ok.className='btn btn--primary btn--sm';ok.textContent='선택한 동으로 저장하고 계속';ok.onclick=function(){if(ok.disabled)return;ok.disabled=true;applyDongPick(j,patch,Array.from(selected),primary);};b.append(w,note,ok);render();down();
 }
-
-/* 서버에서 이미 가장 큰 동 기준으로 만든 값을 그대로 저장합니다. */
-function applyDongPick(j, patch){
-  var list=j.dongList||[];
-  if(!list.length) return;
-  var primary=list[0];
-  var label=primary.dong||'기준동';
-  clearBox(); me(label);
-  typing(function(){
-    var lines=[];
-    lines.push('**기준동** '+label+' (연면적이 가장 큰 동)');
-    lines.push('**층수** 지상 '+patch.floor_a+'층'+((patch.floor_b&&patch.floor_b!=='0')?(' · 지하 '+patch.floor_b+'층'):''));
-    if(patch.bd_struct) lines.push('**구조** '+patch.bd_struct);
-    if(patch.bd_area_arch) lines.push('**건축면적** '+Number(patch.bd_area_arch).toLocaleString()+'㎡');
-    if(patch.area_t)    lines.push('**연면적** '+Number(patch.area_t).toLocaleString()+'㎡');
-    bot(md('이 내용으로 채웠습니다.\n'+lines.join('\n')+
-           '\n\n나머지 '+Math.max(0,list.length-1)+'개 동은 합산하지 않고 건물 현황에 별도로 표시합니다.'));
-    for(var k in patch){ if(patch[k]!=='' && patch[k]!==null) SAVED[k]=patch[k]; }
-    save(patch, function(){ step++; setTimeout(next,500); });
-  });
+function selectedDongPatch(j,patch,indices,primaryIndex){
+ if(!indices.length||!indices.includes(primaryIndex))throw Error('관리할 동과 기준 동을 선택해 주세요.');
+ var primary=j.dongList[primaryIndex];if(!primary)throw Error('기준 동을 확인해 주세요.');
+ var chosen=[primaryIndex].concat(indices.filter(function(i){return i!==primaryIndex;})).map(function(i){return Object.assign({},j.dongList[i],{managed:true});});
+ var result=Object.assign({},patch,primary.patch||{});
+ result.name=patch.name; // Preserve the manager-confirmed display name for every primary wing.
+ result.floor_a=primary.floor_a;result.floor_b=primary.floor_b;result.area_t=primary.area;result.bd_area_arch=primary.arch_area;result.bd_struct=primary.struct;result.bd_height=primary.height;result.bd_use_main=primary.use;
+ result.bd_dong_pick=primary.dong;result.bd_dong_list=chosen;result.dongsu=String(chosen.length);
+ result.bd_dongs=chosen.map(function(g){return g.dong+' : 지상'+g.floor_a+'/지하'+g.floor_b+'층 · '+(g.use||'용도 미상')+(g.area?' · '+Number(g.area).toLocaleString()+'㎡':'');}).join('\n');return result;
+}
+function applyDongPick(j,patch,indices,primary){
+ patch=selectedDongPatch(j,patch,indices,primary);
+ clearBox();me('관리할 동 '+indices.length+'개 · 기준 동 '+patch.bd_dong_pick);
+ typing(function(){bot(md('**'+patch.bd_dong_pick+'**을 기준 동으로 지정했습니다.\n선택한 '+indices.length+'개 동만 관리 대상에 포함합니다.\n면적과 층수는 합산하지 않고 기준 동의 값을 사용합니다.'));Object.keys(patch).forEach(function(k){SAVED[k]=patch[k];});save(patch,function(){step++;setTimeout(next,500);});});
 }
 
 /* ── 마무리 ───────────────────────────────────────────── */
