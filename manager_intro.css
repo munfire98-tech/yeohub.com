@@ -16,3 +16,6 @@
 .mi-renewal-reward{margin-top:12px;padding:14px 16px;border:1px solid #d5e9df;border-radius:12px;background:#f2faf6}.mi-renewal-reward strong{font-size:14px;color:#247966}.mi-renewal-reward p{margin:6px 0 0;font-size:12px;line-height:1.7;color:#617b73}
 
 .mi-promo{margin:14px 0;padding:17px;border:1px solid #d8e4f5;border-radius:13px;background:#f3f7ff}.mi-promo>strong{font-size:14px;color:#28578b}.mi-promo p{font-size:12px;line-height:1.8;color:#58718c;margin:8px 0}.mi-promo>div{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:12px 0}.mi-promo del{font-size:13px;color:#8796a7}.mi-promo b{font-size:22px;color:#285eb5}.mi-promo span{font-size:11px;color:#285eb5;background:#e4edfc;padding:4px 8px;border-radius:6px}.mi-promo small{display:block;font-size:11px;line-height:1.7;color:#718397}
+
+.mi-actions{flex-wrap:wrap;gap:8px}.mi-register-cta{order:3;display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:44px;white-space:nowrap}.mi-foot{gap:16px}.mi-actions .mi-secondary{min-height:40px}
+@media(max-width:719px){.mi-actions{width:100%}.mi-register-cta{width:100%;flex-basis:100%}.mi-foot{align-items:stretch}}

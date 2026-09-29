@@ -1,0 +1,44 @@
+/* Manager workspace: visual overrides only. */
+body.cm-clean{background:#f4f6f9;background-image:none;color:#243449}
+.cm-clean .new-header{background:#fff;box-shadow:none;border-bottom:1px solid #e3e8ef;backdrop-filter:none}
+.cm-clean .nh-row1{max-width:1560px;min-height:80px;padding:16px 28px;gap:20px;flex-wrap:wrap}
+.cm-clean .nh-brand{min-width:0;flex:1}.cm-clean .nh-icon{background:#edf3fc;color:#386ab2;border-radius:12px;box-shadow:none}
+.cm-clean .manager-identity strong{font-size:18px;letter-spacing:-.5px}.cm-clean .manager-header-code{margin-left:auto}
+.cm-clean .manager-header-wallet{min-height:48px;border:1px solid #e1e7ef;border-radius:12px;background:#f8fafc;box-shadow:none;padding:10px 14px;gap:12px}
+.cm-clean .header-wallet-label{font-size:12px}.cm-clean .header-wallet-label small{font-size:11px;color:#7a8798}.cm-clean .manager-header-wallet strong{font-size:19px;color:#253d5c}
+body.cm-clean .main{max-width:1560px;margin:24px auto;padding:0 28px}
+body.cm-clean .main-cols{grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start}
+.cm-clean .focus-map,body.cm-clean .inactive-panel.ms-sidebar{border:1px solid #e0e6ee;border-radius:16px;background:#fff;box-shadow:0 3px 16px #25374e04;overflow:hidden}
+.cm-clean .mm-management-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:18px;padding:22px;border-bottom:1px solid #e6ebf1;background:#fff}
+.cm-clean .cm-map-heading h2{font-size:19px;line-height:1.4;letter-spacing:-.6px;margin:0;color:#23354d}.cm-clean .cm-map-heading p{margin:5px 0 0;font-size:12px;line-height:1.5;color:#7a8798}
+.cm-clean .mm-management-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.cm-clean .mm-management-actions .mi-guide-open,.cm-clean .mm-management-actions .mm-draft-list,.cm-clean .mm-management-actions .mm-draft-add{box-sizing:border-box;min-height:40px;display:inline-flex;align-items:center;justify-content:center;gap:7px;margin:0;padding:10px 13px;border:1px solid #dfe6ee;border-radius:9px;background:#fff;color:#50647d;font-size:12px;font-weight:600;line-height:1.4;box-shadow:none;white-space:nowrap;text-decoration:none}
+.cm-clean .mm-management-actions .mi-guide-open{border-color:transparent;background:#f5f7fa;color:#62748b}
+.cm-clean .mm-management-actions .mm-draft-list b{color:#245fc4;font-variant-numeric:tabular-nums}
+.cm-clean .mm-management-actions .mm-draft-add{background:#2463df;border-color:#2463df;color:#fff;padding:10px 15px}
+.cm-clean .mm-management-actions .mm-draft-add:hover{background:#1c53c1;border-color:#1c53c1;box-shadow:none}
+.cm-clean .mm-draft-add .mm-draft-copy{display:block}.cm-clean .mm-draft-add .mm-draft-copy b{font-size:12px}.cm-clean .mm-draft-add .mm-draft-copy small{display:none}
+body.cm-clean .focus-map #map{height:calc(100dvh - 216px)!important;min-height:460px;border:0;margin:0;border-radius:0}
+body.cm-clean .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 128px);padding:0}
+.cm-clean .ms-head{padding:22px 20px 16px;margin:0;border:0}.cm-clean .ms-head small{font-size:10px;letter-spacing:1.5px;color:#8a98aa}.cm-clean .ms-head h3{font-size:18px;letter-spacing:-.5px;margin:5px 0 0;color:#263951}
+.cm-clean .ms-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;margin:0 16px;padding:4px;background:#f1f4f8;border:0;border-radius:10px}
+.cm-clean .ms-tabs button{min-width:0;min-height:38px;margin:0;padding:7px 3px;border:0;border-radius:7px;background:transparent;color:#748399;font-size:11px;font-weight:600;white-space:nowrap}
+.cm-clean .ms-tabs button[aria-selected=true]{background:white;color:#235ac2;box-shadow:0 1px 5px #24394e10}
+.cm-clean .ms-slide-controls{margin:8px 18px;padding:0;gap:8px;color:#8996a7;font-size:10px}.cm-clean .ms-slide-controls button{border:1px solid #e4eaf1;border-radius:7px;background:white;color:#7b8ca2;width:26px;height:26px}
+.cm-clean .ms-content{padding:12px 16px 18px}.cm-clean .ms-user-list{display:grid;gap:10px}.cm-clean .ms-user{margin:0;padding:15px;border:1px solid #e3e9f0;border-radius:11px;box-shadow:none;background:#fff}
+.cm-clean .ms-user-head{display:flex;align-items:start;gap:10px;justify-content:space-between}.cm-clean .ms-user-head strong{font-size:14px;line-height:1.5;overflow-wrap:anywhere}.cm-clean .ms-user>p{font-size:11px;color:#8490a0;margin-top:5px;line-height:1.6}
+.cm-clean .ms-badge{flex:none;font-size:10px;line-height:1.5;border-radius:5px;padding:3px 6px}.cm-clean .ms-empty{padding:30px 12px;font-size:13px;line-height:1.8;color:#8290a2;text-align:center}
+.cm-clean .ms-connect-banner{margin:16px 16px 0;padding:14px;border-radius:11px;border:1px solid #d3e1fc;background:#f0f5ff;box-shadow:none}.cm-clean .ms-connect-banner strong{font-size:13px}.cm-clean .ms-connect-banner small{font-size:11px;line-height:1.6}
+.cm-clean button:focus-visible,.cm-clean a:focus-visible{outline:3px solid #b3cdf8;outline-offset:3px}
+.cm-clean dialog .modal-head{padding:18px 22px;border-bottom:1px solid #e5ebf2;background:#fff}.cm-clean dialog .modal-body{padding:20px 22px}.cm-clean dialog .modal-actions{padding:16px 22px;border-top:1px solid #e5ebf2;gap:8px;background:#fafbfd}
+@media(max-width:1200px){.cm-clean .mm-management-bar{align-items:flex-start}.cm-clean .mm-management-actions{justify-content:flex-start;width:100%}}
+@media(max-width:960px){body.cm-clean .main-cols{grid-template-columns:minmax(0,1fr)}body.cm-clean .main{margin:16px auto;padding:0 16px!important}.cm-clean .nh-row1{padding:14px 18px;gap:12px}.cm-clean .nh-brand{flex-basis:100%}.cm-clean .manager-header-code{margin-left:0}.cm-clean .manager-header-wallet{margin-left:auto}body.cm-clean .inactive-panel.ms-sidebar{max-height:none}body.cm-clean .focus-map #map{height:48dvh!important;min-height:320px}.cm-clean .mm-management-bar{padding:18px}.cm-clean .ms-tabs button{font-size:12px}}
+@media(max-width:480px){.cm-clean .nh-row1{padding:12px 16px;gap:10px}.cm-clean .manager-header-code,.cm-clean .manager-header-wallet{max-width:100%;margin-left:0}.cm-clean .header-wallet-label small{display:none}.cm-clean .mm-management-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.cm-clean .mm-management-actions .mm-draft-add{grid-column:1/-1}.cm-clean .mm-management-actions>*{width:100%}.cm-clean .mm-management-actions .mm-draft-add{min-height:44px}.cm-clean .ms-head{padding-top:18px}}
+
+/* Gentle emphasis on the persistent preregistration entry. */
+.cm-clean .mm-management-actions .mm-draft-add{position:relative;isolation:isolate;overflow:hidden;animation:cm-register-breathe 4.8s ease-in-out infinite}
+.cm-clean .mm-management-actions .mm-draft-add::after{content:"";pointer-events:none;position:absolute;z-index:-1;inset:-60% auto -60% -80%;width:40%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);transform:skewX(-18deg);animation:cm-register-sheen 7s ease-in-out infinite}
+@keyframes cm-register-breathe{0%,100%{box-shadow:0 0 0 0 rgba(54,116,225,.04),0 2px 8px rgba(36,99,223,.08)}50%{box-shadow:0 0 0 4px rgba(54,116,225,.08),0 3px 14px rgba(36,99,223,.16)}}
+@keyframes cm-register-sheen{0%,65%{left:-80%}90%,100%{left:140%}}
+.cm-clean .mm-management-actions .mm-draft-add:hover{animation:none;box-shadow:0 0 0 4px rgba(54,116,225,.12)}
+@media(prefers-reduced-motion:reduce){.cm-clean .mm-management-actions .mm-draft-add,.cm-clean .mm-management-actions .mm-draft-add::after{animation:none}.cm-clean .mm-management-actions .mm-draft-add{box-shadow:0 0 0 3px rgba(54,116,225,.08)}}

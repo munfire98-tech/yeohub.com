@@ -2034,6 +2034,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
     <?php require_once __DIR__.'/manager_sidebar.php';
     try {$ms=ms_data();}catch(Throwable $e){$ms=['available'=>false];error_log('Manager sidebar: '.$e->getMessage());}
     $msReady=!empty($ms['available']); ?>
+<script>document.body.classList.add("cm-clean");</script>
 <header class="new-header">
   <!-- 1행: 브랜드 + KPI + 홈 -->
   <div class="nh-row1">
@@ -2061,7 +2062,8 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
       <style>
 .mm-management-actions .mm-draft-add{display:inline-flex;align-items:center;gap:10px;padding:11px 16px;border:1px solid #9fcac2;border-radius:12px;background:linear-gradient(120deg,#e8f5ef,#eef7fb);color:#205f57;box-shadow:0 3px 12px #285b5010;text-decoration:none;transition:background .18s,box-shadow .18s}.mm-management-actions .mm-draft-add:hover{background:#def0e8;box-shadow:0 4px 16px #285b5020}.mm-draft-add .mm-draft-copy{display:flex;flex-direction:column;gap:3px}.mm-draft-add .mm-draft-copy b{font-size:13px;font-weight:750}.mm-draft-add .mm-draft-copy small{font-size:11px;font-weight:400;color:#5d7c76}.mm-management-actions .mm-draft-add:focus-visible{outline:3px solid #409d8c;outline-offset:3px}
 </style>
-<?php if($msReady): ?><div class="mm-management-bar"><h2>담당 건물</h2><div class="mm-management-actions"><button type="button" class="mi-guide-open" data-manager-intro-open aria-haspopup="dialog" aria-controls="manager-intro"><span aria-hidden="true">ⓘ</span> 리워드·이용 안내</button><a href="/manager_addresses.php" data-address-open class="mm-draft-list">사전등록 <b data-preregister-count><?=count($ms['preregistered']??[])?></b>곳</a><a href="/manager_addresses.php?new=1" data-address-open class="mm-draft-add"><span aria-hidden="true">＋</span><span class="mm-draft-copy"><b>건물 사전등록</b><small>유저 연결 전에 미리 준비하세요</small></span></a></div></div><?php endif; ?>
+<?php if($msReady): ?><div class="mm-management-bar"><div class="cm-map-heading"><h2>담당 건물</h2><p>건물 위치와 관리 현황을 한눈에 확인하세요.</p></div><div class="mm-management-actions"><button type="button" class="mi-guide-open" data-manager-intro-open aria-haspopup="dialog" aria-controls="manager-intro"><span aria-hidden="true">ⓘ</span> 리워드·이용 안내</button><a href="/manager_addresses.php?new=1" data-address-open class="mm-draft-add"><span aria-hidden="true">＋</span><span class="mm-draft-copy"><b>건물 사전등록</b><small>유저 연결 전에 미리 준비하세요</small></span></a></div></div><?php endif; ?>
+      <div class="mm-map-filterbar" id="manager-map-filters" aria-label="지도에 표시할 건물 상태"></div>
       <div id="map"></div>
     </section>
 
@@ -2072,7 +2074,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
       <?php if($msReady): ?><a href="/manager_addresses.php?requests=1" data-address-open class="ms-connect-banner" id="manager-connect-banner" <?=empty($ms['pending'])?'hidden':''?>><span class="ms-connect-icon" aria-hidden="true">＋</span><span><strong>새로운 연결 요청 <b data-connect-count><?=$ms['pending']??0?></b>건</strong><small data-connect-summary><?php $connectNames=[];foreach(($ms['rows']??[]) as $connectUid=>$connectMember){if(($connectMember['_status']??'')==='pending')$connectNames[]=trim((string)($connectMember['nickname']??''))?:(string)$connectUid;}echo mg_e($connectNames?($connectNames[0].(count($connectNames)>1?' 외 '.(count($connectNames)-1).'곳':'').'에서 연결을 요청했습니다.'):'매니저 코드로 연결을 요청한 유저입니다.'); ?></small><em>요청 확인하기 →</em></span></a><?php mg_notice(); endif; ?>
       <div class="ms-head"><div><small>MY WORKSPACE</small><h3>내 워크스페이스</h3></div></div>
       <div class="ms-tabs" role="tablist" aria-label="관리 패널">
-      <?php if($msReady): ?><button type="button" id="ms-tab-users" role="tab" aria-controls="ms-users" aria-selected="true" data-ms-tab="users">담당 유저</button><?php endif; ?>
+      <?php if($msReady): ?><button type="button" id="ms-tab-users" role="tab" aria-controls="ms-users" aria-selected="true" data-ms-tab="users">건물 목록</button><?php endif; ?>
       <?php if($msReady): ?><button type="button" id="ms-tab-help" role="tab" aria-controls="ms-help" aria-selected="false" data-ms-tab="help">작성 요청 <b class="ms-request-badge" data-help-badge hidden>0</b></button><?php endif; ?>
       <?php if($msReady): ?><button type="button" id="ms-tab-notifications" role="tab" aria-controls="ms-notifications" aria-selected="false" data-ms-tab="notifications">알림 <b class="ms-request-badge" data-request-badge hidden>0</b></button><?php endif; ?>
       <?php if($msReady): ?><button type="button" id="ms-tab-months" role="tab" aria-controls="ms-months" aria-selected="false" data-ms-tab="months">사용승인월</button><?php endif; ?>
@@ -2082,6 +2084,8 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
     </aside>
   </div>
 </div>
+
+<link rel="stylesheet" href="/clients_mini_clean.css?v=2">
 
 <!-- ★ 방문예정 등록 모달 -->
 <dialog id="planModal" style="min-width:min(92vw,340px)">
@@ -6215,8 +6219,10 @@ function estSavePdf() {
 })();
 </script>
 <script src="/manager_addresses_modal.js?v=6" defer></script>
-<script src="/manager_map.js?v=20260926-preregister-bar" defer></script>
+<script src="/manager_map.js?v=20260929-popup-center" defer></script>
 <script src="/manager_sidebar.js?v=7" defer></script>
+<link rel="stylesheet" href="/manager_building_list.css?v=20260929-delete">
+<script src="/manager_building_list.js?v=20260929-delete" defer></script>
 <script src="/manager_activity.js?v=20260927-request-building" defer></script>
 <?php if($msReady)require __DIR__.'/manager_intro.php'; ?>
 <script src="/manager_payout.js?v=20260926-monthly" defer></script>

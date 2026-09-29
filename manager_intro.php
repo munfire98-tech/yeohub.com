@@ -3,7 +3,7 @@
 if(empty($msReady))return;
 $introScope=hash('sha256',(string)($headerUid??mg_uid()));
 ?>
-<link rel="stylesheet" href="/manager_intro.css?v=4">
+<link rel="stylesheet" href="/manager_intro.css?v=5">
 <dialog id="manager-intro" class="mi-dialog" aria-labelledby="mi-title" data-scope="<?=htmlspecialchars($introScope,ENT_QUOTES,'UTF-8')?>">
   <div class="mi-content">
     <header class="mi-head">
@@ -50,7 +50,7 @@ $introScope=hash('sha256',(string)($headerUid??mg_uid()));
     <div class="mi-message"><strong>“소방계획서.com에서 시작해 보세요.<br class="mi-mobile-break"> 필요한 정보는 미리 준비해 드릴게요.”</strong><p>작성 도움 요청은 매니저 연결 및 PRO 이용 상태에 따라 제공됩니다.</p></div>
     </section>
     </div>
-    <div class="mi-foot"><label class="mi-mute" for="mi-mute"><input id="mi-mute" type="checkbox" data-mi-mute><span>다음부터 자동으로 보지 않기</span></label><div class="mi-actions"><button type="button" class="mi-secondary" data-mi-back hidden>리워드 안내</button><button type="button" class="mi-primary" data-mi-continue>유저 안내 방법 보기 →</button><button type="button" class="mi-primary" data-mi-start hidden>거래처 확인하기 <span aria-hidden="true">→</span></button></div></div>
+    <div class="mi-foot"><label class="mi-mute" for="mi-mute"><input id="mi-mute" type="checkbox" data-mi-mute><span>다음부터 자동으로 보지 않기</span></label><div class="mi-actions"><button type="button" class="mi-primary mi-register-cta" data-mi-register>첫 건물 사전등록하기 <span aria-hidden="true">→</span></button><button type="button" class="mi-secondary" data-mi-back hidden>리워드 안내</button><button type="button" class="mi-secondary" data-mi-continue>유저 안내 방법 보기 →</button><button type="button" class="mi-secondary" data-mi-start hidden>거래처 확인하기 <span aria-hidden="true">→</span></button></div></div>
   </div>
 </dialog>
-<script src="/manager_intro.js?v=4" defer></script>
+<script src="/manager_intro.js?v=5" defer></script>

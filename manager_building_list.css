@@ -1,0 +1,48 @@
+#mb-legacy[hidden]{display:none!important}.mb-workspace{min-width:0}.mb-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:14px}.mb-filters button{padding:9px 8px;border:1px solid #e0e7ef;border-radius:8px;background:#fff;color:#708197;font:600 12px/1.4 inherit;cursor:pointer}.mb-filters button[aria-pressed=true]{background:#edf4ff;border-color:#b8cef1;color:#285fc0}.mb-search input{width:100%;box-sizing:border-box;border:1px solid #dde5ef;border-radius:9px;background:#f8fafc;padding:11px 12px;font-size:13px;color:#2c3f59}.mb-summary{display:flex;justify-content:space-between;align-items:center;min-height:42px;font-size:11px;color:#7a8ba0}.mb-summary button{background:none;border:0;color:#3266b3;font-size:12px;cursor:pointer}.mb-list{display:grid;gap:10px}.mb-card{padding:14px;border:1px solid #e0e7ef;border-radius:12px;background:white}.mb-select{display:flex;align-items:start;justify-content:space-between;gap:10px;width:100%;padding:0;background:none;border:0;text-align:left;color:#263b57;cursor:pointer}.mb-select strong{font-size:14px;line-height:1.5;overflow-wrap:anywhere}.mb-card>p{font-size:11px;line-height:1.6;color:#8290a2;margin:7px 0 13px}.mb-badge{white-space:nowrap;font-size:10px;border-radius:5px;padding:4px 6px}.mb-pre{background:#f0f3f7;color:#6b7f96}.mb-linked{background:#edf7f3;color:#328268}.mb-pro{background:#fff0f0;color:#c84f59}.mb-workspace button:focus-visible{outline:3px solid #b6cef4;outline-offset:3px}.mb-card .ms-actions{flex-wrap:wrap}
+
+.mb-badge{display:inline-flex;align-items:center;gap:5px}.mb-pro,.mb-linked{background:transparent;padding:0;color:#526780}.mb-status-symbol,.mm-marker .mm-connection-badge{display:inline-flex;align-items:center;justify-content:center;flex:0 0 20px;width:20px;height:20px;border-radius:6px;font:800 13px/1 system-ui;color:#fff;box-sizing:border-box}.mb-symbol-pro{background:linear-gradient(145deg,#f25559,#df343c);box-shadow:inset 0 1px 0 #ffffff30,0 1px 3px #c72b3226}.mb-symbol-linked,.mm-marker .mm-connection-badge{background:#3978cf;box-shadow:inset 0 1px 0 #ffffff25}.mb-pre{border-radius:7px;padding:3px 6px;background:#e5ecf2;color:#536d83;font:650 10px/1.4 system-ui}.mb-unsubscribed{display:block;margin:-4px 0 12px;color:#7d8da0;font-size:11px}
+
+/* State badges on the workspace filter buttons. */
+.mb-filters button{display:flex;align-items:center;justify-content:space-between;gap:7px;min-height:44px;padding:10px;min-width:0;font-family:inherit;font-size:12px;font-weight:600;line-height:1.4}
+.mb-filter-label{display:inline-flex;align-items:center;gap:6px;min-width:0;white-space:nowrap}
+.mb-filter-count{flex:none;min-width:18px;text-align:center;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;color:#788aa0}
+.mb-filters button[aria-pressed=true] .mb-filter-count{color:#285fc0}
+.mb-filter-preregistered{display:inline-flex;align-items:center;border-radius:7px;padding:3px 6px;background:#e5ecf2;color:#536d83;font:650 10px/1.4 system-ui}
+.mb-filters .mb-status-symbol{width:19px;height:19px;flex-basis:19px;font-size:12px}
+
+/* Shared map/list filter controls sit above the map, aligned right. */
+.mm-map-filterbar{display:flex;justify-content:flex-end;align-items:center;padding:12px 20px;background:#fafbfd;border-bottom:1px solid #e4eaf1;min-width:0}
+.mm-map-filterbar:empty{display:none}
+.mm-map-filterbar .mb-filters{display:flex;justify-content:flex-end;align-items:center;gap:7px;margin:0;min-width:0;flex-wrap:wrap}
+.mm-map-filterbar .mb-filters button{width:auto;min-height:38px;padding:8px 11px;gap:10px;background:#fff;border:1px solid #e0e7ef;border-radius:9px;box-shadow:none}
+.mm-map-filterbar .mb-filters button[aria-pressed=true]{background:#eaf2ff;border-color:#afc9f0;color:#245cba}
+.mm-map-filterbar .mb-filter-count{min-width:15px;font-size:11px}
+@media(max-width:600px){.mm-map-filterbar{padding:12px 16px}.mm-map-filterbar .mb-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:7px}.mm-map-filterbar .mb-filters button{width:100%;justify-content:space-between;min-height:40px}}
+
+/* Leaflet control: floats inside the map, clear of left-side zoom controls. */
+#map .mm-map-filterbar{padding:7px;background:rgba(255,255,255,.96);border:1px solid #dce4ee;border-radius:12px;box-shadow:0 3px 14px #1c34471a;margin:14px 14px 0 0;max-width:calc(100vw - 90px)}
+#map .mm-map-filterbar .mb-filters{gap:5px;flex-wrap:wrap}
+#map .mm-map-filterbar .mb-filters button{min-height:34px;padding:7px 9px;font-size:11px;gap:6px;border-color:transparent;background:transparent}
+#map .mm-map-filterbar .mb-filters button[aria-pressed=true]{background:#eaf2ff;border-color:#b9d0f2}
+@media(max-width:600px){#map .mm-map-filterbar{width:250px;max-width:calc(100vw - 95px);margin:10px 10px 0 0;padding:6px}#map .mm-map-filterbar .mb-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}#map .mm-map-filterbar .mb-filters button{min-height:33px;padding:6px;gap:4px}}
+
+/* P / C / S share one status-badge shape. */
+.mb-symbol-pre{background:#70859d;color:#fff;box-shadow:inset 0 1px 0 #ffffff25}
+.mb-badge.mb-pre{background:transparent;padding:0;color:#526780;font:600 10px/1.4 system-ui}
+
+/* Preregistration actions and guarded soft-delete confirmation. */
+.mb-draft-menu{position:relative;margin-left:auto;align-self:center}
+.mb-draft-menu summary{list-style:none;cursor:pointer;display:grid;place-items:center;width:32px;height:32px;border:1px solid #e0e7ef;border-radius:8px;color:#6b7f96;font-size:20px;background:#fff}
+.mb-draft-menu summary::-webkit-details-marker{display:none}
+.mb-draft-menu>button{position:absolute;right:0;bottom:38px;z-index:5;white-space:nowrap;background:#fff;color:#b93b43;border:1px solid #e0e7ef;box-shadow:0 5px 18px #263b571a;border-radius:9px;padding:12px 16px;font:600 12px/1.4 system-ui;cursor:pointer}
+.mb-delete-dialog{width:min(420px,calc(100vw - 40px));box-sizing:border-box;border:1px solid #e0e7ef;border-radius:18px;padding:26px;background:#fff;color:#263b57;box-shadow:0 20px 70px #152d4933}
+.mb-delete-dialog::backdrop{background:#14243b66}
+.mb-delete-dialog h2{margin:0 0 16px;font:700 19px/1.5 system-ui}
+.mb-delete-name{display:block;background:#f5f7fa;border-radius:10px;padding:12px;overflow-wrap:anywhere;font:600 14px/1.5 system-ui}
+.mb-delete-dialog p{font:400 13px/1.7 system-ui;color:#708197;margin:14px 0}
+.mb-delete-dialog .mb-delete-error{color:#b93b43}.mb-delete-dialog [hidden]{display:none!important}
+.mb-delete-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:22px}
+.mb-delete-actions button{border:1px solid #dfe5ed;border-radius:9px;padding:10px 15px;background:#fff;color:#526780;font:600 13px/1.4 system-ui;cursor:pointer}
+.mb-delete-actions .mb-delete-confirm{background:#b93b43;border-color:#b93b43;color:white}
+.mb-delete-actions button:disabled{opacity:.6;cursor:wait}
+.mb-delete-dialog button:focus-visible,.mb-draft-menu summary:focus-visible{outline:3px solid #b6cef4;outline-offset:3px}

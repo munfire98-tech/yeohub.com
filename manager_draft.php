@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'save_ste
   $locationError=bl_location_error($cur,$patch);
   if($locationError!==''){echo json_encode(['ok'=>false,'error'=>$locationError],JSON_UNESCAPED_UNICODE);exit;}
   $saveError='';
-  try{$ok=md_save($cur);}catch(Throwable $e){$ok=false;$saveError='사전 등록 내용을 저장하지 못했습니다. 연결 상태를 확인해 주세요.';}
+  try{$ok=md_save($cur,trim((string)($_POST['registration_area']??'')));}catch(MdDuplicateException $e){echo json_encode(['ok'=>false,'duplicate'=>true,'matches'=>$e->matches,'error'=>$e->getMessage()],JSON_UNESCAPED_UNICODE);exit;}catch(Throwable $e){$ok=false;$saveError='사전 등록 내용을 저장하지 못했습니다. 연결 상태를 확인해 주세요.';}
   if($ok){
     $persisted=md_load();
     foreach(['assembly_lat','assembly_lng','assembly_kind','fire_engine_route'] as $mapKey){
@@ -669,6 +669,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 <script src="/building_address_recovery.js?v=1"></script>
 <script src="/building_address_coordinates.js?v=1"></script>
 <script src="/manager_draft_name.js?v=2"></script>
+<script src="/manager_draft_duplicates.js?v=1"></script>
 <script>
 var CSRF   = <?=json_encode($CSRF)?>;
 var KAKAO_JS_KEY = <?=json_encode($API['kakao_js'] ?? '')?>;
@@ -1044,7 +1045,21 @@ function save(patch, done){
   fd.append('patch', JSON.stringify(patch));
   fetch(location.pathname + location.search, {method:'POST', body:fd, credentials:'same-origin'})
     .then(function(r){ return r.json(); })
-    .then(function(j){
+    .then(async function(j){
+      while(j&&j.duplicate){
+        const choice=await managerDraftDuplicateChoice(j.matches||[]);
+        if(!choice){done(false);return;}
+        if(choice.url){done(false);location.assign(choice.url);return;}
+        fd.set('registration_area',choice.area);
+        if(!patch._baseDisplayName)patch._baseDisplayName=patch.name||SAVED.name||'건물';
+        patch.name=patch._baseDisplayName+' · '+choice.area;
+        const payload=Object.assign({},patch);delete payload._baseDisplayName;
+        fd.set('patch',JSON.stringify(payload));
+        const response=await fetch(location.pathname+location.search,{method:'POST',body:fd,credentials:'same-origin'});
+        j=await response.json();
+      }
+      delete patch._baseDisplayName;
+
       if (j && j.ok){
         Object.keys(patch).forEach(function(k){SAVED[k]=patch[k];});
         document.getElementById('pPct').textContent = j.percent + '%';
