@@ -242,6 +242,7 @@
           details.append(node('strong','안전관리자'));
           if(!staff.length)details.append(node('p','미입력'));
           staff.forEach(m=>details.append(node('p',[m.name,m.type,m.tel].filter(Boolean).join(' · '))));
+          const visitButton=node('button','＋ 방문 일정 추가','mvc-popup-add');visitButton.type='button';visitButton.onclick=()=>document.dispatchEvent(new CustomEvent('manager-visit-open',{detail:{uid:row.uid}}));popup.append(visitButton);
           const helpNote=node('div',undefined,'mm-help-note');helpNote.innerHTML=bellSVG;const helpCopy=node('div'),helpTitle=node('strong');helpCopy.append(helpTitle,node('small','건물관리 화면의 알림을 확인하세요.'));helpNote.append(helpCopy);popup.append(helpNote,details);marker.bindPopup(popup,{maxWidth:Math.min(300,Math.max(180,mapElement.clientWidth-60)),maxHeight:Math.min(360,Math.max(120,mapElement.clientHeight-100)),autoPan:false});marker.on('popupopen',centerBuildingPopup);
           marker.on('click',()=>{document.dispatchEvent(new CustomEvent('manager-building-selected',{detail:{uid:row.uid}}));const chosen=byUid.get(row.uid);if(chosen)showSelection(chosen);});if(matches(row))layer.addLayer(marker);const item={marker,point,row,label,tag,helpNote,helpTitle,popup};byUid.set(row.uid,item);marker.on('mouseover',()=>expandShared(item));marker.on('mouseout',scheduleSharedCollapse);marker.on('popupclose',scheduleSharedCollapse);paintHelp(item);located++;
         }

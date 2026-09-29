@@ -6229,6 +6229,6 @@ function estSavePdf() {
 <?php if($msReady)require __DIR__.'/manager_intro.php'; ?>
 <script src="/manager_payout.js?v=20260926-monthly" defer></script>
 
-<link rel="stylesheet" href="/manager_visit_calendar.css?v=14-six-month-cycle">
-<script src="/manager_visit_calendar.js?v=14-six-month-cycle" defer></script>
+<link rel="stylesheet" href="/manager_visit_calendar.css?v=10-drag-handle-guide">
+<script src="/manager_visit_calendar.js?v=10-drag-handle-guide" defer></script>
 <?php require __DIR__ . '/_footer.php'; ?>
