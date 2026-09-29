@@ -46,3 +46,7 @@
 .mb-delete-actions .mb-delete-confirm{background:#b93b43;border-color:#b93b43;color:white}
 .mb-delete-actions button:disabled{opacity:.6;cursor:wait}
 .mb-delete-dialog button:focus-visible,.mb-draft-menu summary:focus-visible{outline:3px solid #b6cef4;outline-offset:3px}
+
+/* Keep the deletion confirmation centered independently of global dialog resets. */
+dialog.mb-delete-dialog{position:fixed;inset:0;margin:auto;min-width:0;max-width:calc(100vw - 40px);height:fit-content;max-height:calc(100dvh - 40px);overflow-y:auto;transform:none}
+dialog.mb-delete-dialog[open]{animation:none}

@@ -153,7 +153,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
   if (!$base) {
     echo json_encode(['ok'=>true,'partial'=>true,
       'patch'=>['name'=>$place, 'address'=>($road ?: $jibun), 'bd_lat'=>$lat, 'bd_lng'=>$lng],
-      'note'=>'주소를 코드로 변환하지 못해 이름·주소만 채웠습니다.']); exit;
+      'lookup_reason'=>'address_unresolved',
+      'note'=>'선택한 주소의 지번을 확인하지 못했습니다. 이름·주소만 채웠으니 도로명주소 또는 지번을 확인해 다시 검색하거나 나머지 정보를 직접 입력해 주세요.']); exit;
   }
 
   // 2) 시도할 지번 후보를 모은다
@@ -270,7 +271,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
     echo json_encode(['ok'=>true,'partial'=>true,
       'patch'=>['name'=>$place ?: '', 'address'=>($code['roadAddr'] ?: ($road ?: $jibun))],
       'code'=>$code,
-      'note'=>'이 건물은 건축물대장 자동조회가 되지 않아 이름·주소만 채웠습니다. 나머지는 직접 입력해 주세요.']); exit;
+      'lookup_reason'=>'registry_empty',
+      'note'=>'조회한 지번에서 건축물대장 자료를 찾지 못해 이름·주소만 채웠습니다. 실제 대장이 없다는 뜻은 아닙니다. 선택한 주소가 맞는지 먼저 확인해 주세요.']); exit;
   }
 
   // 4) 건축물대장 → building_info 필드 매핑 (총괄표제부 + 표제부 병합)
@@ -669,7 +671,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 <script src="/building_address_recovery.js?v=1"></script>
 <script src="/building_address_coordinates.js?v=1"></script>
 <script src="/manager_draft_name.js?v=2"></script>
-<script src="/manager_draft_duplicates.js?v=1"></script>
+<script src="/manager_draft_duplicates.js?v=2-shared-address"></script>
 <script>
 var CSRF   = <?=json_encode($CSRF)?>;
 var KAKAO_JS_KEY = <?=json_encode($API['kakao_js'] ?? '')?>;
@@ -1926,8 +1928,8 @@ function doLookupPick(a, s, roadRetry){
 
         if(patch.floor_a) lines.push('**층수** 지상 '+patch.floor_a+'층'+((patch.floor_b&&patch.floor_b!=='0')?(' · 지하 '+patch.floor_b+'층'):''));
         if(patch.bd_struct) lines.push('**구조** '+patch.bd_struct);
-        bot(md((j.partial ? '일부만 찾았습니다.\n' : '건축물대장에서 찾았습니다. 아래 내용으로 채웠습니다.\n')
-               + lines.join('\n') + (j.note ? '\n\n'+j.note : '')));
+        bot(md((j.partial ? (j.lookup_reason==='address_unresolved' ? '주소의 지번을 확인하지 못했습니다.\n' : j.lookup_reason==='registry_empty' ? '조회한 지번의 건축물대장 자료를 찾지 못했습니다.\n' : '일부만 찾았습니다.\n') : '건축물대장에서 찾았습니다. 아래 내용으로 채웠습니다.\n')
+               + lines.join('\n') + (j.note ? '\n\n'+j.note : '') + (j.partial && j.lookup_reason==='registry_empty' ? '\n\n'+REGISTRY_UNAVAILABLE_NOTICE : '')));
         for(var k in patch){ if(patch[k]!=='' && patch[k]!==null) SAVED[k]=patch[k]; }
         save(patch, function(){ step++; setTimeout(next,500); });
       })
@@ -1935,11 +1937,13 @@ function doLookupPick(a, s, roadRetry){
   });
 }
 
+var REGISTRY_UNAVAILABLE_NOTICE = '일부 공공기관이나 보안건축물은 공개 제한 또는 자료 미제공으로 건축물대장 자동조회가 어려울 수 있습니다. 재조회 후에도 정보가 나오지 않으면 건물 담당자에게 건축물대장 자료를 요청해 주세요. 확보한 자료를 기준으로 기본정보를 직접 입력하여 사전등록을 진행할 수 있습니다.';
+
 function showLookupRecovery(a,s,message,roadRetry){
   bot(md('건축물 정보를 가져오지 못했습니다.\n\n'+message));
   var b=box();
   var notice=document.createElement('div'); notice.className='lookup-recovery';
-  notice.textContent='지금 조회를 완료하지 못했습니다. 잠시 후 다시 조회하거나 직접 입력으로 계속할 수 있습니다. 입력한 내용은 그대로 유지됩니다.';
+  notice.textContent='위 안내에 따라 다시 조회하거나 주소를 다시 검색해 주세요. 직접 입력으로 계속할 수도 있으며, 기존에 입력한 내용은 유지됩니다.';
   b.appendChild(notice);
   var row=document.createElement('div'); row.className='subrow';
   var retry=document.createElement('button'); retry.className='btn btn--pri'; retry.type='button'; retry.textContent='다시 조회하기';

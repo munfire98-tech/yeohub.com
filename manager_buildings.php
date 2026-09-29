@@ -6,6 +6,7 @@ require_once __DIR__.'/manager_subscription.php';
 require_once __DIR__.'/manager_addresses_common.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');
 if(($_SERVER['REQUEST_METHOD']??'GET')!=='GET'){http_response_code(405);header('Allow: GET');echo '{"ok":false}';exit;}
+require_once __DIR__.'/manager_summary_area.php';
 try{
     $actor=mg_uid();$members=mg_members();
     if($actor===''||!mg_active($members[$actor]??[],'agency')){http_response_code(403);echo '{"ok":false}';exit;}
@@ -28,8 +29,10 @@ try{
         $raw=trim((string)($bi['bd_use_apr']??''));$date='';
         if(preg_match('/^(\d{4})[-.\/]?(\d{2})[-.\/]?(\d{2})$/D',$raw,$parts)&&checkdate((int)$parts[2],(int)$parts[3],(int)$parts[1]))$date=$parts[1].'-'.$parts[2].'-'.$parts[3];
         $managers=[];foreach((array)($bi['mgrs']??[]) as $m){if(!is_array($m)||trim((string)($m['name']??''))==='')continue;$managers[]=['name'=>(string)$m['name'],'type'=>(string)($m['type']??''),'tel'=>(string)($m['tel']??'')];}
-        $rows[]=['subscription'=>ms_subscription($uid),'approval_date'=>$date,'approval_month'=>$date!==''?(int)substr($date,5,2):null,'representative'=>(string)($bi['rep']??''),'building_tel'=>(string)($bi['tel']??''),'safety_managers'=>$managers,'uid'=>$uid,'name'=>trim((string)($bi['name']??''))?:((string)($member['nickname']??$uid)), 'address'=>trim((string)($bi['address']??'')),'lat'=>$lat,'lng'=>$lng];
+        $rows[]=mb_summary_building_area($bi)+['building_use'=>trim((string)($bi['bd_use_main']??''))?:trim((string)($bi['use']??'')),'subscription'=>ms_subscription($uid),'approval_date'=>$date,'approval_month'=>$date!==''?(int)substr($date,5,2):null,'representative'=>(string)($bi['rep']??''),'building_tel'=>(string)($bi['tel']??''),'safety_managers'=>$managers,'uid'=>$uid,'name'=>trim((string)($bi['name']??''))?:((string)($member['nickname']??$uid)), 'address'=>trim((string)($bi['address']??'')),'lat'=>$lat,'lng'=>$lng];
     }
-    $rows=array_merge($rows,ma_map_rows($actor,$members,$state));
+    $preregistered=ma_map_rows($actor,$members,$state);
+    foreach($preregistered as &$draft){$info=(array)($state['address_book'][$draft['address_id']]['basic_info']??[]);$draft['building_use']=trim((string)($info['bd_use_main']??''))?:trim((string)($info['use']??''));$draft=array_merge($draft,mb_summary_building_area((array)($state['address_book'][$draft['address_id']]['basic_info']??[])));}unset($draft);
+    $rows=array_merge($rows,$preregistered);
     echo json_encode(['ok'=>true,'buildings'=>$rows,'pending_keys'=>$pending,'pending_requests'=>$pendingRequests],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
 }catch(Throwable $e){http_response_code(503);echo '{"ok":false,"error":"연결된 건물 정보를 불러오지 못했습니다."}';}
