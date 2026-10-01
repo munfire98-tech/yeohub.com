@@ -27,8 +27,18 @@
   .mm-help-note>svg{flex-shrink:0;color:#b8792c}
   .mm-help-note strong{display:block;color:#8c5b1e;font-size:12px}
   .mm-help-note small{display:block;color:#9a835f;font-size:11px;line-height:1.6}
-  .mm-popup .mm-contact-details{margin-top:13px;padding-top:10px;border-top:1px solid #ecf0f4;font-size:12px}
-  .mm-popup .mm-contact-details p{margin:4px 0}
+  .mm-detail-open{display:flex;align-items:center;justify-content:space-between;width:100%;box-sizing:border-box;margin-top:9px;padding:9px 11px;border:1px solid #e2e9f0;border-radius:8px;background:#f7f9fc;color:#536d88;font:600 12px/1.5 system-ui;cursor:pointer}
+  .mm-detail-open::after{content:'›';font-size:18px;line-height:1}.mm-detail-open:hover{background:#eef4fb;border-color:#bfd1e7}
+  .mm-popup .mm-help-note{margin:8px 0;padding:7px 9px}.mm-popup .mm-help-note small{display:none}
+  dialog.mm-detail-dialog{position:fixed;inset:0;margin:auto;box-sizing:border-box;width:min(480px,calc(100vw - 28px));max-height:calc(100dvh - 40px);padding:0;border:1px solid #dce5ef;border-radius:18px;background:#fff;color:#29415c;box-shadow:0 24px 70px #172d4c40;overflow:hidden}
+  .mm-detail-dialog::backdrop{background:#162b4866;backdrop-filter:blur(3px)}
+  .mm-detail-dialog[open]{display:flex;flex-direction:column}
+  .mm-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:22px 24px 17px;border-bottom:1px solid #edf1f6;flex-shrink:0}
+  .mm-detail-head small{color:#8291a5;font:11px/1.5 system-ui}.mm-detail-head h2{margin:6px 0 0;font:700 19px/1.4 system-ui;overflow-wrap:anywhere}.mm-detail-close{border:0;background:#f1f5f9;color:#597087;width:30px;height:30px;border-radius:8px;cursor:pointer;font:20px/1 system-ui;flex-shrink:0}
+  .mm-detail-body{padding:18px 24px 24px;overflow:auto;overscroll-behavior:contain;min-height:0;font:13px/1.6 system-ui;scrollbar-width:thin}
+  .mm-detail-address{margin:0 0 16px;color:#7a8b9c;font-size:12px;overflow-wrap:anywhere}.mm-detail-facts{margin:0}.mm-detail-facts>div{display:grid;grid-template-columns:100px minmax(0,1fr);gap:12px;padding:11px 0;border-bottom:1px solid #f0f3f7}.mm-detail-facts dt{color:#8290a1}.mm-detail-facts dd{margin:0;color:#2e4661;font-weight:600;overflow-wrap:anywhere}
+  .mm-detail-body h3{font-size:12px;margin:22px 0 10px;color:#6a7f95}.mm-detail-person{padding:12px 14px;margin-top:8px;background:#f5f8fc;border:1px solid #e7edf5;border-radius:10px}.mm-detail-person strong{display:block;font-size:13px}.mm-detail-person p{margin:4px 0 0;color:#6a8096;font-size:12px}.mm-detail-body .mm-pro-note{margin-top:18px;padding:12px 14px;border-radius:10px;background:#eff9f5;color:#377561;font-size:12px}.mm-detail-body .mm-pro-note small{display:block;color:#729185;margin-top:3px}
+  .mm-detail-close:focus-visible,.mm-detail-open:focus-visible{outline:2px solid #5c8bd1;outline-offset:3px}
   @media(max-width:600px){.mm-marker .mm-building-label{max-width:205px;min-height:34px;padding:6px 8px 6px 10px;gap:7px}.mm-marker .mm-building-name{max-width:130px}}
 
   .mm-marker .mm-building-label{position:relative;gap:7px;min-height:36px;padding:6px 10px 6px 6px;border-radius:11px;border-color:#dbe3ed;box-shadow:0 2px 8px #213c531a}
@@ -154,21 +164,23 @@
     else if(fit&&selectedMonth==='all'&&buildingUids===null&&typeof group!=='undefined'&&group.getLayers().length)map.fitBounds(group.getBounds().pad(.2),{maxZoom:16});
     status(!loadingBuildings&&!layer.getLayers().length?'선택한 조건에 지도 위치가 확인된 건물이 없습니다.':'');
   }
-  document.addEventListener('manager-month-filter',event=>{const month=String(event.detail?.month||'all');if(!['all','unknown',...Array.from({length:12},(_,i)=>String(i+1))].includes(month))return;selectedMonth=month;applyMonth(true);});
+  document.addEventListener('manager-month-filter',event=>{const month=String(event.detail?.month||'all');if(!['all','unknown',...Array.from({length:12},(_,i)=>String(i+1))].includes(month))return;if(month===selectedMonth)return;selectedMonth=month;applyMonth(true);});
   function focusUser(uid){const item=byUid.get(uid);if(!item)return false;if(!matches(item.row)){status('선택한 사용승인월에 해당하지 않습니다. 월 선택을 바꿔 주세요.');return true;}showSelection(item,true);return true;}
   document.addEventListener("manager-map-focus",event=>{const uid=event.detail?.uid;if(typeof uid!=="string")return;if(!focusUser(uid)){focusUid=uid;load();}});
   let selectedBuilding=null;
-  function showSelection(item,center=false){
+  function showSelection(item,center=false,selectionZoom=map.getZoom()){
     selectedBuilding=item.row.uid;byUid.forEach(i=>i.label.classList.toggle('mm-selected',i===item));
     if(center){
       // Center the actual building coordinate, not the popup box or a temporary
       // overlap offset. Finish the camera move before opening its anchored popup.
       map.stop();collapseShared(true);map.invalidateSize({pan:false});
       item.marker.setLatLng(item.point);
-      map.setView(item.point,map.getZoom(),{animate:false});
+      const zoom=selectionZoom,size=map.getSize();
+      const center=map.project(item.point,zoom).subtract(L.point(0,size.y/6));
+      map.setView(map.unproject(center,zoom),zoom,{animate:false});
     }
     const popup=item.marker.getPopup();
-    if(popup)popup.options.maxHeight=Math.max(80,Math.min(360,Math.floor(mapElement.clientHeight/2)-64));
+    if(popup)popup.options.maxHeight=Math.max(80,Math.min(360,Math.floor(mapElement.clientHeight*2/3)-90));
     item.marker.openPopup();
     if(popup)popup.update();
   }
@@ -188,6 +200,23 @@
   mountViewToggle();
   const cache=new Map(); // Address-only, in-memory cache. No member data persisted in the browser.
   const node=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
+  let detailDialog=null;
+  function openBuildingDetails(row,trigger){
+    if(detailDialog)detailDialog.remove();
+    const dialog=document.createElement('dialog');detailDialog=dialog;dialog.className='mm-detail-dialog';dialog.setAttribute('aria-labelledby','mm-detail-title');
+    const head=node('header',undefined,'mm-detail-head'),copy=node('div');const title=node('h2',row.name||'건물 상세정보');title.id='mm-detail-title';copy.append(node('small','건물 상세정보'),title);
+    const close=node('button','×','mm-detail-close');close.type='button';close.setAttribute('aria-label','상세정보 닫기');close.onclick=()=>dialog.close();head.append(copy,close);
+    const body=node('div',undefined,'mm-detail-body');body.append(node('p',row.address||'주소 미입력','mm-detail-address'));
+    const facts=node('dl',undefined,'mm-detail-facts');for(const [label,value] of [['사용승인일',row.approval_date],['대표자',row.representative],['건물 연락처',row.building_tel]]){const line=node('div');line.append(node('dt',label),node('dd',value||'미입력'));facts.append(line);}body.append(facts,node('h3','소방안전관리자'));
+    const staff=Array.isArray(row.safety_managers)?row.safety_managers:[];
+    if(!staff.length)body.append(node('p','등록된 안전관리자가 없습니다.','mm-detail-address'));
+    for(const m of staff){const card=node('div',undefined,'mm-detail-person');card.append(node('strong',[m.name||'이름 미입력',m.type].filter(Boolean).join(' · ')),node('p',m.tel||'연락처 미입력'));body.append(card);}
+    if(row.subscription?.active){const sub=row.subscription,pro=node('div',sub.test?'PRO 협업 중 · 테스트':'PRO 협업 중','mm-pro-note');pro.append(node('small','구독 시작 '+(sub.started_at||'확인 필요')));if(sub.expires_at)pro.append(node('small','이용 만료 '+sub.expires_at));body.append(pro);}
+    dialog.append(head,body);document.body.append(dialog);
+    const previousOverflow=document.body.style.overflow;document.body.style.overflow='hidden';
+    dialog.addEventListener('close',()=>{document.body.style.overflow=previousOverflow;dialog.remove();if(detailDialog===dialog)detailDialog=null;if(trigger.isConnected)trigger.focus();},{once:true});
+    dialog.showModal();close.focus();
+  }
   function viewer(row){if(row.preregistered){const a=node('a','기본정보 수정','mm-view');a.href='/manager_addresses.php?id='+encodeURIComponent(row.address_id);a.dataset.addressOpen='1';return a;}const a=node('a','건물관리 화면','mm-view');a.href='/manager_view.php?uid='+encodeURIComponent(row.uid);a.target='_blank';a.rel='noopener';return a;}
   function clear(){collapseShared(true);sharedGroups.clear();byUid.clear();if(layer)layer.clearLayers();if(overlapLayer)overlapLayer.clearLayers();}
   async function locate(row){
@@ -232,17 +261,9 @@
           if(row.preregistered){label.classList.add('mm-preregistered');const draftIcon=node('span','P','mm-draft-icon');draftIcon.setAttribute('aria-label','사전등록');label.append(draftIcon,tag,node('span',row.name,'mm-building-name'));}else label.append(node('span',row.name,'mm-building-name'),tag);
           const marker=L.marker(point,{icon:L.divIcon({className:'mm-marker',html:label,iconSize:null,iconAnchor:[12,14],popupAnchor:[0,-16]})});
           marker.bindTooltip(node('span',row.name||'이름 미입력'),{className:'mm-name-tooltip',direction:'top',offset:[0,-18],opacity:1,interactive:false});
-          const popup=node('div',undefined,'mm-popup');popup.append(node('strong',row.name),node('p',row.address||'주소 미입력'),viewer(row));const details=node('div',undefined,'mm-contact-details');
-          if(row.subscription?.active){const sub=row.subscription,pro=node('div',sub.test?'PRO 협업 중 · 테스트':'PRO 협업 중','mm-pro-note');pro.append(node('small','구독 시작 '+(sub.started_at||'확인 필요')));if(sub.expires_at)pro.append(node('small','이용 만료 '+sub.expires_at));popup.append(pro);}
-          details.append(node('p','사용승인일: '+(row.approval_date||'미입력')),node('p','대표자: '+(row.representative||'미입력')));
-          if(row.building_tel)details.append(node('p','건물 연락처: '+row.building_tel));
-          const staff=Array.isArray(row.safety_managers)?row.safety_managers:[];
-          details.append(node('strong','안전관리자'));
-          if(!staff.length)details.append(node('p','미입력'));
-          staff.forEach(m=>details.append(node('p',[m.name,m.type,m.tel].filter(Boolean).join(' · '))));
-          const visitButton=node('button','＋ 방문 일정 추가','mvc-popup-add');visitButton.type='button';visitButton.onclick=()=>document.dispatchEvent(new CustomEvent('manager-visit-open',{detail:{uid:row.uid}}));popup.append(visitButton);
+          const popup=node('div',undefined,'mm-popup');popup.append(node('strong',row.name),node('p',row.address||'주소 미입력'),viewer(row));const details=node('button','건물 상세정보','mm-detail-open');details.type='button';details.setAttribute('aria-haspopup','dialog');details.onclick=()=>openBuildingDetails(row,details);
           const helpNote=node('div',undefined,'mm-help-note');helpNote.innerHTML=bellSVG;const helpCopy=node('div'),helpTitle=node('strong');helpCopy.append(helpTitle,node('small','건물관리 화면의 알림을 확인하세요.'));helpNote.append(helpCopy);popup.append(helpNote,details);marker.bindPopup(popup,{maxWidth:Math.min(300,Math.max(180,mapElement.clientWidth-60)),maxHeight:Math.min(360,Math.max(120,mapElement.clientHeight-100)),autoPan:false});
-          marker.on('click',()=>{document.dispatchEvent(new CustomEvent('manager-building-selected',{detail:{uid:row.uid}}));const chosen=byUid.get(row.uid);if(chosen)showSelection(chosen,true);});if(matches(row))layer.addLayer(marker);const item={marker,point,row,label,tag,helpNote,helpTitle,popup};byUid.set(row.uid,item);marker.on('mouseover',()=>expandShared(item));marker.on('mouseout',scheduleSharedCollapse);marker.on('popupclose',scheduleSharedCollapse);paintHelp(item);located++;
+          marker.on('click',()=>{const selectionZoom=map.getZoom();document.dispatchEvent(new CustomEvent('manager-building-selected',{detail:{uid:row.uid}}));const chosen=byUid.get(row.uid);if(chosen)showSelection(chosen,true,selectionZoom);});if(matches(row))layer.addLayer(marker);const item={marker,point,row,label,tag,helpNote,helpTitle,popup};byUid.set(row.uid,item);marker.on('mouseover',()=>expandShared(item));marker.on('mouseout',scheduleSharedCollapse);marker.on('popupclose',scheduleSharedCollapse);paintHelp(item);located++;
         }
       }}
       await Promise.all([worker(),worker(),worker()]);if(current!==version)return;

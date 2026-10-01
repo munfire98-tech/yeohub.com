@@ -20,8 +20,8 @@ function ap_promotion_open(?int $now=null):bool {
  if(!$end||$end->format('Y-m-d')!==$day)throw new RuntimeException('프로모션 종료일 설정을 확인해 주세요.');
  return ($now??time())<=$end->setTime(23,59,59)->getTimestamp();
 }
-function ap_claim_available(array $claim,string $uid,bool $repeat):bool {
- return !$claim||($repeat&&($claim['uid']??'')===$uid&&($claim['state']??'')==='used');
+function ap_claim_available(array $claim,string $uid,bool $repeat,bool $source=false):bool {
+ return !$claim||($repeat&&($source||($claim['uid']??'')===$uid)&&($claim['state']??'')==='used');
 }
 /** Local Korean calendar cutoff; existing retained prices do not use this cutoff. */
 function ap_enrolled_in_window(array $member,array $row):bool {
@@ -60,7 +60,7 @@ function ap_quote(string $uid,array $sub,string $kind='manual'):array {
     if(!ap_enrolled_in_window($member,$row))continue;
     $source=hash('sha256',$actor.'|'.($row['manager_created']??'').'|'.$id);
     $uk=$mode.':user:'.hash('sha256',$uid);$sk=$mode.':source:'.$source;
-    if(!ap_claim_available((array)($claims[$uk]??[]),$uid,$repeat)||!ap_claim_available((array)($claims[$sk]??[]),$uid,$repeat))continue;
+    if(!ap_claim_available((array)($claims[$uk]??[]),$uid,$repeat)||!ap_claim_available((array)($claims[$sk]??[]),$uid,$repeat,true))continue;
     $q['amount']=$q['renewal_amount']=AP_PROMO_PRICE;$q['retain_price']=true;$q['promotion']=AP_PROMOTION;$q['source']=$source;$q['customer_type']='preregistered';break;
    }
    // A local manager's accepted connection is a separate qualifying route.
@@ -70,7 +70,7 @@ function ap_quote(string $uid,array $sub,string $kind='manual'):array {
    if($q['promotion']===''&&$localCode!==''&&hash_equals($localCode,(string)($members[$actor]['manager_code']??''))&&ap_enrolled_in_window($member,['linked_at'=>$connectedAt])){
     $source=hash('sha256','local|'.$actor.'|'.($members[$actor]['created']??'').'|'.$uid);
     $uk=$mode.':user:'.hash('sha256',$uid);$sk=$mode.':source:'.$source;
-    if(ap_claim_available((array)($claims[$uk]??[]),$uid,$repeat)&&ap_claim_available((array)($claims[$sk]??[]),$uid,$repeat)){
+    if(ap_claim_available((array)($claims[$uk]??[]),$uid,$repeat)&&ap_claim_available((array)($claims[$sk]??[]),$uid,$repeat,true)){
      $q['amount']=$q['renewal_amount']=AP_PROMO_PRICE;$q['retain_price']=true;$q['promotion']=AP_PROMOTION;$q['source']=$source;$q['customer_type']='local_manager';
     }
    }
@@ -82,7 +82,7 @@ function ap_reserve(string $uid,array $attempt):void {
  if(empty($attempt['promotion']))return;
  mg_tx(ap_promo_file(),function(&$rows)use($uid,$attempt){
   $keys=[$attempt['mode'].':user:'.hash('sha256',$uid),$attempt['mode'].':source:'.$attempt['promotion_source']];
-  foreach($keys as $key)if(!ap_claim_available((array)($rows[$key]??[]),$uid,ap_promotion_open())&&(($rows[$key]['order_id']??'')!==$attempt['order_id']||($rows[$key]['uid']??'')!==$uid))throw new RuntimeException('프로모션 사용 상태가 변경되었습니다. 새로고침 후 금액을 확인해 주세요.');
+  foreach($keys as $key)if(!ap_claim_available((array)($rows[$key]??[]),$uid,ap_promotion_open(),$key===$keys[1])&&(($rows[$key]['order_id']??'')!==$attempt['order_id']||($rows[$key]['uid']??'')!==$uid))throw new RuntimeException('프로모션 사용 상태가 변경되었습니다. 새로고침 후 금액을 확인해 주세요.');
   foreach($keys as $key)$rows[$key]=['uid'=>$uid,'order_id'=>$attempt['order_id'],'state'=>'reserved','at'=>date('c')];
  },true);
 }

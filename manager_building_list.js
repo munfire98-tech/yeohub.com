@@ -85,7 +85,7 @@ const count=document.createElement('span');count.className='mb-filter-count';cou
  document.addEventListener('manager-building-clear-selection',()=>{selected=null;render(true);});
  input.oninput=()=>{selected=null;render();};back.onclick=()=>{selected=null;render(true);scrollToMap();};
  document.addEventListener('manager-buildings-updated',e=>{rows=e.detail.buildings||[];if(!rows.some(r=>r.uid===selected))selected=null;render();});
- document.addEventListener('manager-building-selected',e=>{const r=rows.find(r=>r.uid===e.detail.uid);if(!r)return;if(!matching(r)){status='all';input.value='';}document.getElementById('ms-tab-users')?.click();choose(r.uid,true);});
+ document.addEventListener('manager-building-selected',e=>{const r=rows.find(r=>r.uid===e.detail.uid);if(!r)return;if(!matching(r)){status='all';input.value='';}const tab=document.getElementById('ms-tab-users');if(tab&&tab.getAttribute('aria-selected')!=='true')tab.click();choose(r.uid,true);});
  document.addEventListener('manager-month-filter',e=>{month=String(e.detail.month||'all');selected=null;render();});
  document.addEventListener('manager-buildings-unavailable',()=>{rows=[];selected=null;render();summary.textContent='목록을 불러오지 못했습니다. 새로고침해 주세요.';});
  summary.textContent='건물 목록을 불러오고 있습니다.';

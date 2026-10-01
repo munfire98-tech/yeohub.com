@@ -28,12 +28,19 @@ function mp_snapshot(string $uid,array $me):array{
  $s=mg_read(mg_state_file());$a=$s['payout_accounts'][mp_account_key($uid,$me)]??null;$rows=[];
  foreach($s['payouts']??[] as $r)if(mp_owned($r,$uid,$me)){$r['account']['number']=mp_mask($r['account']['number']);unset($r['manager_created']);$rows[]=$r;}
  usort($rows,fn($a,$b)=>strcmp($b['at'],$a['at']));if($a)$a['number']=mp_mask($a['number']);
- $plans=[];
+ $planMembers=mg_members();$plans=[];$currentMonth=mr_calendar_month('@'.time());
  foreach($s['monthly_rewards']??[] as $plan){
-  if(!mp_owned($plan,$uid,$me))continue;$paidMonths=0;
-  foreach($s['rewards']??[] as $reward)if(($reward['payment_key']??'')===$plan['payment_key']&&empty($reward['reversed']))$paidMonths++;
-  $plans[]=['user'=>$plan['user'],'started_at'=>substr($plan['started_at'],0,10),'issued'=>$paidMonths,'total'=>12,'stopped'=>!empty($plan['closed_at']),'next_at'=>empty($plan['closed_at'])&&$paidMonths<12?substr(mr_month_at($plan['started_at'],$paidMonths),0,10):''];
+  if(!mp_owned($plan,$uid,$me))continue;
+  $user=(string)$plan['user'];$identity=$user.'|'.($plan['user_created']??'');
+  if(!isset($plans[$identity]))$plans[$identity]=['user'=>$user,'issued'=>0,'stopped'=>true,'current_month'=>$currentMonth,'current_issued'=>false];
+  $sub=mg_read(__DIR__.'/data/subscribe/'.$user.'/subscription.json');
+  if(empty($plan['closed_at'])&&($sub['status']??'')==='active'&&(mr_timestamp((string)($sub['expires_at']??$sub['next_billing']??''))?:0)>time()&&mg_can_view($uid,$user,$planMembers,$s))$plans[$identity]['stopped']=false;
  }
+ foreach($plans as &$display){
+  foreach($s['rewards']??[] as $reward){if(!mp_owned($reward,$uid,$me)||($reward['user']??'')!==$display['user']||!empty($reward['reversed']))continue;
+   $display['issued']++;if(($reward['worklog_month']??mr_calendar_month((string)($reward['at']??'')))===$currentMonth)$display['current_issued']=true;
+  }
+ }unset($display);$plans=array_values($plans);
  return ['ok'=>true,'reward_plans'=>$plans,'rate'=>MP_RATE,'balance'=>mp_balance($s,$uid,$me),'account'=>$a,'requests'=>$rows];
 }
 function mp_apply(string $uid,string $action,array $input):void{

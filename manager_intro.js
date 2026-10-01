@@ -11,7 +11,7 @@
  const read=s=>{try{return localStorage.getItem(key+s);}catch{return null;}};
  const write=(s,v)=>{try{localStorage.setItem(key+s,v);}catch{}};
  const rewards=dialog.querySelector('[data-mi-rewards]'),comic=dialog.querySelector('[data-mi-comic]'),forward=dialog.querySelector('[data-mi-continue]'),back=dialog.querySelector('[data-mi-back]'),start=dialog.querySelector('[data-mi-start]');
- function stage(showComic){rewards.hidden=showComic;comic.hidden=!showComic;forward.hidden=showComic;back.hidden=!showComic;start.hidden=!showComic;dialog.querySelector('#mi-title').textContent=showComic?'소방계획서 작성, 먼저 제안해 주세요':'매니저 리워드';dialog.querySelector('[data-mi-subtitle]').textContent=showComic?'필요한 정보를 미리 준비해, 유저가 쉽게 시작하도록 안내해 주세요.':'유저의 구독과 계획서 작성 완료가 매니저의 리워드로 이어집니다.';dialog.querySelector('.mi-body').scrollTop=0;dialog.querySelector('[data-mi-close]').focus({preventScroll:true});}
+ function stage(showComic){rewards.hidden=showComic;comic.hidden=!showComic;forward.hidden=showComic;back.hidden=!showComic;start.hidden=!showComic;dialog.querySelector('#mi-title').textContent=showComic?'소방계획서 작성, 먼저 제안해 주세요':'매니저 리워드';dialog.querySelector('[data-mi-subtitle]').textContent=showComic?'필요한 정보를 미리 준비해, 유저가 쉽게 시작하도록 안내해 주세요.':'구독 유저의 매월 업무수행기록 작성이 매니저의 리워드로 이어집니다.';dialog.querySelector('.mi-body').scrollTop=0;dialog.querySelector('[data-mi-close]').focus({preventScroll:true});}
  forward.addEventListener('click',()=>stage(true));back.addEventListener('click',()=>stage(false));
  let index=0,returnFocus=null,shownThisVisit=false,timer=null;
  function render(){panels.forEach((p,i)=>{p.hidden=mobile.matches&&i!==index;});prev.disabled=index===0;next.disabled=index===panels.length-1;dialog.querySelector('[data-mi-count]').textContent=`${index+1} / ${panels.length}`;}

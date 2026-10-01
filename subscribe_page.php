@@ -69,6 +69,8 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
 $sub=sub_read();$status=ap_status($sub);
 $quote=ap_quote($UID,$sub);$checkoutPrice=$quote['amount'];$renewalPrice=$quote['renewal_amount'];$promoEligible=$quote['retain_price'];
 $promoCustomerType=(string)($quote['customer_type']??'');
+$promoMembers=mg_members();$promoManagerUid=mg_connection_manager($promoMembers[$UID]??[],$promoMembers);
+$promoManagerName=($promoManagerUid!==''&&mg_can_view($promoManagerUid,$UID,$promoMembers,mg_read(mg_state_file())))?trim((string)($promoMembers[$promoManagerUid]['nickname']??'')):'';
 $promoNewCustomer=!ap_has_paid($sub,ab_mode());
 $promoConfig=require __DIR__.'/promotion_config.php';
 $promoEnd=trim((string)($promoConfig['ends_on']??''));
@@ -252,6 +254,24 @@ details.sub-fold{padding:0;overflow:hidden}
 </header>
 
 <main class="wrap">
+  <?php if($promoEligible): ?>
+  <section class="sub-promo-note" aria-label="적용된 프로모션">
+    <span class="sub-promo-note__icon" aria-hidden="true">✓</span>
+    <div><strong><?=$promoCustomerType==='local_manager'?'로컬 매니저 연결 혜택이 적용되었습니다.':'사전등록 유저 · 프로모션 혜택 대상자입니다'?></strong>
+    <?php if($promoManagerName!==''): ?><p>연결된 매니저 · <b><?=h($promoManagerName)?></b></p><?php endif; ?>
+    <p>프로모션 이용 요금 <b>연 <?=number_format($checkoutPrice)?>원</b><br>소방안전관리 업무를 이어가며 구독을 유지하는 동안, 프로모션 종료 후에도 매년 59,000원으로 이용할 수 있습니다.</p>
+    <small>프로모션 대상 고객에게 적용됩니다. 프로모션 기간 중에는 구독 종료 후 다시 구독해도 59,000원이 적용되며, 프로모션 종료 후 구독이 끊긴 상태에서 재구독하면 당시 요금이 적용됩니다.</small></div>
+  </section>
+  <?php elseif($promoNewCustomer&&$promoOpen): ?>
+  <section class="sub-promo-note sub-promo-note--connect" aria-label="매니저 연결 프로모션 안내">
+    <span class="sub-promo-note__icon" aria-hidden="true">＋</span>
+    <div><strong>매니저와 먼저 연결하고 프로모션 혜택을 받으세요</strong>
+    <p>담당 매니저의 사전등록 거래처와 연결하거나, 로컬 매니저의 연결 수락을 받으면 프로모션 대상이 될 수 있습니다.<br>프로모션 기간에 구독하면 <b>연 <?=number_format(AP_PROMO_PRICE)?>원</b>으로 시작하고, 소방안전관리 업무를 이어가며 구독을 유지하는 동안 같은 가격으로 이용할 수 있습니다.</p>
+    <small>요청 대기 중에는 적용되지 않습니다. 연결 완료 후 이 화면을 다시 열어 적용 가격을 확인해 주세요.</small>
+    <a href="/building_manager.php#manager-connect" target="_top">담당·로컬 매니저 연결 확인하기 →</a></div>
+  </section>
+  <?php endif; ?>
+
   <p class="subscription-payment-note">카드 등록과 구독 결제를 이 팝업에서 이어서 진행하세요. 카드사 인증만 별도 보안창에서 열립니다.</p>
   <?php if ($flash): ?>
     <div class="sub-flash <?=h($flashType)?>"><?=h($flash)?></div>
@@ -469,22 +489,6 @@ details.sub-fold{padding:0;overflow:hidden}
 
   <?php if(!empty($sub['auto_renew'])&&($sub['renewal_consent']['version']??'')!==AB_CONSENT): ?>
   <p class="card">요금 정책이 변경되어 기존 자동결제 동의는 적용되지 않습니다. 현재 이용기간은 유지되며, 다음 갱신을 원하시면 표시된 갱신 금액에 다시 동의해 주세요.</p>
-  <?php endif; ?>
-  <?php if($promoEligible): ?>
-  <section class="sub-promo-note" aria-label="적용된 프로모션">
-    <span class="sub-promo-note__icon" aria-hidden="true">✓</span>
-    <div><strong><?=$promoCustomerType==='local_manager'?'로컬 매니저 연결 고객 혜택이 적용되었습니다':'사전등록 고객 프로모션이 적용되었습니다'?></strong>
-    <p>프로모션 이용 요금 <b>연 <?=number_format($checkoutPrice)?>원</b><br>소방안전관리 업무를 이어가며 구독을 유지하는 동안, 프로모션 종료 후에도 매년 59,000원으로 이용할 수 있습니다.</p>
-    <small>프로모션 대상 고객에게 적용됩니다. 프로모션 기간 중에는 구독 종료 후 다시 구독해도 59,000원이 적용되며, 프로모션 종료 후 구독이 끊긴 상태에서 재구독하면 당시 요금이 적용됩니다.</small></div>
-  </section>
-  <?php elseif($promoNewCustomer&&$promoOpen): ?>
-  <section class="sub-promo-note sub-promo-note--connect" aria-label="매니저 연결 프로모션 안내">
-    <span class="sub-promo-note__icon" aria-hidden="true">＋</span>
-    <div><strong>매니저와 먼저 연결하고 프로모션 혜택을 받으세요</strong>
-    <p>담당 매니저의 사전등록 거래처와 연결하거나, 로컬 매니저의 연결 수락을 받으면 프로모션 대상이 될 수 있습니다.<br>프로모션 기간에 구독하면 <b>연 <?=number_format(AP_PROMO_PRICE)?>원</b>으로 시작하고, 소방안전관리 업무를 이어가며 구독을 유지하는 동안 같은 가격으로 이용할 수 있습니다.</p>
-    <small>요청 대기 중에는 적용되지 않습니다. 연결 완료 후 이 화면을 다시 열어 적용 가격을 확인해 주세요.</small>
-    <a href="/building_manager.php#manager-connect" target="_top">담당·로컬 매니저 연결 확인하기 →</a></div>
-  </section>
   <?php endif; ?>
   <!-- 플랜 선택 -->
   <?php if (in_array($status, ['none','canceled','expired','refunded','payment_failed'], true)): ?>

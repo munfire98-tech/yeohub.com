@@ -7,7 +7,7 @@
  root.querySelector('[data-payout-deficit]').textContent=b.deficit?'환불로 마일리지 정산 확인이 필요합니다. 관리자에게 문의해 주세요.':'';
  saved.textContent=d.account?`${d.account.bank} · ${d.account.number} · ${d.account.holder}`:'등록된 계좌가 없습니다.';
  request.elements.coins.max=b.available;request.querySelector('button').disabled=!d.account||b.available<1;
- const plans=root.querySelector('[data-reward-plans]');if(plans){plans.replaceChildren();for(const plan of d.reward_plans||[]){const item=document.createElement('p');item.className='payout-record';item.textContent=`${plan.user} · ${plan.issued}/12개 지급 · ${plan.stopped?'지급 중단':plan.next_at?'다음 지급 '+plan.next_at:'지급 완료'}`;plans.append(item);}if(!plans.childElementCount)plans.textContent='실결제 완료 후 월별 리워드가 시작됩니다.';}
+ const plans=root.querySelector('[data-reward-plans]');if(plans){plans.replaceChildren();for(const plan of d.reward_plans||[]){const item=document.createElement('p');item.className='payout-record';item.textContent=`${plan.user} · 누적 ${plan.issued}개 · ${plan.current_issued?'이번 달 지급 완료':plan.stopped?'지급 조건 미충족':'이번 달 업무수행기록 작성 대기'}`;plans.append(item);}if(!plans.childElementCount)plans.textContent='구독 유저가 해당 월 업무수행기록을 작성하면 리워드가 지급됩니다.';}
  history.replaceChildren();for(const r of d.requests){const item=document.createElement('p');item.className='payout-record';item.textContent=`${r.at.slice(0,10)} · ${money(r.coins)}개 / ${money(r.amount)}원 · ${{pending:'신청 대기',paid:'지급 완료',rejected:'반려'}[r.status]}${r.note?' — '+r.note:''}`;history.append(item);}if(!d.requests.length)history.textContent='출금 신청 내역이 없습니다.';
  }
  async function call(form){if(busy)return;busy=true;root.querySelectorAll('button').forEach(b=>b.disabled=true);status.textContent='확인 중…';

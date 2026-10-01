@@ -74,11 +74,15 @@ if(!in_array($_SERVER['REQUEST_METHOD']??'GET',['GET','HEAD'],true)){
 $editName=(string)$_SESSION['nickname'];session_write_close();header('Cache-Control: no-store');
 // Keep the return bar on the main dashboard only, never inside form popups.
 if($name!=='building_manager.php'||!empty($_GET['modal'])||!empty($_GET['embed']))return;
-ob_start(static function(string $html)use($editName,$actorCsrf,$target):string{
+ob_start(static function(string $html)use($editName,$actorCsrf,$target,$actor):string{
     $pos=strripos($html,'</body>');if($pos===false)return $html;
     $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
     $bar='<style>body{padding-top:72px!important}.mge-bar{position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#5b21b6;color:white;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font:13px/1.5 system-ui}.mge-bar form{margin:0}.mge-bar button{border:0;border-radius:7px;background:white;color:#5b21b6;padding:8px 12px;cursor:pointer;font:600 12px system-ui}.mge-bar small{display:block;opacity:.85}@media print{.mge-bar{display:none}body{padding-top:0!important}}</style>'
     .'<div class="mge-bar"><div><strong>'.$e($editName).' · 건물정보 수정 중</strong><small>저장하면 이 유저에게 반영됩니다.</small></div><form action="/manager_view.php" method="post"><input type="hidden" name="action" value="stop"><input type="hidden" name="csrf" value="'.$e($actorCsrf).'"><button>매니저 화면으로 돌아가기</button></form></div>';
+    $memo='<details open style="position:fixed;right:18px;bottom:18px;z-index:10000;width:min(330px,calc(100vw - 36px));border:1px solid #efd68b;border-radius:12px;background:#fffbeb;box-shadow:0 10px 30px #182d4922" class="mge-private-memo"><summary style="cursor:pointer;padding:10px 14px;color:#805917;font:600 13px system-ui">담당 매니저 전용 메모</summary><iframe title="담당 매니저 전용 메모" src="/manager_private_memo.php?uid='.rawurlencode($target).'" style="width:100%;height:255px;border:0"></iframe></details><style>@media print{.mge-private-memo{display:none!important}}</style>';
+    $memoStateKey=json_encode('mge-memo-open-v1:'.hash('sha256',$actor."\0".$target));
+    $memo.='<script>(function(){var panel=document.querySelector(".mge-private-memo");if(!panel)return;var key='.$memoStateKey.';try{var saved=localStorage.getItem(key);if(saved!==null)panel.open=saved==="1";}catch(e){}panel.addEventListener("toggle",function(){try{localStorage.setItem(key,panel.open?"1":"0");}catch(e){}});})();</script>';
+    $bar.=$memo;
     $panel='<script src="/manager_help.js?v=14" data-manager="1" data-dashboard="1" data-uid="'.$e($target).'"></script>';
     $html=preg_replace('/(<body\b[^>]*>)/i','$1'.$panel,$html,1);
     $pos=strripos($html,'</body>');

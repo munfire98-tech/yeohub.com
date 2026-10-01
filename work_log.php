@@ -4,7 +4,8 @@ declare(strict_types=1);
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 
 
-if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
+// 월별 기록과 저장 시각은 서버 기본값과 관계없이 한국 시간을 사용합니다.
+date_default_timezone_set('Asia/Seoul');
 if(session_status()!==PHP_SESSION_ACTIVE){
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }

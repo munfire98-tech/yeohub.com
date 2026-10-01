@@ -6221,15 +6221,15 @@ function estSavePdf() {
 })();
 </script>
 <script src="/manager_addresses_modal.js?v=6" defer></script>
-<script src="/manager_map.js?v=20260930-keep-zoom" defer></script>
+<script src="/manager_map.js?v=20261001-detail-dialog" defer></script>
 <script src="/manager_sidebar.js?v=7" defer></script>
 <link rel="stylesheet" href="/manager_building_list.css?v=20260929-delete-center">
-<script src="/manager_building_list.js?v=20260930-entry-align" defer></script>
+<script src="/manager_building_list.js?v=20261001-zoom-stable" defer></script>
 <link rel="stylesheet" href="/manager_visit_summary.css?v=7-use-buildings">
 <script src="/manager_visit_summary.js?v=7-use-buildings" defer></script>
 <script src="/manager_activity.js?v=20260930-subscription-lifecycle" defer></script>
 <?php if($msReady)require __DIR__.'/manager_intro.php'; ?>
-<script src="/manager_payout.js?v=20260926-monthly" defer></script>
+<script src="/manager_payout.js?v=20261001-worklog-reward" defer></script>
 
 <link rel="stylesheet" href="/manager_visit_calendar.css?v=20-memo-shortcuts">
 <script src="/manager_visit_calendar.js?v=20-memo-shortcuts" defer></script>
