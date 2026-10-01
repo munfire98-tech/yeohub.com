@@ -623,11 +623,25 @@ button{font:inherit;color:inherit;cursor:pointer}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 
 .pick-map-prompt{position:absolute;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;display:flex;align-items:center;gap:10px;width:max-content;max-width:calc(100% - 32px);padding:13px 16px;border:1px solid rgba(255,255,255,.9);border-radius:14px;background:rgba(255,255,255,.96);color:#176955;box-shadow:0 5px 24px rgba(15,55,48,.2);font:700 13px/1.5 system-ui;text-align:center}.pick-map-prompt svg{flex:0 0 26px}.pick-map-prompt[hidden]{display:none}.pick-next{padding:10px 12px!important;border-radius:10px;background:#eff8f4;color:#186b53!important;font-size:13px!important}.pick-next b{font-weight:800}.map-wrap.pick-awaiting{border:2px solid #43a98d}
+
+/* Use readable, stable input sizing on phones and touch devices; preserve pinch zoom. */
+@media (max-width:768px), (hover:none) and (pointer:coarse){
+ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),textarea,select{font-size:16px!important;box-sizing:border-box;min-width:0;max-width:100%}
+ .inrow input{min-width:0;flex:1 1 160px}
+ .inrow,.ma-searchline,.dv-contact-row,.dv-section dd{min-width:0}
+}
 </style>
 </head>
 <body>
 <?php if (($_GET['modal'] ?? '') === '1'): ?>
-<style>.nav .brand{display:none}.nav__in{justify-content:flex-end}.prog{position:static}</style>
+<style>
+.nav .brand{display:none}.nav__in{justify-content:flex-end}.prog{position:static}
+/* Avoid composited, initially transparent text inside iOS Safari dialog iframes. */
+@supports (-webkit-touch-callout:none){
+  .msg,.save-guide.is-show{animation:none!important;opacity:1;transform:none}
+  html{scroll-behavior:auto}
+}
+</style>
 <?php endif; ?>
 
 <nav class="nav">
@@ -977,7 +991,7 @@ function settleChatBottom(){
     if(generation!==scrollGeneration)return;
     var root=document.scrollingElement||document.documentElement;
     var bottom=Math.max(root.scrollHeight,document.body.scrollHeight,document.documentElement.scrollHeight);
-    window.scrollTo({top:bottom,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+    window.scrollTo({top:bottom,behavior:(window.matchMedia('(prefers-reduced-motion: reduce)').matches||(window.self!==window.top&&window.CSS&&CSS.supports('-webkit-touch-callout','none')))?'auto':'smooth'});
   });});},60);
 }
 function down(){followChatUntil=Date.now()+1800;settleChatBottom();}

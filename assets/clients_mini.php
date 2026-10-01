@@ -55,7 +55,7 @@ function write_json(string $file, array $arr): bool {
 
 /* ── 접근 제한 ── */
 if (!is_logged_in()) { http_response_code(403);
-  echo "<!doctype html><meta charset='utf-8'><body style='background:#f5f7fb;color:#1a2436;font-family:Arial'>로그인이 필요한 구역입니다. <a href='/index.php' style='color:#0891b2'>로그인하러 가기</a></body>"; exit;
+  echo "<!doctype html><meta charset='utf-8'><body style='background:#0f172a;color:#e5e7eb;font-family:Arial'>⚔️ 로그인이 필요한 구역입니다. <a href='/index.php' style='color:#60a5fa'>로그인하러 가기</a></body>"; exit;
 }
 
 /* ── CSRF ── */
@@ -68,10 +68,8 @@ $CLIENTS_FILE   = $DATA_DIR.'/clients.json';
 $TASKS_FILE     = $DATA_DIR.'/tasks.json';
 $DAY_FILE       = $DATA_DIR.'/daynotes.json';
 $BUILDINGS_FILE = $DATA_DIR.'/buildings.json';
-$QMEMO_FILE     = $DATA_DIR.'/quickmemo.json';
 $COLORS_FILE    = $DATA_DIR.'/day_colors.json';
 if (!is_dir($DATA_DIR)) @mkdir($DATA_DIR, 0775, true);
-$qmemo = read_json($QMEMO_FILE);
 if (!file_exists($CLIENTS_FILE))   write_json($CLIENTS_FILE,   []);
 if (!file_exists($TASKS_FILE))     write_json($TASKS_FILE,     []);
 if (!file_exists($DAY_FILE))       write_json($DAY_FILE,       []);
@@ -82,27 +80,6 @@ $tasks     = read_json($TASKS_FILE);
 $daynotes  = read_json($DAY_FILE);
 $day_colors = read_json($COLORS_FILE);
 
-/* 공사사진 표시 — data 폴더 직접 URL 대신 로그인 검증 후 파일을 전달한다.
-   기존 clients.json의 data/.../photos/파일명 경로도 JS에서 이 주소로 변환한다. */
-if (isset($_GET['photo_file'])) {
-  $fname = basename((string)$_GET['photo_file']);
-  if ($fname === '' || !preg_match('/^[A-Za-z0-9._-]+\.(jpe?g|png|gif|webp)$/i', $fname)) {
-    http_response_code(400); exit;
-  }
-  $file = $DATA_DIR . '/photos/' . $fname;
-  if (!is_file($file)) { http_response_code(404); exit; }
-  $mime = function_exists('mime_content_type') ? (string)@mime_content_type($file) : '';
-  if (!str_starts_with($mime, 'image/')) {
-    $ext = strtolower(pathinfo($fname, PATHINFO_EXTENSION));
-    $mime = ['jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png',
-             'gif'=>'image/gif','webp'=>'image/webp'][$ext] ?? 'application/octet-stream';
-  }
-  header('Content-Type: ' . $mime);
-  header('Content-Length: ' . (string)filesize($file));
-  header('Cache-Control: private, max-age=3600');
-  readfile($file); exit;
-}
-
 /* ── 사용자 설정(상호명 등) ── */
 $SETTINGS_FILE = $DATA_DIR.'/settings.json';
 if (!file_exists($SETTINGS_FILE)) write_json($SETTINGS_FILE, []);
@@ -112,16 +89,6 @@ $COMPANY_NAME = trim((string)($SETTINGS['company'] ?? '')) !== ''
   ? trim((string)$SETTINGS['company'])
   : '거래처 관리 시스템';
 // buildings는 객체형(associative array) — client_id가 키
-/* 매니저와 연결된 유저 화면이 동일한 회원 이름을 사용합니다. */
-require_once __DIR__.'/manager_common.php';
-$managerHeaderName=null;
-try {
-  $headerUid=mg_uid();$headerMembers=mg_members();
-  if($headerUid!==''&&mg_active($headerMembers[$headerUid]??[],'agency'))
-    $managerHeaderName=(string)($headerMembers[$headerUid]['nickname']??$headerUid);
-}catch(Throwable $e){error_log('Manager header: '.$e->getMessage());}
-$headerTitle=$managerHeaderName!==null?$managerHeaderName.' 매니저':$COMPANY_NAME;
-
 $_braw = @file_get_contents($BUILDINGS_FILE);
 $buildings = ($_braw && trim($_braw)!=='') ? (json_decode($_braw, true) ?? []) : [];
 
@@ -155,15 +122,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
   $act  = $_POST['action'] ?? '';
   $csrf = $_POST['csrf'] ?? '';
   if (!hash_equals($CSRF, (string)$csrf)) { http_response_code(400); exit('CSRF 검증 실패'); }
-
-  // 빠른 메모 (AJAX — JSON 응답)
-  if ($act === 'qmemo_save') {
-    $memo = ['text' => (string)($_POST['text'] ?? ''), 'updated' => date('Y-m-d H:i')];
-    $ok = write_json($QMEMO_FILE, $memo);
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['ok' => $ok, 'updated' => $memo['updated']], JSON_UNESCAPED_UNICODE);
-    exit;
-  }
 
   // 퀘스트
   if ($act === 'task_create') {
@@ -283,30 +241,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
   }
 
   /* ── D-DAY 설정/해제 (AJAX JSON 응답) ── */
-  // 거래처 메모 저장 (AJAX)
-  if ($act === 'client_memo') {
-    $id   = (string)($_POST['id'] ?? '');
-    $memo = trim((string)($_POST['memo'] ?? ''));
-    $memo = mb_substr($memo, 0, 2000);
-    $flag = !empty($_POST['flag']) ? 1 : 0;      // 중요 표시
-    $clients = read_json($CLIENTS_FILE);
-    $found = false;
-    foreach ($clients as &$c) {
-      if (($c['id'] ?? '') === $id) {
-        $c['memo']    = $memo;
-        $c['memo_at'] = $memo === '' ? '' : date('Y-m-d H:i');
-        $c['flag']    = $flag;
-        $found = true; break;
-      }
-    }
-    unset($c);
-    if ($found) write_json($CLIENTS_FILE, $clients);
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['ok'=>$found,'memo'=>$memo,'flag'=>$flag,
-                      'memo_at'=>$memo===''?'':date('Y-m-d H:i')], JSON_UNESCAPED_UNICODE);
-    exit;
-  }
-
   if ($act === 'client_dday') {
     $id   = (string)($_POST['id'] ?? '');
     $date = trim($_POST['dday'] ?? '');
@@ -415,8 +349,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (!move_uploaded_file($_FILES['qf_file']['tmp_name'], $dest)) {
       echo json_encode(['ok'=>false,'msg'=>'파일 저장 실패']); exit;
     }
-    // 웹 접근 경로 (실제 저장 폴더 기준 — 계정별 폴더 대응)
-    $webPath = str_replace(__DIR__ . '/', '', $QF_DIR) . '/' . $fname;
+    // 웹 접근 경로 (현재 PHP 파일 기준 상대경로)
+    $webPath = 'data/quickfiles/' . $fname;
     echo json_encode(['ok'=>true,'url'=>$webPath,'name'=>$orig]); exit;
   }
 
@@ -440,9 +374,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (!move_uploaded_file($_FILES['photo_file']['tmp_name'], $dest)) {
       echo json_encode(['ok'=>false,'msg'=>'파일 저장 실패']); exit;
     }
-    // data 폴더 직접 접근 대신 로그인 검증을 거치는 사진 주소를 반환
-    $photoUrl = '/clients_mini.php?photo_file=' . rawurlencode($fname);
-    echo json_encode(['ok'=>true,'url'=>$photoUrl,'fname'=>$fname]); exit;
+    echo json_encode(['ok'=>true,'url'=>'data/photos/'.$fname,'fname'=>$fname]); exit;
   }
 
   // ★ 공사사진 보고서 — 보고서 저장
@@ -457,18 +389,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $pairs = [];
     foreach ($pairs_raw as $p) {
       if (!is_array($p)) continue;
-      $beforeUrl = trim((string)($p['before_url'] ?? ''));
-      $afterUrl  = trim((string)($p['after_url'] ?? ''));
-      if ($beforeUrl === '' && $afterUrl === '') continue;
       $pairs[] = [
-        'before_url'     => $beforeUrl,
+        'before_url'     => trim($p['before_url'] ?? ''),
         'before_caption' => mb_substr(trim($p['before_caption'] ?? ''), 0, 40),
-        'after_url'      => $afterUrl,
+        'after_url'      => trim($p['after_url'] ?? ''),
         'after_caption'  => mb_substr(trim($p['after_caption'] ?? ''), 0, 40),
         'gongong'        => mb_substr(trim($p['gongong'] ?? ''), 0, 60),
       ];
     }
-    if (!$pairs) { echo json_encode(['ok'=>false,'msg'=>'사진을 한 장 이상 올려주세요.']); exit; }
     $report = [
       'rid'    => uuidv4(),
       'title'  => $title,
@@ -561,8 +489,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (!move_uploaded_file($_FILES['cf_file']['tmp_name'], $dest)) {
       echo json_encode(['ok'=>false,'msg'=>'파일 저장 실패']); exit;
     }
-    $relDir = str_replace(__DIR__ . '/', '', $CF_DIR);   // 계정별 폴더 대응
-    echo json_encode(['ok'=>true,'url'=>$relDir.'/'.$fname,'name'=>$orig,'fname'=>$fname,'size'=>$_FILES['cf_file']['size']]); exit;
+    echo json_encode(['ok'=>true,'url'=>'data/clientfiles/'.$cid.'/'.$fname,'name'=>$orig,'fname'=>$fname,'size'=>$_FILES['cf_file']['size']]); exit;
   }
 
   // ★ 마을 문서고 — 파일 삭제 (AJAX)
@@ -588,7 +515,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
       echo json_encode(['ok'=>false,'files'=>[]]); exit;
     }
     $CF_DIR = $DATA_DIR . '/clientfiles/' . $cid;
-    $CF_REL = str_replace(__DIR__ . '/', '', $CF_DIR);   // 계정별 폴더 대응
     $files = [];
     if (is_dir($CF_DIR)) {
       foreach (scandir($CF_DIR) as $f) {
@@ -600,7 +526,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $files[] = [
           'fname'   => $f,
           'display' => $display,
-          'url'     => $CF_REL.'/'.$f,
+          'url'     => 'data/clientfiles/'.$cid.'/'.$f,
           'size'    => filesize($fp),
           'mtime'   => filemtime($fp),
           'ext'     => strtolower(pathinfo($f, PATHINFO_EXTENSION)),
@@ -868,77 +794,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     unset($c); write_json($CLIENTS_FILE, $clients);
     header('Location: '.$_SERVER['REQUEST_URI']); exit;
   }
-
-  // ── 달력관리: 특정 날짜의 모든 일정 삭제 (모든 거래처, 모든 타입) ──
-  if ($act === 'cal_clear_day') {
-    $pdate = trim((string)($_POST['date'] ?? ''));
-    if (!preg_match('/^\d{4}\-\d{2}\-\d{2}$/', $pdate)) { http_response_code(400); exit('bad date'); }
-    $removed = 0;
-    $clients = read_json($CLIENTS_FILE);
-    foreach ($clients as &$c) {
-      foreach (['visits','inspects','reports','submits','plans'] as $key) {
-        if (!empty($c[$key]) && is_array($c[$key])) {
-          $before = count($c[$key]);
-          $c[$key] = array_values(array_filter($c[$key], fn($d)=> $d !== $pdate));
-          $removed += $before - count($c[$key]);
-        }
-      }
-      if (isset($c['as'][$pdate])) { unset($c['as'][$pdate]); $removed++; }
-      if (isset($c['auto_visits']) && is_array($c['auto_visits'])) {
-        $c['auto_visits'] = array_values(array_filter($c['auto_visits'], fn($d)=> $d !== $pdate));
-      }
-    }
-    unset($c);
-    write_json($CLIENTS_FILE, $clients);
-    header('Content-Type: application/json'); echo json_encode(['ok'=>true,'removed'=>$removed]); exit;
-  }
-
-  // ── 달력관리: 이번 달 전체 일정 삭제 ──
-  if ($act === 'cal_clear_month') {
-    $ym2 = preg_replace('/[^0-9\-]/', '', (string)($_POST['ym'] ?? ''));
-    if (!preg_match('/^\d{4}\-\d{2}$/', $ym2)) { http_response_code(400); exit('bad ym'); }
-    $removed = 0;
-    $clients = read_json($CLIENTS_FILE);
-    foreach ($clients as &$c) {
-      foreach (['visits','inspects','reports','submits','plans','auto_visits'] as $key) {
-        if (!empty($c[$key]) && is_array($c[$key])) {
-          $before = count($c[$key]);
-          $c[$key] = array_values(array_filter($c[$key], fn($d)=> substr((string)$d,0,7) !== $ym2));
-          if ($key !== 'auto_visits') $removed += $before - count($c[$key]);
-        }
-      }
-      if (!empty($c['as']) && is_array($c['as'])) {
-        foreach (array_keys($c['as']) as $d) {
-          if (substr((string)$d,0,7) === $ym2) { unset($c['as'][$d]); $removed++; }
-        }
-      }
-    }
-    unset($c);
-    write_json($CLIENTS_FILE, $clients);
-    header('Content-Type: application/json'); echo json_encode(['ok'=>true,'removed'=>$removed]); exit;
-  }
-
-  // ── 달력관리: 특정 날짜에 거래처들 방문 일괄 배정 ──
-  if ($act === 'cal_assign_day') {
-    $pdate = trim((string)($_POST['date'] ?? ''));
-    if (!preg_match('/^\d{4}\-\d{2}\-\d{2}$/', $pdate)) { http_response_code(400); exit('bad date'); }
-    $ids = json_decode((string)($_POST['ids'] ?? '[]'), true);
-    $added = 0;
-    if (is_array($ids) && $ids) {
-      $clients = read_json($CLIENTS_FILE);
-      $idx = [];
-      foreach ($clients as $i=>$c) { $idx[(string)($c['id']??'')] = $i; }
-      foreach ($ids as $cid) {
-        $cid = (string)$cid;
-        if (!isset($idx[$cid])) continue;
-        $i = $idx[$cid];
-        if (!isset($clients[$i]['visits']) || !is_array($clients[$i]['visits'])) $clients[$i]['visits'] = [];
-        if (!in_array($pdate, $clients[$i]['visits'], true)) { $clients[$i]['visits'][] = $pdate; $added++; }
-      }
-      if ($added > 0) write_json($CLIENTS_FILE, $clients);
-    }
-    header('Content-Type: application/json'); echo json_encode(['ok'=>true,'added'=>$added]); exit;
-  }
 }
 
 /* ── 뷰 데이터 ── */
@@ -985,10 +840,6 @@ foreach ($clients as $c) {
 /* 이번 달 미등록 마을 (가나다순) */
 $inactiveClients = array_values(array_filter($clients, fn($c)=> !isset($activeThisMonth[(string)($c['id']??'')])));
 usort($inactiveClients, fn($a,$b)=> mb_strtolower($a['name']??'') <=> mb_strtolower($b['name']??''));
-
-/* 전체 거래처 (가나다순) — 패널의 '전체' 탭용 */
-$allClientsSorted = $clients;
-usort($allClientsSorted, fn($a,$b)=> mb_strtolower($a['name']??'') <=> mb_strtolower($b['name']??''));
 
 /* D-DAY 설정된 마을 — D-Day 순서 (오늘→가까운미래→먼미래→지난순) */
 $today = date('Y-m-d');
@@ -1070,6 +921,11 @@ usort($tasks_view, function($a,$b){
   $da=$a['due']??''; $db=$b['due']??''; if($da===$db) return 0; if($da===''||$db==='') return $da===''?1:-1; return strcmp($da,$db);
 });
 $task_total=count($tasks); $task_open=0; foreach($tasks as $t) if(empty($t['done'])) $task_open++;
+/* ── 자위소방대 편성표 전용 페이지 ── */
+if (($_GET['view'] ?? '') === 'fire') {
+  require __DIR__.'/fire_page.php';
+  exit;
+}
 
 /* ── 구독/결제 페이지 ── */
 if (($_GET['view'] ?? '') === 'subscribe') {
@@ -1082,15 +938,13 @@ if (($_GET['view'] ?? '') === 'subscribe') {
 
 
 ?>
-<?php
-$PAGE_TITLE=$headerTitle;$NAV_MODE='account';$IS_LOGGED_IN=true;
-$ACCOUNT_NICK=$_SESSION['nickname']??'매니저';
-$ACCOUNT_IS_ADMIN=function_exists('is_admin')?is_admin():false;
-ob_start();require __DIR__.'/_header.php';$managerHeaderMarkup=ob_get_clean();
-$managerHeaderMarkup=str_replace('href="/notifications.php"','href="#manager-sidebar" data-ms-open="notifications"',$managerHeaderMarkup);
-$managerHeaderParts=explode('</head>',$managerHeaderMarkup,2);
-echo $managerHeaderParts[0];
-?>
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title><?=h($COMPANY_NAME)?></title>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -1111,36 +965,36 @@ echo $managerHeaderParts[0];
 
 :root {
   /* ── Background ── */
-  --bg:   #f5f7fb;
-  --bg2:  #eef2f8;
-  --bg3:  #e8edf5;
-  --card: #ffffff;
-  --card2:#f8fafc;
+  --bg:   #07101e;
+  --bg2:  #0a1525;
+  --bg3:  #0d1a2e;
+  --card: #0f1e33;
+  --card2:#122239;
 
   /* ── Border ── */
-  --bd:  #e3e8f0;
-  --bd2: #d4dbe6;
-  --bd3: #c3ccdb;
+  --bd:  #18293f;
+  --bd2: #1e3251;
+  --bd3: #26415e;
 
   /* ── Typography ── */
-  --fg:  #1a2436;
-  --fg2: #3a4658;
-  --mut: #6a7689;
-  --sub: #9aa6b8;
+  --fg:  #dce7f5;
+  --fg2: #aabcce;
+  --mut: #617d96;
+  --sub: #3d5670;
 
   /* ── Accent ── */
-  --accent:     #0891b2;
-  --accent-dim: #e0f2fe;
-  --accent-glow:rgba(8,145,178,.12);
-  --link:       #0e7490;
+  --accent:     #3d86f5;
+  --accent-dim: #1a4a8a;
+  --accent-glow:rgba(61,134,245,.18);
+  --link:       #7ab3ff;
 
   /* ── Status ── */
-  --visit:    #15803d; --visit-bg: #ecfdf3;   --visit-bd:  #bbf7d0;
-  --inspect:  #dc2626; --inspect-bg:#fef2f2;  --inspect-bd:#fecaca;
-  --as:       #b45309; --as-bg:    #fffbeb;   --as-bd:     #fde68a;
-  --report:   #2563eb; --report-bg:#eff6ff;   --report-bd: #bfdbfe;
-  --submit:   #c2410c; --submit-bg:#fff7ed;   --submit-bd: #fed7aa;
-  --plan:     #7c3aed; --plan-bg:  #f5f3ff;   --plan-bd:   #ddd6fe;
+  --visit:    #2dda7e; --visit-bg: #061a10;   --visit-bd:  #0e3d23;
+  --inspect:  #ff5252; --inspect-bg:#1c0606;  --inspect-bd:#4a1010;
+  --as:       #fbbf24; --as-bg:    #150f00;   --as-bd:     #3d2c00;
+  --report:   #60a5fa; --report-bg:#030d1f;   --report-bd: #0d2748;
+  --submit:   #fb923c; --submit-bg:#140700;   --submit-bd: #3d1800;
+  --plan:     #a78bfa; --plan-bg:  #0d0520;   --plan-bd:   #2e1570;
 
   /* ── Geometry ── */
   --r-xs:  6px;
@@ -1150,11 +1004,11 @@ echo $managerHeaderParts[0];
   --r-xl: 22px;
 
   /* ── Elevation ── */
-  --shadow-xs: 0 1px 4px rgba(20,40,80,.05);
-  --shadow-sm: 0 2px 10px rgba(20,40,80,.06);
-  --shadow-md: 0 6px 24px rgba(20,40,80,.08);
-  --shadow-lg: 0 12px 40px rgba(20,40,80,.12);
-  --shadow-accent: 0 4px 24px rgba(8,145,178,.18);
+  --shadow-xs: 0 1px 4px rgba(0,0,0,.35);
+  --shadow-sm: 0 2px 10px rgba(0,0,0,.4);
+  --shadow-md: 0 6px 24px rgba(0,0,0,.55);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,.65);
+  --shadow-accent: 0 4px 24px rgba(61,134,245,.2);
 
   /* ── Transition ── */
   --t-fast: 120ms ease;
@@ -1175,8 +1029,8 @@ echo $managerHeaderParts[0];
 body {
   background: var(--bg);
   background-image:
-    radial-gradient(ellipse 80% 60% at 20% -10%, rgba(8,145,178,.05), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(8,145,178,.04), transparent);
+    radial-gradient(ellipse 80% 60% at 20% -10%, rgba(61,134,245,.07), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(61,134,245,.05), transparent);
   color: var(--fg);
   font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 14px;
@@ -1188,17 +1042,16 @@ a { color: var(--link); text-decoration: none; }
 /* ══════════════ HEADER ══════════════ */
 .new-header {
   position: sticky; top: 0; z-index: 200;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(9, 19, 34, 0.92);
   backdrop-filter: blur(16px) saturate(1.4);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   border-bottom: 1px solid var(--bd);
-  box-shadow: 0 1px 0 rgba(255,255,255,.5), 0 4px 16px rgba(20,40,80,.06);
+  box-shadow: 0 1px 0 rgba(255,255,255,.03), 0 4px 16px rgba(0,0,0,.35);
 }
 .nh-row1 {
-  max-width: 1480px; margin: 0 auto;
-  padding: 12px 24px;
+  max-width: 1200px; margin: 0 auto;
+  padding: 11px 24px;
   display: flex; align-items: center; gap: 16px;
-  border-bottom: 1px solid var(--bd);
 }
 .nh-brand {
   display: flex; align-items: center; gap: 10px;
@@ -1207,25 +1060,23 @@ a { color: var(--link); text-decoration: none; }
 }
 .nh-icon {
   width: 32px; height: 32px; border-radius: 9px;
-  background: linear-gradient(135deg, #0891b2, #0e7490);
+  background: linear-gradient(135deg, #1a4a8a, #0f2d5a);
   border: 1px solid var(--bd2);
   display: flex; align-items: center; justify-content: center;
   font-size: 15px; flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(8,145,178,.2);
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
 }
-.nh-kpis { display: flex; gap: 0; align-items: stretch; margin-left: auto; }
+.nh-kpis { display: flex; gap: 8px; }
 .nh-kpi {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 4px 18px; border-radius: 0;
-  background: transparent; border: 0; border-right: 1px solid var(--bd);
-  min-width: 64px; transition: background var(--t-fast);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 5px 16px; border-radius: var(--r-sm);
+  background: var(--card); border: 1px solid var(--bd);
+  min-width: 72px; transition: border-color var(--t-fast);
 }
-.nh-kpis .nh-kpi:first-child { border-left: 1px solid var(--bd); }
-.nh-kpi:hover { background: var(--card2); }
+.nh-kpi:hover { border-color: var(--bd2); }
 .nh-kpi-l { font-size: 10px; color: var(--mut); font-weight: 500; letter-spacing: .04em; }
-.nh-kpi-v { font-size: 14px; font-weight: 700; color: var(--fg); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+.nh-kpi-v { font-size: 13px; font-weight: 700; color: var(--fg); margin-top: 1px; font-family: 'JetBrains Mono', monospace; }
 .nh-home {
-  margin-left: 14px;
   padding: 6px 16px; border-radius: var(--r-sm);
   border: 1px solid var(--bd); background: var(--card);
   color: var(--mut); font-size: 12px; font-weight: 500;
@@ -1234,8 +1085,8 @@ a { color: var(--link); text-decoration: none; }
 .nh-home:hover { border-color: var(--accent); color: var(--fg); background: var(--card2); }
 
 .nh-row2 {
-  max-width: 1480px; margin: 0 auto;
-  padding: 10px 24px;
+  max-width: 1200px; margin: 0 auto;
+  padding: 0 24px 10px;
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .nh-vdiv { width: 1px; height: 20px; background: var(--bd); flex-shrink: 0; }
@@ -1245,13 +1096,11 @@ a { color: var(--link); text-decoration: none; }
   border: 1px solid var(--bd); color: var(--mut); background: transparent;
   text-decoration: none; transition: all var(--t-fast);
 }
-.nh-mbtn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.nh-mbtn:hover { border-color: var(--accent); color: var(--fg); background: rgba(61,134,245,.08); }
 .nh-mbtn.on {
   background: var(--accent); border-color: var(--accent); color: #fff;
-  font-weight: 600; box-shadow: 0 2px 10px rgba(8,145,178,.25);
+  font-weight: 600; box-shadow: 0 2px 10px rgba(61,134,245,.35);
 }
-.nh-mbtn--accent { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); font-weight: 600; }
-.nh-mbtn--accent:hover { background: var(--accent); color: #fff; }
 
 .nh-pills { display: flex; gap: 4px; flex-wrap: wrap; }
 .nh-pill {
@@ -1286,7 +1135,7 @@ a { color: var(--link); text-decoration: none; }
   background: transparent; color: var(--fg2);
   border: 1px solid var(--bd);
 }
-.btn.ghost:hover { border-color: var(--bd3); color: var(--fg); background: rgba(20,40,80,.04); }
+.btn.ghost:hover { border-color: var(--bd3); color: var(--fg); background: rgba(255,255,255,.04); }
 .btn.warn { background: #c0392b; border-color: #c0392b; }
 .btn.warn:hover { background: #e74c3c; }
 
@@ -1304,14 +1153,14 @@ a { color: var(--link); text-decoration: none; }
 .tabs a.active { background: var(--card2); border-color: var(--bd3); opacity: 1; }
 
 /* ══════════════ LAYOUT ══════════════ */
-.main { max-width: 1480px; margin: 20px auto; padding: 0 24px; }
+.main { max-width: 1680px; margin: 16px auto; padding: 0 20px; }
 .main-cols {
   display: grid;
-  grid-template-columns: 260px 1fr 280px;
-  gap: 20px;
+  grid-template-columns: 240px 1fr 260px;
+  gap: 16px;
   align-items: start;
 }
-@media (max-width: 1240px) { .main-cols { grid-template-columns: 240px 1fr; } .inactive-panel { display:none; } }
+@media (max-width: 1200px) { .main-cols { grid-template-columns: 220px 1fr; } .inactive-panel { display:none; } }
 @media (max-width: 900px)  { .main-cols { grid-template-columns: 1fr; } .dday-panel { display:none; } }
 
 /* ══════════════ DDAY PANEL ══════════════ */
@@ -1327,25 +1176,25 @@ a { color: var(--link); text-decoration: none; }
   flex-direction: column;
 }
 .dday-panel-head {
-  padding: 13px 16px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--bd);
-  background: var(--card2);
+  background: linear-gradient(180deg,rgba(255,107,53,.08),transparent);
   flex-shrink: 0;
 }
 .dday-panel-head h3 {
-  font-size: 11px; font-weight: 700; color: var(--mut);
-  letter-spacing:.06em; text-transform:uppercase; margin-bottom:3px;
+  font-size: 12px; font-weight: 700; color: #ffad7a;
+  letter-spacing:.05em; text-transform:uppercase; margin-bottom:4px;
 }
 .dday-panel-list { overflow-y: auto; flex: 1; }
 
 .dd-row {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 14px;
-  border-bottom: 1px solid rgba(20,40,80,.06);
+  border-bottom: 1px solid rgba(255,255,255,.035);
   cursor: pointer;
   transition: background var(--t-fast);
 }
-.dd-row:hover { background: var(--accent-glow); }
+.dd-row:hover { background: rgba(255,107,53,.06); }
 .dd-row:last-child { border-bottom: none; }
 
 .dd-badge {
@@ -1356,8 +1205,8 @@ a { color: var(--link); text-decoration: none; }
 }
 .dd-badge.today  { background:#ff2d55;  color:#fff; }
 .dd-badge.soon   { background:#cc5500;  color:#ffe0cc; border:1px solid #ff7c38; }
-.dd-badge.future { background:var(--report-bg);  color:var(--report); border:1px solid var(--report-bd); }
-.dd-badge.past   { background:var(--bg2);  color:var(--mut); border:1px solid var(--bd); }
+.dd-badge.future { background:#0d2340;  color:#90caf9; border:1px solid #1e4a8a; }
+.dd-badge.past   { background:#1a1a2e;  color:#616880; border:1px solid #2c3050; }
 
 .dd-info { min-width: 0; flex: 1; }
 .dd-name {
@@ -1372,7 +1221,7 @@ a { color: var(--link); text-decoration: none; }
   cursor:pointer; font-size:11px; font-family:inherit;
   transition:all var(--t-fast);
 }
-.dd-edit:hover { border-color:var(--accent); color:var(--accent); }
+.dd-edit:hover { border-color:#ff6b35; color:#ffad7a; }
 
 .dd-empty {
   padding: 32px 14px; text-align: center;
@@ -1390,14 +1239,14 @@ a { color: var(--link); text-decoration: none; }
   flex-direction: column;
 }
 .inactive-panel-head {
-  padding: 13px 16px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--bd);
-  background: var(--card2);
+  background: linear-gradient(180deg, var(--card2), var(--card));
   flex-shrink: 0;
 }
 .inactive-panel-head h3 {
-  font-size: 11px; font-weight: 700; color: var(--mut);
-  letter-spacing: .06em; text-transform: uppercase; margin-bottom: 3px;
+  font-size: 12px; font-weight: 700; color: var(--mut);
+  letter-spacing: .05em; text-transform: uppercase; margin-bottom: 4px;
 }
 .inactive-panel-head .ip-meta {
   font-size: 11px; color: var(--sub);
@@ -1406,33 +1255,6 @@ a { color: var(--link); text-decoration: none; }
   padding: 8px 10px;
   border-bottom: 1px solid var(--bd);
   flex-shrink: 0;
-}
-/* 미등록 / 전체 탭 */
-.ip-tabs {
-  display: flex; gap: 4px; padding: 8px 10px 0;
-  flex-shrink: 0;
-}
-.ip-tab {
-  flex: 1; padding: 7px 8px; cursor: pointer;
-  background: var(--bg3); color: var(--sub);
-  border: 1px solid var(--bd); border-radius: var(--r-sm);
-  font-size: 12px; font-weight: 600; font-family: inherit;
-  display: flex; align-items: center; justify-content: center; gap: 5px;
-  transition: .12s;
-}
-.ip-tab:hover { border-color: var(--accent); color: var(--fg); }
-.ip-tab.active {
-  background: #eef4ff; border-color: var(--accent); color: #1d4ed8;
-}
-.ip-tab-n {
-  font-size: 10px; padding: 1px 5px; border-radius: 999px;
-  background: rgba(0,0,0,.06); color: inherit;
-}
-.ip-tab.active .ip-tab-n { background: rgba(37,99,235,.15); }
-/* 전체 목록에서 등록 완료 표시 */
-.ip-row.ip-done { opacity: .62; }
-.ip-check {
-  display: inline-block; color: #16a34a; font-weight: 800; margin-right: 3px;
 }
 .inactive-panel-search input {
   width: 100%; padding: 6px 10px;
@@ -1449,7 +1271,7 @@ a { color: var(--link); text-decoration: none; }
 .ip-row {
   display: flex; align-items: center; justify-content: space-between;
   padding: 7px 14px; gap: 8px;
-  border-bottom: 1px solid rgba(20,40,80,.05);
+  border-bottom: 1px solid rgba(255,255,255,.03);
   cursor: pointer;
   transition: background var(--t-fast);
 }
@@ -1481,7 +1303,7 @@ a { color: var(--link); text-decoration: none; }
   width: 100%; height: 58vh;
   border: 1px solid var(--bd); border-radius: var(--r-lg);
   background: var(--bg3);
-  box-shadow: var(--shadow-md), inset 0 0 0 1px rgba(20,40,80,.04);
+  box-shadow: var(--shadow-md), inset 0 0 0 1px rgba(255,255,255,.03);
   overflow: hidden;
 }
 
@@ -1505,30 +1327,20 @@ a { color: var(--link); text-decoration: none; }
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 9px; border-radius: 10px;
   border: 1px solid var(--bd2);
-  background: rgba(255,255,255,.96);
+  background: rgba(9,19,34,.88);
   backdrop-filter: blur(8px);
-  box-shadow: 0 2px 8px rgba(20,40,80,.18);
-  font-size: 12px; font-weight: 600; color: var(--fg);
+  box-shadow: 0 2px 10px rgba(0,0,0,.4);
+  font-size: 12px; font-weight: 500; color: var(--fg2);
   white-space: nowrap; user-select: none;
   transition: all var(--t-fast);
 }
-.name-marker .bubble.green   { background: #ffffff;  border-color: var(--visit);   color: var(--visit);   }
-.name-marker .bubble.inspect { background: #ffffff;  border-color: var(--inspect); color: var(--inspect); }
-.name-marker .bubble.plan    { background: #ffffff;  border-color: var(--plan);    color: var(--plan);    }
-/* 미등록(미방문) 강조 — 빨강 + 링 */
-.name-marker .bubble.unreg   { background:#fff5f5; border:2px solid #e24b4a; color:#c0322f; font-weight:700;
-                               box-shadow:0 0 0 3px rgba(226,75,74,.22), 0 3px 10px rgba(160,45,45,.30); }
-.name-marker .bubble.unreg .dot { background:#e24b4a; border-color:#fff; }
-.name-marker .bubble.unreg .unreg-badge {
-  margin-left:5px; font-size:9px; font-weight:700; line-height:1;
-  background:#e24b4a; color:#fff; padding:2px 6px; border-radius:999px; letter-spacing:-.2px;
-}
-/* 완료된 건 차분하게 */
-.name-marker .bubble.green, .name-marker .bubble.inspect { opacity:.82; }
-.name-marker .bubble.selected{ background: #ffffff;  border-color: var(--accent);  color: var(--accent);  box-shadow: 0 0 0 2px var(--accent), 0 2px 8px rgba(20,40,80,.18); }
+.name-marker .bubble.green   { background: rgba(6,26,16,.92);  border-color: var(--visit-bd);   color: var(--visit);   }
+.name-marker .bubble.inspect { background: rgba(28,6,6,.92);   border-color: var(--inspect-bd); color: var(--inspect); }
+.name-marker .bubble.plan    { background: rgba(13,5,32,.92);  border-color: var(--plan-bd);    color: var(--plan);    }
+.name-marker .bubble.selected{ background: rgba(18,36,74,.92); border-color: var(--accent);     color: var(--link);    box-shadow: 0 0 0 2px var(--accent); }
 .name-marker .dot {
   width: 7px; height: 7px; border-radius: 50%;
-  background: var(--link); border: 1.5px solid rgba(20,40,80,.12);
+  background: var(--link); border: 1.5px solid rgba(0,0,0,.4);
   display: inline-block; flex-shrink: 0;
 }
 .name-marker .bubble.green .dot   { background: var(--visit);   }
@@ -1543,14 +1355,14 @@ a { color: var(--link); text-decoration: none; }
   display: inline-block; padding: 2px 7px;
   border-radius: 6px; font-size: 10px; font-weight: 800;
   letter-spacing: .04em; white-space: nowrap;
-  box-shadow: 0 1px 6px rgba(20,40,80,.12);
+  box-shadow: 0 1px 6px rgba(0,0,0,.5);
   line-height: 1.4;
   pointer-events: none;
 }
 .dday-tag.today  { background: #ff2d55; color: #fff; animation: ddayPulse 1.2s ease-in-out infinite; }
 .dday-tag.soon   { background: #ff8c00; color: #fff; }  /* D-7 이내 */
-.dday-tag.future { background: var(--report-bg); color: var(--report); border: 1px solid var(--report-bd); }
-.dday-tag.past   { background: var(--bg2); color: var(--mut); border: 1px solid var(--bd); }
+.dday-tag.future { background: #1c4a8a; color: #90caf9; border: 1px solid #2d6abf; }
+.dday-tag.past   { background: #1a1a2e; color: #7f8fa6; border: 1px solid #2c3e50; }
 @keyframes ddayPulse {
   0%,100% { box-shadow: 0 0 0 0 rgba(255,45,85,.6); }
   50%      { box-shadow: 0 0 0 5px rgba(255,45,85,0); }
@@ -1564,7 +1376,7 @@ a { color: var(--link); text-decoration: none; }
   border-top: 1px solid var(--bd2);
   padding: 12px 24px 18px;
   display: none; align-items: center; gap: 10px; flex-wrap: wrap;
-  box-shadow: 0 -8px 32px rgba(20,40,80,.10);
+  box-shadow: 0 -8px 32px rgba(0,0,0,.5);
 }
 #bulk-action-bar.show { display: flex; }
 #bulk-count { font-size: 13px; color: var(--mut); flex: 1; min-width: 80px; }
@@ -1610,7 +1422,6 @@ a { color: var(--link); text-decoration: none; }
 }
 .cal-pro .cell:nth-child(7n) { border-right: none; }
 .cal-pro .cell:hover { background: var(--card2); }
-.cal-pro .cell.ms-picked { background: rgba(250,199,117,.12) !important; }
 .cal-pro .datebar { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--mut); }
 .cal-pro .datebar .dnum { font-weight: 700; color: var(--fg2); font-family: 'JetBrains Mono', monospace; }
 .cal-pro .datebar .note-dot {
@@ -1623,7 +1434,7 @@ a { color: var(--link); text-decoration: none; }
 .cal-pro .datebar .note-dot:hover { border-color: var(--accent); color: var(--fg); }
 .cal-pro .out-month { background: var(--bg); opacity: .65; }
 .cal-pro .out-month:hover { background: var(--bg2); }
-.cal-pro .weekend { background: linear-gradient(180deg, var(--card), rgba(20,40,80,.02)); }
+.cal-pro .weekend { background: linear-gradient(180deg, var(--card), rgba(255,255,255,.012)); }
 .cal-pro .today {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
@@ -1676,8 +1487,8 @@ a { color: var(--link); text-decoration: none; }
   font-size: 11.5px; font-family: inherit; line-height: 1.4;
   transition: all var(--t-fast);
 }
-.mini-btn.del { background: var(--inspect-bg); border-color: var(--inspect-bd); color: var(--inspect); }
-.mini-btn.del:hover { background: #fee2e2; }
+.mini-btn.del { background: #5c1010; border-color: #7a1a1a; color: #fca5a5; }
+.mini-btn.del:hover { background: #7a1a1a; }
 .mini-btn.neutral { background: var(--card2); border-color: var(--bd2); color: var(--fg2); }
 .mini-btn.neutral:hover { border-color: var(--bd3); color: var(--fg); }
 
@@ -1698,7 +1509,7 @@ dialog {
   border-radius: var(--r-lg);
   padding: 0;
   min-width: min(92vw, 360px);
-  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(20,40,80,.04);
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255,255,255,.03);
 }
 /* 닫힌 dialog는 무조건 숨김 — inline display:flex 덮어쓰기 방지 */
 @media (max-width: 600px) {
@@ -1748,7 +1559,7 @@ dialog:not([open]) { display: none !important; }
   }
 }
 dialog[open].flex-col { display: flex !important; flex-direction: column; }
-dialog::backdrop { background: rgba(20,40,80,.35); backdrop-filter: blur(4px); }
+dialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(4px); }
 dialog[open] { animation: dialogIn var(--t-mid) ease both; }
 @keyframes dialogIn {
   from { opacity: 0; transform: scale(.97) translateY(-6px); }
@@ -1807,27 +1618,6 @@ input::placeholder, textarea::placeholder { color: var(--sub); }
 select option { background: var(--bg3); }
 
 /* ══════════════ DRAWER ══════════════ */
-.vm-memo{border:1px solid #fde68a;background:#fffbeb;border-radius:10px;padding:10px 12px;margin-top:4px}
-.vm-memo__head{display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:12px;
-  font-weight:700;color:#92400e}
-.vm-memo__flag{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;
-  color:#b45309;cursor:pointer;margin-left:auto}
-.vm-memo__flag input{width:14px;height:14px;cursor:pointer}
-.vm-memo__st{font-size:11px;color:#b45309;font-weight:500;flex-basis:100%;order:9}
-.vm-memo textarea{width:100%;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;
-  font-size:13px;font-family:inherit;line-height:1.6;background:#fff;color:#451a03;resize:vertical}
-.vm-memo textarea:focus{outline:none;border-color:#f59e0b}
-.vm-memo__save{margin-top:7px;border-color:#f59e0b !important;color:#b45309 !important;
-  font-size:12px;padding:5px 12px}
-
-/* 지도 마커 — 메모/중요 표시 */
-.memo-pin{position:absolute;top:-7px;right:-7px;width:16px;height:16px;border-radius:50%;
-  background:#f59e0b;color:#fff;font-size:10px;line-height:16px;text-align:center;
-  border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3);font-weight:800;z-index:5}
-.memo-pin.important{background:#dc2626;animation:memoPulse 1.6s ease-in-out infinite}
-@keyframes memoPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.22)}}
-.bubble{position:relative}
-
 #clientModal.drawer {
   position: fixed; right: 20px; top: calc(64px + 14px);
   width: 420px; max-width: 92vw;
@@ -1899,14 +1689,14 @@ select option { background: var(--bg3); }
   overflow: hidden;
 }
 .qf-head {
-  padding: 13px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--bd);
-  background: var(--card2);
+  background: linear-gradient(180deg, rgba(61,134,245,.07), transparent);
   display: flex; align-items: center; justify-content: space-between; gap: 6px;
 }
 .qf-head h3 {
-  font-size: 11px; font-weight: 700; color: var(--mut);
-  letter-spacing: .06em; text-transform: uppercase;
+  font-size: 12px; font-weight: 700; color: #7ab3ff;
+  letter-spacing: .05em; text-transform: uppercase;
   display: flex; align-items: center; gap: 6px;
 }
 .qf-add-btn {
@@ -2007,87 +1797,285 @@ select option { background: var(--bg3); }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
-<link rel="stylesheet" href="/manager_sidebar.css?v=8">
-<style>
-#map .leaflet-control-attribution{margin:0;padding:3px 7px;background:rgba(255,255,255,.94);color:#475569;border-radius:6px 0 0 0;font:11px/1.5 system-ui,sans-serif;box-shadow:0 -1px 4px rgba(15,23,42,.06)}
-#map .leaflet-control-attribution a{color:#334155;text-decoration:underline;text-underline-offset:2px}
-#map .leaflet-control-attribution a:hover{color:#0f172a}
-#map .leaflet-control-attribution a:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+<style id="gameTheme">
+:root {
+  --bg:#0a0a16; --bg2:#0e0e20; --bg3:#13132a; --card:#151532; --card2:#1a1a3c;
+  --bd:#2a2a58; --bd2:#3C3489; --bd3:#534AB7;
+  --fg:#e8e8f5; --fg2:#c8c8ea; --mut:#8e8ec4; --sub:#5a5a82;
+  --accent:#FAC775; --accent-dim:#854F0B; --accent-glow:rgba(250,199,117,.14); --link:#FAC775;
+  --r-xs:0; --r-sm:0; --r-md:0; --r-lg:0; --r-xl:0;
+  --shadow-xs:2px 2px 0 rgba(0,0,0,.55); --shadow-sm:3px 3px 0 rgba(0,0,0,.6);
+  --shadow-md:4px 4px 0 rgba(0,0,0,.7);  --shadow-lg:6px 6px 0 rgba(0,0,0,.8);
+  --shadow-accent:4px 4px 0 #1a1040;
+}
+* { border-radius:0 !important; font-family:'DungGeunMo','JetBrains Mono',monospace !important; }
+body {
+  background:#0a0a16 !important;
+  background-image:
+    linear-gradient(rgba(83,74,183,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(83,74,183,.06) 1px, transparent 1px) !important;
+  background-size:26px 26px !important;
+  letter-spacing:.3px;
+}
+body::after {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:99998;
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,.07) 0 1px, transparent 1px 3px);
+}
+::selection { background:#FAC775; color:#1a1040; }
+.btn, button.btn {
+  border-width:2px !important; border-style:solid !important;
+  box-shadow:3px 3px 0 rgba(0,0,0,.7) !important;
+  transition:none !important;
+}
+.btn { border-color:#534AB7; background:#1d1048; color:#CECBF6; }
+.btn:hover { filter:brightness(1.25); }
+.btn:active { transform:translate(3px,3px) !important; box-shadow:0 0 0 rgba(0,0,0,0) !important; }
+.btn.ghost { background:transparent; }
+input, select, textarea {
+  border:2px solid #3C3489 !important; background:#0e0e22 !important; color:var(--fg) !important;
+}
+input:focus, select:focus, textarea:focus {
+  border-color:#FAC775 !important; outline:none !important; box-shadow:3px 3px 0 #1a1040 !important;
+}
+input[type=checkbox] { accent-color:#FAC775; width:16px; height:16px; }
+dialog {
+  border:3px solid #534AB7 !important;
+  box-shadow:inset 0 0 0 3px #0a0a16, inset 0 0 0 5px #3C3489, 7px 7px 0 rgba(0,0,0,.8) !important;
+  background:#12122a !important;
+}
+dialog::backdrop { background:rgba(5,3,22,.78) !important; backdrop-filter:none !important; }
+.modal-head { border-bottom:2px solid #3C3489 !important; background:#1a1040 !important; }
+.modal-head strong { letter-spacing:1px; color:#FAC775 !important; }
+.modal-head strong::before { content:'\25B6 '; color:#534AB7; }
+.new-header {
+  border-bottom:3px solid #534AB7 !important;
+  box-shadow:0 4px 0 #1a1040 !important;
+  background:#10102a !important;
+}
+.nh-kpi { border:2px solid #2a2a58 !important; background:#15153a !important; }
+.nh-kpi-v { color:#FAC775 !important; }
+.nh-pill, .nh-mbtn { border-width:2px !important; box-shadow:2px 2px 0 rgba(0,0,0,.6); }
+.nh-pill:active, .nh-mbtn:active { transform:translate(2px,2px); box-shadow:none; }
+.nh-pill.on { background:#FAC775 !important; color:#1a1040 !important; border-color:#FAC775 !important; }
+.cal-pro { border:3px solid #3C3489 !important; box-shadow:5px 5px 0 rgba(0,0,0,.7) !important; }
+.cal-pro .cell {
+  border:1px solid #22224a !important;
+  box-shadow:inset 1px 1px 0 rgba(255,255,255,.035), inset -1px -1px 0 rgba(0,0,0,.4);
+}
+.cal-pro .cell:hover { background:#221c50 !important; }
+.cal-pro .today {
+  outline:3px solid #FAC775 !important; outline-offset:-3px;
+  background:#1d1538 !important;
+  animation:todayPulse 1.6s steps(2) infinite;
+}
+@keyframes todayPulse { 50% { outline-color:#854F0B; } }
+.cal-pro .datebar .dnum { color:#FAC775 !important; }
+.cal-pro .weekend { background:#16122e !important; }
+.leaflet-tile { image-rendering:pixelated !important; filter:saturate(1.45) contrast(1.08) brightness(.95); }
+.leaflet-container { border:3px solid #534AB7 !important; box-shadow:5px 5px 0 rgba(0,0,0,.7) !important; }
+.leaflet-control-zoom a { border:2px solid #534AB7 !important; background:#1d1048 !important; color:#FAC775 !important; }
+.dday-panel, .qf-panel { border:3px solid #2a2a58 !important; box-shadow:4px 4px 0 rgba(0,0,0,.65) !important; }
+::-webkit-scrollbar { width:12px !important; height:12px !important; }
+::-webkit-scrollbar-track { background:#12122a !important; border-left:2px solid #1a1a3c; }
+::-webkit-scrollbar-thumb { background:#534AB7 !important; border:3px solid #12122a !important; }
+::-webkit-scrollbar-thumb:hover { background:#7F77DD !important; }
+a:hover { text-shadow:0 0 6px rgba(250,199,117,.5); }
 </style>
-<style>
-body .new-header{position:relative;top:auto;z-index:20}body .nav{z-index:300}
-body .main{max-width:1680px;margin:20px auto;padding:0 24px}
-body .main-cols{grid-template-columns:minmax(0,1fr) 370px;gap:20px;align-items:start}
-.focus-map{min-width:0;border:1px solid var(--bd);border-radius:16px;overflow:hidden;background:#fff}
-.focus-map-head{padding:18px 20px;border-bottom:1px solid var(--bd)}
-.focus-map-head h2{margin:0;font-size:17px;color:var(--fg)}
-.focus-map-head p{margin:6px 0 0;font-size:12px;color:var(--sub)}
-body .focus-map #map{height:calc(100dvh - 190px)!important;min-height:430px;margin:0;border-radius:0}
-body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
-@media(max-width:960px){body .main-cols{grid-template-columns:minmax(0,1fr)}body .main{padding:0 14px;margin:14px auto}body .focus-map #map{height:48dvh!important;min-height:300px}body .inactive-panel.ms-sidebar{max-height:none}body #ms-clients .inactive-panel-list{max-height:420px}}
-</style>
-<link rel="stylesheet" href="/manager_polish.css?v=9">
-<link rel="stylesheet" href="/manager_payout.css?v=1">
-</head><?= $managerHeaderParts[1] ?? '<body>' ?>
+</head>
+<body>
 
-    <?php require_once __DIR__.'/manager_sidebar.php';
-    try {$ms=ms_data();}catch(Throwable $e){$ms=['available'=>false];error_log('Manager sidebar: '.$e->getMessage());}
-    $msReady=!empty($ms['available']); ?>
-<script>document.body.classList.add("cm-clean");</script>
-<?php if(!$msReady): ?><header class="new-header">
+<header class="new-header">
   <!-- 1행: 브랜드 + KPI + 홈 -->
   <div class="nh-row1">
     <div class="nh-brand">
-      <div class="nh-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 21V5l8-2v18M12 9h8v12M2 21h20M7 7h2M7 11h2M7 15h2M15 12h2M15 16h2"/></svg></div>
-      <span class="manager-identity"><strong><?=h($headerTitle)?></strong></span>
-      <button type="button" onclick="<?=$managerHeaderName!==null?'editManagerName()':'editCompanyName()'?>" title="<?=$managerHeaderName!==null?'매니저 이름 변경':'상호명 변경'?>" aria-label="<?=$managerHeaderName!==null?'매니저 이름 변경':'상호명 변경'?>"
-        style="margin-left:6px;border:1px solid var(--bd2);background:var(--card2);color:var(--mut);border-radius:6px;cursor:pointer;font-size:11px;padding:2px 7px">✎</button>
+      <div class="nh-icon">🗺</div>
+      <span><?=h($COMPANY_NAME)?></span>
+      <button type="button" onclick="editCompanyName()" title="상호명 변경"
+        style="margin-left:6px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:inherit;border-radius:6px;cursor:pointer;font-size:11px;padding:2px 7px;opacity:.7">✎</button>
     </div>
-    <?php if($msReady): ?><div class="manager-header-code"><?php ms_render_code($ms); ?></div><?php endif; ?>
-    <?php if($msReady): ?><button type="button" class="manager-header-wallet" data-wallet-open aria-haspopup="dialog" aria-controls="manager-wallet-dialog"><span class="header-wallet-icon" aria-hidden="true"><?=mg_icon('coin')?></span><span class="header-wallet-label">파이어 마일리지<small>적립 내역 보기</small></span><strong><?=number_format((int)$ms['balance'])?><small>개</small></strong><span aria-hidden="true" class="wallet-chevron">›</span></button><?php endif; ?>
+    <div class="nh-kpis">
+      <div class="nh-kpi">
+        <span class="nh-kpi-l">월</span>
+        <span class="nh-kpi-v"><?=h($ym)?></span>
+      </div>
+      <div class="nh-kpi">
+        <span class="nh-kpi-l">퀘스트</span>
+        <span class="nh-kpi-v"><?=h((string)$task_open)?><span style="opacity:.4;font-weight:400">/</span><?=h((string)$task_total)?></span>
+      </div>
+      <button type="button" class="nh-kpi" onclick="openClientModal()" title="새 거래처 등록 (최대 200)"
+        style="border:0;cursor:pointer;font-family:inherit;background:rgba(56,189,168,.12);border:1px solid #0d9488">
+        <span class="nh-kpi-l">+ 거래처등록</span>
+        <span class="nh-kpi-v" style="color:#5eead4"><?= count($clients) ?><span style="opacity:.4;font-weight:400">/200</span></span>
+      </button>
+    </div>
+    <a class="nh-home" href="index.php">← 본부 귀환</a>
   </div>
-</header><?php endif; ?>
-<?php if($managerHeaderName!==null): ?><script src="/manager_help.js?v=20260926-inbox" data-manager="1"></script><?php endif; ?>
-
-<?php if($msReady)ms_render_wallet($ms); ?>
+  <!-- 2행: 탭 + 월이동 + 강조필터 -->
+    <div class="nh-vdiv"></div>
+    <div class="nh-months">
+      <a href="?m=<?=h($prevYm)?>&type=<?=h($type)?>" class="nh-mbtn">◀ <?=h(substr($prevYm,5))?>월</a>
+      <a href="?m=<?=h(date('Y-m'))?>&type=<?=h($type)?>" class="nh-mbtn on">이번달</a>
+      <a href="?m=<?=h($nextYm)?>&type=<?=h($type)?>" class="nh-mbtn"><?=h(substr($nextYm,5))?>월 ▶</a>
+      <button type="button" class="nh-mbtn" onclick="openPrevMonthModal()" title="전월 점검/방문 목록"
+        style="background:rgba(167,139,250,.12);border-color:#7c3aed;color:#c4b5fd;cursor:pointer">
+        📋 전월현황
+      </button>
+      <button type="button" class="nh-mbtn" onclick="openEstimateModal()" title="견적서 작성"
+        style="background:rgba(56,189,168,.12);border-color:#0d9488;color:#5eead4;cursor:pointer">
+        📄 견적서
+      </button>
+      <a href="?view=fire" class="nh-mbtn" title="자위소방대 편성표 작성"
+        style="background:rgba(192,57,43,.14);border-color:#c0392b;color:#fca5a5;text-decoration:none">
+        🧯 소방편성표
+      </a>
+      <a href="?view=subscribe" class="nh-mbtn" title="구독 / 결제"
+        style="background:rgba(124,58,237,.14);border-color:#7c3aed;color:#c4b5fd;text-decoration:none">
+        💳 구독하기
+      </a>
+      <?php if (count($ghostClients) > 0): ?>
+      <button type="button" class="nh-mbtn" onclick="openGhostModal()" title="지도 좌표 없는 마을"
+        style="background:rgba(239,68,68,.1);border-color:#7f1d1d;color:#fca5a5;cursor:pointer">
+        👻 유령 <?= count($ghostClients) ?>개
+      </button>
+      <?php endif; ?>
+    </div>
+    <div class="nh-vdiv"></div>
+    <div class="nh-pills">
+      <?php
+        $ftabs = ['visit'=>'방문','inspect'=>'점검','as'=>'AS','report'=>'보고서','submit'=>'이행완료','plan'=>'📅 방문예정'];
+        foreach ($ftabs as $t=>$label):
+      ?>
+        <a class="nh-pill <?= $t===$type?'on':'' ?>"
+           href="?m=<?=h($ym)?>&type=<?=h($t)?>"><?=h($label)?></a>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</header>
 
 
 
 <div class="main">
   <div class="main-cols">
 
-    <section class="focus-map" aria-label="담당 건물 지도">
-      <link rel="stylesheet" href="/manager_map.css?v=3">
-      <style>
-.mm-management-actions .mm-draft-add{display:inline-flex;align-items:center;gap:10px;padding:11px 16px;border:1px solid #9fcac2;border-radius:12px;background:linear-gradient(120deg,#e8f5ef,#eef7fb);color:#205f57;box-shadow:0 3px 12px #285b5010;text-decoration:none;transition:background .18s,box-shadow .18s}.mm-management-actions .mm-draft-add:hover{background:#def0e8;box-shadow:0 4px 16px #285b5020}.mm-draft-add .mm-draft-copy{display:flex;flex-direction:column;gap:3px}.mm-draft-add .mm-draft-copy b{font-size:13px;font-weight:750}.mm-draft-add .mm-draft-copy small{font-size:11px;font-weight:400;color:#5d7c76}.mm-management-actions .mm-draft-add:focus-visible{outline:3px solid #409d8c;outline-offset:3px}
-</style>
-<?php if($msReady): ?><div class="mm-management-bar"><div class="cm-map-heading"><div class="cm-heading-line"><h2>담당 건물</h2><button type="button" class="cm-mobile-code-open" aria-haspopup="dialog" aria-controls="cm-mobile-code-dialog">Manager Code <span aria-hidden="true">⌄</span></button></div><p>건물 위치와 관리 현황을 한눈에 확인하세요.</p></div><div class="mm-management-actions"><button type="button" class="mi-guide-open" data-manager-intro-open aria-haspopup="dialog" aria-controls="manager-intro"><span aria-hidden="true">ⓘ</span> 리워드·이용 안내</button><a href="/manager_addresses.php?new=1" data-address-open class="mm-draft-add"><span aria-hidden="true">＋</span><span class="mm-draft-copy"><b>건물 사전등록</b><small>유저 연결 전에 미리 준비하세요</small></span></a></div></div><?php endif; ?>
-      <div class="mm-map-filterbar" id="manager-map-filters" aria-label="지도에 표시할 건물 상태"></div>
-      <div id="map"></div>
-    </section>
+    <!-- 좌측: D-DAY 패널 + 아이템 가방 -->
+    <div style="display:flex;flex-direction:column;gap:14px">
+    <div class="dday-panel">
+      <div class="dday-panel-head">
+        <h3>📅 D-DAY</h3>
+        <div style="font-size:11px;color:var(--sub)"><?= count($ddayClients) ?>개 설정됨</div>
+      </div>
+      <div class="dday-panel-list" id="dd-list">
+        <?php if (empty($ddayClients)): ?>
+          <div class="dd-empty">설정된 D-DAY가 없습니다.<br><span style="font-size:10px;color:#3a4a60">마을 클릭 → 📅 D-DAY</span></div>
+        <?php else: ?>
+          <?php foreach ($ddayClients as $dd):
+            $diff = $dd['diff'];
+            $label = $diff===0 ? 'D-DAY' : ($diff>0 ? "D-{$diff}" : "D+".abs($diff));
+            $cls   = $diff===0 ? 'today' : ($diff>0 && $diff<=7 ? 'soon' : ($diff>0 ? 'future' : 'past'));
+          ?>
+          <div class="dd-row" onclick="focusOnClient('<?=h($dd['id'])?>')" title="지도에서 보기">
+            <div class="dd-badge <?=h($cls)?>"><?=h($label)?></div>
+            <div class="dd-info">
+              <div class="dd-name"><?=h($dd['name'])?></div>
+              <div class="dd-date"><?=h($dd['dday'])?></div>
+            </div>
+            <button class="dd-edit" onclick="event.stopPropagation();openDdayModal('<?=h($dd['id'])?>')" title="D-DAY 수정">✏️</button>
+          </div>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </div>
+    </div><!-- /dday-panel -->
+
+    <!-- 아이템 가방 -->
+    <div class="qf-panel" id="qf-panel">
+      <div class="qf-head">
+        <h3>📁 아이템 가방</h3>
+        <div style="display:flex;gap:5px;align-items:center">
+          <button class="qf-add-btn" onclick="qfOpenAddModal()">＋ 추가</button>
+          <button class="qf-add-btn" onclick="qfOpenGroupModal()">폴더</button>
+        </div>
+      </div>
+      <div class="qf-groups" id="qf-groups-bar"></div>
+      <div class="qf-grid" id="qf-grid"></div>
+      <div class="qf-footer">
+        <button class="qf-edit-btn" id="qf-edit-btn" onclick="qfToggleEdit()">편집</button>
+        <span class="qf-count" id="qf-count"></span>
+      </div>
+    </div>
+
+    </div><!-- /left-col wrapper -->
+
+    <!-- 가운데: 지도 + 달력 -->
+    <div>
+      <div id="map" style="border-radius:var(--r-lg);overflow:hidden"></div>
+
+      <!-- 달력 (Pro) -->
+      <div class="card cal-pro" style="margin-top:16px">
+        <div class="cal-head">
+          <?php foreach (['일','월','화','수','목','금','토'] as $wi=>$w): ?>
+            <div style="<?=$wi===0?'color:#ff5252':($wi===6?'color:#60a5fa':'')?>;"><?=h($w)?></div>
+          <?php endforeach; ?>
+        </div>
+        <div id="cal-grid" class="grid"></div>
+        <div class="legend">
+          <span class="chip visit">방문</span>
+          <span class="chip inspect">점검</span>
+          <span class="chip as">AS</span>
+          <span class="chip report">보고서</span>
+          <span class="chip submit">이행완료</span>
+          <span style="margin-left:auto;font-size:11px;opacity:.6">클릭 → 날짜 메모 / 이벤트 상세</span>
+        </div>
+      </div>
+    </div>
 
     <!-- 우측: 이번 달 미등록 마을 -->
-
-    <aside class="inactive-panel ms-sidebar" id="manager-sidebar" data-initial-pending="<?=h((string)($ms['pending']??0))?>">
-      <link rel="stylesheet" href="/manager_inbox.css?v=2">
-      <?php if($msReady): ?><a href="/manager_addresses.php?requests=1" data-address-open class="ms-connect-banner" id="manager-connect-banner" <?=empty($ms['pending'])?'hidden':''?>><span class="ms-connect-icon" aria-hidden="true">＋</span><span><strong>새로운 연결 요청 <b data-connect-count><?=$ms['pending']??0?></b>건</strong><small data-connect-summary><?php $connectNames=[];foreach(($ms['rows']??[]) as $connectUid=>$connectMember){if(($connectMember['_status']??'')==='pending')$connectNames[]=trim((string)($connectMember['nickname']??''))?:(string)$connectUid;}echo mg_e($connectNames?($connectNames[0].(count($connectNames)>1?' 외 '.(count($connectNames)-1).'곳':'').'에서 연결을 요청했습니다.'):'매니저 코드로 연결을 요청한 유저입니다.'); ?></small><em>요청 확인하기 →</em></span></a><?php mg_notice(); endif; ?>
-      <div class="ms-head cm-workspace-info-head"><div><small>MY WORKSPACE</small><h3>내 워크스페이스</h3></div><?php if($msReady): ?><details class="cm-manager-details" id="cm-manager-info"><summary aria-controls="cm-manager-info-panel">내 정보 <span class="cm-info-chevron" aria-hidden="true">⌄</span></summary><section class="cm-info-panel" id="cm-manager-info-panel" aria-label="내 매니저 정보"><div class="cm-info-top"><span>내 매니저 정보</span><button type="button" data-info-close aria-label="매니저 정보 접기">×</button></div><div class="cm-info-name"><span class="manager-identity"><strong><?=h($headerTitle)?></strong></span>
-      <button type="button" onclick="<?=$managerHeaderName!==null?'editManagerName()':'editCompanyName()'?>" title="<?=$managerHeaderName!==null?'매니저 이름 변경':'상호명 변경'?>" aria-label="<?=$managerHeaderName!==null?'매니저 이름 변경':'상호명 변경'?>"
-        style="margin-left:6px;border:1px solid var(--bd2);background:var(--card2);color:var(--mut);border-radius:6px;cursor:pointer;font-size:11px;padding:2px 7px">✎</button></div><div class="manager-header-code cm-info-code"><?php ms_render_code($ms); ?></div><?php if($msReady): ?><button type="button" class="manager-header-wallet" data-wallet-open aria-haspopup="dialog" aria-controls="manager-wallet-dialog"><span class="header-wallet-icon" aria-hidden="true"><?=mg_icon('coin')?></span><span class="header-wallet-label">파이어 마일리지<small>적립 내역 보기</small></span><strong><?=number_format((int)$ms['balance'])?><small>개</small></strong><span aria-hidden="true" class="wallet-chevron">›</span></button><?php endif; ?></section></details><?php endif; ?></div>
-      <div class="ms-tabs" role="tablist" aria-label="관리 패널">
-      <?php if($msReady): ?><button type="button" id="ms-tab-users" role="tab" aria-controls="ms-users" aria-selected="true" data-ms-tab="users">건물 목록</button><?php endif; ?>
-      <?php if($msReady): ?><button type="button" id="ms-tab-help" role="tab" aria-controls="ms-help" aria-selected="false" data-ms-tab="help">작성 요청 <b class="ms-request-badge" data-help-badge hidden>0</b></button><?php endif; ?>
-      <?php if($msReady): ?><button type="button" id="ms-tab-notifications" role="tab" aria-controls="ms-notifications" aria-selected="false" data-ms-tab="notifications">알림 <b class="ms-request-badge" data-request-badge hidden>0</b></button><?php endif; ?>
-      <?php if($msReady): ?><button type="button" id="ms-tab-months" role="tab" aria-controls="ms-months" aria-selected="false" data-ms-tab="months">사용승인월</button><?php endif; ?>
+    <div class="inactive-panel">
+      <div class="inactive-panel-head">
+        <h3>📋 미등록 마을</h3>
+        <div class="ip-meta">
+          <?=h($ym)?> · <span id="ip-count"><?= count($inactiveClients) ?></span>개
+          <span style="color:var(--sub)"> / 전체 <?= count($clients) ?></span>
+        </div>
       </div>
-      <?php if($msReady): ?><div class="ms-slide-controls"><button type="button" data-slide-prev aria-label="이전 탭">‹</button><span>좌우로 넘겨 확인하세요</span><button type="button" data-slide-next aria-label="다음 탭">›</button></div><?php ms_render($ms); endif; ?>
-      <?php if(!$msReady): ?><p class="ip-empty">담당 유저 정보를 불러올 수 없습니다. 잠시 후 새로고침해 주세요.</p><?php endif; ?>
-    </aside>
+      <div class="inactive-panel-search">
+        <input type="text" id="ip-search" placeholder="이름 검색…" oninput="filterInactive(this.value)">
+      </div>
+      <div class="inactive-panel-list" id="ip-list">
+        <?php if (empty($inactiveClients)): ?>
+          <div class="ip-empty">🎉 이번 달 모든 마을에<br>등록이 완료되었습니다!</div>
+        <?php else: ?>
+          <?php foreach ($inactiveClients as $ic): ?>
+            <div class="ip-row" data-id="<?=h($ic['id'])?>" data-name="<?=h(mb_strtolower($ic['name']??''))?>"
+                 onclick="focusOnClient('<?=h($ic['id'])?>')" title="지도에서 보기">
+              <div style="min-width:0;flex:1">
+                <div class="ip-name"><?=h($ic['name']??'')?></div>
+                <?php if (!empty($ic['address']??$ic['addr']??'')): ?>
+                  <div class="ip-addr"><?=h($ic['address']??$ic['addr']??'')?></div>
+                <?php endif; ?>
+              </div>
+              <div class="ip-actions" onclick="event.stopPropagation()">
+                <button class="ip-btn" onclick="openVisitFor('<?=h($ic['id'])?>','<?=h(addslashes($ic['name']??''))?>')" title="일정 등록">＋</button>
+                <button class="ip-btn" onclick="openPlanFor('<?=h($ic['id'])?>','<?=h(addslashes($ic['name']??''))?>')" title="방문예정" style="color:#a78bfa;border-color:#2e1570">📅</button>
+              </div>
+            </div>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </div>
+    </div>
   </div>
 </div>
 
-<link rel="stylesheet" href="/clients_mini_clean.css?v=2">
+<!-- 하단 일괄처리 액션바 -->
+<div id="bulk-action-bar">
+  <div id="bulk-count"><span id="bulk-count-num">0</span>개 선택됨</div>
+  <input type="date" id="bulk-date" style="padding:8px 10px;border-radius:8px;border:1px solid #1f2a3a;background:#0f1e35;color:#e5e7eb;font-size:13px;">
+  <button class="bulk-act-btn visit"  onclick="bulkAction('visit','add')">✓ 방문</button>
+  <button class="bulk-act-btn inspect" onclick="bulkAction('inspect','add')">✓ 점검</button>
+  <button class="bulk-act-btn as"     onclick="bulkAction('as','inc')">＋ AS</button>
+  <button class="bulk-act-btn plan"   onclick="bulkAction('plan','add')">📅 방문예정</button>
+  <button class="bulk-act-btn cancel" onclick="exitSelectMode()">취소</button>
+</div>
+
 
 <!-- ★ 방문예정 등록 모달 -->
 <dialog id="planModal" style="min-width:min(92vw,340px)">
@@ -2107,7 +2095,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
     </div>
     <div class="modal-actions">
       <button type="button" class="btn ghost" onclick="closeModal('planModal')">취소</button>
-      <button class="btn" style="background:var(--plan-bg);border-color:var(--plan-bd);color:var(--plan)">📅 예정 등록</button>
+      <button class="btn" style="background:#2e1065;border-color:#7c3aed;color:#c4b5fd">📅 예정 등록</button>
     </div>
   </form>
 </dialog>
@@ -2144,20 +2132,6 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
       <label id="vm-as-wrap" style="display:none">AS 수량
         <input type="number" name="count" id="vm-as" min="1" value="1">
       </label>
-
-      <!-- 거래처 메모 — 저장하면 지도 마커에 표시가 붙는다 -->
-      <div class="vm-memo">
-        <div class="vm-memo__head">
-          <span>📌 메모</span>
-          <label class="vm-memo__flag" title="지도에 중요 표시를 크게 띄웁니다">
-            <input type="checkbox" id="vm-memo-flag"> <span>중요</span>
-          </label>
-          <span class="vm-memo__st" id="vm-memo-st"></span>
-        </div>
-        <textarea id="vm-memo-text" rows="3"
-          placeholder="이 거래처의 중요한 내용을 적어두세요. 저장하면 지도에 표시됩니다."></textarea>
-        <button type="button" class="btn ghost vm-memo__save" id="vm-memo-save">메모 저장</button>
-      </div>
     </div>
     <div class="modal-actions" style="justify-content:space-between">
       <div style="display:flex;gap:6px">
@@ -2165,8 +2139,8 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
         <button type="button" class="btn ghost" onclick="openBuildingModal()" style="border-color:#2563eb;color:#93c5fd">🏢 설비현황</button>
         <button type="button" class="btn ghost" id="vm-dday-btn" onclick="openDdayModal(document.getElementById('vm-id').value)"
           style="border-color:#ff6b35;color:#ffad7a">📅 D-DAY</button>
-        <button type="button" class="btn ghost" onclick="openPhotoReportModal(document.getElementById('vm-id').value)" style="border-color:#16a34a;color:#15803d">📷 공사사진</button>
-        <button type="button" class="btn ghost" onclick="openClientFilesModal(document.getElementById('vm-id').value)" style="border-color:var(--plan-bd);color:var(--plan)">📁 문서고</button>
+        <button type="button" class="btn ghost" onclick="openPhotoReportModal(document.getElementById('vm-id').value)" style="border-color:#16a34a;color:#86efac">📷 공사사진</button>
+        <button type="button" class="btn ghost" onclick="openClientFilesModal(document.getElementById('vm-id').value)" style="border-color:#7c3aed;color:#c4b5fd">📁 문서고</button>
       </div>
       <div style="display:flex;gap:6px">
         <button type="button" class="btn ghost" onclick="closeModal('visitModal')">취소</button>
@@ -2191,7 +2165,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
         </div>
       </label>
       <div id="cm-results" style="display:none"></div>
-      <label>주소<input name="address" id="cm-addr" placeholder="검색 결과에서 선택하면 자동 입력" readonly style="background:var(--bg2)"></label>
+      <label>주소<input name="address" id="cm-addr" placeholder="검색 결과에서 선택하면 자동 입력" readonly style="background:rgba(255,255,255,.04)"></label>
       <label>상세주소<input name="address_detail" id="cm-addr-detail" placeholder="동/호수 등 (선택)"></label>
       <div style="display:flex;gap:8px">
         <label style="flex:1">위도(lat)<input name="lat" id="cm-lat" placeholder="선택 시 자동" readonly></label>
@@ -2231,43 +2205,43 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
       <input type="hidden" name="client_id" id="bm-client-id">
 
       <!-- 층수 설정 -->
-      <div style="padding:14px 16px;border-bottom:1px solid #e3e8f0;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <div style="padding:14px 16px;border-bottom:1px solid #1f2a3a;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:8px">
           <label style="margin:0;font-size:12px;color:#94a3b8;white-space:nowrap">지하</label>
           <input type="number" name="floors_below" id="bm-floors-below" min="0" max="10" value="0"
-            style="width:64px;padding:7px 10px;border-radius:8px;border:1px solid #e3e8f0;background:#ffffff;color:#1a2436;font-size:14px;text-align:center"
+            style="width:64px;padding:7px 10px;border-radius:8px;border:1px solid #1f2a3a;background:#0a1324;color:#e5e7eb;font-size:14px;text-align:center"
             oninput="rebuildFloorList()">
           <span style="font-size:12px;color:#64748b">층</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <label style="margin:0;font-size:12px;color:#94a3b8;white-space:nowrap">지상</label>
           <input type="number" name="floors_above" id="bm-floors-above" min="1" max="50" value="5"
-            style="width:64px;padding:7px 10px;border-radius:8px;border:1px solid #e3e8f0;background:#ffffff;color:#1a2436;font-size:14px;text-align:center"
+            style="width:64px;padding:7px 10px;border-radius:8px;border:1px solid #1f2a3a;background:#0a1324;color:#e5e7eb;font-size:14px;text-align:center"
             oninput="rebuildFloorList()">
           <span style="font-size:12px;color:#64748b">층</span>
         </div>
-        <button type="button" onclick="rebuildFloorList()" style="padding:7px 14px;border-radius:8px;border:1px solid #bfdbfe;background:#eff6ff;color:#2563eb;font-size:12px;cursor:pointer">
+        <button type="button" onclick="rebuildFloorList()" style="padding:7px 14px;border-radius:8px;border:1px solid #2563eb;background:#1e3a5f;color:#93c5fd;font-size:12px;cursor:pointer">
           층 구성 적용
         </button>
       </div>
 
       <!-- 커스텀 설비 추가 -->
-      <div style="padding:10px 16px;border-bottom:1px solid #e3e8f0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div style="padding:10px 16px;border-bottom:1px solid #1f2a3a;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span style="font-size:12px;color:#94a3b8">커스텀 설비:</span>
         <div id="bm-custom-chips" style="display:flex;gap:6px;flex-wrap:wrap;flex:1"></div>
         <div style="display:flex;gap:6px">
           <input id="bm-custom-input" placeholder="설비명 입력"
-            style="padding:6px 10px;border-radius:8px;border:1px solid #e3e8f0;background:#ffffff;color:#1a2436;font-size:12px;width:120px"
+            style="padding:6px 10px;border-radius:8px;border:1px solid #1f2a3a;background:#0a1324;color:#e5e7eb;font-size:12px;width:120px"
             onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomEquip()}">
           <button type="button" onclick="addCustomEquip()"
-            style="padding:6px 12px;border-radius:8px;border:1px solid #bfdbfe;background:#eff6ff;color:#2563eb;font-size:12px;cursor:pointer">추가</button>
+            style="padding:6px 12px;border-radius:8px;border:1px solid #2563eb;background:#1e3a5f;color:#93c5fd;font-size:12px;cursor:pointer">추가</button>
         </div>
       </div>
 
       <!-- 층별 설비 체크리스트 -->
       <div id="bm-floor-list" style="flex:1;overflow-y:auto;padding:12px 16px;display:grid;gap:10px"></div>
 
-      <div style="padding:12px 16px;border-top:1px solid #e3e8f0;display:flex;gap:8px;justify-content:flex-end">
+      <div style="padding:12px 16px;border-top:1px solid #1f2a3a;display:flex;gap:8px;justify-content:flex-end">
         <button type="button" class="btn ghost" onclick="closeModal('buildingModal')">취소</button>
         <button type="submit" class="btn">💾 저장</button>
       </div>
@@ -2345,7 +2319,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
   <div id="prm-actions-new" class="modal-actions" style="flex-shrink:0;border-top:1px solid var(--bd);display:none">
     <button type="button" class="btn ghost" onclick="prmTab('list')">← 목록으로</button>
     <button type="button" class="btn" id="prm-save-btn" onclick="prmSaveReport()"
-      style="background:#ecfdf3;border-color:#16a34a;color:#15803d">💾 보고서 저장</button>
+      style="background:#14532d;border-color:#16a34a;color:#86efac">💾 보고서 저장</button>
   </div>
 </dialog>
 
@@ -2364,7 +2338,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
       <input type="hidden" name="action" value="client_edit">
       <input type="hidden" name="id" id="ecm-id">
 
-      <div style="font-size:11px;color:#64748b;font-weight:600;letter-spacing:.05em;padding-bottom:4px;border-bottom:1px solid #e3e8f0">기본 정보</div>
+      <div style="font-size:11px;color:#64748b;font-weight:600;letter-spacing:.05em;padding-bottom:4px;border-bottom:1px solid #1f2a3a">기본 정보</div>
 
       <label>마을명
         <input name="name" id="ecm-name" required>
@@ -2397,7 +2371,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
         </label>
       </div>
 
-      <div style="font-size:11px;color:#64748b;font-weight:600;letter-spacing:.05em;padding:8px 0 4px;border-bottom:1px solid #e3e8f0;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:11px;color:#64748b;font-weight:600;letter-spacing:.05em;padding:8px 0 4px;border-bottom:1px solid #1f2a3a;display:flex;align-items:center;justify-content:space-between">
         <span>추가 필드</span>
         <button type="button" onclick="addExtraField()" style="background:#1e3a5f;border:1px solid #2563eb;color:#93c5fd;border-radius:7px;padding:3px 10px;font-size:12px;cursor:pointer">＋ 필드 추가</button>
       </div>
@@ -2412,7 +2386,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
 
 <!-- 퀘스트 모달 -->
 <dialog id="taskModal">
-  <div class="modal-head"><strong>할 일</strong><button type="button" class="btn ghost" onclick="closeModal('taskModal')">✕</button></div>
+  <div class="modal-head"><strong>퀘스트(할 일)</strong><button type="button" class="btn ghost" onclick="closeModal('taskModal')">✕</button></div>
   <div class="modal-body">
     <form method="post" style="display:grid;gap:10px;margin-bottom:10px">
       <input type="hidden" name="csrf" value="<?=h($CSRF)?>"><input type="hidden" name="action" value="task_create">
@@ -2491,13 +2465,6 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
     <button type="button" class="btn ghost" onclick="closeModal('dayEventsModal')">✕</button>
   </div>
   <div class="modal-body" id="dem-body" style="display:grid;gap:8px"></div>
-  <div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--bd2);margin-top:4px;flex-wrap:wrap">
-    <label style="font-size:12px;color:var(--sub);display:flex;align-items:center;gap:5px">
-      배정 수 <input type="number" id="dem-perday" value="5" min="1" max="30" style="width:56px;padding:5px;border-radius:6px;border:1px solid var(--bd2);background:var(--card2);color:var(--fg)">
-    </label>
-    <button class="btn" id="dem-assign-btn" type="button" onclick="demAssignDay()" style="background:#ecfdf3;border-color:#16a34a;color:#15803d">📍 이 날에 배정</button>
-    <button class="btn warn" id="dem-clearday-btn" type="button" onclick="demClearDay()" style="margin-left:auto">🗑️ 이 날 전체 삭제</button>
-  </div>
   <div class="modal-actions">
     <button class="btn" id="dem-note-btn">💬 코멘트</button>
     <button class="btn ghost" onclick="openDayColorModal(document.getElementById('dayEventsModal').dataset.date);closeModal('dayEventsModal')">🎨 색상</button>
@@ -2536,20 +2503,20 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
       <!-- 직접 입력 -->
       <div style="display:grid;grid-template-columns:36px 1fr;gap:10px;align-items:center">
         <input type="color" name="color" id="dcm-color" value="#3b82f6"
-          style="width:36px;height:36px;border-radius:8px;border:1px solid #e3e8f0;background:#ffffff;cursor:pointer;padding:2px"
+          style="width:36px;height:36px;border-radius:8px;border:1px solid #1f2a3a;background:#0a1324;cursor:pointer;padding:2px"
           oninput="dcmPreview()">
         <input name="label" id="dcm-label" maxlength="10" placeholder="라벨 (예: 공휴일, 마감…)"
-          style="padding:10px 12px;border-radius:8px;border:1px solid #e3e8f0;background:#ffffff;color:#1a2436;font-size:13px"
+          style="padding:10px 12px;border-radius:8px;border:1px solid #1f2a3a;background:#0a1324;color:#e5e7eb;font-size:13px"
           oninput="dcmPreview()">
       </div>
       <!-- 미리보기 -->
-      <div id="dcm-preview" style="border:1px solid #e3e8f0;border-radius:10px;padding:10px 14px;background:#f8fafc;display:flex;align-items:center;gap:8px">
+      <div id="dcm-preview" style="border:1px solid #1f2a3a;border-radius:10px;padding:10px 14px;background:#0b1426;display:flex;align-items:center;gap:8px">
         <span id="dcm-prev-num" style="font-size:22px;font-weight:700;color:#3b82f6">15</span>
         <span id="dcm-prev-lbl" style="font-size:11px;padding:2px 8px;border-radius:999px;background:#3b82f633;color:#93c5fd;border:1px solid #3b82f655;display:none"></span>
       </div>
     </div>
     <div class="modal-actions" style="justify-content:space-between">
-      <button type="button" onclick="dcmClear()" style="background:transparent;border:1px solid var(--inspect-bd);color:var(--inspect);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px">🗑 초기화</button>
+      <button type="button" onclick="dcmClear()" style="background:transparent;border:1px solid #7f1d1d;color:#fca5a5;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px">🗑 초기화</button>
       <div style="display:flex;gap:8px">
         <button type="button" class="btn ghost" onclick="closeModal('dayColorModal')">취소</button>
         <button type="submit" class="btn">저장</button>
@@ -2628,12 +2595,12 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
   <!-- 필터 바 -->
   <div id="pmm-filter-bar" style="flex-shrink:0;display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--bd);background:var(--bg3)">
     <button data-kind="all" class="pmm-btn pmm-active">전체</button>
-    <button data-kind="visit"   class="pmm-btn" style="--c:#2dda7e;--cb:#ecfdf3">방문</button>
-    <button data-kind="inspect" class="pmm-btn" style="--c:#ff5252;--cb:#fef2f2">점검</button>
-    <button data-kind="as"      class="pmm-btn" style="--c:#fbbf24;--cb:#fffbeb">AS</button>
-    <button data-kind="report"  class="pmm-btn" style="--c:#60a5fa;--cb:#eff6ff">보고서</button>
-    <button data-kind="submit"  class="pmm-btn" style="--c:#fb923c;--cb:#fff7ed">이행완료</button>
-    <button data-kind="plan"    class="pmm-btn" style="--c:#a78bfa;--cb:#f5f3ff">방문예정</button>
+    <button data-kind="visit"   class="pmm-btn" style="--c:#2dda7e;--cb:#061a10">방문</button>
+    <button data-kind="inspect" class="pmm-btn" style="--c:#ff5252;--cb:#1c0606">점검</button>
+    <button data-kind="as"      class="pmm-btn" style="--c:#fbbf24;--cb:#150f00">AS</button>
+    <button data-kind="report"  class="pmm-btn" style="--c:#60a5fa;--cb:#030d1f">보고서</button>
+    <button data-kind="submit"  class="pmm-btn" style="--c:#fb923c;--cb:#140700">이행완료</button>
+    <button data-kind="plan"    class="pmm-btn" style="--c:#a78bfa;--cb:#0d0520">방문예정</button>
   </div>
 
   <!-- 통계 요약 -->
@@ -2656,7 +2623,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
 }
 .pmm-btn:hover { border-color:var(--bd3);color:var(--fg2); }
 .pmm-btn.pmm-active {
-  background:var(--accent);border-color:var(--accent);color:#fff;
+  background:var(--accent-dim);border-color:var(--accent);color:var(--link);
 }
 </style>
 
@@ -2671,14 +2638,6 @@ const INSPECTED_THIS_MONTH = <?= json_encode(array_keys($inspectedThisMonth), JS
 const PLANNED_THIS_MONTH = <?= json_encode(array_keys($plannedThisMonth), JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) ?>.reduce((m,id)=>{m[id]=true;return m;},{});
 const CSRF = <?= json_encode($CSRF) ?>;
 const COMPANY_NAME = <?= json_encode($COMPANY_NAME) ?>;
-const MANAGER_HEADER_NAME = <?=json_encode($managerHeaderName,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_INVALID_UTF8_SUBSTITUTE)?>;
-async function editManagerName(){
-  const name=prompt('매니저 이름을 입력하세요. (최대 30자)\n연결된 유저의 담당 매니저 이름에도 반영됩니다.',MANAGER_HEADER_NAME||'');
-  if(name===null)return;
-  const fd=new FormData();fd.append('csrf',CSRF);fd.append('name',name);
-  try{const response=await fetch('/manager_profile.php',{method:'POST',credentials:'same-origin',body:fd});const result=await response.json();if(response.ok&&result.ok)location.reload();else alert(result.message||'이름을 저장하지 못했습니다.');}
-  catch{alert('저장 결과를 확인하지 못했습니다. 새로고침 후 이름을 확인해 주세요.');}
-}
 async function editCompanyName(){
   const cur = (COMPANY_NAME && COMPANY_NAME !== '거래처 관리 시스템') ? COMPANY_NAME : '';
   const name = prompt('상호명(회사명)을 입력하세요.\n화면 상단·견적서·보고서 표지 등에 표시됩니다.', cur);
@@ -2740,8 +2699,8 @@ function renderGhostList(q) {
     const hasEvents = c.total > 0;
     const row = document.createElement('div');
     row.id = `ghost-row-${c.id}`;
-    row.style.cssText = 'display:grid;grid-template-columns:36px 1fr auto;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(20,40,80,.05);transition:background .12s';
-    row.onmouseenter = () => row.style.background = 'rgba(20,40,80,.04)';
+    row.style.cssText = 'display:grid;grid-template-columns:36px 1fr auto;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.04);transition:background .12s';
+    row.onmouseenter = () => row.style.background = 'rgba(255,255,255,.03)';
     row.onmouseleave = () => row.style.background = '';
 
     // 체크박스
@@ -2758,14 +2717,14 @@ function renderGhostList(q) {
       ? `<span style="display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:600;background:#150f00;color:#fbbf24;border:1px solid #3d2c00">이벤트 ${c.total}건</span>`
       : `<span style="display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:600;background:#1c0606;color:#ff5252;border:1px solid #4a1010">기록 없음</span>`;
     const lastBadge = c.last
-      ? `<span style="font-size:10px;color:var(--mut);margin-left:6px">최근 ${c.last}</span>` : '';
-    const phoneTxt = c.phone ? `<span style="font-size:10px;color:var(--mut)"> · ${escapeHtml(c.phone)}</span>` : '';
+      ? `<span style="font-size:10px;color:#617d96;margin-left:6px">최근 ${c.last}</span>` : '';
+    const phoneTxt = c.phone ? `<span style="font-size:10px;color:#617d96"> · ${escapeHtml(c.phone)}</span>` : '';
     info.innerHTML = `
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
-        <span style="font-size:13px;font-weight:600;color:#1a2436">${escapeHtml(c.name)}</span>
+        <span style="font-size:13px;font-weight:600;color:#dce7f5">${escapeHtml(c.name)}</span>
         ${eventBadge}${lastBadge}
       </div>
-      <div style="font-size:11px;color:var(--mut)">${escapeHtml(c.addr||'주소 없음')}${phoneTxt}</div>
+      <div style="font-size:11px;color:#617d96">${escapeHtml(c.addr||'주소 없음')}${phoneTxt}</div>
     `;
 
     // 버튼
@@ -2775,7 +2734,7 @@ function renderGhostList(q) {
     const editBtn = document.createElement('button');
     editBtn.textContent = '📍 좌표';
     editBtn.title = '마을 수정에서 좌표 입력';
-    editBtn.style.cssText = 'padding:5px 10px;border-radius:7px;border:1px solid var(--report-bd);background:transparent;color:var(--report);font-size:11px;cursor:pointer;font-family:inherit;white-space:nowrap';
+    editBtn.style.cssText = 'padding:5px 10px;border-radius:7px;border:1px solid #1e3251;background:transparent;color:#7ab3ff;font-size:11px;cursor:pointer;font-family:inherit;white-space:nowrap';
     editBtn.onmouseenter = () => editBtn.style.borderColor = '#3d86f5';
     editBtn.onmouseleave = () => editBtn.style.borderColor = '#1e3251';
     editBtn.onclick = () => {
@@ -2788,7 +2747,7 @@ function renderGhostList(q) {
     const delBtn = document.createElement('button');
     delBtn.textContent = '🗑';
     delBtn.title = '삭제';
-    delBtn.style.cssText = 'padding:5px 9px;border-radius:7px;border:1px solid var(--inspect-bd);background:transparent;color:var(--inspect);font-size:11px;cursor:pointer';
+    delBtn.style.cssText = 'padding:5px 9px;border-radius:7px;border:1px solid #7f1d1d;background:transparent;color:#fca5a5;font-size:11px;cursor:pointer';
     delBtn.onclick = () => ghostDeleteOne(c.id, c.name, row);
 
     btns.appendChild(editBtn);
@@ -2971,7 +2930,7 @@ function refreshDdayPanel() {
   });
 
   if (!rows.length) {
-    list.innerHTML = '<div class="dd-empty">설정된 D-DAY가 없습니다.<br><span style="font-size:10px;color:var(--sub)">거래처 클릭 → 📅 D-DAY</span></div>';
+    list.innerHTML = '<div class="dd-empty">설정된 D-DAY가 없습니다.<br><span style="font-size:10px;color:#3a4a60">마을 클릭 → 📅 D-DAY</span></div>';
     return;
   }
 
@@ -2996,26 +2955,10 @@ function refreshDdayPanel() {
   if (headSub) headSub.textContent = `${rows.length}개 설정됨`;
 }
 
-/* ─── 미등록/전체 탭 전환 ─── */
-let _ipTab = 'all';   // unreg | all
-function switchIpTab(tab) {
-  _ipTab = tab;
-  document.querySelectorAll('.ip-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  const unreg = document.getElementById('ip-list');
-  const all   = document.getElementById('ip-list-all');
-  if (unreg) unreg.style.display = (tab === 'unreg') ? '' : 'none';
-  if (all)   all.style.display   = (tab === 'all')   ? '' : 'none';
-  const title = document.getElementById('ip-title');
-  if (title) title.textContent = (tab === 'all') ? '📋 전체 거래처' : '📋 미등록 거래처';
-  const si = document.getElementById('ip-search');
-  filterInactive(si ? si.value : '');   // 탭 바꿔도 검색어 유지
-}
-
-/* ─── 거래처 패널 검색 (현재 활성 탭 기준) ─── */
+/* ─── 미등록 마을 패널 검색 ─── */
 function filterInactive(q) {
-  q = (q||'').trim().toLowerCase();
-  const listId = (_ipTab === 'all') ? '#ip-list-all' : '#ip-list';
-  const rows = document.querySelectorAll(listId + ' .ip-row');
+  q = q.trim().toLowerCase();
+  const rows = document.querySelectorAll('#ip-list .ip-row');
   let shown = 0;
   rows.forEach(r => {
     const match = !q || (r.dataset.name||'').includes(q);
@@ -3026,35 +2969,17 @@ function filterInactive(q) {
   if (cnt) cnt.textContent = shown;
 }
 
-/* AJAX 등록 후: 미등록 패널에서 제거 + 전체 목록엔 ✓ 표시 */
+/* AJAX 등록 후 해당 마을를 미등록 패널에서 제거 */
 function removeFromInactivePanel(clientId) {
   const row = document.querySelector(`#ip-list .ip-row[data-id="${clientId}"]`);
   if (row) {
     row.remove();
     const remaining = document.querySelectorAll('#ip-list .ip-row').length;
-    if (_ipTab === 'unreg') {
-      const cnt = document.getElementById('ip-count');
-      if (cnt) cnt.textContent = remaining;
-    }
-    // 미등록 탭 숫자 갱신
-    const tabN = document.querySelector('.ip-tab[data-tab="unreg"] .ip-tab-n');
-    if (tabN) tabN.textContent = remaining;
+    const cnt = document.getElementById('ip-count');
+    if (cnt) cnt.textContent = remaining;
     if (remaining === 0) {
       document.getElementById('ip-list').innerHTML =
         '<div class="ip-empty">🎉 이번 달 모든 마을에<br>등록이 완료되었습니다!</div>';
-    }
-  }
-  // 전체 목록에서 해당 거래처에 ✓ 표시
-  const allRow = document.querySelector(`#ip-list-all .ip-row[data-id="${clientId}"]`);
-  if (allRow && !allRow.classList.contains('ip-done')) {
-    allRow.classList.add('ip-done');
-    const nameEl = allRow.querySelector('.ip-name');
-    if (nameEl && !nameEl.querySelector('.ip-check')) {
-      const chk = document.createElement('span');
-      chk.className = 'ip-check';
-      chk.title = '이번 달 등록 완료';
-      chk.textContent = '✓';
-      nameEl.prepend(chk, ' ');
     }
   }
 }
@@ -3094,35 +3019,35 @@ window.openPrevMonthModal = function() {
       body.innerHTML = '<div style="text-align:center;padding:40px 0;color:#64748b;font-size:14px">해당 월의 기록이 없습니다.</div>';
       return;
     }
-    const kindColor = {visit:'#15803d',inspect:'#dc2626',as:'#b45309',report:'#2563eb',submit:'#c2410c',plan:'#7c3aed'};
-    const kindBg    = {visit:'#ecfdf3',inspect:'#fef2f2',as:'#fffbeb',report:'#eff6ff',submit:'#fff7ed',plan:'#f5f3ff'};
+    const kindColor = {visit:'#2dda7e',inspect:'#ff5252',as:'#fbbf24',report:'#60a5fa',submit:'#fb923c',plan:'#a78bfa'};
+    const kindBg    = {visit:'#061a10',inspect:'#1c0606',as:'#150f00',report:'#030d1f',submit:'#140700',plan:'#0d0520'};
 
     for (const c of data) {
       const card = document.createElement('div');
-      card.style.cssText = 'border:1px solid var(--bd);border-radius:12px;overflow:hidden;margin-bottom:10px';
+      card.style.cssText = 'border:1px solid #1e3251;border-radius:12px;overflow:hidden;margin-bottom:10px';
 
       // 마을 헤더
       const head = document.createElement('div');
-      head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--bd)';
+      head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#0f1e33;border-bottom:1px solid #1e3251';
       head.innerHTML = `
         <div>
-          <div style="font-weight:600;font-size:14px;color:#1a2436">${escapeHtml(c.name)}</div>
-          ${c.addr ? `<div style="font-size:11px;color:var(--mut);margin-top:2px">${escapeHtml(c.addr)}</div>` : ''}
+          <div style="font-weight:600;font-size:14px;color:#dce7f5">${escapeHtml(c.name)}</div>
+          ${c.addr ? `<div style="font-size:11px;color:#617d96;margin-top:2px">${escapeHtml(c.addr)}</div>` : ''}
         </div>
-        <span style="font-size:11px;padding:3px 10px;border-radius:999px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe">${c.rows.length}건</span>
+        <span style="font-size:11px;padding:3px 10px;border-radius:999px;background:#1a4a8a22;color:#7ab3ff;border:1px solid #1a4a8a44">${c.rows.length}건</span>
       `;
 
       const rows = document.createElement('div');
-      rows.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;background:var(--bg2)';
+      rows.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;background:#0a1525';
 
       for (const r of c.rows) {
         const chip = document.createElement('div');
-        const col  = kindColor[r.kind] || '#64748b';
-        const bg   = kindBg[r.kind] || '#f1f5f9';
+        const col  = kindColor[r.kind] || '#aaa';
+        const bg   = kindBg[r.kind] || '#111';
         chip.style.cssText = `display:flex;align-items:center;gap:6px;padding:5px 11px;border-radius:8px;border:1px solid ${col}44;background:${bg};font-size:12px`;
         chip.innerHTML = `
           <span style="color:${col};font-weight:600">${TYPE_LABELS[r.kind]||r.kind}</span>
-          <span style="color:var(--mut)">${r.date}</span>
+          <span style="color:#aabcce">${r.date}</span>
           ${r.kind==='as' && r.count>1 ? `<span style="color:${col}">×${r.count}</span>` : ''}
         `;
         rows.appendChild(chip);
@@ -3210,7 +3135,7 @@ function renderClientList(){
     const btnPlan = document.createElement('button');
     btnPlan.className = 'btn';
     btnPlan.textContent = '📅 예정';
-    btnPlan.style.cssText = 'background:var(--plan-bg);border-color:var(--plan-bd);color:var(--plan)';
+    btnPlan.style.cssText = 'background:#2e1065;border-color:#7c3aed;color:#c4b5fd';
     btnPlan.onclick = ()=> { openPlanFor(c.id, c.name||''); };
 
     const btnFocus = document.createElement('button');
@@ -3295,8 +3220,7 @@ function openDayNotes(dateStr){
 // ===== 지도 =====
 let map, markers, group, CURRENT_EDIT_ID = null;
 map = L.map('map', { zoomControl:true, attributionControl:true });
-map.attributionControl.setPrefix(false);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
 markers = new Map(); group = L.featureGroup().addTo(map);
 
 function escapeHtmlLocal(s){ return (s+'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
@@ -3321,7 +3245,7 @@ function getMarkerCls(id) {
   if (INSPECTED_THIS_MONTH[id]) return ' inspect';
   if (VISITED_THIS_MONTH[id]) return ' green';
   if (PLANNED_THIS_MONTH[id]) return ' plan';
-  return ' unreg';
+  return '';
 }
 
 /* D-Day 계산 */
@@ -3344,8 +3268,19 @@ function ddayClass(diff) {
 }
 
 function rebuildIcon(c, selected) {
-  const html = `<div class="bubble"><span class="dot"></span><span class="txt">${escapeHtmlLocal(c.name || '거래처')}</span></div>`;
-  return L.divIcon({className:'name-marker', html, iconSize:null, iconAnchor:[12,12]});
+  const cls = selected ? ' selected' : getMarkerCls(c.id);
+  const bubble = `<div class="bubble${cls}" title="${escapeHtmlLocal(c.name)}${c.addr?' · '+escapeHtmlLocal(c.addr):''}">
+    <span class="dot"></span><span class="txt">${escapeHtmlLocal(c.name)}</span></div>`;
+
+  let html;
+  if (c.dday) {
+    const diff = calcDday(c.dday);
+    const tag = `<div class="dday-tag ${ddayClass(diff)}">${ddayLabel(diff)}</div>`;
+    html = `<div class="name-marker-wrap">${tag}${bubble}</div>`;
+  } else {
+    html = bubble;
+  }
+  return L.divIcon({ className:'name-marker', html, iconSize:null, iconAnchor:[12,12] });
 }
 
 function updateActionBar() {
@@ -3417,12 +3352,72 @@ window.bulkAction = function(kind, action) {
 
 function putMarker(c) {
   const {id, lat, lng} = c; if (lat==null||lng==null) return;
-  const m = L.marker([lat,lng], {icon:rebuildIcon(c,false), zIndexOffset:200});
-  const card = document.createElement('div');
-  const name = document.createElement('strong'); name.textContent = c.name || '거래처';
-  const address = document.createElement('p'); address.textContent = c.addr || c.address || '주소 미등록';
-  card.append(name, address); m.bindPopup(card);
-  markers.set(id,m); group.addLayer(m);
+  const m = L.marker([lat,lng], { icon: rebuildIcon(c,false), zIndexOffset:200 }).addTo(map);
+
+  let pressTimer = null;
+  let longPressed = false;
+
+  // ── PC: mousedown / mouseup ──
+  m.on('mousedown', e => {
+    longPressed = false;
+    pressTimer = setTimeout(() => {
+      longPressed = true;
+      pressTimer = null;
+      enterSelectMode(id);
+    }, 500);
+  });
+  m.on('mouseup', e => {
+    if (pressTimer !== null) {
+      clearTimeout(pressTimer); pressTimer = null;
+      if (!longPressed) {
+        if (selectMode) toggleSelect(id);
+        else openVisitFor(id, c.name||'');
+      }
+    }
+  });
+  m.on('mousemove', () => {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+  });
+
+  // ── 모바일: DOM 레벨 touch 이벤트 (Leaflet 우회) ──
+  const el = m.getElement ? null : null; // getElement는 addTo 후 사용
+  function attachTouch() {
+    const el = m.getElement();
+    if (!el) return;
+    let tTimer = null;
+    let tLong = false;
+
+    el.addEventListener('touchstart', e => {
+      tLong = false;
+      tTimer = setTimeout(() => {
+        tLong = true;
+        tTimer = null;
+        // 진동 피드백 (지원 기기)
+        if (navigator.vibrate) navigator.vibrate(50);
+        enterSelectMode(id);
+      }, 500);
+    }, { passive: true });
+
+    el.addEventListener('touchend', e => {
+      if (tTimer !== null) {
+        clearTimeout(tTimer); tTimer = null;
+        if (!tLong) {
+          e.preventDefault();
+          if (selectMode) toggleSelect(id);
+          else openVisitFor(id, c.name||'');
+        }
+      }
+    });
+
+    el.addEventListener('touchmove', () => {
+      if (tTimer) { clearTimeout(tTimer); tTimer = null; }
+    }, { passive: true });
+  }
+
+  // getElement()는 지도에 추가된 후 사용 가능
+  m.on('add', attachTouch);
+
+  markers.set(id, m); group.addLayer(m);
 }
 
 CLIENTS.forEach(putMarker);
@@ -3468,16 +3463,6 @@ window.openVisitFor = (id, name) => {
   vm.querySelector('#vm-title').textContent = name;
   vm.querySelector('#vm-date').value = new Date().toISOString().slice(0,10);
 
-  /* 거래처 메모 불러오기 */
-  const mt = vm.querySelector('#vm-memo-text');
-  const mf = vm.querySelector('#vm-memo-flag');
-  const ms = vm.querySelector('#vm-memo-st');
-  if (mt) {
-    mt.value = (c && c.memo) ? c.memo : '';
-    if (mf) mf.checked = !!(c && c.flag);
-    if (ms) ms.textContent = (c && c.memo_at) ? c.memo_at + ' 저장' : '';
-  }
-
   const kindSel = vm.querySelector('#vm-kind');
   const asWrap  = vm.querySelector('#vm-as-wrap');
   asWrap.style.display = kindSel.value === 'as' ? '' : 'none';
@@ -3498,7 +3483,7 @@ window.openVisitFor = (id, name) => {
       entries.forEach(e => {
         const kindKey = Object.keys(kindMap).find(k => e.kind.startsWith(k));
         const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;border-radius:7px;border:1px solid #e3e8f0;background:var(--card);font-size:12px';
+        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;border-radius:7px;border:1px solid #1f2a3a;background:#0b1628;font-size:12px';
         const left = document.createElement('div');
         left.style.cssText = 'display:flex;gap:8px;align-items:center;flex:1';
         const badge = document.createElement('span');
@@ -3552,7 +3537,6 @@ window.focusOnClient = (id)=>{
   if (!markers || !markers.has(id)) { alert('지도에 등록된 좌표가 없습니다.'); return; }
   const m = markers.get(id);
   map.setView(m.getLatLng(), Math.max(15, map.getZoom()), { animate:true });
-  m.openPopup();
 };
 
 /* ===== Pro Calendar Renderer ===== */
@@ -3686,10 +3670,10 @@ window.focusOnClient = (id)=>{
       cell.appendChild(more);
     }
 
-    // 날짜 클릭: 이벤트 상세 모달 (빈 날도 열어서 배정 가능)
+    // 날짜 클릭: 이벤트 상세 또는 코멘트 모달
     cell.onclick = ()=> {
-      if (window.__msMode){ msPickDate(c.iso, cell); return; }
-      openDayEventsModal(c.iso, EVENTS_BY_DATE[c.iso]||[]);
+      if ((EVENTS_BY_DATE[c.iso]||[]).length) openDayEventsModal(c.iso, list);
+      else openDayNotes(c.iso);
     };
 
     grid.appendChild(cell);
@@ -3750,176 +3734,6 @@ window.focusOnClient = (id)=>{
     }
     openModal('dayEventsModal');
   };
-
-  // ───── 여러 날 선택 배정 모드 ─────
-  window.__msMode = false;
-  let msDates = [];  // 선택된 날짜 'YYYY-MM-DD'
-
-  window.msToggle = function(){
-    window.__msMode = !window.__msMode;
-    msDates = [];
-    updateMsUI();
-    // 선택 표시 초기화
-    document.querySelectorAll('#cal-grid .cell.ms-picked').forEach(el=>{
-      el.classList.remove('ms-picked'); el.style.boxShadow='';
-    });
-    const btn = document.getElementById('ms-toggle');
-    if (window.__msMode){
-      btn.textContent = '✕ 선택 모드 끄기';
-      btn.style.background = '#2a1a66';
-    } else {
-      btn.textContent = '📌 여러 날 선택 배정';
-      btn.style.background = '#1d1048';
-    }
-  };
-
-  window.msPickDate = function(iso, cell){
-    const i = msDates.indexOf(iso);
-    if (i>=0){
-      msDates.splice(i,1);
-      cell.classList.remove('ms-picked');
-      cell.style.boxShadow='';
-    } else {
-      msDates.push(iso);
-      msDates.sort();
-      cell.classList.add('ms-picked');
-      cell.style.boxShadow='inset 0 0 0 2px #fac775';
-    }
-    updateMsUI();
-  };
-
-  function updateMsUI(){
-    const info = document.getElementById('ms-info');
-    const assign = document.getElementById('ms-assign');
-    const cnt = document.getElementById('ms-count');
-    if (window.__msMode){
-      info.style.display=''; assign.style.display = msDates.length? '' : 'none';
-      cnt.textContent = msDates.length;
-    } else {
-      info.style.display='none'; assign.style.display='none';
-    }
-  }
-
-  window.msAssign = async function(){
-    if (!msDates.length){ alert('날짜를 먼저 선택하세요.'); return; }
-    const perDay = Math.max(1, parseInt(document.getElementById('ms-perday').value)||5);
-
-    // 미등록(이번 달 활동 없는) + 좌표 있는 거래처
-    const activeIds = new Set();
-    for (const k in EVENTS_BY_DATE){ for (const ev of EVENTS_BY_DATE[k]){ activeIds.add(ev.id); } }
-    const cand = CLIENTS.filter(c=> !activeIds.has(c.id) && c.lat!=null && c.lng!=null && !isNaN(c.lat) && !isNaN(c.lng))
-                        .map(c=>({id:c.id,name:c.name,lat:+c.lat,lng:+c.lng}));
-    if (!cand.length){ alert('배정할 미등록 거래처가 없습니다. (좌표 있는 거래처 기준)'); return; }
-
-    // 가까운 순 정렬
-    function dist(a,b){ const R=6371,r=x=>x*Math.PI/180;
-      const dLat=r(b.lat-a.lat),dLng=r(b.lng-a.lng);
-      const s=Math.sin(dLat/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLng/2)**2;
-      return 2*R*Math.asin(Math.sqrt(s)); }
-    const rem=cand.slice(), sorted=[]; let cur={lat:cand[0].lat,lng:cand[0].lng};
-    while(rem.length){
-      let bi=0,bd=Infinity;
-      for(let i=0;i<rem.length;i++){ const d=dist(cur,rem[i]); if(d<bd){bd=d;bi=i;} }
-      const nx=rem.splice(bi,1)[0]; sorted.push(nx); cur=nx;
-    }
-
-    // 선택한 날짜에 하루 perDay개씩 순서대로 배정
-    const cap = msDates.length * perDay;
-    const use = sorted.slice(0, cap);
-    const overflow = sorted.length - use.length;
-    const plan = {}; // date -> [client...]
-    for (let i=0;i<use.length;i++){
-      const date = msDates[Math.floor(i/perDay)];
-      (plan[date]=plan[date]||[]).push(use[i]);
-    }
-
-    let msg = msDates.length+'일에 총 '+use.length+'곳을 배정합니다.\n';
-    msg += Object.keys(plan).map(d=> d+': '+plan[d].length+'곳').join('\n');
-    if (overflow>0) msg += '\n\n⚠️ 선택한 날이 부족해 '+overflow+'곳은 배정에서 빠집니다.';
-    msg += '\n\n진행할까요?';
-    if (!confirm(msg)) return;
-
-    // 서버 전송 (날짜별로)
-    let added = 0;
-    for (const date of Object.keys(plan)){
-      const fd = new FormData();
-      fd.append('csrf', CSRF); fd.append('action','cal_assign_day');
-      fd.append('date', date); fd.append('ids', JSON.stringify(plan[date].map(p=>p.id)));
-      try{
-        const r = await fetch(location.pathname+location.search, {method:'POST', body:fd});
-        const j = await r.json(); added += (j.added||0);
-      }catch(e){}
-    }
-    alert('배정 완료 ('+added+'곳)');
-    location.reload();
-  };
-
-  // 이번 달 전체 일정 삭제
-  window.clearWholeMonth = async function(){
-    const ym = <?= json_encode($ym) ?>;
-    if (!confirm(ym+' 한 달의 모든 일정을 삭제합니다.\n되돌릴 수 없습니다. 정말 진행할까요?')) return;
-    const fd = new FormData();
-    fd.append('csrf', CSRF); fd.append('action','cal_clear_month'); fd.append('ym', ym);
-    try{
-      const r = await fetch(location.pathname+location.search, {method:'POST', body:fd});
-      const j = await r.json();
-      alert('이번 달 전체 삭제 완료 ('+j.removed+'건)');
-      location.reload();
-    }catch(e){ alert('삭제 실패. 다시 시도하세요.'); }
-  };
-
-  // 이 날 전체 삭제 (모든 거래처·모든 타입)
-  window.demClearDay = async function(){    const ds = document.getElementById('dayEventsModal').dataset.date;
-    if (!ds) return;
-    if (!confirm(ds+'의 모든 일정(방문·점검·AS 등)을 삭제합니다.\n진행할까요?')) return;
-    const fd = new FormData();
-    fd.append('csrf', CSRF); fd.append('action','cal_clear_day'); fd.append('date', ds);
-    try{
-      const r = await fetch(location.pathname+location.search, {method:'POST', body:fd});
-      const j = await r.json();
-      alert('삭제 완료 ('+j.removed+'건)');
-      location.reload();
-    }catch(e){ alert('삭제 실패. 다시 시도하세요.'); }
-  };
-
-  // 이 날에 미등록 거래처를 가까운 순으로 N곳 배정
-  window.demAssignDay = async function(){
-    const ds = document.getElementById('dayEventsModal').dataset.date;
-    if (!ds) return;
-    const perDay = Math.max(1, parseInt(document.getElementById('dem-perday').value)||5);
-
-    // 이번 달 미등록 거래처 (활동 없는 거래처) + 좌표 있는 것
-    const activeIds = new Set();
-    for (const k in EVENTS_BY_DATE){
-      for (const ev of EVENTS_BY_DATE[k]){ activeIds.add(ev.id); }
-    }
-    const cand = CLIENTS.filter(c=> !activeIds.has(c.id) && c.lat!=null && c.lng!=null && !isNaN(c.lat) && !isNaN(c.lng))
-                        .map(c=>({id:c.id,name:c.name,lat:+c.lat,lng:+c.lng}));
-    if (!cand.length){ alert('배정할 미등록 거래처가 없습니다. (좌표 있는 거래처 기준)'); return; }
-
-    // 가까운 순 정렬
-    function dist(a,b){ const R=6371,r=x=>x*Math.PI/180;
-      const dLat=r(b.lat-a.lat),dLng=r(b.lng-a.lng);
-      const s=Math.sin(dLat/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLng/2)**2;
-      return 2*R*Math.asin(Math.sqrt(s)); }
-    const rem=cand.slice(), picks=[]; let cur={lat:cand[0].lat,lng:cand[0].lng};
-    while(rem.length && picks.length<perDay){
-      let bi=0,bd=Infinity;
-      for(let i=0;i<rem.length;i++){ const d=dist(cur,rem[i]); if(d<bd){bd=d;bi=i;} }
-      const nx=rem.splice(bi,1)[0]; picks.push(nx); cur=nx;
-    }
-    if (!confirm(ds+'에 '+picks.length+'곳을 배정합니다:\n'+picks.map(p=>p.name).join(', ')+'\n\n진행할까요?')) return;
-
-    const fd = new FormData();
-    fd.append('csrf', CSRF); fd.append('action','cal_assign_day');
-    fd.append('date', ds); fd.append('ids', JSON.stringify(picks.map(p=>p.id)));
-    try{
-      const r = await fetch(location.pathname+location.search, {method:'POST', body:fd});
-      const j = await r.json();
-      alert('배정 완료 ('+j.added+'곳)');
-      location.reload();
-    }catch(e){ alert('배정 실패. 다시 시도하세요.'); }
-  };
 })();
 
 // ✅ 이벤트 모달의 “코멘트” 버튼 → 해당 날짜 코멘트 모달 열기
@@ -3971,11 +3785,11 @@ function addExtraField(key='', value='') {
   row.style.cssText = 'display:grid;grid-template-columns:1fr 1.5fr auto;gap:6px;align-items:center';
   row.innerHTML = `
     <input name="ef_key[]" placeholder="항목명 (예: 계약일)" value="${escapeHtml(key)}"
-           style="padding:8px 10px;border-radius:8px;border:1px solid #e3e8f0;background:#ffffff;color:#1a2436;font-size:13px;width:100%">
+           style="padding:8px 10px;border-radius:8px;border:1px solid #1f2a3a;background:#0a1324;color:#e5e7eb;font-size:13px;width:100%">
     <input name="ef_value[]" placeholder="내용" value="${escapeHtml(value)}"
-           style="padding:8px 10px;border-radius:8px;border:1px solid #e3e8f0;background:#ffffff;color:#1a2436;font-size:13px;width:100%">
+           style="padding:8px 10px;border-radius:8px;border:1px solid #1f2a3a;background:#0a1324;color:#e5e7eb;font-size:13px;width:100%">
     <button type="button" onclick="this.parentNode.remove()"
-            style="background:var(--inspect-bg);border:1px solid var(--inspect-bd);color:var(--inspect);border-radius:7px;padding:6px 10px;cursor:pointer;white-space:nowrap;font-size:13px">✕</button>
+            style="background:#7f1d1d;border:0;color:#fca5a5;border-radius:7px;padding:6px 10px;cursor:pointer;white-space:nowrap;font-size:13px">✕</button>
   `;
   box.appendChild(row);
 }
@@ -4056,7 +3870,7 @@ function renderCustomChips() {
     box.appendChild(inp);
 
     const chip = document.createElement('span');
-    chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;border:1px solid #bfdbfe;background:#eff6ff;color:#2563eb;font-size:12px';
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;border:1px solid #2563eb;background:#1e3a5f;color:#93c5fd;font-size:12px';
     chip.innerHTML = `${escapeHtml(name)} <button type="button" onclick="removeCustomEquip('${escapeHtml(name)}')" style="border:0;background:transparent;color:#64748b;cursor:pointer;font-size:12px;padding:0;line-height:1">✕</button>`;
     box.appendChild(chip);
   });
@@ -4190,7 +4004,7 @@ function floorViewRow(key, label, equips, isBasement) {
   const bg    = isBasement ? '#0c1424' : '#0b1628';
   const bord  = hasEquip ? '#2563eb' : '#1f2a3a';
   const chips = equips.map(e =>
-    `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;border:1px solid #2563eb;background:#eff6ff;color:#93c5fd;font-size:11px">🔧 ${escapeHtml(e)}</span>`
+    `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;border:1px solid #2563eb;background:#0f2a4a;color:#93c5fd;font-size:11px">🔧 ${escapeHtml(e)}</span>`
   ).join('');
 
   return `
@@ -4255,7 +4069,7 @@ function dcmClear() {
 }
 
 /* ════════════════════════════════════════
-   📁 자료실
+   📁 아이템 가방 (Quick File Launcher)
    localStorage 기반 — 재시작 후에도 유지
 ════════════════════════════════════════ */
 const QF_KEY = 'qf_data_v2';
@@ -4322,8 +4136,8 @@ function qfDelete(id, e) {
   if (!confirm('삭제할까요?')) return;
   // 서버 파일이면 서버에서도 삭제
   const f = _qf.files.find(x=>x.id===id);
-  if (f && f.url && f.url.indexOf('/quickfiles/') !== -1) {
-    const fname = f.url.substring(f.url.lastIndexOf('/') + 1);
+  if (f && f.url && f.url.startsWith('data/quickfiles/')) {
+    const fname = f.url.replace('data/quickfiles/','');
     const fd = new FormData(); fd.append('csrf',CSRF); fd.append('action','qf_delete_file'); fd.append('fname',fname);
     fetch(location.href,{method:'POST',body:fd}).catch(()=>{});
   }
@@ -4499,25 +4313,6 @@ let _prmPairs       = []; // [{before:{url,caption,_uploading,_localUrl}, after:
 let _prmEditingRid  = null;
 let _prmFileTarget  = null; // {pairIdx, side}
 
-/* 신규·기존 공사사진 URL을 모두 로그인 검증 사진 주소로 통일 */
-function prmPhotoUrl(url) {
-  const raw = String(url || '').trim();
-  if (!raw) return '';
-  if (/^blob:/i.test(raw)) return raw;
-  try {
-    const parsed = new URL(raw, location.href);
-    if (parsed.pathname === '/clients_mini.php' && parsed.searchParams.has('photo_file')) return parsed.href;
-    if (/(?:^|\/)photos\/[^/]+$/i.test(parsed.pathname)) {
-      const fname = parsed.pathname.split('/').pop();
-      return new URL('/clients_mini.php?photo_file=' + encodeURIComponent(fname), location.origin).href;
-    }
-    return parsed.href;
-  } catch(e) {
-    const fname = raw.split(/[\\/]/).pop();
-    return '/clients_mini.php?photo_file=' + encodeURIComponent(fname);
-  }
-}
-
 window.openPhotoReportModal = function(clientId) {
   const client = CLIENTS.find(c => c.id === clientId);
   if (!client) return;
@@ -4559,7 +4354,7 @@ function prmRenderList(client) {
       <div style="font-size:32px;margin-bottom:8px">📷</div>
       아직 작성된 공사사진 보고서가 없습니다.<br>
       <button type="button" onclick="prmTab('new')"
-        style="margin-top:12px;padding:7px 16px;border-radius:var(--r-sm);border:1px solid #bbf7d0;background:#ecfdf3;color:#15803d;font-size:12px;cursor:pointer;font-family:inherit">
+        style="margin-top:12px;padding:7px 16px;border-radius:var(--r-sm);border:1px solid #16a34a;background:#052e16;color:#86efac;font-size:12px;cursor:pointer;font-family:inherit">
         ＋ 첫 번째 보고서 작성하기
       </button>
     </div>`;
@@ -4573,8 +4368,8 @@ function prmRenderList(client) {
     card.onmouseleave = () => card.style.borderColor = 'var(--bd)';
     card.onclick = (e) => { if (e.target.tagName === 'BUTTON') return; prmEditReport(r); };
     const firstPair   = (r.pairs && r.pairs[0]) || {};
-    const thumbBefore = firstPair.before_url ? `<img src="${escapeHtml(prmPhotoUrl(firstPair.before_url))}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">` : (r.before&&r.before[0] ? `<img src="${escapeHtml(prmPhotoUrl(r.before[0].url))}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">` : '<div style="width:48px;height:48px;border-radius:6px;border:1px solid var(--bd);background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:18px">📷</div>');
-    const thumbAfter  = firstPair.after_url  ? `<img src="${escapeHtml(prmPhotoUrl(firstPair.after_url))}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">` : (r.after&&r.after[0] ? `<img src="${escapeHtml(prmPhotoUrl(r.after[0].url))}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">` : '<div style="width:48px;height:48px;border-radius:6px;border:1px solid var(--bd);background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:18px">📷</div>');
+    const thumbBefore = firstPair.before_url ? `<img src="${escapeHtml(firstPair.before_url)}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">` : (r.before&&r.before[0] ? `<img src="${escapeHtml(r.before[0].url)}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">` : '<div style="width:48px;height:48px;border-radius:6px;border:1px solid var(--bd);background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:18px">📷</div>');
+    const thumbAfter  = firstPair.after_url  ? `<img src="${escapeHtml(firstPair.after_url)}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">` : (r.after&&r.after[0] ? `<img src="${escapeHtml(r.after[0].url)}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">` : '<div style="width:48px;height:48px;border-radius:6px;border:1px solid var(--bd);background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:18px">📷</div>');
     card.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px">
         <div style="display:flex;gap:4px;flex-shrink:0">${thumbBefore}${thumbAfter}</div>
@@ -4585,7 +4380,7 @@ function prmRenderList(client) {
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button type="button" onclick="prmDownloadPdf('${escapeHtml(r.rid)}')"
-            style="padding:5px 10px;border-radius:var(--r-sm);border:1px solid #16a34a;background:transparent;color:#15803d;font-size:11px;cursor:pointer;font-family:inherit">
+            style="padding:5px 10px;border-radius:var(--r-sm);border:1px solid #16a34a;background:transparent;color:#86efac;font-size:11px;cursor:pointer;font-family:inherit">
             ⬇ PDF
           </button>
           <button type="button" onclick="prmPrint(${JSON.stringify(r)})"
@@ -4593,7 +4388,7 @@ function prmRenderList(client) {
             🖨 미리보기
           </button>
           <button type="button" onclick="prmDeleteReport('${escapeHtml(r.rid)}')"
-            style="padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--inspect-bd);background:transparent;color:var(--inspect);font-size:11px;cursor:pointer;font-family:inherit">
+            style="padding:5px 10px;border-radius:var(--r-sm);border:1px solid #7f1d1d;background:transparent;color:#fca5a5;font-size:11px;cursor:pointer;font-family:inherit">
             🗑
           </button>
         </div>
@@ -4733,7 +4528,7 @@ function prmRenderPairs() {
           <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px">⏳</div>`;
       } else if (p && p.url) {
         inner.innerHTML = `
-          <img src="${escapeHtml(prmPhotoUrl(p.url))}" style="width:100%;height:100%;object-fit:cover;display:block">
+          <img src="${escapeHtml(p.url)}" style="width:100%;height:100%;object-fit:cover;display:block">
           <div style="position:absolute;top:2px;left:2px;font-size:8px;font-weight:700;padding:1px 4px;border-radius:2px;background:${color}cc;color:#fff">${label}</div>
           <button type="button" onclick="event.stopPropagation();prmRemovePhoto(${idx},'${side}')"
             style="position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;border:0;background:rgba(239,68,68,.9);color:#fff;font-size:9px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>`;
@@ -4764,7 +4559,7 @@ function prmRenderPairs() {
         oninput="prmUpdateGongong(${idx},this.value)">
       ${_prmPairs.length > 1
         ? `<button type="button" onclick="prmRemovePair(${idx})"
-            style="padding:3px 6px;border-radius:4px;border:1px solid var(--inspect-bd);background:transparent;color:var(--inspect);font-size:10px;cursor:pointer;line-height:1">🗑</button>`
+            style="padding:3px 6px;border-radius:4px;border:1px solid #7f1d1d;background:transparent;color:#fca5a5;font-size:10px;cursor:pointer;line-height:1">🗑</button>`
         : '<span></span>'}`;
     card.appendChild(bottom);
     box.appendChild(card);
@@ -4776,9 +4571,6 @@ async function prmSaveReport() {
   if (!title) { alert('공사명을 입력하세요.'); document.getElementById('prm-report-title').focus(); return; }
   if (_prmPairs.some(p => (p.before&&p.before._uploading)||(p.after&&p.after._uploading))) {
     alert('사진 업로드가 완료될 때까지 기다려주세요.'); return;
-  }
-  if (!_prmPairs.some(p => (p.before&&p.before.url)||(p.after&&p.after.url))) {
-    alert('사진을 한 장 이상 올려주세요.'); return;
   }
 
   const saveBtn = document.getElementById('prm-save-btn');
@@ -4995,8 +4787,7 @@ function loadImgBase64(url) {
       resolve(c.toDataURL('image/jpeg', 0.88));
     };
     img.onerror = () => reject(new Error('로드 실패: ' + url));
-    const src = prmPhotoUrl(url);
-    img.src = src + (src.includes('?') ? '&' : '?') + '_=' + Date.now();
+    img.src = url + '?_=' + Date.now();
   });
 }
 
@@ -5023,15 +4814,10 @@ async function prmDeleteReport(rid) {
 function prmPrint(report) {
   const clientName = _prmClientName;
 
-  // 현재 pairs 구조를 사용하고, 예전 before/after 구조도 함께 지원
-  const printPairs = (report.pairs && report.pairs.length) ? report.pairs : Array.from(
-    {length:Math.max((report.before||[]).length,(report.after||[]).length)},
-    (_,i) => ({
-      before_url:(report.before?.[i]?.url||''),
-      after_url:(report.after?.[i]?.url||''),
-      gongong:(report.before?.[i]?.caption||report.after?.[i]?.caption||'')
-    })
-  );
+  // 사진 배열을 6장 단위로 페이지 분할 (2열 x 3행)
+  const allPhotos = [];
+  (report.before||[]).forEach(p => allPhotos.push({...p, kind:'before'}));
+  (report.after||[]).forEach(p  => allPhotos.push({...p, kind:'after'}));
 
   // 전/후 각각 페이지 구성: 먼저 전 사진들, 다음 후 사진들
   function makePhotoPagesPaired(pairs) {
@@ -5047,11 +4833,11 @@ function prmPrint(report) {
         <div style="border:1px solid #d1d5db;border-radius:4px;overflow:hidden;${!p?'visibility:hidden':''}">
           <div style="display:flex">
             <div style="width:85mm;height:85mm;flex-shrink:0;overflow:hidden;background:#f0f4f8;display:flex;align-items:center;justify-content:center">
-              ${p?.before_url ? `<img src="${prmPhotoUrl(p.before_url)}" style="width:85mm;height:85mm;object-fit:cover;display:block">` : `<span style="font-size:10px;color:#bbb">${p?'조치 전':''}</span>`}
+              ${p?.before_url ? `<img src="${p.before_url}" style="width:85mm;height:85mm;object-fit:cover;display:block">` : `<span style="font-size:10px;color:#bbb">${p?'조치 전':''}</span>`}
             </div>
             <div style="width:1px;background:#d1d5db;flex-shrink:0"></div>
             <div style="width:85mm;height:85mm;flex-shrink:0;overflow:hidden;background:#f0f4f8;display:flex;align-items:center;justify-content:center">
-              ${p?.after_url ? `<img src="${prmPhotoUrl(p.after_url)}" style="width:85mm;height:85mm;object-fit:cover;display:block">` : `<span style="font-size:10px;color:#bbb">${p?'조치 후':''}</span>`}
+              ${p?.after_url ? `<img src="${p.after_url}" style="width:85mm;height:85mm;object-fit:cover;display:block">` : `<span style="font-size:10px;color:#bbb">${p?'조치 후':''}</span>`}
             </div>
           </div>
           <div style="display:flex;border-top:1px solid #d1d5db">
@@ -5075,7 +4861,7 @@ function prmPrint(report) {
     return pages;
   }
 
-  const photoPages = makePhotoPagesPaired(printPairs);
+  const photoPages = makePhotoPages(report.before,'조치 전') + makePhotoPages(report.after,'조치 후');
 
   const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
 <title>조치사진 - ${clientName}</title>
@@ -5136,8 +4922,6 @@ body { font-family:'Malgun Gothic','맑은 고딕',sans-serif; background:#fff; 
 <!-- 사진 페이지들 -->
 ${photoPages}
 
-
-
 </body></html>`;
 
   const w = window.open('', '_blank', 'width=900,height=750');
@@ -5145,7 +4929,7 @@ ${photoPages}
   w.document.close();
 }
 
-if(document.getElementById('qf-panel'))qfLoad();</script>
+qfLoad();</script>
 
 <!-- === Floating Task Panel === -->
 
@@ -5350,7 +5134,7 @@ async function cfmLoadList() {
           <a href="${h(f.url)}" download="${h(f.display)}"
             style="padding:5px 10px;border-radius:7px;border:1px solid var(--bd2);background:transparent;color:var(--fg);font-size:12px;text-decoration:none;display:inline-block;line-height:1.6">⬇ 저장</a>
           <button onclick="cfmDelete('${h(f.fname)}')"
-            style="padding:5px 10px;border-radius:7px;border:1px solid var(--inspect-bd);background:transparent;color:var(--inspect);font-size:12px;cursor:pointer">🗑</button>
+            style="padding:5px 10px;border-radius:7px;border:1px solid #7f1d1d;background:transparent;color:#fca5a5;font-size:12px;cursor:pointer">🗑</button>
         </div>`;
       list.appendChild(row);
     });
@@ -5964,7 +5748,7 @@ function estSavePdf() {
        box-shadow:0 24px 60px rgba(0,0,0,.5);overflow:hidden;display:flex;flex-direction:column;max-height:78vh">
     <div style="display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid #243456">
       <input id="cm-pop-input" placeholder="상호명 또는 주소 입력 후 Enter"
-             style="flex:1;background:#ffffff;border:1px solid #2a4a7a;border-radius:9px;padding:10px 12px;color:#1a2436;font-size:14px">
+             style="flex:1;background:#0f1830;border:1px solid #2a4a7a;border-radius:9px;padding:10px 12px;color:#e7edf6;font-size:14px">
       <button type="button" onclick="cmPopSearch()" style="background:#2563eb;color:#fff;border:0;border-radius:9px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
       <button type="button" onclick="cmPopClose()" style="background:transparent;color:#8a97ad;border:0;font-size:22px;cursor:pointer;line-height:1">×</button>
     </div>
@@ -6063,7 +5847,7 @@ function estSavePdf() {
       row.style.cssText='padding:11px 12px;border-radius:9px;cursor:pointer;margin:2px 0';
       row.onmouseover=function(){row.style.background='rgba(37,99,235,.18)';};
       row.onmouseout =function(){row.style.background='';};
-      row.innerHTML='<div style="font-weight:700;font-size:14px;color:#1a2436">'+(p.place_name||addr)+'</div>'+
+      row.innerHTML='<div style="font-weight:700;font-size:14px;color:#e7edf6">'+(p.place_name||addr)+'</div>'+
                     '<div style="font-size:12px;color:#9aa0a8;margin-top:3px">'+addr+
                     (p.phone?(' · '+p.phone):'')+'</div>';
       row.onclick=function(){ applyPlace(p.place_name, addr, parseFloat(p.y), parseFloat(p.x)); };
@@ -6116,200 +5900,5 @@ function estSavePdf() {
   });
 })();
 </script>
-
-<!-- ═══ 빠른 메모 — 우하단 접이식 ═══ -->
-<style>
-.qm{position:fixed;right:18px;bottom:18px;z-index:90;font-family:inherit}
-.qm__tab{display:inline-flex;align-items:center;gap:7px;padding:11px 17px;border-radius:999px;
-  border:0;background:#1a2436;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;
-  box-shadow:0 8px 24px rgba(15,25,50,.28);font-family:inherit}
-.qm__tab:hover{transform:translateY(-1px)}
-.qm__tab .dot{width:7px;height:7px;border-radius:50%;background:#fbbf24}
-.qm__panel{position:absolute;right:0;bottom:54px;width:min(340px,calc(100vw - 36px));
-  background:#fffbeb;border:1px solid #fde68a;border-radius:14px;overflow:hidden;
-  box-shadow:0 16px 44px rgba(15,25,50,.22);display:none}
-.qm.open .qm__panel{display:block}
-.qm__head{display:flex;align-items:center;justify-content:space-between;
-  padding:10px 14px;background:#fef3c7;border-bottom:1px solid #fde68a}
-.qm__head b{font-size:13px;color:#92400e}
-.qm__head .st{font-size:11px;color:#b45309}
-.qm__body textarea{display:block;width:100%;min-height:180px;max-height:50vh;padding:12px 14px;
-  border:0;background:transparent;resize:vertical;font-size:13.5px;line-height:1.7;
-  font-family:inherit;color:#451a03;outline:none}
-.qm__body textarea::placeholder{color:#d97706;opacity:.55}
-</style>
-
-<div class="qm" id="qm">
-  <div class="qm__panel">
-    <div class="qm__head">
-      <b>📌 빠른 메모</b>
-      <span class="st" id="qmState"><?= !empty($qmemo['updated']) ? h($qmemo['updated']).' 저장' : '' ?></span>
-    </div>
-    <div class="qm__body">
-      <textarea id="qmText" placeholder="중요한 내용을 적어두세요. 자동으로 저장됩니다."><?=h($qmemo['text'] ?? '')?></textarea>
-    </div>
-  </div>
-  <button type="button" class="qm__tab" id="qmTab"><span class="dot"></span>메모</button>
-</div>
-
-<script>
-(function(){
-  const qm=document.getElementById('qm'), tab=document.getElementById('qmTab');
-  const ta=document.getElementById('qmText'), st=document.getElementById('qmState');
-  const CSRF=<?=json_encode($CSRF)?>;
-
-  /* 접힘 상태 기억 */
-  try{ if(localStorage.getItem('qmOpen')==='1') qm.classList.add('open'); }catch(e){}
-  tab.addEventListener('click', ()=>{
-    qm.classList.toggle('open');
-    try{ localStorage.setItem('qmOpen', qm.classList.contains('open')?'1':'0'); }catch(e){}
-    if(qm.classList.contains('open')) ta.focus();
-  });
-
-  /* 자동 저장 — 입력이 멈추고 0.8초 뒤 */
-  let t=null, last=ta.value;
-  function save(){
-    if(ta.value===last) return;
-    const v=ta.value;
-    st.textContent='저장 중…';
-    fetch(location.pathname, {method:'POST', credentials:'same-origin',
-      body:new URLSearchParams({action:'qmemo_save', csrf:CSRF, text:v})})
-      .then(r=>r.json())
-      .then(j=>{ if(j.ok){ last=v; st.textContent=j.updated+' 저장'; }
-                 else st.textContent='저장 실패'; })
-      .catch(()=>{ st.textContent='통신 오류'; });
-  }
-  ta.addEventListener('input', ()=>{ clearTimeout(t); st.textContent='입력 중…'; t=setTimeout(save,800); });
-  /* 떠나기 전 마지막 저장 */
-  window.addEventListener('beforeunload', ()=>{ if(ta.value!==last){
-    try{ navigator.sendBeacon(location.pathname,
-      new URLSearchParams({action:'qmemo_save', csrf:CSRF, text:ta.value})); }catch(e){}
-  }});
-})();
-</script>
-
-<script>
-/* ── 거래처 메모 저장 ── 저장하면 지도 마커에 표시가 붙는다 */
-(function(){
-  const btn=document.getElementById('vm-memo-save');
-  if(!btn) return;
-  btn.addEventListener('click', ()=>{
-    const id=document.getElementById('vm-id').value;
-    if(!id){ alert('거래처를 먼저 선택하세요.'); return; }
-    const text=document.getElementById('vm-memo-text').value;
-    const flag=document.getElementById('vm-memo-flag').checked;
-    const st=document.getElementById('vm-memo-st');
-    btn.disabled=true; st.textContent='저장 중…';
-
-    const body=new URLSearchParams({action:'client_memo', csrf:CSRF, id:id, memo:text});
-    if(flag) body.append('flag','1');
-
-    fetch(location.pathname, {method:'POST', credentials:'same-origin', body})
-      .then(r=>r.json())
-      .then(j=>{
-        if(!j.ok){ st.textContent='저장 실패'; btn.disabled=false; return; }
-        st.textContent = j.memo_at ? (j.memo_at+' 저장') : '메모 없음';
-        /* 메모리 + 마커 갱신 (새로고침 없이 바로 반영) */
-        const c=CLIENTS.find(x=>x.id===id);
-        if(c){
-          c.memo=j.memo; c.flag=j.flag; c.memo_at=j.memo_at;
-          const m=markers && markers.get(id);
-          if(m) m.setIcon(rebuildIcon(c, selectedIds.has(id)));
-        }
-        btn.disabled=false;
-      })
-      .catch(()=>{ st.textContent='통신 오류'; btn.disabled=false; });
-  });
-})();
-</script>
-<script src="/manager_addresses_modal.js?v=20261001-ios-display" defer></script>
-<script src="/manager_map.js?v=20261001-detail-dialog" defer></script>
-<script src="/manager_sidebar.js?v=7" defer></script>
-<link rel="stylesheet" href="/manager_building_list.css?v=20261001-mobile-letter-badges">
-<script src="/manager_building_list.js?v=20261001-mobile-letter-badges" defer></script>
-<link rel="stylesheet" href="/manager_visit_summary.css?v=7-use-buildings">
-<script src="/manager_visit_summary.js?v=7-use-buildings" defer></script>
-<script src="/manager_activity.js?v=20260930-subscription-lifecycle" defer></script>
-<?php if($msReady)require __DIR__.'/manager_intro.php'; ?>
-<script src="/manager_payout.js?v=20261001-worklog-reward" defer></script>
-
-<link rel="stylesheet" href="/manager_visit_calendar.css?v=20261001-day-count">
-<script src="/manager_visit_calendar.js?v=20261001-day-count" defer></script>
-
-<style id="cm-manager-foldout-style">
-body.cm-clean .ms-sidebar .cm-workspace-info-head{position:relative;z-index:5;flex-shrink:0;gap:8px}
-.cm-workspace-info-head>.cm-manager-details{flex-shrink:0}
-body.cm-clean .cm-workspace-info-head .cm-info-panel{top:calc(100% - 5px);left:auto;right:12px;width:330px;max-width:calc(100% - 24px)}
-body.cm-clean .cm-workspace-info-head .cm-info-panel small{letter-spacing:normal}
-body.cm-clean .focus-map #map{position:relative;z-index:0}
-.cm-heading-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.cm-heading-line h2{flex-shrink:0}
-.cm-manager-details>summary{display:inline-flex;align-items:center;gap:7px;list-style:none;cursor:pointer;border:1px solid #e3e7ef;border-radius:8px;padding:5px 9px;background:#f8fafc;color:#66758c;font:600 11px/1.4 system-ui;user-select:none}
-.cm-manager-details>summary::-webkit-details-marker{display:none}
-.cm-manager-details[open]>summary{background:#f1effc;border-color:#d8d1ef;color:#685497}
-.cm-info-chevron{display:inline-block;font-size:15px;line-height:12px;transition:transform .15s}
-.cm-manager-details[open] .cm-info-chevron{transform:rotate(180deg)}
-.cm-info-panel{position:absolute;top:calc(100% - 5px);left:12px;width:330px;max-width:calc(100% - 24px);max-height: min(420px,65dvh);overflow:auto;padding:17px;border:1px solid #e2e6ef;border-radius:14px;background:#fff;box-shadow:0 12px 32px #24355225;color:#34445c;text-align:left}
-.cm-info-top{display:flex;align-items:center;justify-content:space-between;color:#8a95a6;font:600 10px/1.5 system-ui;letter-spacing:.3px;margin-bottom:9px}
-.cm-info-top button{border:0;border-radius:6px;background:#f3f5f8;color:#8190a3;width:24px;height:24px;font-size:18px;cursor:pointer}
-.cm-info-name{display:flex;align-items:center;gap:7px;margin-bottom:14px}
-.cm-info-name .manager-identity strong{font-size:17px;color:#334259;line-height:1.5;letter-spacing:-.4px;overflow-wrap:anywhere}
-body.cm-clean .cm-info-name>button{border:0!important;background:#f5f6f9!important;color:#8793a6!important;padding:4px 7px!important;flex-shrink:0;cursor:pointer}
-body.cm-clean .cm-info-code{margin:0;width:100%;max-width:none;flex:none}
-body.cm-clean .cm-info-code .ms-code{display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between;min-height:0;background:#f7f6fc;border:1px solid #e5e1f1;border-radius:9px;padding:10px;margin:0}
-body.cm-clean .cm-info-code .ms-code>span{font-size:11px;color:#817399}
-body.cm-clean .cm-info-code .ms-code>div{display:flex;align-items:center;gap:6px}
-body.cm-clean .cm-info-code .ms-code code{font-size:13px;color:#5c4c85;letter-spacing:.4px}
-body.cm-clean .cm-info-code .ms-code button{display:flex;align-items:center;justify-content:center;gap:4px;min-width:0;width:auto;height:25px;padding:3px 6px;background:#fff;border:1px solid #e3deee;border-radius:6px;font-size:10px;cursor:pointer}
-body.cm-clean .cm-info-code .ms-code small.is-feedback{position:static;display:block;width:100%;max-width:none;padding:5px 0 0;margin:0;box-shadow:none;border:0;background:transparent;font-size:10px;letter-spacing:0}
-body.cm-clean .cm-info-panel .manager-header-wallet{display:flex;align-items:center;gap:8px;flex:none;width:100%;min-height:48px;height:auto;padding:11px 0 0;margin:12px 0 0;border:0;border-top:1px solid #edf0f4;border-radius:0;background:transparent;box-shadow:none;color:#76613f}
-body.cm-clean .cm-info-panel .header-wallet-icon{display:flex;width:22px;height:22px;background:#fbf6e9;border-radius:6px}
-body.cm-clean .cm-info-panel .header-wallet-icon svg{width:16px;height:16px;margin:auto}
-body.cm-clean .cm-info-panel .header-wallet-label{display:block;font-size:11px;font-weight:600}
-body.cm-clean .cm-info-panel .header-wallet-label small{display:block;font-size:10px;color:#99a2af;margin-top:2px}
-body.cm-clean .cm-info-panel .manager-header-wallet strong{margin-left:auto;font-size:18px;white-space:nowrap}
-body.cm-clean .cm-info-panel .manager-header-wallet strong small{font-size:10px;margin-left:3px}
-.cm-manager-details summary:focus-visible,.cm-info-panel button:focus-visible{outline:2px solid #9986c7;outline-offset:3px}
-@media(max-width:1100px){body.cm-clean .focus-map .mm-management-bar{flex-wrap:wrap}body.cm-clean .focus-map .mm-management-actions{flex-wrap:wrap}}
-@media(prefers-reduced-motion:reduce){.cm-info-chevron{transition:none}}
-</style>
-<script>
-(()=>{
- const details=document.getElementById('cm-manager-info');if(!details)return;
- const summary=details.querySelector('summary');
- const close=(focus=false)=>{details.open=false;if(focus)summary.focus({preventScroll:true});};
- details.querySelector('[data-info-close]').addEventListener('click',()=>close(true));
- document.addEventListener('pointerdown',e=>{if(details.open&&!details.contains(e.target)&&!document.querySelector('dialog[open]'))close();});
- document.addEventListener('keydown',e=>{if(e.key==='Escape'&&details.open&&!document.querySelector('dialog[open]')){e.preventDefault();close(true);}});
-})();
-</script>
-<style>
-.cm-mobile-code-open{display:none}
-@media(max-width:760px){
- .cm-heading-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
- .cm-mobile-code-open{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 10px;border:1px solid #dce4ef;border-radius:9px;background:#f5f8fc;color:#526c91;font:650 11px/1.4 system-ui;cursor:pointer}
-}
-dialog.cm-mobile-code-dialog{position:fixed;inset:0;margin:auto;width:min(340px,calc(100vw - 32px));max-width:calc(100vw - 32px);height:fit-content;padding:22px;border:1px solid #dce4ef;border-radius:18px;background:#fff;color:#29415c;box-sizing:border-box;transform:none}
-.cm-mobile-code-dialog::backdrop{background:#172c4866}
-.cm-mobile-code-dialog header{display:flex;align-items:center;justify-content:space-between;gap:12px}.cm-mobile-code-dialog h2{font:700 17px system-ui;margin:0}
-.cm-mobile-code-dialog button{min-height:40px;border:0;border-radius:9px;padding:8px 13px;cursor:pointer;font:600 13px system-ui}
-.cm-mobile-code-dialog [data-code-close]{background:#f1f4f8;color:#546b85}
-.cm-mobile-code-dialog code{display:block;margin:22px 0 16px;padding:16px 8px;border:1px solid #dce6f4;border-radius:12px;background:#f5f8fc;text-align:center;font:700 20px/1.4 ui-monospace,monospace;letter-spacing:1px;overflow-wrap:anywhere;user-select:all}
-.cm-mobile-code-dialog [data-code-copy]{width:100%;background:#2d64c7;color:white}.cm-mobile-code-dialog p{font:12px/1.7 system-ui;color:#77899c;margin:12px 0 0;text-align:center}
-</style>
-<?php if($msReady): ?>
-<dialog id="cm-mobile-code-dialog" class="cm-mobile-code-dialog" aria-labelledby="cm-mobile-code-title">
- <header><h2 id="cm-mobile-code-title">내 매니저 코드</h2><button type="button" data-code-close aria-label="매니저 코드 닫기">닫기</button></header>
- <code><?=h((string)($ms['me']['manager_code']??''))?></code>
- <button type="button" data-code-copy>코드 복사</button><p role="status">유저에게 이 코드를 전달해 주세요.</p>
-</dialog>
-<script>
-(()=>{const trigger=document.querySelector('.cm-mobile-code-open'),dialog=document.querySelector('#cm-mobile-code-dialog');if(!trigger||!dialog)return;
- const note=dialog.querySelector('[role=status]'),copy=dialog.querySelector('[data-code-copy]');
- trigger.onclick=()=>{note.textContent='유저에게 이 코드를 전달해 주세요.';dialog.showModal();dialog.querySelector('[data-code-close]').focus({preventScroll:true});};
- dialog.querySelector('[data-code-close]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>trigger.focus({preventScroll:true}));
- copy.onclick=async()=>{try{await navigator.clipboard.writeText(dialog.querySelector('code').textContent.trim());note.textContent='코드를 복사했습니다.';}catch{note.textContent='코드를 길게 눌러 복사해 주세요.';}};
-})();
-</script>
-<?php endif; ?>
-<?php require __DIR__ . '/_footer.php'; ?>
+</body>
+</html>

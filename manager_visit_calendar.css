@@ -160,3 +160,51 @@ dialog.mvc-planner{height:calc(100dvh - 24px);max-height:calc(100dvh - 24px);ove
 .mvc-memo-shortcut-hint{font:11px/1.4 system-ui;color:#a25059}
 .mvc-memo-shortcut-hint:empty{display:none}
 .mvc-form label:has(textarea[name="memo"]){margin-bottom:0}
+
+/* Mobile-only single-panel planner; desktop map/calendar layout is unchanged. */
+.mvc-mobile-tabs,.mvc-mobile-footer,.mvc-mobile-guide{display:none}
+.mvc-guide-dialog.is-mobile-guide .mvc-guide-content>ol,.mvc-guide-dialog.is-mobile-guide .mvc-guide-note{display:none}
+.mvc-guide-dialog.is-mobile-guide .mvc-mobile-guide{display:block}
+@media (max-width:900px), (pointer:coarse) and (max-height:500px){
+ dialog.mvc-planner{width:100%;max-width:100%;height:100dvh;max-height:100dvh;margin:0;border:0;border-radius:0;inset:0}
+ .mvc-planner>.mvc-header{padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;flex:0 0 auto}
+ .mvc-planner .mvc-close{width:40px;height:40px}
+ .mvc-mobile-tabs{display:flex;flex:0 0 auto;gap:4px;margin:0 14px 8px;padding:4px;border-radius:13px;background:#eef2f7}
+ .mvc-mobile-tabs button{flex:1;min-height:40px;border:0;border-radius:10px;background:transparent;color:#738298;font-size:14px;font-weight:700}
+ .mvc-mobile-tabs button[aria-pressed=true]{background:white;color:#285ec0;box-shadow:0 2px 7px #23395412}
+ .mvc-planner>.mvc-toolbar{flex:0 0 auto;min-height:40px;gap:6px;padding:0 14px 6px;flex-wrap:wrap}
+ .mvc-planner>.mvc-toolbar>div{gap:8px}.mvc-planner>.mvc-toolbar button{min-height:34px}
+ .mvc-planner>.mvc-layout{display:block;flex:1 1 0;min-height:0;padding:0 10px 8px;overflow:hidden}
+ .mvc-planner[data-mobile-view=map] .mvc-calendar-panel,.mvc-planner[data-mobile-view=calendar] .mvc-map-panel{display:none}
+ .mvc-planner .mvc-map-panel,.mvc-planner .mvc-calendar-panel{height:100%;min-height:0}
+ .mvc-planner .mvc-plan-map{min-height:0;flex:1 1 0;height:auto}
+ .mvc-planner .mvc-map-title{flex-basis:44px;height:44px;padding:5px 9px}
+ .mvc-planner .mvc-map-actions button{min-height:34px;height:34px;font-size:11px}
+ .mvc-planner .mvc-drag-handle,.mvc-planner .mvc-pin-grip,.mvc-planner .mvc-drag-ghost{display:none!important}
+ .mvc-planner .mvc-map-legend{display:flex;flex:0 0 auto;padding:5px 8px;font-size:9px}
+ .mvc-planner .mvc-calendar-panel .mvc-chip{font-size:10px;padding:3px}
+ .mvc-planner .mvc-cell,.mvc-planner .mvc-empty{padding:4px;gap:3px}
+ .mvc-planner .mvc-cell>b{font-size:12px;line-height:23px;width:23px}
+ .mvc-mobile-footer{display:flex;flex-direction:column;flex:0 0 auto;gap:6px;padding:9px 14px calc(10px + env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid #e4eaf2}
+ .mvc-mobile-footer p{margin:0;color:#62768c;font-size:12px;line-height:18px;text-align:center}
+ .mvc-mobile-footer button{min-height:44px;border:0;border-radius:12px;background:#2c64c8;color:#fff;font-size:14px;font-weight:750}
+ .mvc-mobile-footer button:disabled{background:#e9eef5;color:#8797ab;opacity:1}
+ .mvc-planner>.mvc-toast{bottom:calc(98px + env(safe-area-inset-bottom,0px));z-index:1100;font-size:12px}
+ .mvc-day-dialog input,.mvc-day-dialog select,.mvc-day-dialog textarea{font-size:16px!important;max-width:100%;min-width:0}
+ .mvc-day-dialog .mvc-batch-save{min-height:44px}.mvc-day-dialog .mvc-day-close{width:40px;height:40px}
+}
+
+/* Keep dense days readable without stacking tiny, clipped text on phones. */
+.mvc-day-count{display:none}
+.mvc-planner .mvc-day-more{display:block;flex:0 0 auto;min-width:0;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:16px}
+.mvc-planner .mvc-chip{flex-shrink:0}
+@media (max-width:900px), (pointer:coarse) and (max-height:500px){
+ .mvc-planner .mvc-cell .mvc-chip,.mvc-planner .mvc-day-more{display:none!important}
+ .mvc-planner .mvc-day-count{display:block;flex:0 0 auto;max-width:100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:5px;padding:3px 2px;background:#eaf1fd;color:#3464a5;font:650 10px/15px system-ui;text-align:center}
+ .mvc-planner .mvc-day-count.all-completed{background:#e7f4ee;color:#2f8064}
+ .mvc-planner .mvc-day-count.has-approval{box-shadow:inset 0 0 0 1px #e9b65d}
+ .mvc-planner .mvc-date-line{flex:0 0 auto;min-width:0;min-height:20px;gap:1px}
+ .mvc-planner .mvc-day-memo-mark{width:15px;height:16px;padding:1px;border:0;background:#fff0ba;gap:0}
+ .mvc-planner .mvc-day-memo-mark svg{display:block;width:12px;height:12px}
+ .mvc-planner .mvc-day-memo-mark>span{display:none}
+}

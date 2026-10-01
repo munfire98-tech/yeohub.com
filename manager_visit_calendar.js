@@ -70,6 +70,28 @@
  const layout=q('.mvc-layout'),right=el('section',undefined,'mvc-calendar-panel');while(layout.firstChild)right.append(layout.firstChild);layout.append(left,right);
  let dragSelection=null,ignoreClickUntil=0;
  const dragHint=el('button','달력으로 끌기','mvc-drag-handle');dragHint.type='button';dragHint.draggable=true;dragHint.hidden=true;q('.mvc-map-actions').prepend(dragHint);
+ const mobileMedia=window.matchMedia('(max-width:900px), (pointer:coarse) and (max-height:500px)');
+ let mobileView='map';
+ const mobileTabs=el('nav',undefined,'mvc-mobile-tabs');mobileTabs.setAttribute('aria-label','방문일정 화면 선택');
+ const mapTab=el('button','지도'),calendarTab=el('button','달력');mapTab.type=calendarTab.type='button';mobileTabs.append(mapTab,calendarTab);q('.mvc-header').after(mobileTabs);
+ const mobileFooter=el('div',undefined,'mvc-mobile-footer'),mobileHint=el('p'),mobileNext=el('button');mobileNext.type='button';mobileHint.setAttribute('role','status');mobileFooter.append(mobileHint,mobileNext);dialog.append(mobileFooter);
+ function updateMobileView(){
+  dialog.dataset.mobileView=mobileView;
+  mapTab.setAttribute('aria-pressed',String(mobileView==='map'));calendarTab.setAttribute('aria-pressed',String(mobileView==='calendar'));
+  mapTab.disabled=calendarTab.disabled=busy;
+  mobileHint.textContent=chosen.size?'선택한 거래처 '+chosen.size+'곳':mobileView==='map'?'지도에서 방문할 거래처를 눌러 주세요.':'날짜를 눌러 방문일정과 메모를 확인하세요.';
+  mobileNext.textContent=mobileView==='map'?(chosen.size?'선택한 '+chosen.size+'곳 · 날짜 정하기':'거래처를 선택해 주세요'):'지도에서 거래처 '+(chosen.size?'더 선택하기':'선택하기');
+  mobileNext.disabled=busy||loading||(mobileView==='map'&&!chosen.size);
+  mobileHint.title=buildings.filter(b=>chosen.has(b.uid)).map(b=>b.name).join(' · ');
+ }
+ function switchMobileView(view){
+  mobileView=view;clearGhost();updateMobileView();
+  if(view==='map'&&dialog.open)requestAnimationFrame(()=>{if(visitMap)visitMap.invalidateSize({pan:false});else ensureVisitMap();});
+ }
+ mapTab.onclick=()=>switchMobileView('map');calendarTab.onclick=()=>switchMobileView('calendar');
+ mobileNext.onclick=()=>switchMobileView(mobileView==='map'?'calendar':'map');
+ mobileMedia.addEventListener('change',()=>{updateMobileView();clearGhost();if(dialog.open)requestAnimationFrame(()=>{if(!mobileMedia.matches||mobileView==='map')ensureVisitMap();});});
+ updateMobileView();
  const toast=el('div',undefined,'mvc-toast');toast.hidden=true;toast.setAttribute('role','status');dialog.append(toast);
  function showToast(message,undoToken=null){
   toast.replaceChildren(el('span',message));toast.hidden=false;
@@ -94,7 +116,7 @@
   card.style.left=(origin.left-frame.left+dialog.scrollLeft)+'px';card.style.top=(origin.top-frame.top+dialog.scrollTop)+'px';
   return card;
  }
- function showDragHint(handle){
+ function showDragHint(handle){if(mobileMedia.matches)return;
   clearGhost();if(!dialog.open||handle.disabled||!chosen.size||busy||loading||dragSelection||matchMedia('(prefers-reduced-motion: reduce)').matches||matchMedia('(pointer: coarse)').matches)return;
   const target=dialog.querySelector('.mvc-cell.is-selected')||dialog.querySelector('.mvc-cell');if(!target)return;
   const from=handle.getBoundingClientRect(),to=target.getBoundingClientRect();if(!from.width||!to.width)return;
@@ -150,6 +172,7 @@
   marker.getElement()?.setAttribute('aria-pressed',String(picked));
  }
  function refreshSelection(){
+  updateMobileView();
   q('.mvc-unselect').hidden=!chosen.size;dragHint.hidden=!chosen.size;dragHint.disabled=busy||loading;dragHint.textContent=chosen.size+'곳 달력으로 끌기';
   q('.mvc-map-title h3').textContent='거래처 지도';
   
@@ -175,7 +198,7 @@
   groups.forEach(items=>{items.forEach((marker,i)=>{const p=visitMap.project(marker.originalPoint,visitMap.getZoom());marker.setLatLng(visitMap.unproject(L.point(p.x,p.y+(i-(items.length-1)/2)*58),visitMap.getZoom()));});});
  }
  function ensureVisitMap(){
-  if(!dialog.open)return;
+  if(!dialog.open||(mobileMedia.matches&&mobileView!=='map'))return;
   if(typeof L==='undefined'){q('.mvc-plan-map').textContent='지도를 불러오지 못했습니다. 달력에서 날짜를 누르고 일정 추가로 거래처를 선택해 주세요.';return;}
   if(!visitMap){visitMap=L.map(q('.mvc-plan-map'),{scrollWheelZoom:true}).setView([37.65,126.8],10);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'}).addTo(visitMap);visitMarkers=L.featureGroup().addTo(visitMap);visitMap.on('zoomend',spreadVisitPins);if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>{if(dialog.open)visitMap.invalidateSize({pan:false});}).observe(q('.mvc-plan-map'));}
   requestAnimationFrame(()=>{visitMap.invalidateSize();drawVisitMap(!mapReady);mapReady=true;});
@@ -236,7 +259,13 @@
    cell.setAttribute('aria-label',key+(meta.holiday?' 휴일':'')+(meta.memo?' 메모 있음':'')+' 방문 일정 '+listed(key).length+'건');
    if(meta.holiday||meta.memo){const flags=el('span',undefined,'mvc-day-flags');flags.setAttribute('aria-hidden','true');if(meta.holiday)flags.append(el('span','휴','mvc-day-off-mark'));if(meta.memo){const icon=el('span',undefined,'mvc-day-memo-mark');icon.innerHTML='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 3h12v10l-4 4H4zM12 17v-4h4M7 7h6M7 10h4"/></svg>';icon.append(el('span','메모'));cell.title=meta.memo;cell.setAttribute('aria-description','날짜 메모: '+meta.memo);if(pendingMemoGlow.has(key)&&!dayDialog.open&&daysReady){icon.classList.add('is-just-saved');pendingMemoGlow.delete(key);}flags.append(icon);}dateLine.append(flags);}
    const items=listed(key);items.slice(0,2).forEach(r=>{const chip=el('span',(r.status==='completed'&&r.visited_date===key?'✓ ':r.time?r.time+' ':'')+r.name,'mvc-chip '+r.status);markApproval(chip,approvalByUid.get(r.uid));cell.append(chip);});
-   if(items.length>2){const more=el('small','외 '+(items.length-2)+'건');if(items.slice(2).some(r=>approvalByUid.has(r.uid))){more.classList.add('mvc-approval-more');more.textContent+=' · 주기 해당 포함';}cell.append(more);}
+   if(items.length>2){const more=el('small','외 '+(items.length-2)+'건','mvc-day-more');if(items.slice(2).some(r=>approvalByUid.has(r.uid))){more.classList.add('mvc-approval-more');more.textContent+=' · 주기 해당 포함';}cell.append(more);}
+   if(items.length){
+    const count=el('span','방문 '+items.length+'건','mvc-day-count');
+    if(items.every(r=>r.status==='completed'))count.classList.add('all-completed');
+    if(items.some(r=>approvalByUid.has(r.uid)))count.classList.add('has-approval');
+    count.title=items.map(r=>r.name).join(' · ');cell.append(count);
+   }
    bindDropDay(cell,key);cell.onclick=()=>{if(busy||loading||!daysReady||Date.now()<ignoreClickUntil)return;selected=key;form.hidden=true;render();openDay();};grid.append(cell);
   }
   const list=q('.mvc-daylist');list.replaceChildren();
@@ -285,11 +314,14 @@
  }
  const guide=el('dialog',undefined,'mvc-dialog mvc-guide-dialog');guide.setAttribute('aria-labelledby','mvc-guide-title');
  guide.innerHTML='<div class="mvc-guide-content"><div class="mvc-guide-top"><span>VISIT PLANNER</span><button type="button" class="mvc-guide-close" aria-label="사용 안내 닫기">×</button></div><h2 id="mvc-guide-title">방문 일정, 이렇게 등록하세요</h2><p>지도에서 고르고, 달력에 놓으면 끝입니다.</p><ol><li><b>1</b><div><strong>방문할 거래처를 선택하세요</strong><span>지도에서 여러 곳을 선택할 수 있어요.</span></div></li><li><b>2</b><div><strong>거래처 오른쪽의 ‘끌기’ 버튼을 잡으세요</strong><span>마우스 왼쪽 버튼으로 ‘끌기’를 누른 채 날짜로 끌고, 날짜 위에서 놓으세요.</span><figure class="mvc-drag-demo" aria-label="파란 거래처 카드 오른쪽 끌기 버튼을 잡아 달력 날짜로 끄는 예시"><div class="mvc-demo-row"><div class="mvc-demo-marker"><i>✓</i><div>예시 거래처</div><em class="mvc-demo-grip"><svg class="mvc-mouse-icon" viewBox="0 0 28 38" aria-hidden="true" focusable="false"><rect x="3" y="2" width="22" height="34" rx="11"/><path class="mvc-mouse-left" d="M14 3C8 3 4 7 4 13v4h10Z"/><path class="mvc-mouse-seam" d="M14 3v14M4 17h20"/><path class="mvc-mouse-wheel" d="M14 9v4"/></svg><span>끌기</span><span class="mvc-grip-arrow" aria-hidden="true">↗</span></em></div><div class="mvc-demo-arrow" aria-hidden="true">→</div><div class="mvc-demo-day"><small>달력</small><b>15</b></div></div><div class="mvc-demo-motion" aria-hidden="true"><div class="mvc-demo-traveler"><div class="mvc-demo-carried">✓ 거래처</div><svg class="mvc-mouse-icon" viewBox="0 0 28 38" aria-hidden="true" focusable="false"><rect x="3" y="2" width="22" height="34" rx="11"/><path class="mvc-mouse-left" d="M14 3C8 3 4 7 4 13v4h10Z"/><path class="mvc-mouse-seam" d="M14 3v14M4 17h20"/><path class="mvc-mouse-wheel" d="M14 9v4"/></svg></div></div><figcaption><b>마우스 왼쪽 버튼을 누른 채 → 날짜에서 놓기</b><div class="mvc-demo-steps" aria-hidden="true"><span>① 왼쪽 버튼을 꾹 눌러요</span><span>② 누른 채 달력으로 끌어요</span><span>③ 날짜 위에서 놓아요</span></div></figcaption></figure><span>여러 곳을 선택했다면 위쪽 ‘○곳 달력으로 끌기’ 버튼을 잡아 한 번에 옮길 수도 있어요.</span></div></li><li><b>3</b><div><strong>날짜를 눌러 기록을 관리하세요</strong><span>메모 수정, 방문 완료, 등록 해제가 가능해요.</span></div></li></ol><p class="mvc-guide-note">끌기가 어려우면 거래처를 선택한 뒤 날짜를 눌러 등록하세요. 잘못 놓았을 때는 ‘실행 취소’로 되돌릴 수 있어요.</p><button type="button" class="mvc-guide-start">확인 · 일정 만들기</button></div>';
+ const mobileGuide=el('div',undefined,'mvc-mobile-guide');
+ mobileGuide.innerHTML='<ol><li><b>1</b><div><strong>지도에서 거래처를 선택하세요</strong><span>방문할 건물을 하나씩 누르면 여러 곳을 선택할 수 있습니다.</span></div></li><li><b>2</b><div><strong>아래의 ‘날짜 정하기’를 누르세요</strong><span>선택한 거래처는 유지되고 달력이 크게 열립니다.</span></div></li><li><b>3</b><div><strong>날짜를 선택하고 방문 등록</strong><span>메모를 남기고 ‘방문 등록’을 누르면 저장됩니다. 기존 일정도 날짜를 눌러 관리하세요.</span></div></li></ol>';
+ guide.querySelector('.mvc-guide-start').before(mobileGuide);
  document.body.append(guide);
  const dismissGuide=()=>guide.close();guide.querySelector('.mvc-guide-close').onclick=dismissGuide;guide.querySelector('.mvc-guide-start').onclick=dismissGuide;
  guide.addEventListener('close',()=>{if(dialog.open){q('.mvc-fit').focus({preventScroll:true});ensureVisitMap();}});
  function positionHandDemo(){
-  if(!guide.open)return;
+  if(!guide.open||mobileMedia.matches)return;
   const demo=guide.querySelector('.mvc-drag-demo'),grip=demo.querySelector('.mvc-demo-grip'),day=demo.querySelector('.mvc-demo-day');
   const frame=demo.getBoundingClientRect(),from=grip.getBoundingClientRect(),to=day.getBoundingClientRect();
   demo.style.setProperty('--hand-x',(from.left+from.width/2-frame.left-26)+'px');
@@ -299,10 +331,10 @@
  }
  if(typeof ResizeObserver!=='undefined')new ResizeObserver(positionHandDemo).observe(guide.querySelector('.mvc-drag-demo'));
  window.addEventListener('resize',positionHandDemo);
- function showGuide(){if(!guide.open){guide.showModal();guide.querySelector('.mvc-guide-start').focus({preventScroll:true});positionHandDemo();}}
+ function showGuide(){guide.classList.toggle('is-mobile-guide',mobileMedia.matches);guide.querySelector('.mvc-guide-content>p').textContent=mobileMedia.matches?'지도에서 선택하고, 날짜를 정해 등록하세요.':'지도에서 고르고, 달력에 놓으면 끝입니다.';if(!guide.open){guide.showModal();guide.querySelector('.mvc-guide-start').focus({preventScroll:true});positionHandDemo();}}
 
  async function open(uid=''){
-  if(!dialog.open){trigger=document.activeElement;dialog.showModal();lockPageScroll();showGuide();}form.hidden=true;await load();if(!dialog.open)return;
+  if(!dialog.open){trigger=document.activeElement;mobileView='map';updateMobileView();dialog.showModal();lockPageScroll();showGuide();}form.hidden=true;await load();if(!dialog.open)return;
   if(!buildings.length){try{const res=await fetch('/manager_buildings.php',{credentials:'same-origin',cache:'no-store'});const data=await res.json();if(res.ok&&data.ok)buildings=data.buildings;}catch{notice('거래처 목록을 불러오지 못했습니다. 달력을 다시 열어 주세요.');}}
   if(uid&&dialog.open)chosen.add(uid);if(dialog.open){ensureVisitMap();render();}
  }

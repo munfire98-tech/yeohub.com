@@ -417,7 +417,7 @@ $s3 = ($doneWorkLog === true);
 $s4 = ($doneJawi === true);
 $s5 = ($doneTrain === true);
 $s6 = $hasEvacuationPlan;
-$nowStep = !$s1 ? 1 : (!$facilityDone ? 2 : (!$s2 ? 3 : (!$s3 ? 4 : (!$s4 ? 5 : (!$s5 ? 6 : (!$s6 ? 7 : 8))))));
+$nowStep = !$s1 ? 1 : (!$facilityDone ? 2 : (!$s2 ? 3 : (!$s6 ? 4 : (!$s3 ? 5 : (!$s4 ? 6 : (!$s5 ? 7 : 8))))));
 
 if (!$hasBi) {
   $aiNextTask = '건물 기본정보 입력'; $aiNextAction = '기본정보 입력'; $aiNextUrl = $url('/building_setup_chat.php');
@@ -427,14 +427,14 @@ if (!$hasBi) {
   $aiNextTask='소방시설 현황 확인';$aiNextAction='시설현황 입력';$aiNextUrl=$url('/building_facilities.php');
 } elseif (!$hasRoster) {
   $aiNextTask = '자위소방대 편성'; $aiNextAction = '편성 시작'; $aiNextUrl = $url('/fire_plan_jawi.php');
+} elseif (!$hasEvacuationPlan) {
+  $aiNextTask = '피난계획 작성'; $aiNextAction = '피난계획 작성'; $aiNextUrl = $url('/evacuation_plan.php');
 } elseif ($doneWorkLog !== true) {
   $aiNextTask = date('n').'월 업무수행 기록'; $aiNextAction = '기록 작성'; $aiNextUrl = $url('/work_log.php');
 } elseif ($doneJawi !== true) {
   $aiNextTask = '자위소방대 교육·훈련 기록'; $aiNextAction = '교육 기록'; $aiNextUrl = $url('/jawi.php?stay=1');
 } elseif ($doneTrain !== true) {
   $aiNextTask = '소방훈련·교육 기록'; $aiNextAction = '훈련 기록'; $aiNextUrl = $url('/train.php');
-} elseif (!$hasEvacuationPlan) {
-  $aiNextTask = '피난계획 작성'; $aiNextAction = '피난계획 작성'; $aiNextUrl = $url('/evacuation_plan.php');
 } else {
   $aiNextTask = '소방계획서 상시 관리'; $aiNextAction = '계획서 확인'; $aiNextUrl = $url('/fire_plan.php');
 }
@@ -1445,6 +1445,13 @@ a.pstep:hover{background:#f2f6fd}
   .building-task.is-now{animation:none;border-color:#6097ed;box-shadow:0 0 0 2px rgba(59,130,246,.12)}
 }
 
+
+/* Utility cards are visually separate from retained records. */
+.building-support{grid-column:1/-1;margin-top:10px;padding-top:16px;border-top:1px solid #dce4ed}
+.building-support__title{margin:0 0 9px;color:#64748b;font-size:12px;font-weight:750;line-height:1.5}
+.building-support__grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media(max-width:1040px){.building-support__grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.building-support__grid{grid-template-columns:1fr}}
 .building-retention{grid-column:1/-1;margin-top:6px;padding-top:13px;border-top:1px solid #e2e8f0}
 .building-retention__title{display:flex;align-items:center;gap:7px;margin:0 0 9px;font-size:12px;font-weight:750;color:#475569}
 .building-retention__title span{padding:3px 7px;border-radius:6px;background:#e8f1ff;color:#2563eb;font-size:11px;line-height:1.3}
@@ -1519,7 +1526,7 @@ a.pstep:hover{background:#f2f6fd}
         $s4 = ($doneJawi === true);
         $s5 = ($doneTrain === true);
         $s6 = $hasEvacuationPlan;
-        $nowStep = !$s1 ? 1 : (!$facilityDone ? 2 : (!$s2 ? 3 : (!$s3 ? 4 : (!$s4 ? 5 : (!$s5 ? 6 : (!$s6 ? 7 : 8))))));
+        $nowStep = !$s1 ? 1 : (!$facilityDone ? 2 : (!$s2 ? 3 : (!$s6 ? 4 : (!$s3 ? 5 : (!$s4 ? 6 : (!$s5 ? 7 : 8))))));
       ?>
       <?php
         /* 현재 해야 할 단계 바로 위에 클릭 유도 문구를 띄웁니다.
@@ -1554,38 +1561,38 @@ a.pstep:hover{background:#f2f6fd}
         <div class="psub psub--why"></div>
       <?php endif; ?>
 
-      <?php stepNudge(4, $nowStep, '이번 달 기록표를 작성하세요'); ?>
+      <!-- ⑥ 피난계획 -->
+      <?php stepNudge(4, $nowStep, '피난계획을 작성하세요'); ?>
+      <a class="pstep <?= $s6 ? 'pstep--done' : ($nowStep===4 ? 'pstep--now' : '') ?><?= $nowStep===4 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/evacuation_plan.php'))?>">
+        <span class="no"><?= $s6 ? '✓' : '4' ?></span><span class="pstep__label">피난계획</span>
+        <?php if ($s6): ?><span class="ptag ptag--done">완료</span>
+        <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
+        <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
+      </a>
+
+      <?php stepNudge(5, $nowStep, '이번 달 기록표를 작성하세요'); ?>
       <!-- ③ 매월 기록 -->
-      <a class="pstep <?= $s3 ? 'pstep--done' : ($nowStep===4 ? 'pstep--now' : '') ?><?= $nowStep===4 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/work_log.php'))?>">
-        <span class="no"><?= $s3 ? '✓' : '4' ?></span>매월 기록 (<?=h($mon)?>)
+      <a class="pstep <?= $s3 ? 'pstep--done' : ($nowStep===5 ? 'pstep--now' : '') ?><?= $nowStep===5 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/work_log.php'))?>">
+        <span class="no"><?= $s3 ? '✓' : '5' ?></span>매월 기록 (<?=h($mon)?>)
         <?php if ($s3): ?><span class="ptag ptag--done">완료</span>
         <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
         <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
       </a>
 
-      <?php stepNudge(5, $nowStep, '자위소방대 교육을 기록하세요'); ?>
+      <?php stepNudge(6, $nowStep, '자위소방대 교육을 기록하세요'); ?>
       <!-- ④ 자위소방대 교육·훈련 -->
-      <a class="pstep <?= $s4 ? 'pstep--done' : ($nowStep===5 ? 'pstep--now' : '') ?><?= $nowStep===5 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
-        <span class="no"><?= $s4 ? '✓' : '5' ?></span><span class="pstep__label">자위소방대 교육</span>
+      <a class="pstep <?= $s4 ? 'pstep--done' : ($nowStep===6 ? 'pstep--now' : '') ?><?= $nowStep===6 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
+        <span class="no"><?= $s4 ? '✓' : '6' ?></span><span class="pstep__label">자위소방대 교육</span>
         <?php if ($s4): ?><span class="ptag ptag--done">완료</span>
         <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
         <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
       </a>
 
-      <?php stepNudge(6, $nowStep, '소방훈련·교육을 기록하세요'); ?>
+      <?php stepNudge(7, $nowStep, '소방훈련·교육을 기록하세요'); ?>
       <!-- ⑤ 소방훈련·교육 -->
-      <a class="pstep <?= $s5 ? 'pstep--done' : ($nowStep===6 ? 'pstep--now' : '') ?><?= $nowStep===6 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/train.php'))?>">
-        <span class="no"><?= $s5 ? '✓' : '6' ?></span><span class="pstep__label">소방훈련·교육</span>
+      <a class="pstep <?= $s5 ? 'pstep--done' : ($nowStep===7 ? 'pstep--now' : '') ?><?= $nowStep===7 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/train.php'))?>">
+        <span class="no"><?= $s5 ? '✓' : '7' ?></span><span class="pstep__label">소방훈련·교육</span>
         <?php if ($s5): ?><span class="ptag ptag--done">완료</span>
-        <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
-        <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
-      </a>
-
-      <!-- ⑥ 피난계획 -->
-      <?php stepNudge(7, $nowStep, '피난계획을 작성하세요'); ?>
-      <a class="pstep <?= $s6 ? 'pstep--done' : ($nowStep===7 ? 'pstep--now' : '') ?><?= $nowStep===7 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/evacuation_plan.php'))?>">
-        <span class="no"><?= $s6 ? '✓' : '7' ?></span><span class="pstep__label">피난계획</span>
-        <?php if ($s6): ?><span class="ptag ptag--done">완료</span>
         <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
         <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
       </a>
@@ -1750,35 +1757,42 @@ a.pstep:hover{background:#f2f6fd}
                             <span class="building-task__no">3</span><span>자위소방대 편성</span><small><?= $s2 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '미진행' ?></small>
                           </a>
 
+
+                          <a class="building-task<?= $s6 ? ' is-done' : ($nowStep===4 ? ' is-now' : '') ?>" href="<?=h($url('/evacuation_plan.php'))?>">
+                            <span class="building-task__no">4</span><span>피난계획</span><small><?= $s6 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '미진행' ?></small>
+                          </a>
+
+
+                          <section class="building-retention" aria-labelledby="buildingRetentionTitle">
+                            <h3 id="buildingRetentionTitle" class="building-retention__title">법정 보관 <span>2년</span></h3>
+                            <div class="building-retention__grid">
+                          <a class="building-task<?= $s3 ? ' is-done' : ($nowStep===5 ? ' is-now' : '') ?>" href="<?=h($url('/work_log.php'))?>">
+                            <span class="building-task__no">5</span><span>매월 기록</span><small><?= $s3 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : h($mon) ?></small>
+                          </a>
+                          <a class="building-task<?= $s4 ? ' is-done' : ($nowStep===6 ? ' is-now' : '') ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
+                            <span class="building-task__no">6</span><span>자위소방대 교육</span><small><?= $s4 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '연간' ?></small>
+                          </a>
+                          <a class="building-task<?= $s5 ? ' is-done' : ($nowStep===7 ? ' is-now' : '') ?>" href="<?=h($url('/train.php'))?>">
+                            <span class="building-task__no">7</span><span>소방훈련·교육</span><small><?= $s5 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '연간' ?></small>
+                          </a>
+                          <a class="building-task<?= $nowStep===8 ? ' is-now' : '' ?>" href="<?=h($url('/fire_plan.php'))?>">
+                            <span class="building-task__no">8</span><span>소방계획서</span><small>상시</small>
+                          </a>
+                            </div>
+                          </section>
+                          <section class="building-support" aria-labelledby="buildingSupportTitle">
+                            <h3 id="buildingSupportTitle" class="building-support__title">교육자료 · 인쇄</h3>
+                            <div class="building-support__grid">
                           <?php if ($isPro): ?>
                             <button type="button" class="building-task" data-education-open aria-haspopup="dialog" aria-controls="building-education-dialog"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v15M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v15h-5a5 5 0 0 0-4 1 5 5 0 0 0-4-1H3z"/></svg></span><span>소방교육 자료</span><small>PRO</small></button>
                           <?php else: ?>
                             <div class="building-task building-task--locked" aria-disabled="true"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v15M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v15h-5a5 5 0 0 0-4 1 5 5 0 0 0-4-1H3z"/></svg></span><span>소방교육 자료</span><small>PRO</small></div>
                           <?php endif; ?>
-                          <a class="building-task<?= $s6 ? ' is-done' : ($nowStep===7 ? ' is-now' : '') ?>" href="<?=h($url('/evacuation_plan.php'))?>">
-                            <span class="building-task__no">7</span><span>피난계획</span><small><?= $s6 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '미진행' ?></small>
-                          </a>
-
                           <?php if ($isPro): ?>
                             <a class="building-task" href="<?=h($url('/print_all.php'))?>"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8V3h12v5M6 17H3V9h18v8h-3M6 14h12v7H6zM17 11h1"/></svg></span><span>서류 전체 인쇄</span><small>PRO</small></a>
                           <?php else: ?>
                             <div class="building-task building-task--locked" aria-disabled="true"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8V3h12v5M6 17H3V9h18v8h-3M6 14h12v7H6zM17 11h1"/></svg></span><span>서류 전체 인쇄</span><small>PRO</small></div>
                           <?php endif; ?>
-                          <section class="building-retention" aria-labelledby="buildingRetentionTitle">
-                            <h3 id="buildingRetentionTitle" class="building-retention__title">법정 보관 <span>2년</span></h3>
-                            <div class="building-retention__grid">
-                          <a class="building-task<?= $s3 ? ' is-done' : ($nowStep===4 ? ' is-now' : '') ?>" href="<?=h($url('/work_log.php'))?>">
-                            <span class="building-task__no">4</span><span>매월 기록</span><small><?= $s3 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : h($mon) ?></small>
-                          </a>
-                          <a class="building-task<?= $s4 ? ' is-done' : ($nowStep===5 ? ' is-now' : '') ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
-                            <span class="building-task__no">5</span><span>자위소방대 교육</span><small><?= $s4 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '연간' ?></small>
-                          </a>
-                          <a class="building-task<?= $s5 ? ' is-done' : ($nowStep===6 ? ' is-now' : '') ?>" href="<?=h($url('/train.php'))?>">
-                            <span class="building-task__no">6</span><span>소방훈련·교육</span><small><?= $s5 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '연간' ?></small>
-                          </a>
-                          <a class="building-task<?= $nowStep===8 ? ' is-now' : '' ?>" href="<?=h($url('/fire_plan.php'))?>">
-                            <span class="building-task__no">8</span><span>소방계획서</span><small>상시</small>
-                          </a>
                             </div>
                           </section>
                           <?php if ($isPro): ?>

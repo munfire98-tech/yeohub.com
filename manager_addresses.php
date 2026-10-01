@@ -64,7 +64,14 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
 if(isset($_GET['requests'])){
  $state=mg_read(mg_state_file());$pending=[];
  foreach($members as $uid=>$member){if(!is_array($member)||!mg_active($member,'building')||mg_connection_manager($member,$members)!==$actor||mg_link_status((string)$uid,$member,$state)!=='pending')continue;$pending[(string)$uid]=$member;}
- ?><!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>새로운 연결 요청</title><link rel="stylesheet" href="/manager_addresses.css?v=20261001-name-match"><body><main class="ma-page"><header><span class="ma-kicker">신규 유저 연결</span><h1>새로운 연결 요청 <small><?=count($pending)?>건</small></h1><p>요청자를 확인하고 사전 등록한 거래처와 연결해 주세요.</p></header>
+ ?><!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>새로운 연결 요청</title><link rel="stylesheet" href="/manager_addresses.css?v=20261001-name-match"><style>
+/* Use readable, stable input sizing on phones and touch devices; preserve pinch zoom. */
+@media (max-width:768px), (hover:none) and (pointer:coarse){
+ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),textarea,select{font-size:16px!important;box-sizing:border-box;min-width:0;max-width:100%}
+ .inrow input{min-width:0;flex:1 1 160px}
+ .inrow,.ma-searchline,.dv-contact-row,.dv-section dd{min-width:0}
+}
+</style><body><main class="ma-page"><header><span class="ma-kicker">신규 유저 연결</span><h1>새로운 연결 요청 <small><?=count($pending)?>건</small></h1><p>요청자를 확인하고 사전 등록한 거래처와 연결해 주세요.</p></header>
  <?php if(!$pending): ?><p class="ma-note">대기 중인 연결 요청이 없습니다.</p><?php endif; ?>
  <?php foreach($pending as $uid=>$m):$key=mg_link_key($uid,$m);$bi=preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$uid)?mg_read(__DIR__.'/data/building/'.$uid.'/info.json'):[]; ?>
  <article class="ma-address"><div><strong><?=mg_e($m['nickname']??$uid)?></strong><p><?=mg_e($uid)?></p><p><?=mg_e($bi['address']??'')?:'주소 미입력 · 연결 전에 유저에게 확인해 주세요.'?></p><small>연결 대기</small></div><div class="ma-actions"><a class="ma-link" href="/manager_addresses.php?request=<?=rawurlencode($uid)?>&amp;key=<?=rawurlencode($key)?>">연결 검토 →</a><form action="/manager_portal.php" method="post" target="_top"><input type="hidden" name="csrf" value="<?=mg_e($_SESSION['csrf'])?>"><input type="hidden" name="action" value="decide"><input type="hidden" name="target" value="<?=mg_e($uid)?>"><input type="hidden" name="request_key" value="<?=mg_e($key)?>"><input type="hidden" name="return_to" value="clients"><button class="ma-quiet" name="decision" value="rejected">거절</button></form></div></article>
@@ -87,7 +94,14 @@ if($request!==''){
  foreach($choices as $id=>$row){$n=$normalizeName((string)($row['name']??''));if($n!==''&&isset($matchNames[$n])&&trim((string)($row['address']??''))!=='')$recommended[$id]=$row;else $others[$id]=$row;}
  $choices=$recommended+$others;
 
- ?><!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>연결 요청 검토</title><link rel="stylesheet" href="/manager_addresses.css?v=20261001-name-match"><body>
+ ?><!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>연결 요청 검토</title><link rel="stylesheet" href="/manager_addresses.css?v=20261001-name-match"><style>
+/* Use readable, stable input sizing on phones and touch devices; preserve pinch zoom. */
+@media (max-width:768px), (hover:none) and (pointer:coarse){
+ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),textarea,select{font-size:16px!important;box-sizing:border-box;min-width:0;max-width:100%}
+ .inrow input{min-width:0;flex:1 1 160px}
+ .inrow,.ma-searchline,.dv-contact-row,.dv-section dd{min-width:0}
+}
+</style><body>
  <main class="ma-page ma-match"><header><span class="ma-kicker">연결 요청 검토</span><h1>어느 거래처와 연결할까요?</h1><p>요청한 유저와 사전 등록한 건물이 같은 곳인지 확인해 주세요.</p></header>
  <section class="ma-person"><span class="ma-avatar" aria-hidden="true">↗</span><div><strong><?=mg_e($member['nickname']??$request)?></strong><small><?=mg_e($request)?></small><p><?=mg_e($bi['address']??'')?:'유저가 입력한 주소가 없습니다. 연결 전 주소를 확인해 주세요.'?></p></div></section>
  <form action="/manager_addresses.php" method="post" target="_top" id="ma-link-form">
@@ -112,7 +126,14 @@ $state=mg_read(mg_state_file());$selected=(string)($_GET['id']??'');$rows=[];
 if($selected!==''){header('Location: /manager_draft_view.php?id='.rawurlencode($selected),true,302);exit;}
 foreach($state['address_book']??[] as $id=>$row)if(ma_owned($row,$actor,$members))$rows[]=['id'=>$id,'name'=>$row['name'],'address'=>$row['address'],'linked'=>ma_linked($row,$actor,$members,$state)];
 ?><!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>기본정보 사전 등록</title>
-<link rel="stylesheet" href="/manager_addresses.css?v=20261001-name-match"><body><main class="ma-page" data-csrf="<?=mg_e($_SESSION['csrf'])?>" data-selected="<?=mg_e($selected)?>" data-create="<?=isset($_GET['new'])?'1':'0'?>">
+<link rel="stylesheet" href="/manager_addresses.css?v=20261001-name-match"><style>
+/* Use readable, stable input sizing on phones and touch devices; preserve pinch zoom. */
+@media (max-width:768px), (hover:none) and (pointer:coarse){
+ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),textarea,select{font-size:16px!important;box-sizing:border-box;min-width:0;max-width:100%}
+ .inrow input{min-width:0;flex:1 1 160px}
+ .inrow,.ma-searchline,.dv-contact-row,.dv-section dd{min-width:0}
+}
+</style><body><main class="ma-page" data-csrf="<?=mg_e($_SESSION['csrf'])?>" data-selected="<?=mg_e($selected)?>" data-create="<?=isset($_GET['new'])?'1':'0'?>">
 <header><span class="ma-kicker">거래처 사전 등록</span><h1>유저가 오기 전, 기본정보부터</h1><p>유저와 같은 문답으로 건축물대장을 불러오고 기본정보를 작성하세요.<br>연결 요청이 오면 거래처를 선택해 작성한 정보를 이어갈 수 있습니다.</p></header>
 <button type="button" id="ma-new" style="margin-top:16px">＋ 기본정보 사전 등록</button>
 <p id="ma-status" role="status"></p><div id="ma-results"></div><section><input type="search" id="ma-saved-search" placeholder="건물명 · 주소 검색" aria-label="등록 거래처 검색"><h2>사전 등록 거래처 <small id="ma-count"></small></h2><div id="ma-saved"></div></section>

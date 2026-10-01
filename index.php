@@ -340,6 +340,12 @@ header('Content-Type: text/html; charset=utf-8');
 <!doctype html>
 <html lang="ko">
 <head>
+<!-- Home-screen icon -->
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/app-icons/sobang-180-v1.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/app-icons/sobang-32-v1.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="apple-mobile-web-app-title" content="소방계획서">
+
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="naver-site-verification" content="08ff3d5a27a9c771ad785abfa862bd9f69a87ba9" />
@@ -647,6 +653,27 @@ footer a:hover{color:var(--fg)}
 .hero__note--collaboration>p{margin:10px 0 0;color:var(--mut2);font-size:13px;line-height:1.85;letter-spacing:-.1px}
 @media(max-width:520px){.hero__note--collaboration{margin-top:18px}.hero__note--collaboration>strong{font-size:21px}.collaboration-break{display:none}}
 </style>
+<link rel="stylesheet" href="/home_screen_add.css?v=20261001-1">
+<script src="/home_screen_add.js?v=20261001-1" defer></script>
+<style>
+/* Mobile auth inputs: avoid focus zoom and horizontal overflow. */
+@media(max-width:768px),(hover:none) and (pointer:coarse){
+ #authModal input:not([type=hidden]):not([type=checkbox]):not([type=radio]),
+ #authModal select,#authModal textarea{font-size:16px!important;box-sizing:border-box;min-width:0;max-width:100%}
+ #authModal .auth-form,#authModal .field,#authModal .email-row{min-width:0;max-width:100%}
+ #authModal .email-row .inp{flex:1 1 0;width:0;min-width:0}
+ #authModal .mini-btn{padding-inline:10px}
+ #authModal{box-sizing:border-box;padding:12px}
+ #authModal .modal{max-width:100%;max-height:min(90vh,720px);max-height:min(90dvh,720px)}
+ #authModal .amodal__left{overscroll-behavior:contain;overflow-x:hidden}
+}
+@media(max-width:720px){
+ #authModal .modal{width:100%;grid-template-columns:minmax(0,1fr);max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px)}
+ #authModal .amodal__left{padding:28px 20px 22px}
+ #authModal .roles{flex-wrap:wrap}
+ #authModal .role{min-width:0;max-width:100%;box-sizing:border-box}
+}
+</style>
 </head>
 <body>
 
@@ -763,7 +790,7 @@ footer a:hover{color:var(--fg)}
    <div class="hero__grid">
     <div class="hero__col">
       <div class="hero__label"><span></span>SB.PLAN</div>
-                    <h1>소방안전 <em>기록관리</em></h1>
+                    <div class="hero__title-row"><h1>소방안전 <em>기록관리</em></h1><button type="button" id="home-screen-add" aria-label="홈 화면에 추가하기" aria-haspopup="dialog" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M9 11h6m-3-3v6m-1 5h2"/></svg><span>홈 화면 추가</span></button></div>
                     <p class="hero__sub">소방안전관리, 수행에서 증명까지</p>
       <?php if (is_logged_in() && !is_admin()): ?>
         <?php

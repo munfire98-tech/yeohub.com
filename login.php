@@ -62,6 +62,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 <!doctype html><html lang="ko"><head>
+<!-- Home-screen icon -->
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/app-icons/sobang-180-v1.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/app-icons/sobang-32-v1.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="apple-mobile-web-app-title" content="소방계획서">
+
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>관리자 로그인</title>
 <style>
