@@ -3,7 +3,7 @@
 if(empty($msReady))return;
 $introScope=hash('sha256',(string)($headerUid??mg_uid()));
 ?>
-<link rel="stylesheet" href="/manager_intro.css?v=5">
+<link rel="stylesheet" href="/manager_intro.css?v=20261001-quickstart">
 <dialog id="manager-intro" class="mi-dialog" aria-labelledby="mi-title" data-scope="<?=htmlspecialchars($introScope,ENT_QUOTES,'UTF-8')?>">
   <div class="mi-content">
     <header class="mi-head">
@@ -12,13 +12,20 @@ $introScope=hash('sha256',(string)($headerUid??mg_uid()));
     </header>
     <div class="mi-body">
     <section data-mi-rewards class="mi-rewards" aria-label="매니저 리워드 안내">
+      <section class="mi-quickstart" aria-labelledby="mi-quickstart-title">
+        <h3 id="mi-quickstart-title">건물 하나부터, 편하게 시작해 보세요</h3>
+        <div class="mi-quickstart-grid">
+          <article><span class="mi-quickstart-step">01 · 건물 준비</span><h4>건물을 사전등록하고<br>자유롭게 이용해 보세요</h4><p>담당 건물을 먼저 등록해 지도와 목록에서 관리해 보세요. 기본정보를 미리 입력해 두면, 나중에 유저와 연결할 때 준비한 정보를 이어서 사용할 수 있습니다.</p><button type="button" data-mi-register>건물 사전등록하기 <span aria-hidden="true">→</span></button></article>
+          <article><span class="mi-quickstart-step">02 · 방문 계획</span><h4>방문일정 모드도<br>이용해 보세요</h4><p>지도에서 방문할 거래처를 고르고 달력에 일정을 등록해 보세요. 방문 메모와 완료 여부까지 한곳에서 관리할 수 있습니다.</p><p class="mi-quickstart-tip">PC에서는 달력으로 끌어 놓고, 모바일에서는 거래처 선택 후 날짜를 정하면 됩니다.</p><button type="button" data-mi-visits>방문일정 모드 열기 <span aria-hidden="true">→</span></button></article>
+        </div>
+      </section>
       <div class="mi-reward-hero"><span class="mi-reward-tag">현장의 도움을 플랫폼에서</span><h3>현장에서 하던 도움을<br>더 정확하고 간단하게, 리워드까지.</h3><p>매니저와 연결된 유저가 구독을 유지하며<br>그달 업무수행기록을 작성·저장하면 1,500원 상당의 파이어 마일리지가 지급됩니다.</p></div>
       <div class="mi-help-time"><strong>유저 1명당 예상 도움 시간 약 10분</strong><p>미리 입력한 기본정보를 활용해 필요한 항목의 작성을 도와주세요.<br>도움 시간은 건물 규모와 작성 상태에 따라 달라질 수 있습니다.</p></div>
       <div class="mi-reward-stats"><div><span>그달 기록을 작성한 구독 지점 1곳당</span><strong>1,500원 <small>상당</small></strong><p>구독한 달부터 달력 월 기준, 매월 1회 지급</p></div><div><span>70개 지점이 그달 기록을 모두 작성하면</span><strong>10만 5천원 <small>상당</small></strong><p>해당 월 지급되는 파이어 마일리지 합계</p></div></div>
       <div class="mi-renewal-reward"><strong>구독을 유지하면, 매월 작성 리워드도 계속</strong><p>유저가 구독을 유지하는 동안, 해당 월 업무수행기록을 작성한 달마다 지급됩니다. 미작성 월은 지급하지 않으며 같은 달의 반복 수정·재구독으로 중복 지급되지 않습니다.</p></div>
       <section class="mi-promo" aria-label="사전등록 고객 프로모션"><strong>사전등록 고객에게는 구독 할인 혜택까지</strong><p>건물을 사전등록한 뒤 가입한 유저와 연결해 주세요.<br>프로모션 대상 유저는 PRO를 할인된 금액으로 구독할 수 있습니다.</p><div><del>연 69,000원</del><b>연 59,000원</b><span>연 10,000원 할인</span></div><small>프로모션 기간 내 가입 및 사전등록 연결을 완료한 고객에게 적용됩니다. 프로모션 기간 중에는 대상 고객이 구독 종료 후 다시 구독해도 연 59,000원이 적용됩니다. 프로모션 종료 후에도 구독을 계속 유지하면 할인 가격이 유지되며, 종료 후 구독이 끊긴 상태에서 다시 구독하면 당시 정상가가 적용됩니다.</small></section>
       <p class="mi-cashout">파이어마일리지는 현금으로도 출금이 가능합니다.</p>
-      <p class="mi-reward-note">구독과 소방계획서 작성 완료 조건을 모두 충족한 경우의 예시입니다. </p>
+      <p class="mi-reward-note">구독 유저가 해당 월 업무수행기록을 작성·저장한 경우의 지급 예시입니다. </p>
     </section>
     <section data-mi-comic hidden aria-label="유저에게 플랫폼 안내하기">
     <svg class="mi-defs" aria-hidden="true" width="0" height="0" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -53,4 +60,4 @@ $introScope=hash('sha256',(string)($headerUid??mg_uid()));
     <div class="mi-foot"><label class="mi-mute" for="mi-mute"><input id="mi-mute" type="checkbox" data-mi-mute><span>다음부터 자동으로 보지 않기</span></label><div class="mi-actions"><button type="button" class="mi-primary mi-register-cta" data-mi-register>첫 건물 사전등록하기 <span aria-hidden="true">→</span></button><button type="button" class="mi-secondary" data-mi-back hidden>리워드 안내</button><button type="button" class="mi-secondary" data-mi-continue>유저 안내 방법 보기 →</button><button type="button" class="mi-secondary" data-mi-start hidden>거래처 확인하기 <span aria-hidden="true">→</span></button></div></div>
   </div>
 </dialog>
-<script src="/manager_intro.js?v=20261001-worklog-reward" defer></script>
+<script src="/manager_intro.js?v=20261001-quickstart" defer></script>

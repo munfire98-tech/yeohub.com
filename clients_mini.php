@@ -2062,7 +2062,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
       <style>
 .mm-management-actions .mm-draft-add{display:inline-flex;align-items:center;gap:10px;padding:11px 16px;border:1px solid #9fcac2;border-radius:12px;background:linear-gradient(120deg,#e8f5ef,#eef7fb);color:#205f57;box-shadow:0 3px 12px #285b5010;text-decoration:none;transition:background .18s,box-shadow .18s}.mm-management-actions .mm-draft-add:hover{background:#def0e8;box-shadow:0 4px 16px #285b5020}.mm-draft-add .mm-draft-copy{display:flex;flex-direction:column;gap:3px}.mm-draft-add .mm-draft-copy b{font-size:13px;font-weight:750}.mm-draft-add .mm-draft-copy small{font-size:11px;font-weight:400;color:#5d7c76}.mm-management-actions .mm-draft-add:focus-visible{outline:3px solid #409d8c;outline-offset:3px}
 </style>
-<?php if($msReady): ?><div class="mm-management-bar"><div class="cm-map-heading"><div class="cm-heading-line"><h2>담당 건물</h2><button type="button" class="cm-mobile-code-open" aria-haspopup="dialog" aria-controls="cm-mobile-code-dialog">Manager Code <span aria-hidden="true">⌄</span></button></div><p>건물 위치와 관리 현황을 한눈에 확인하세요.</p></div><div class="mm-management-actions"><button type="button" class="mi-guide-open" data-manager-intro-open aria-haspopup="dialog" aria-controls="manager-intro"><span aria-hidden="true">ⓘ</span> 리워드·이용 안내</button><a href="/manager_addresses.php?new=1" data-address-open class="mm-draft-add"><span aria-hidden="true">＋</span><span class="mm-draft-copy"><b>건물 사전등록</b><small>유저 연결 전에 미리 준비하세요</small></span></a></div></div><?php endif; ?>
+<?php if($msReady): ?><div class="mm-management-bar"><div class="cm-map-heading"><div class="cm-heading-line"><h2>담당 건물</h2><span class="cm-mobile-heading-tools"><button type="button" class="cm-mobile-code-open" aria-haspopup="dialog" aria-controls="cm-mobile-code-dialog">Manager Code <span aria-hidden="true">⌄</span></button><button type="button" class="cm-fire-mileage-open cm-mobile-fire-mileage" data-wallet-open aria-haspopup="dialog" aria-controls="manager-wallet-dialog" aria-label="파이어 마일리지 현황 보기" title="파이어 마일리지 현황"><span aria-hidden="true">F</span></button></span></div><p>건물 위치와 관리 현황을 한눈에 확인하세요.</p></div><div class="mm-management-actions"><button type="button" class="mi-guide-open" data-manager-intro-open aria-haspopup="dialog" aria-controls="manager-intro"><span aria-hidden="true">ⓘ</span> 리워드·이용 안내</button><a href="/manager_addresses.php?new=1" data-address-open class="mm-draft-add"><span aria-hidden="true">＋</span><span class="mm-draft-copy"><b>건물 사전등록</b><small>유저 연결 전에 미리 준비하세요</small></span></a></div></div><?php endif; ?>
       <div class="mm-map-filterbar" id="manager-map-filters" aria-label="지도에 표시할 건물 상태"></div>
       <div id="map"></div>
     </section>
@@ -2072,9 +2072,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
     <aside class="inactive-panel ms-sidebar" id="manager-sidebar" data-initial-pending="<?=h((string)($ms['pending']??0))?>">
       <link rel="stylesheet" href="/manager_inbox.css?v=2">
       <?php if($msReady): ?><a href="/manager_addresses.php?requests=1" data-address-open class="ms-connect-banner" id="manager-connect-banner" <?=empty($ms['pending'])?'hidden':''?>><span class="ms-connect-icon" aria-hidden="true">＋</span><span><strong>새로운 연결 요청 <b data-connect-count><?=$ms['pending']??0?></b>건</strong><small data-connect-summary><?php $connectNames=[];foreach(($ms['rows']??[]) as $connectUid=>$connectMember){if(($connectMember['_status']??'')==='pending')$connectNames[]=trim((string)($connectMember['nickname']??''))?:(string)$connectUid;}echo mg_e($connectNames?($connectNames[0].(count($connectNames)>1?' 외 '.(count($connectNames)-1).'곳':'').'에서 연결을 요청했습니다.'):'매니저 코드로 연결을 요청한 유저입니다.'); ?></small><em>요청 확인하기 →</em></span></a><?php mg_notice(); endif; ?>
-      <div class="ms-head cm-workspace-info-head"><div><small>MY WORKSPACE</small><h3>내 워크스페이스</h3></div><?php if($msReady): ?><details class="cm-manager-details" id="cm-manager-info"><summary aria-controls="cm-manager-info-panel">내 정보 <span class="cm-info-chevron" aria-hidden="true">⌄</span></summary><section class="cm-info-panel" id="cm-manager-info-panel" aria-label="내 매니저 정보"><div class="cm-info-top"><span>내 매니저 정보</span><button type="button" data-info-close aria-label="매니저 정보 접기">×</button></div><div class="cm-info-name"><span class="manager-identity"><strong><?=h($headerTitle)?></strong></span>
-      <button type="button" onclick="<?=$managerHeaderName!==null?'editManagerName()':'editCompanyName()'?>" title="<?=$managerHeaderName!==null?'매니저 이름 변경':'상호명 변경'?>" aria-label="<?=$managerHeaderName!==null?'매니저 이름 변경':'상호명 변경'?>"
-        style="margin-left:6px;border:1px solid var(--bd2);background:var(--card2);color:var(--mut);border-radius:6px;cursor:pointer;font-size:11px;padding:2px 7px">✎</button></div><div class="manager-header-code cm-info-code"><?php ms_render_code($ms); ?></div><?php if($msReady): ?><button type="button" class="manager-header-wallet" data-wallet-open aria-haspopup="dialog" aria-controls="manager-wallet-dialog"><span class="header-wallet-icon" aria-hidden="true"><?=mg_icon('coin')?></span><span class="header-wallet-label">파이어 마일리지<small>적립 내역 보기</small></span><strong><?=number_format((int)$ms['balance'])?><small>개</small></strong><span aria-hidden="true" class="wallet-chevron">›</span></button><?php endif; ?></section></details><?php endif; ?></div>
+      <div class="ms-head cm-workspace-info-head"><div><small>MY WORKSPACE</small><div class="cm-workspace-title-row"><h3>내 워크스페이스</h3><?php if($msReady): ?><button type="button" class="cm-mobile-code-open cm-workspace-code-open" aria-haspopup="dialog" aria-controls="cm-mobile-code-dialog">Manager Code <span aria-hidden="true">⌄</span></button><button type="button" class="cm-fire-mileage-open" data-wallet-open aria-haspopup="dialog" aria-controls="manager-wallet-dialog" aria-label="파이어 마일리지 현황 보기" title="파이어 마일리지 현황"><span aria-hidden="true">F</span></button><?php endif; ?></div></div></div>
       <div class="ms-tabs" role="tablist" aria-label="관리 패널">
       <?php if($msReady): ?><button type="button" id="ms-tab-users" role="tab" aria-controls="ms-users" aria-selected="true" data-ms-tab="users">건물 목록</button><?php endif; ?>
       <?php if($msReady): ?><button type="button" id="ms-tab-help" role="tab" aria-controls="ms-help" aria-selected="false" data-ms-tab="help">작성 요청 <b class="ms-request-badge" data-help-badge hidden>0</b></button><?php endif; ?>
@@ -6223,18 +6221,20 @@ function estSavePdf() {
 })();
 </script>
 <script src="/manager_addresses_modal.js?v=20261001-ios-display" defer></script>
-<script src="/manager_map.js?v=20261001-detail-dialog" defer></script>
-<script src="/manager_sidebar.js?v=7" defer></script>
-<link rel="stylesheet" href="/manager_building_list.css?v=20261001-mobile-letter-badges">
-<script src="/manager_building_list.js?v=20261001-mobile-letter-badges" defer></script>
+<link rel="stylesheet" href="/false_alarm.css?v=20261001-print-popup">
+<script src="/false_alarm.js?v=20261001-print-popup" defer></script>
+<script src="/manager_map.js?v=20261001-demo-tooltip" defer></script>
+<script src="/manager_sidebar.js?v=20261001-fire-button" defer></script>
+<link rel="stylesheet" href="/manager_building_list.css?v=20261001-demo-tooltip">
+<script src="/manager_building_list.js?v=20261001-demo40" defer></script>
 <link rel="stylesheet" href="/manager_visit_summary.css?v=7-use-buildings">
 <script src="/manager_visit_summary.js?v=7-use-buildings" defer></script>
 <script src="/manager_activity.js?v=20260930-subscription-lifecycle" defer></script>
 <?php if($msReady)require __DIR__.'/manager_intro.php'; ?>
-<script src="/manager_payout.js?v=20261001-worklog-reward" defer></script>
+<script src="/manager_payout.js?v=20261001-fire-button" defer></script>
 
-<link rel="stylesheet" href="/manager_visit_calendar.css?v=20261001-day-count">
-<script src="/manager_visit_calendar.js?v=20261001-day-count" defer></script>
+<link rel="stylesheet" href="/manager_visit_calendar.css?v=20261001-demo">
+<script src="/manager_visit_calendar.js?v=20261001-demo-approval" defer></script>
 
 <style id="cm-manager-foldout-style">
 body.cm-clean .ms-sidebar .cm-workspace-info-head{position:relative;z-index:5;flex-shrink:0;gap:8px}
@@ -6304,12 +6304,23 @@ dialog.cm-mobile-code-dialog{position:fixed;inset:0;margin:auto;width:min(340px,
  <button type="button" data-code-copy>코드 복사</button><p role="status">유저에게 이 코드를 전달해 주세요.</p>
 </dialog>
 <script>
-(()=>{const trigger=document.querySelector('.cm-mobile-code-open'),dialog=document.querySelector('#cm-mobile-code-dialog');if(!trigger||!dialog)return;
+(()=>{const triggers=[...document.querySelectorAll('.cm-mobile-code-open')],dialog=document.querySelector('#cm-mobile-code-dialog');if(!triggers.length||!dialog)return;let trigger=triggers[0];
  const note=dialog.querySelector('[role=status]'),copy=dialog.querySelector('[data-code-copy]');
- trigger.onclick=()=>{note.textContent='유저에게 이 코드를 전달해 주세요.';dialog.showModal();dialog.querySelector('[data-code-close]').focus({preventScroll:true});};
+ triggers.forEach(button=>button.onclick=()=>{trigger=button;note.textContent='유저에게 이 코드를 전달해 주세요.';dialog.showModal();dialog.querySelector('[data-code-close]').focus({preventScroll:true});});
  dialog.querySelector('[data-code-close]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>trigger.focus({preventScroll:true}));
  copy.onclick=async()=>{try{await navigator.clipboard.writeText(dialog.querySelector('code').textContent.trim());note.textContent='코드를 복사했습니다.';}catch{note.textContent='코드를 길게 눌러 복사해 주세요.';}};
 })();
 </script>
 <?php endif; ?>
+<style>
+.cm-fire-mileage-open{display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;width:32px;height:32px;padding:0;border:1px solid #ecd4bf;border-radius:50%;background:linear-gradient(145deg,#fff7e9,#ffe6ca);color:#b7652e;box-shadow:inset 0 1px 0 #fff,0 2px 5px #a9672412;cursor:pointer;font:800 16px/1 system-ui;transition:background .15s,box-shadow .15s}
+.cm-fire-mileage-open:hover{background:#ffdfb6;box-shadow:0 3px 9px #a9672425}
+.cm-fire-mileage-open:focus-visible{outline:2px solid #c88b50;outline-offset:3px}
+.cm-fire-mileage-open:active{background:#f8d5aa}
+.cm-mobile-heading-tools{display:none}
+@media(max-width:760px){
+ .cm-mobile-heading-tools{display:inline-flex;align-items:center;gap:7px;flex-shrink:0}
+ .cm-workspace-title-row>.cm-fire-mileage-open{display:none}
+}
+</style>
 <?php require __DIR__ . '/_footer.php'; ?>

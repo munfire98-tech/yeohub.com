@@ -208,3 +208,5 @@ dialog.mvc-planner{height:calc(100dvh - 24px);max-height:calc(100dvh - 24px);ove
  .mvc-planner .mvc-day-memo-mark svg{display:block;width:12px;height:12px}
  .mvc-planner .mvc-day-memo-mark>span{display:none}
 }
+
+.mvc-demo-banner{flex:0 0 auto;margin:0;padding:10px 20px;border-bottom:1px solid #d8e7f6;background:#edf6ff;color:#376285;font:12px/1.6 system-ui}.mvc-demo-banner[hidden]{display:none!important}.mvc-demo-banner strong{display:block;font-size:13px}.mvc-demo-banner span{display:block;color:#617f99}@media(max-width:600px){.mvc-demo-banner{padding:8px 14px;font-size:11px}.mvc-demo-banner strong{font-size:12px}}

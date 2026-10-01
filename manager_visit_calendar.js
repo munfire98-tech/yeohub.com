@@ -3,11 +3,57 @@
  const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
  const dayKey=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
  const today=()=>dayKey(new Date());let month=today().slice(0,7),selected=today(),rows=[],dayMeta={},daysReady=false,buildings=[],loading=false,busy=false,request=0,trigger=null;
+ let demoMode=false,buildingsReady=false,demoRows=[],demoDays={},demoSequence=0;
+ const demoBuildings=[
+  {uid:'demo_visit_1',name:'[예시] 햇살빌딩',address:'방문일정 체험용 가상 거래처',lat:37.658,lng:126.768,approval_month:Number(today().slice(5,7)),approval_date:'2020-'+today().slice(5,7)+'-15'},
+  {uid:'demo_visit_2',name:'[예시] 푸른상가',address:'방문일정 체험용 가상 거래처',lat:37.666,lng:126.779},
+  {uid:'demo_visit_3',name:'[예시] 늘봄센터',address:'방문일정 체험용 가상 거래처',lat:37.651,lng:126.785}
+ ];
+ async function visitFetch(url,options={}){
+  if(!demoMode){
+   const body=options.body;
+   if(body&&[body.get('uid')||'',body.get('uids')||''].some(v=>v.includes('demo_visit_')))throw Error('예시 거래처는 실제 일정에 저장할 수 없습니다.');
+   return fetch(url,options);
+  }
+  const reply=data=>({ok:true,json:async()=>({ok:true,...data})});
+  if(options.method!=='POST'){
+   const m=new URL(url,location.origin).searchParams.get('month');
+   return reply({visits:demoRows.filter(r=>r.date.startsWith(m)),days:Object.fromEntries(Object.entries(demoDays).filter(([date])=>date.startsWith(m)))});
+  }
+  const b=options.body,act=b.get('act'),date=b.get('date');
+  if(act==='save_day'){const day={holiday:b.get('holiday')==='1',memo:b.get('memo')||'',revision:(demoDays[date]?.revision||0)+1};demoDays[date]=day;return reply({day});}
+  if(act==='undo_batch'){const before=demoRows.length;demoRows=demoRows.filter(r=>r.batch!==b.get('batch_token'));return reply({undone:before-demoRows.length});}
+  function make(uid){const building=demoBuildings.find(item=>item.uid===uid);if(!building)throw Error('예시 거래처를 선택해 주세요.');return {id:'demo_record_'+(++demoSequence),revision:1,uid,name:building.name,address:building.address,date,time:'',status:'planned',visited_date:'',memo:b.get('memo')||''};}
+  if(act==='batch'){
+   const token=b.get('batch_token');let created=0,skipped=0;
+   for(const uid of JSON.parse(b.get('uids')||'[]')){
+    if(demoRows.some(r=>r.uid===uid&&r.date===date&&r.status!=='cancelled')){skipped++;continue;}
+    demoRows.push({...make(uid),batch:token});created++;
+   }
+   return reply({created,skipped,undo_token:token});
+  }
+  const id=b.get('id'),old=demoRows.find(r=>r.id===id);
+  const visit=old?{...old,revision:old.revision+1}:make(b.get('uid'));
+  for(const key of ['date','time','status','visited_date','memo'])visit[key]=b.get(key)||'';
+  if(old)demoRows[demoRows.indexOf(old)]=visit;else demoRows.push(visit);
+  return reply({visit});
+ }
  const pendingMemoGlow=new Set();
  const opener=el('button','방문 일정 모드','mvc-open');opener.type='button';opener.setAttribute('aria-haspopup','dialog');host.prepend(opener);
  const dialog=el('dialog',undefined,'mvc-dialog mvc-planner');dialog.setAttribute('aria-labelledby','mvc-title');
  dialog.innerHTML='<header class="mvc-header"><div><small>VISIT CALENDAR</small><h2 id="mvc-title">방문 일정 모드</h2><p>거래처를 선택하고 달력 날짜로 끌어 놓으세요. 날짜를 눌러 등록할 수도 있습니다.</p></div><button type="button" class="mvc-close" aria-label="방문 일정 닫기">×</button></header><div class="mvc-toolbar"><div><button type="button" data-shift="-1" aria-label="이전 달">‹</button><strong class="mvc-month"></strong><button type="button" data-shift="1" aria-label="다음 달">›</button><button type="button" class="mvc-today">오늘</button></div><span>● 예정 <i>● 완료</i></span></div><p class="mvc-notice" role="status"></p><div class="mvc-layout"><section><div class="mvc-week"></div><div class="mvc-grid" aria-label="월 방문 달력"></div></section><aside class="mvc-side"><div class="mvc-dayhead"><h3></h3><button type="button" class="mvc-add">＋ 일정</button></div><div class="mvc-daylist"></div><form class="mvc-form" hidden><h3 class="mvc-formtitle">방문 일정 추가</h3><label>거래처<select name="uid" required></select></label><div class="mvc-fields"><label>방문 예정일<input type="date" name="date" required></label><label>예정 시간<input type="time" name="time"></label></div><label>상태<select name="status"><option value="planned">방문 예정</option><option value="completed">방문 완료</option><option value="cancelled">일정 취소</option></select></label><label class="mvc-actual" hidden>실제 방문일<input type="date" name="visited_date"></label><label>방문 메모<textarea name="memo" rows="3" maxlength="2000" placeholder="방문 목적이나 확인한 내용을 남겨 주세요."></textarea></label><p class="mvc-error" role="alert"></p><div class="mvc-formactions"><button type="button" class="mvc-edit-close">닫기</button><button type="submit" class="mvc-save">저장</button></div></form></aside></div>';
  document.body.append(dialog);
+ const demoBanner=el('div',undefined,'mvc-demo-banner');demoBanner.hidden=true;demoBanner.innerHTML='<strong>예시 거래처로 방문일정을 체험해 보세요</strong><span>가상 거래처 3곳입니다. 햇살빌딩은 이번 달 사용승인월 표시 예시입니다. 일정·메모는 서버에 저장되지 않으며 새로고침하면 사라집니다.</span>';dialog.querySelector('.mvc-toolbar').before(demoBanner);
+ function applyBuildings(list){
+  if(!Array.isArray(list))return;
+  if(busy){setTimeout(()=>applyBuildings(list),150);return;}
+  buildingsReady=true;const nextDemo=list.length===0,changed=demoMode!==nextDemo;
+  demoMode=nextDemo;buildings=nextDemo?demoBuildings.map(b=>({...b})):list;demoBanner.hidden=!nextDemo;
+  for(const uid of chosen)if(!buildings.some(b=>b.uid===uid))chosen.delete(uid);
+  if(changed){request++;rows=[];dayMeta={};daysReady=false;demoRows=[];demoDays={};form.hidden=true;if(dayDialog.open)dayDialog.close();}
+  if(dialog.open){ensureVisitMap();render();if(changed)load();}
+ }
+
  const dayDialog=el('dialog',undefined,'mvc-dialog mvc-day-dialog');dayDialog.setAttribute('aria-labelledby','mvc-day-title');
  dayDialog.innerHTML='<header class="mvc-header"><div><small>VISIT DETAILS</small><div class="mvc-day-title-row"><h2 id="mvc-day-title">방문 일정 관리</h2><label class="mvc-holiday-toggle"><input type="checkbox" class="mvc-day-holiday"><span>휴일 표시</span></label></div></div><button type="button" class="mvc-day-close" aria-label="날짜별 일정 닫기">×</button></header>';
  dayDialog.append(dialog.querySelector('.mvc-side'));document.body.append(dayDialog);
@@ -53,7 +99,7 @@
   if(busy||loading||!daysReady||!dayDirty())return;
   const date=daySnapshot.date,body=new URLSearchParams({act:'save_day',date,holiday:q('.mvc-day-holiday').checked?'1':'0',memo:q('#mvc-day-memo').value,revision:String(daySnapshot.revision),csrf:typeof CSRF!=='undefined'?CSRF:''});
   busy=true;render();q('.mvc-day-note-status').textContent='저장 중…';
-  try{const res=await fetch('/manager_visits.php',{method:'POST',credentials:'same-origin',body});const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'날짜 설정을 저장하지 못했습니다.');dayMeta[date]=data.day;if(data.day.memo)pendingMemoGlow.add(date);else pendingMemoGlow.delete(date);fillDayNotes();q('.mvc-day-note-status').textContent='저장했습니다.';}
+  try{const res=await visitFetch('/manager_visits.php',{method:'POST',credentials:'same-origin',body});const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'날짜 설정을 저장하지 못했습니다.');dayMeta[date]=data.day;if(data.day.memo)pendingMemoGlow.add(date);else pendingMemoGlow.delete(date);fillDayNotes();q('.mvc-day-note-status').textContent='저장했습니다.';}
   catch(error){q('.mvc-day-note-status').textContent=error.message||'연결을 확인하고 다시 저장해 주세요.';}
   finally{busy=false;render();}
  };
@@ -97,7 +143,7 @@
   toast.replaceChildren(el('span',message));toast.hidden=false;
   if(undoToken){const undo=el('button','실행 취소');undo.type='button';undo.onclick=async()=>{
     if(busy)return;busy=true;undo.disabled=true;
-    try{const res=await fetch('/manager_visits.php',{method:'POST',credentials:'same-origin',body:new URLSearchParams({act:'undo_batch',batch_token:undoToken,csrf:typeof CSRF!=='undefined'?CSRF:''})});const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'실행 취소하지 못했습니다.');await load();showToast(data.undone+'곳 방문 등록을 되돌렸습니다.');}
+    try{const res=await visitFetch('/manager_visits.php',{method:'POST',credentials:'same-origin',body:new URLSearchParams({act:'undo_batch',batch_token:undoToken,csrf:typeof CSRF!=='undefined'?CSRF:''})});const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'실행 취소하지 못했습니다.');await load();showToast(data.undone+'곳 방문 등록을 되돌렸습니다.');}
     catch(e){showToast(e.message||'연결 상태를 확인해 주세요.',undoToken);}
     finally{busy=false;render();}
    };toast.append(undo);}
@@ -211,7 +257,7 @@
   if(fingerprint!==batchFingerprint){batchFingerprint=fingerprint;batchToken=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');}
   busy=true;refreshSelection();q('.mvc-batch-result').textContent='';if(fromDrag)showToast('방문 일정을 저장하고 있습니다…');
   const body=new URLSearchParams({act:'batch',uids:JSON.stringify(ids),date,memo,batch_token:batchToken,csrf:typeof CSRF!=='undefined'?CSRF:''});
-  try{const res=await fetch('/manager_visits.php',{method:'POST',credentials:'same-origin',body});const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'일정을 저장하지 못했습니다.');ids.forEach(uid=>chosen.delete(uid));batchFingerprint='';q('.mvc-batch-memo').value='';await load();const message=date.replaceAll('-','.')+' · '+data.created+'곳 등록 완료'+(data.skipped?' (기존 일정 '+data.skipped+'곳 제외)':'');q('.mvc-batch-result').textContent=message;showToast(message,data.created?data.undo_token:null);if(dayDialog.open&&!dayDirty())dayDialog.close();}
+  try{const res=await visitFetch('/manager_visits.php',{method:'POST',credentials:'same-origin',body});const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'일정을 저장하지 못했습니다.');ids.forEach(uid=>chosen.delete(uid));batchFingerprint='';q('.mvc-batch-memo').value='';await load();const message=date.replaceAll('-','.')+' · '+data.created+'곳 등록 완료'+(data.skipped?' (기존 일정 '+data.skipped+'곳 제외)':'');q('.mvc-batch-result').textContent=message;showToast(message,data.created?data.undo_token:null);if(dayDialog.open&&!dayDirty())dayDialog.close();}
   catch(e){q('.mvc-batch-result').textContent=e.message||'연결 상태를 확인해 주세요.';showToast(e.message||'저장하지 못했습니다. 다시 시도해 주세요.');}
   finally{busy=false;render();}
  }
@@ -278,13 +324,13 @@
  async function cancelVisit(row){
   if(busy)return;busy=true;form.hidden=true;render();q('.mvc-batch-result').textContent='';
   const body=new URLSearchParams({id:row.id,revision:String(row.revision),uid:row.uid,date:row.date,time:row.time||'',status:'cancelled',visited_date:'',memo:row.memo||'',csrf:typeof CSRF!=='undefined'?CSRF:''});
-  try{const response=await fetch('/manager_visits.php',{method:'POST',credentials:'same-origin',body});const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'등록을 해제하지 못했습니다.');await load();q('.mvc-batch-result').textContent=row.name+' 방문 등록을 해제했습니다.';}
+  try{const response=await visitFetch('/manager_visits.php',{method:'POST',credentials:'same-origin',body});const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'등록을 해제하지 못했습니다.');await load();q('.mvc-batch-result').textContent=row.name+' 방문 등록을 해제했습니다.';}
   catch(error){q('.mvc-batch-result').textContent=error.message||'연결 상태를 확인해 주세요.';}
   finally{busy=false;render();}
  }
  async function load(){
   const id=++request;loading=true;daysReady=false;rows=[];dayMeta={};notice('일정을 불러오고 있습니다.');render();
-  try{const res=await fetch('/manager_visits.php?month='+encodeURIComponent(month),{credentials:'same-origin',cache:'no-store'});const data=await res.json();if(id!==request)return;if(!res.ok||!data.ok)throw new Error(data.error||'일정을 불러오지 못했습니다.');rows=data.visits;dayMeta=data.days||{};daysReady=true;notice('');}
+  try{const res=await visitFetch('/manager_visits.php?month='+encodeURIComponent(month),{credentials:'same-origin',cache:'no-store'});const data=await res.json();if(id!==request)return;if(!res.ok||!data.ok)throw new Error(data.error||'일정을 불러오지 못했습니다.');rows=data.visits;dayMeta=data.days||{};daysReady=true;notice('');}
   catch(e){if(id===request)notice(e.message||'연결 상태를 확인해 주세요.');}
   finally{if(id===request){loading=false;render();}}
  }
@@ -334,20 +380,28 @@
  function showGuide(){guide.classList.toggle('is-mobile-guide',mobileMedia.matches);guide.querySelector('.mvc-guide-content>p').textContent=mobileMedia.matches?'지도에서 선택하고, 날짜를 정해 등록하세요.':'지도에서 고르고, 달력에 놓으면 끝입니다.';if(!guide.open){guide.showModal();guide.querySelector('.mvc-guide-start').focus({preventScroll:true});positionHandDemo();}}
 
  async function open(uid=''){
-  if(!dialog.open){trigger=document.activeElement;mobileView='map';updateMobileView();dialog.showModal();lockPageScroll();showGuide();}form.hidden=true;await load();if(!dialog.open)return;
-  if(!buildings.length){try{const res=await fetch('/manager_buildings.php',{credentials:'same-origin',cache:'no-store'});const data=await res.json();if(res.ok&&data.ok)buildings=data.buildings;}catch{notice('거래처 목록을 불러오지 못했습니다. 달력을 다시 열어 주세요.');}}
-  if(uid&&dialog.open)chosen.add(uid);if(dialog.open){ensureVisitMap();render();}
+  if(!dialog.open){trigger=document.activeElement;mobileView='map';updateMobileView();dialog.showModal();lockPageScroll();showGuide();}
+  form.hidden=true;
+  if(!buildingsReady){
+   notice('거래처 목록을 확인하고 있습니다.');
+   try{const res=await fetch('/manager_buildings.php',{credentials:'same-origin',cache:'no-store'});const data=await res.json();if(!res.ok||!data.ok||!Array.isArray(data.buildings))throw Error('목록 오류');applyBuildings(data.buildings);}
+   catch{notice('거래처 목록을 불러오지 못했습니다. 달력을 다시 열어 주세요.');return;}
+  }
+  if(!dialog.open)return;
+  await load();if(!dialog.open)return;
+  if(uid&&buildings.some(b=>b.uid===uid))chosen.add(uid);ensureVisitMap();render();
  }
+
  opener.onclick=()=>open();q('.mvc-close').onclick=()=>{if(!busy)dialog.close();};dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});dialog.addEventListener('close',()=>{if(guide.open)guide.close();if(dayDialog.open)dayDialog.close();unlockPageScroll();trigger?.focus({preventScroll:true});});
  dialog.querySelectorAll('[data-shift]').forEach(b=>b.onclick=()=>{if(busy)return;const [y,m]=month.split('-').map(Number),next=new Date(y,m-1+Number(b.dataset.shift),1);if(next.getFullYear()<2000||next.getFullYear()>2100)return;month=dayKey(next).slice(0,7);selected=month+'-01';form.hidden=true;load();drawVisitMap(approvalOnly);});
  q('.mvc-today').onclick=()=>{if(busy)return;selected=today();month=selected.slice(0,7);form.hidden=true;load();drawVisitMap(approvalOnly);};q('.mvc-add').onclick=()=>edit();q('.mvc-edit-close').onclick=()=>{if(!busy)form.hidden=true;};field('status').onchange=syncActual;
  form.onsubmit=async e=>{
   e.preventDefault();if(busy||!form.reportValidity())return;busy=true;syncDayNotes();q('.mvc-error').textContent='';const body=new URLSearchParams(new FormData(form));body.set('csrf',typeof CSRF!=='undefined'?CSRF:'');if(editing){body.set('id',editing.id);body.set('revision',String(editing.revision));}
   form.querySelectorAll('button,input,select,textarea').forEach(n=>n.disabled=true);q('.mvc-save').textContent='저장 중…';
-  try{const res=await fetch('/manager_visits.php',{method:'POST',credentials:'same-origin',body});const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'저장하지 못했습니다.');if(!dayDialog.open){selected=data.visit.date;month=selected.slice(0,7);}form.hidden=true;await load();q('.mvc-batch-result').textContent=data.visit.date.replaceAll('-','.')+' 방문 일정을 저장했습니다.';}
+  try{const res=await visitFetch('/manager_visits.php',{method:'POST',credentials:'same-origin',body});const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'저장하지 못했습니다.');if(!dayDialog.open){selected=data.visit.date;month=selected.slice(0,7);}form.hidden=true;await load();q('.mvc-batch-result').textContent=data.visit.date.replaceAll('-','.')+' 방문 일정을 저장했습니다.';}
   catch(e){q('.mvc-error').textContent=e.message||'연결 상태를 확인해 주세요.';}
   finally{busy=false;form.querySelectorAll('button,input,select,textarea').forEach(n=>n.disabled=false);q('.mvc-save').textContent='저장';render();}
  };
- document.addEventListener('manager-buildings-updated',e=>{buildings=Array.isArray(e.detail?.buildings)?e.detail.buildings:[];for(const uid of chosen)if(!buildings.some(b=>b.uid===uid))chosen.delete(uid);if(dialog.open){ensureVisitMap();render();}});
+ document.addEventListener('manager-buildings-updated',e=>applyBuildings(e.detail?.buildings));
  document.addEventListener('manager-visit-open',e=>open(e.detail?.uid||''));
 })();

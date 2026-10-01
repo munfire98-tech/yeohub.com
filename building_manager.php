@@ -1780,7 +1780,17 @@ a.pstep:hover{background:#f2f6fd}
                           </a>
                             </div>
                           </section>
-                          <section class="building-support" aria-labelledby="buildingSupportTitle">
+                          <section class="building-field-records" aria-labelledby="buildingFieldRecordsTitle">
+  <h3 id="buildingFieldRecordsTitle">현장 기록</h3>
+  <div class="building-field-records__grid">
+  <?php if ($isPro || !empty($_SESSION['_mge_actor'])): ?>
+    <button type="button" class="building-task" data-false-alarm-open="<?=h($viewUid)?>" aria-haspopup="dialog"><span class="building-task__no" aria-hidden="true">!</span><span>비화재보 기록</span><small data-false-alarm-count="<?=h($viewUid)?>">기록 보기</small></button>
+  <?php else: ?>
+    <div class="building-task building-task--locked" aria-disabled="true"><span class="building-task__no" aria-hidden="true">!</span><span>비화재보 기록</span><small>PRO</small></div>
+  <?php endif; ?>
+  </div>
+</section>
+<section class="building-support" aria-labelledby="buildingSupportTitle">
                             <h3 id="buildingSupportTitle" class="building-support__title">교육자료 · 인쇄</h3>
                             <div class="building-support__grid">
                           <?php if ($isPro): ?>
@@ -2727,4 +2737,8 @@ function showQr(id, name){
 <link rel="stylesheet" href="/building_education.css?v=6-facility-linked">
 <script src="/building_education.js?v=6-facility-linked" data-building-uid="<?=h($viewUid)?>" defer></script>
 <?php endif; ?>
+<link rel="stylesheet" href="/false_alarm.css?v=20261001-print-popup">
+<script src="/false_alarm.js?v=20261001-print-popup" data-uid="<?=h($viewUid)?>" defer></script>
 <?php require __DIR__ . '/_footer.php'; ?>
+
+

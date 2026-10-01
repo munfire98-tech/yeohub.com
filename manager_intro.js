@@ -22,11 +22,15 @@
  }
  openers.forEach(b=>b.addEventListener('click',()=>open(b)));
  dialog.querySelector('[data-mi-close]').addEventListener('click',()=>dialog.close());
- dialog.querySelector('[data-mi-register]')?.addEventListener('click',()=>{
+ dialog.querySelectorAll('[data-mi-register]').forEach(button=>button.addEventListener('click',()=>{
    const entry=document.querySelector('.mm-draft-add[data-address-open]');
    if(entry)returnFocus=entry;
    dialog.close();
    requestAnimationFrame(()=>{if(entry){entry.scrollIntoView({behavior:'auto',block:'center'});entry.click();}else location.assign('/manager_addresses.php?new=1');});
+ }));
+ dialog.querySelector('[data-mi-visits]')?.addEventListener('click',()=>{
+   dialog.close();
+   requestAnimationFrame(()=>document.dispatchEvent(new CustomEvent('manager-visit-open')));
  });
  mute.addEventListener('change',()=>write(':muted',mute.checked?'1':'0'));
  prev.addEventListener('click',()=>{index=Math.max(0,index-1);render();});next.addEventListener('click',()=>{index=Math.min(panels.length-1,index+1);render();});

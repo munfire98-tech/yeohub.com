@@ -64,3 +64,21 @@ dialog.mb-delete-dialog[open]{animation:none}
  #map .mm-map-filterbar .mb-filter-count{min-width:0;font-size:10px;white-space:nowrap}
  #map .mm-map-filterbar .mm-view-toggle{width:28px;height:32px;flex:0 0 28px;font-size:13px;border-radius:7px}
 }
+
+.cm-workspace-title-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+@media(min-width:761px){.cm-workspace-title-row .cm-workspace-code-open{display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:5px 8px;border:1px solid #dce4ef;border-radius:8px;background:#f5f8fc;color:#526c91;font:650 10px/1.4 system-ui;white-space:nowrap;cursor:pointer}}
+@media(max-width:760px){.cm-workspace-title-row .cm-workspace-code-open{display:none}}
+/* A small floating hint: no extra row or change to map/workspace height. */
+#map .mm-map-filterbar{position:relative;overflow:visible}
+.mm-demo-notice{position:absolute;top:calc(100% + 11px);right:0;box-sizing:border-box;width:244px;max-width:calc(100vw - 100px);padding:14px 28px 12px 15px;border:1px solid #d9e6f6;border-radius:15px;background:#f8fbff;color:#6b809a;box-shadow:0 6px 20px #24486c18;font:12px/1.6 system-ui;white-space:normal;cursor:default;pointer-events:auto}
+.mm-demo-notice[hidden]{display:none!important}
+.mm-demo-notice:before{content:"";position:absolute;right:28px;top:-6px;width:10px;height:10px;background:#f8fbff;border-left:1px solid #d9e6f6;border-top:1px solid #d9e6f6;transform:rotate(45deg)}
+.mm-demo-notice strong{display:block;color:#355b85;font-size:12px;line-height:1.5;word-break:keep-all}
+.mm-demo-notice span{display:block;margin-top:5px;font-size:11px;line-height:1.65;word-break:keep-all}
+.mm-demo-notice button{cursor:pointer;font-family:inherit}
+.mm-demo-notice .mm-demo-close{position:absolute;top:5px;right:5px;width:26px;height:26px;padding:0;border:0;border-radius:50%;background:transparent;color:#8a9bb1;font-size:19px;line-height:26px}
+.mm-demo-notice .mm-demo-close:hover{background:#eaf1fa;color:#355b85}
+.mm-demo-notice .mm-demo-start{display:inline-block;margin-top:9px;padding:5px 9px;border:0;border-radius:7px;background:#eaf2ff;color:#3468ad;font-size:11px;font-weight:700;line-height:1.5}
+.mm-demo-notice button:focus-visible{outline:2px solid #6895d5;outline-offset:2px}
+@media(max-width:760px){.mm-demo-notice{width:220px;padding:12px 27px 11px 12px}.mm-demo-notice strong{font-size:11px}}
+.mb-demo-label{font-size:11px;color:#7b8fa3;align-self:center}.mm-demo-copy{padding:9px;border-radius:8px;background:#f1f6fb;color:#637b91;font-size:12px}

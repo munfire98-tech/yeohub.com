@@ -16,5 +16,5 @@
  if(form===account)account.reset();if(form===request)token=newToken();status.textContent=form?'저장되었습니다. 출금 신청은 관리자가 확인 후 직접 송금합니다.':'';
  }catch(e){status.textContent=e.message;root.querySelectorAll('button').forEach(b=>b.disabled=false);}finally{busy=false;}}
  account.addEventListener('submit',e=>{e.preventDefault();call(account);});request.addEventListener('submit',e=>{e.preventDefault();if(confirm(`${money(request.elements.coins.value)}개 마일리지, ${money(Number(request.elements.coins.value)*rate)}원 출금을 신청할까요?`))call(request);});
- request.elements.coins.addEventListener('input',()=>root.querySelector('[data-payout-amount]').textContent=money(Number(request.elements.coins.value)*rate)+'원');document.querySelector('[data-wallet-open]')?.addEventListener('click',()=>call());
+ request.elements.coins.addEventListener('input',()=>root.querySelector('[data-payout-amount]').textContent=money(Number(request.elements.coins.value)*rate)+'원');document.querySelectorAll('[data-wallet-open]').forEach(button=>button.addEventListener('click',()=>call()));
 })();
