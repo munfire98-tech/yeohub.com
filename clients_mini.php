@@ -3296,7 +3296,7 @@ function openDayNotes(dateStr){
 let map, markers, group, CURRENT_EDIT_ID = null;
 map = L.map('map', { zoomControl:true, attributionControl:true });
 map.attributionControl.setPrefix(false);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'}).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'}).addTo(map);
 markers = new Map(); group = L.featureGroup().addTo(map);
 
 function escapeHtmlLocal(s){ return (s+'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
@@ -6232,7 +6232,7 @@ function estSavePdf() {
 <script src="/manager_payout.js?v=20261001-worklog-reward" defer></script>
 
 <link rel="stylesheet" href="/manager_visit_calendar.css?v=20-memo-shortcuts">
-<script src="/manager_visit_calendar.js?v=20-memo-shortcuts" defer></script>
+<script src="/manager_visit_calendar.js?v=20261001-osm-official" defer></script>
 
 <style id="cm-manager-foldout-style">
 body.cm-clean .ms-sidebar .cm-workspace-info-head{position:relative;z-index:5;flex-shrink:0;gap:8px}

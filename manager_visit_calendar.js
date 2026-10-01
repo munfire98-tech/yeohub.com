@@ -177,7 +177,7 @@
  function ensureVisitMap(){
   if(!dialog.open)return;
   if(typeof L==='undefined'){q('.mvc-plan-map').textContent='지도를 불러오지 못했습니다. 달력에서 날짜를 누르고 일정 추가로 거래처를 선택해 주세요.';return;}
-  if(!visitMap){visitMap=L.map(q('.mvc-plan-map'),{scrollWheelZoom:true}).setView([37.65,126.8],10);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'}).addTo(visitMap);visitMarkers=L.featureGroup().addTo(visitMap);visitMap.on('zoomend',spreadVisitPins);if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>{if(dialog.open)visitMap.invalidateSize({pan:false});}).observe(q('.mvc-plan-map'));}
+  if(!visitMap){visitMap=L.map(q('.mvc-plan-map'),{scrollWheelZoom:true}).setView([37.65,126.8],10);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'}).addTo(visitMap);visitMarkers=L.featureGroup().addTo(visitMap);visitMap.on('zoomend',spreadVisitPins);if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>{if(dialog.open)visitMap.invalidateSize({pan:false});}).observe(q('.mvc-plan-map'));}
   requestAnimationFrame(()=>{visitMap.invalidateSize();drawVisitMap(!mapReady);mapReady=true;});
  }
  q('.mvc-fit').onclick=()=>drawVisitMap(true);q('.mvc-unselect').onclick=()=>{if(!busy){chosen.clear();refreshSelection();}};
