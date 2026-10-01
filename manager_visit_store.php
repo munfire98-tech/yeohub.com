@@ -51,3 +51,16 @@ function mvc_undo_batch(array &$store,string $token):array {
  foreach($batch['ids'] as $id){$store['visits'][$id]['status']='cancelled';$store['visits'][$id]['revision']++;$store['visits'][$id]['updated_at']=date('c');}
  $store['batches'][$token]['undone']=true;return ['undone'=>count($batch['ids'])];
 }
+
+// Per-manager calendar notes, independent of individual building visits.
+function mvc_save_day(array &$store,array $input):array {
+ $date=$input['date']??null;$memo=$input['memo']??null;$holiday=$input['holiday']??null;
+ if(!is_string($date)||!mvc_date($date)||substr($date,0,4)<'2000'||substr($date,0,4)>'2100')throw new RuntimeException('날짜를 확인해 주세요.');
+ if(!is_string($memo)||mb_strlen($memo)>2000)throw new RuntimeException('날짜 메모는 2,000자 이내로 입력해 주세요.');
+ if(!in_array($holiday,['0','1'],true))throw new RuntimeException('휴일 표시를 확인해 주세요.');
+ $old=$store['days'][$date]??[];
+ if(!isset($input['revision'])||!is_scalar($input['revision'])||(string)(int)$input['revision']!==(string)$input['revision']||(int)$input['revision']!==(int)($old['revision']??0))throw new RuntimeException('다른 화면에서 날짜 설정이 변경되었습니다. 메모를 복사해 둔 뒤 날짜 창을 다시 열어 확인해 주세요.');
+ $row=['holiday'=>$holiday==='1','memo'=>trim($memo),'revision'=>(int)($old['revision']??0)+1,'updated_at'=>date('c')];
+ // Keep empty revisions too, so a stale tab cannot restore cleared notes.
+ $store['days'][$date]=$row;return $row;
+}

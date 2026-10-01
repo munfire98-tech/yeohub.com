@@ -24,6 +24,11 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
    $posted=is_array($_POST['installed'][$sid]??null)?$_POST['installed'][$sid]:[];
    foreach(bf_catalog() as $g)foreach($g[1] as $name){$id=bf_id($name);$inputs[$sid][$id]=['status'=>isset($posted[$id])?'yes':'no'];}
   }
+  foreach($included as $sid){
+   $type=$_POST['hydrant_start'][$sid]??'';
+   if(!is_string($type)||!in_array($type,['','auto','manual','both'],true))throw new RuntimeException('옥내소화전 기동 방식을 확인해 주세요.');
+   $key=bf_id('옥내소화전설비');$inputs[$sid][$key]['hydrant_start']=$inputs[$sid][$key]['status']==='yes'?$type:'';
+  }
   foreach($scopes as $sid=>&$scope){$scope['included']=in_array($sid,$included,true);if(isset($inputs[$sid]))$scope['items']=$inputs[$sid];}unset($scope);
   require_once __DIR__.'/manager_facility_help.php';
   $d=mfh_save(bi_user_key(),true,static function()use($inputs,$included,$options):array{return bf_save_multi($inputs,$included,(string)($_POST['revision']??''),$options);});
@@ -40,6 +45,18 @@ $c=bf_counts(['scopes'=>$scopes]);
 .scope-picker{background:#fff;border:1px solid #dce5ed;border-radius:16px;padding:18px;margin-bottom:18px}.scope-picker p{font-size:12px;color:#718096;margin:7px 0}.scope-choices{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.scope-choices label{background:#f1f5fa;border-radius:9px;padding:9px 12px;cursor:pointer}.scope-tabs{display:flex;overflow-x:auto;gap:8px;margin:0 0 22px;padding-bottom:6px}.scope-tabs button{background:#e8edf5;color:#52647c;padding:10px 18px}.scope-tabs button[aria-pressed=true]{background:#244f77;color:white}.scope-heading{font-size:20px;margin:0 0 18px}.print-scope-state{display:none}.print-action{background:white;color:#244f77;border:1px solid #dce5ed;padding:9px 14px;margin-top:12px}
 @media print{@page{size:A4;margin:14mm}body{background:white;color:#172638}main{max-width:none;padding:0}.facility-help,.toolbar,.scope-picker,.scope-tabs,.savebar,.facility-confirm,.notice,.print-action,.total,.eyebrow,#facility-empty{display:none!important}.scope-panel,.scope-panel[hidden]{display:block!important;break-before:page}.scope-panel[data-scope=base]{break-before:auto}.scope-panel[data-included="0"]{display:none!important}.scope-panel .facility-group,.scope-panel .facility-group[hidden]{display:block!important;break-inside:avoid}.scope-panel .item,.scope-panel .item[hidden]{display:none!important}.scope-panel .item:has(input:checked){display:flex!important;background:white;border:1px solid #ccd5e3;box-shadow:none;min-height:0;padding:8px}.scope-panel .facility-group:not(:has(input:checked)){display:none!important}.grid{grid-template-columns:repeat(2,1fr)}.print-scope-state{display:block}.group-count{display:none}.heading{margin-bottom:20px}.intro{font-size:12px}.check{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 .save-actions{display:flex;gap:8px}.reset-action{background:white;color:#95615e;border:1px solid #e3d7d6;padding:12px 16px}.reset-action:hover{background:#fff0ed}@media(max-width:600px){.save-inner{flex-wrap:wrap}.save-actions{width:100%;justify-content:flex-end}main{padding-bottom:185px}}
+.facility-choice{display:flex;align-items:center;gap:11px;width:100%;cursor:pointer}
+.hydrant-item{display:block;padding:8px 14px;min-height:65px}
+.hydrant-item .facility-choice{gap:0;min-width:0;padding-left:33px;height:20px}
+.hydrant-item .facility-choice .check{position:absolute;left:14px;top:50%;transform:translateY(-50%)}
+.hydrant-item .facility-choice input{left:14px;top:50%;transform:translateY(-50%)}
+.hydrant-item .name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hydrant-choice{display:block;margin:3px 0 0 33px;min-width:0;cursor:default}
+.hydrant-choice select{display:block;width:100%;min-width:0;height:24px;margin:0;padding:1px 22px 1px 7px;border:1px solid #c9d7ef;border-radius:6px;background:#fff;color:#33558d;font-family:inherit;font-size:11px;cursor:pointer;white-space:nowrap;text-overflow:ellipsis}
+.hydrant-choice select:disabled{color:#8a97aa;background:#f5f7fa;border-color:#e3e8ef;cursor:default;opacity:1}
+.hydrant-choice select:focus-visible{outline:3px solid #a6baf4;outline-offset:2px}
+@media(max-width:440px){.hydrant-item{padding:10px 9px;min-height:70px}.hydrant-item .facility-choice{padding-left:30px}.hydrant-item .facility-choice .check,.hydrant-item .facility-choice input{left:9px}.hydrant-choice{margin-left:30px}.hydrant-choice select{padding-left:5px}}
+@media print{.scope-panel .hydrant-item:has(input:checked){display:block!important;min-height:65px}.hydrant-choice select{border:0;appearance:none;color:#172638;background:white}}
 </style></head><body><main>
 <p class="eyebrow">STEP 02 · FIRE FACILITIES</p><div class="heading"><div><h1>소방시설 현황</h1><p class="intro"><?=h($bi['name']??'')?> · 동을 선택하고 설치된 시설을 체크해 주세요.</p></div><span class="total">선택 <b id="selected-total"><?=$c['present']?></b>건</span></div>
 <?php if($saved):?><div role="status" class="notice"><?=$resetDone?'현황을 초기화했습니다. 설치된 시설을 다시 체크해 주세요.':'소방시설 현황을 저장했습니다.'?></div><?php endif;?><?php if($error):?><div role="alert" class="notice error"><?=h($error)?></div><?php endif;?>
@@ -61,7 +78,7 @@ $c=bf_counts(['scopes'=>$scopes]);
 <?php foreach($scopes as $sid=>$scope):$one=bf_counts(['items'=>$scope['items']??[]]);?>
 <div class="scope-panel" data-scope="<?=h($sid)?>" data-unrecorded="<?=$one['confirmed']===0?'1':'0'?>" data-included="<?=!empty($scope['included'])?'1':'0'?>">
 <h2 class="scope-heading"><?=h($scope['label'])?></h2><p class="print-scope-state">선택한 시설 <?=$one['present']?>종</p>
-<?php foreach(bf_catalog() as $group):?><section class="facility-group"><div class="group-title"><h2><?=h($group[0])?></h2><span class="group-count"></span></div><div class="grid"><?php foreach($group[1] as $name):$id=bf_id($name);$v=$scope['items'][$id]??[];?><label class="item" data-name="<?=h($name)?>"><input type="checkbox" name="installed[<?=h($sid)?>][<?=$id?>]" value="1" <?=($v['status']??'unknown')==='yes'?'checked':''?>><span class="check" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><path d="m3 8 3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="name"><?=h($name)?></span></label><?php endforeach;?></div></section><?php endforeach;?>
+<?php foreach(bf_catalog() as $group):?><section class="facility-group"><div class="group-title"><h2><?=h($group[0])?></h2><span class="group-count"></span></div><div class="grid"><?php foreach($group[1] as $name):$id=bf_id($name);$v=$scope['items'][$id]??[];?><div class="item<?= $name==='옥내소화전설비'?' hydrant-item':'' ?>" data-name="<?=h($name)?>"><label class="facility-choice"><input type="checkbox" name="installed[<?=h($sid)?>][<?=$id?>]" value="1" <?=($v['status']??'unknown')==='yes'?'checked':''?>><span class="check" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><path d="m3 8 3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="name"><?=h($name)?></span></label><?php if($name==='옥내소화전설비'):?><label class="hydrant-choice"><select <?=($v['status']??'')==='yes'?'':'disabled'?> title="옥내소화전 기동 방식 · 저장하면 교육자료에 반영됩니다." name="hydrant_start[<?=h($sid)?>]" aria-label="<?=h($scope['label'])?> 옥내소화전 기동 방식"><?php foreach([''=>'방식 선택','auto'=>'자동 기동','manual'=>'ON·OFF 버튼','both'=>'두 방식 모두'] as $type=>$label):?><option value="<?=h($type)?>" <?=($v['hydrant_start']??'')===$type?'selected':''?>><?=h($label)?></option><?php endforeach;?></select></label><?php endif;?></div><?php endforeach;?></div></section><?php endforeach;?>
 </div>
 <?php endforeach;?>
 <input type="hidden" name="form_end" value="1"></form><p id="facility-empty" hidden>조건에 맞는 시설이 없습니다.</p><script src="/manager_help.js?v=7" data-facilities="1" data-uid="<?=h(bi_user_key())?>" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
@@ -78,4 +95,4 @@ $c=bf_counts(['scopes'=>$scopes]);
 })();
 </script></main>
 <div class="savebar"><div class="save-inner"><div><span id="save-status" role="status">설치된 시설을 모두 체크했나요?</span><p class="save-note">체크하지 않은 시설은 ‘없음’으로 저장되며, 작성 도움 요청도 완료됩니다.</p></div><div class="save-actions"><button type="submit" form="facility-form" name="action" value="reset" class="reset-action">현황 초기화</button><button type="submit" form="facility-form" name="action" value="save">저장하기</button></div></div></div>
-<script src="/building_facilities_scopes.js?v=4"></script></body></html>
+<script src="/building_facilities_scopes.js?v=6-compact"></script></body></html>

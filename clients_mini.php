@@ -2035,7 +2035,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
     try {$ms=ms_data();}catch(Throwable $e){$ms=['available'=>false];error_log('Manager sidebar: '.$e->getMessage());}
     $msReady=!empty($ms['available']); ?>
 <script>document.body.classList.add("cm-clean");</script>
-<header class="new-header">
+<?php if(!$msReady): ?><header class="new-header">
   <!-- 1행: 브랜드 + KPI + 홈 -->
   <div class="nh-row1">
     <div class="nh-brand">
@@ -2047,7 +2047,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
     <?php if($msReady): ?><div class="manager-header-code"><?php ms_render_code($ms); ?></div><?php endif; ?>
     <?php if($msReady): ?><button type="button" class="manager-header-wallet" data-wallet-open aria-haspopup="dialog" aria-controls="manager-wallet-dialog"><span class="header-wallet-icon" aria-hidden="true"><?=mg_icon('coin')?></span><span class="header-wallet-label">파이어 마일리지<small>적립 내역 보기</small></span><strong><?=number_format((int)$ms['balance'])?><small>개</small></strong><span aria-hidden="true" class="wallet-chevron">›</span></button><?php endif; ?>
   </div>
-</header>
+</header><?php endif; ?>
 <?php if($managerHeaderName!==null): ?><script src="/manager_help.js?v=20260926-inbox" data-manager="1"></script><?php endif; ?>
 
 <?php if($msReady)ms_render_wallet($ms); ?>
@@ -2062,7 +2062,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
       <style>
 .mm-management-actions .mm-draft-add{display:inline-flex;align-items:center;gap:10px;padding:11px 16px;border:1px solid #9fcac2;border-radius:12px;background:linear-gradient(120deg,#e8f5ef,#eef7fb);color:#205f57;box-shadow:0 3px 12px #285b5010;text-decoration:none;transition:background .18s,box-shadow .18s}.mm-management-actions .mm-draft-add:hover{background:#def0e8;box-shadow:0 4px 16px #285b5020}.mm-draft-add .mm-draft-copy{display:flex;flex-direction:column;gap:3px}.mm-draft-add .mm-draft-copy b{font-size:13px;font-weight:750}.mm-draft-add .mm-draft-copy small{font-size:11px;font-weight:400;color:#5d7c76}.mm-management-actions .mm-draft-add:focus-visible{outline:3px solid #409d8c;outline-offset:3px}
 </style>
-<?php if($msReady): ?><div class="mm-management-bar"><div class="cm-map-heading"><h2>담당 건물</h2><p>건물 위치와 관리 현황을 한눈에 확인하세요.</p></div><div class="mm-management-actions"><button type="button" class="mi-guide-open" data-manager-intro-open aria-haspopup="dialog" aria-controls="manager-intro"><span aria-hidden="true">ⓘ</span> 리워드·이용 안내</button><a href="/manager_addresses.php?new=1" data-address-open class="mm-draft-add"><span aria-hidden="true">＋</span><span class="mm-draft-copy"><b>건물 사전등록</b><small>유저 연결 전에 미리 준비하세요</small></span></a></div></div><?php endif; ?>
+<?php if($msReady): ?><div class="mm-management-bar"><div class="cm-map-heading"><div class="cm-heading-line"><h2>담당 건물</h2></div><p>건물 위치와 관리 현황을 한눈에 확인하세요.</p></div><div class="mm-management-actions"><button type="button" class="mi-guide-open" data-manager-intro-open aria-haspopup="dialog" aria-controls="manager-intro"><span aria-hidden="true">ⓘ</span> 리워드·이용 안내</button><a href="/manager_addresses.php?new=1" data-address-open class="mm-draft-add"><span aria-hidden="true">＋</span><span class="mm-draft-copy"><b>건물 사전등록</b><small>유저 연결 전에 미리 준비하세요</small></span></a></div></div><?php endif; ?>
       <div class="mm-map-filterbar" id="manager-map-filters" aria-label="지도에 표시할 건물 상태"></div>
       <div id="map"></div>
     </section>
@@ -2072,7 +2072,9 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
     <aside class="inactive-panel ms-sidebar" id="manager-sidebar" data-initial-pending="<?=h((string)($ms['pending']??0))?>">
       <link rel="stylesheet" href="/manager_inbox.css?v=2">
       <?php if($msReady): ?><a href="/manager_addresses.php?requests=1" data-address-open class="ms-connect-banner" id="manager-connect-banner" <?=empty($ms['pending'])?'hidden':''?>><span class="ms-connect-icon" aria-hidden="true">＋</span><span><strong>새로운 연결 요청 <b data-connect-count><?=$ms['pending']??0?></b>건</strong><small data-connect-summary><?php $connectNames=[];foreach(($ms['rows']??[]) as $connectUid=>$connectMember){if(($connectMember['_status']??'')==='pending')$connectNames[]=trim((string)($connectMember['nickname']??''))?:(string)$connectUid;}echo mg_e($connectNames?($connectNames[0].(count($connectNames)>1?' 외 '.(count($connectNames)-1).'곳':'').'에서 연결을 요청했습니다.'):'매니저 코드로 연결을 요청한 유저입니다.'); ?></small><em>요청 확인하기 →</em></span></a><?php mg_notice(); endif; ?>
-      <div class="ms-head"><div><small>MY WORKSPACE</small><h3>내 워크스페이스</h3></div></div>
+      <div class="ms-head cm-workspace-info-head"><div><small>MY WORKSPACE</small><h3>내 워크스페이스</h3></div><?php if($msReady): ?><details class="cm-manager-details" id="cm-manager-info"><summary aria-controls="cm-manager-info-panel">내 정보 <span class="cm-info-chevron" aria-hidden="true">⌄</span></summary><section class="cm-info-panel" id="cm-manager-info-panel" aria-label="내 매니저 정보"><div class="cm-info-top"><span>내 매니저 정보</span><button type="button" data-info-close aria-label="매니저 정보 접기">×</button></div><div class="cm-info-name"><span class="manager-identity"><strong><?=h($headerTitle)?></strong></span>
+      <button type="button" onclick="<?=$managerHeaderName!==null?'editManagerName()':'editCompanyName()'?>" title="<?=$managerHeaderName!==null?'매니저 이름 변경':'상호명 변경'?>" aria-label="<?=$managerHeaderName!==null?'매니저 이름 변경':'상호명 변경'?>"
+        style="margin-left:6px;border:1px solid var(--bd2);background:var(--card2);color:var(--mut);border-radius:6px;cursor:pointer;font-size:11px;padding:2px 7px">✎</button></div><div class="manager-header-code cm-info-code"><?php ms_render_code($ms); ?></div><?php if($msReady): ?><button type="button" class="manager-header-wallet" data-wallet-open aria-haspopup="dialog" aria-controls="manager-wallet-dialog"><span class="header-wallet-icon" aria-hidden="true"><?=mg_icon('coin')?></span><span class="header-wallet-label">파이어 마일리지<small>적립 내역 보기</small></span><strong><?=number_format((int)$ms['balance'])?><small>개</small></strong><span aria-hidden="true" class="wallet-chevron">›</span></button><?php endif; ?></section></details><?php endif; ?></div>
       <div class="ms-tabs" role="tablist" aria-label="관리 패널">
       <?php if($msReady): ?><button type="button" id="ms-tab-users" role="tab" aria-controls="ms-users" aria-selected="true" data-ms-tab="users">건물 목록</button><?php endif; ?>
       <?php if($msReady): ?><button type="button" id="ms-tab-help" role="tab" aria-controls="ms-help" aria-selected="false" data-ms-tab="help">작성 요청 <b class="ms-request-badge" data-help-badge hidden>0</b></button><?php endif; ?>
@@ -6219,16 +6221,64 @@ function estSavePdf() {
 })();
 </script>
 <script src="/manager_addresses_modal.js?v=6" defer></script>
-<script src="/manager_map.js?v=20260929-visit-calendar" defer></script>
+<script src="/manager_map.js?v=20260930-keep-zoom" defer></script>
 <script src="/manager_sidebar.js?v=7" defer></script>
 <link rel="stylesheet" href="/manager_building_list.css?v=20260929-delete-center">
-<script src="/manager_building_list.js?v=20260929-delete" defer></script>
+<script src="/manager_building_list.js?v=20260930-entry-align" defer></script>
 <link rel="stylesheet" href="/manager_visit_summary.css?v=7-use-buildings">
 <script src="/manager_visit_summary.js?v=7-use-buildings" defer></script>
-<script src="/manager_activity.js?v=20260930-all-approval-months" defer></script>
+<script src="/manager_activity.js?v=20260930-subscription-lifecycle" defer></script>
 <?php if($msReady)require __DIR__.'/manager_intro.php'; ?>
 <script src="/manager_payout.js?v=20260926-monthly" defer></script>
 
-<link rel="stylesheet" href="/manager_visit_calendar.css?v=14-six-month-cycle">
-<script src="/manager_visit_calendar.js?v=14-six-month-cycle" defer></script>
+<link rel="stylesheet" href="/manager_visit_calendar.css?v=20-memo-shortcuts">
+<script src="/manager_visit_calendar.js?v=20-memo-shortcuts" defer></script>
+
+<style id="cm-manager-foldout-style">
+body.cm-clean .ms-sidebar .cm-workspace-info-head{position:relative;z-index:5;flex-shrink:0;gap:8px}
+.cm-workspace-info-head>.cm-manager-details{flex-shrink:0}
+body.cm-clean .cm-workspace-info-head .cm-info-panel{top:calc(100% - 5px);left:auto;right:12px;width:330px;max-width:calc(100% - 24px)}
+body.cm-clean .cm-workspace-info-head .cm-info-panel small{letter-spacing:normal}
+body.cm-clean .focus-map #map{position:relative;z-index:0}
+.cm-heading-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cm-heading-line h2{flex-shrink:0}
+.cm-manager-details>summary{display:inline-flex;align-items:center;gap:7px;list-style:none;cursor:pointer;border:1px solid #e3e7ef;border-radius:8px;padding:5px 9px;background:#f8fafc;color:#66758c;font:600 11px/1.4 system-ui;user-select:none}
+.cm-manager-details>summary::-webkit-details-marker{display:none}
+.cm-manager-details[open]>summary{background:#f1effc;border-color:#d8d1ef;color:#685497}
+.cm-info-chevron{display:inline-block;font-size:15px;line-height:12px;transition:transform .15s}
+.cm-manager-details[open] .cm-info-chevron{transform:rotate(180deg)}
+.cm-info-panel{position:absolute;top:calc(100% - 5px);left:12px;width:330px;max-width:calc(100% - 24px);max-height: min(420px,65dvh);overflow:auto;padding:17px;border:1px solid #e2e6ef;border-radius:14px;background:#fff;box-shadow:0 12px 32px #24355225;color:#34445c;text-align:left}
+.cm-info-top{display:flex;align-items:center;justify-content:space-between;color:#8a95a6;font:600 10px/1.5 system-ui;letter-spacing:.3px;margin-bottom:9px}
+.cm-info-top button{border:0;border-radius:6px;background:#f3f5f8;color:#8190a3;width:24px;height:24px;font-size:18px;cursor:pointer}
+.cm-info-name{display:flex;align-items:center;gap:7px;margin-bottom:14px}
+.cm-info-name .manager-identity strong{font-size:17px;color:#334259;line-height:1.5;letter-spacing:-.4px;overflow-wrap:anywhere}
+body.cm-clean .cm-info-name>button{border:0!important;background:#f5f6f9!important;color:#8793a6!important;padding:4px 7px!important;flex-shrink:0;cursor:pointer}
+body.cm-clean .cm-info-code{margin:0;width:100%;max-width:none;flex:none}
+body.cm-clean .cm-info-code .ms-code{display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between;min-height:0;background:#f7f6fc;border:1px solid #e5e1f1;border-radius:9px;padding:10px;margin:0}
+body.cm-clean .cm-info-code .ms-code>span{font-size:11px;color:#817399}
+body.cm-clean .cm-info-code .ms-code>div{display:flex;align-items:center;gap:6px}
+body.cm-clean .cm-info-code .ms-code code{font-size:13px;color:#5c4c85;letter-spacing:.4px}
+body.cm-clean .cm-info-code .ms-code button{display:flex;align-items:center;justify-content:center;gap:4px;min-width:0;width:auto;height:25px;padding:3px 6px;background:#fff;border:1px solid #e3deee;border-radius:6px;font-size:10px;cursor:pointer}
+body.cm-clean .cm-info-code .ms-code small.is-feedback{position:static;display:block;width:100%;max-width:none;padding:5px 0 0;margin:0;box-shadow:none;border:0;background:transparent;font-size:10px;letter-spacing:0}
+body.cm-clean .cm-info-panel .manager-header-wallet{display:flex;align-items:center;gap:8px;flex:none;width:100%;min-height:48px;height:auto;padding:11px 0 0;margin:12px 0 0;border:0;border-top:1px solid #edf0f4;border-radius:0;background:transparent;box-shadow:none;color:#76613f}
+body.cm-clean .cm-info-panel .header-wallet-icon{display:flex;width:22px;height:22px;background:#fbf6e9;border-radius:6px}
+body.cm-clean .cm-info-panel .header-wallet-icon svg{width:16px;height:16px;margin:auto}
+body.cm-clean .cm-info-panel .header-wallet-label{display:block;font-size:11px;font-weight:600}
+body.cm-clean .cm-info-panel .header-wallet-label small{display:block;font-size:10px;color:#99a2af;margin-top:2px}
+body.cm-clean .cm-info-panel .manager-header-wallet strong{margin-left:auto;font-size:18px;white-space:nowrap}
+body.cm-clean .cm-info-panel .manager-header-wallet strong small{font-size:10px;margin-left:3px}
+.cm-manager-details summary:focus-visible,.cm-info-panel button:focus-visible{outline:2px solid #9986c7;outline-offset:3px}
+@media(max-width:1100px){body.cm-clean .focus-map .mm-management-bar{flex-wrap:wrap}body.cm-clean .focus-map .mm-management-actions{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.cm-info-chevron{transition:none}}
+</style>
+<script>
+(()=>{
+ const details=document.getElementById('cm-manager-info');if(!details)return;
+ const summary=details.querySelector('summary');
+ const close=(focus=false)=>{details.open=false;if(focus)summary.focus({preventScroll:true});};
+ details.querySelector('[data-info-close]').addEventListener('click',()=>close(true));
+ document.addEventListener('pointerdown',e=>{if(details.open&&!details.contains(e.target)&&!document.querySelector('dialog[open]'))close();});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&details.open&&!document.querySelector('dialog[open]')){e.preventDefault();close(true);}});
+})();
+</script>
 <?php require __DIR__ . '/_footer.php'; ?>

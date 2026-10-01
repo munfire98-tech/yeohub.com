@@ -142,18 +142,35 @@ function ab_charge_user(string $uid,string $kind='manual',?callable $transport=n
   if($failed)ap_finish($uid,$a,false);
   return ab_result(false,$d['billing_notice'],!$failed);
  });
- if($res['ok'])ab_rewards($uid);return $res;
+ if($res['ok']){
+  ab_rewards($uid);
+  // Notification failure must never turn an already successful payment into a failed charge.
+  // manager_notifications.php also reconciles persisted payments on its next refresh.
+  try{require_once __DIR__.'/manager_subscription.php';ms_notify_paid_user($uid);}
+  catch(Throwable $e){error_log('Annual billing manager notification reconciliation required');}
+ }
+ return $res;
 }
 function ab_rewards(string $uid):void {
  try{$d=ab_read($uid);if(!empty($d['manager_first_payment'])){require_once __DIR__.'/manager_common.php';mg_award($uid,$d['manager_first_payment']);}}catch(Throwable $e){error_log('Annual billing reward reconciliation required');}
 }
+function ab_manager_event(array &$d,string $kind,string $token,string $at):void {
+ $d['manager_subscription_events'][$kind.':'.$token]=['kind'=>$kind,'at'=>$at,'expires_at'=>$d['expires_at']??$d['next_billing']??'','test'=>($d['billing_mode']??$d['refund_attempt']['mode']??'')==='test'];
+ if(count($d['manager_subscription_events'])>100)$d['manager_subscription_events']=array_slice($d['manager_subscription_events'],-100,null,true);
+}
+function ab_notify_manager_state(string $uid):void {
+ try{require_once __DIR__.'/manager_subscription.php';ms_notify_paid_user($uid);}
+ catch(Throwable $e){error_log('Annual billing manager lifecycle notification reconciliation required');}
+}
 function ab_renewal(string $uid,bool $enabled):void {
- ab_lock($uid,function($dir)use($uid,$enabled){$d=ab_read($uid);if($enabled&&($d['status']??'')==='refund_pending')throw new RuntimeException('환불 확인 중에는 자동갱신을 켤 수 없습니다.');
+ ab_lock($uid,function($dir)use($uid,$enabled){$d=ab_read($uid);$wasEnabled=ab_auto($d);if($enabled&&($d['status']??'')==='refund_pending')throw new RuntimeException('환불 확인 중에는 자동갱신을 켤 수 없습니다.');
  $renewalQuote=ap_quote($uid,$d);
  if(isset($d['price_lock'])&&!ap_price_retained($d,ab_mode()))$d['price_lock']['state']='ended';
- $d['auto_renew']=$enabled;$d['renewal_changed_at']=date('c');if(!$enabled&&($d['notice_kind']??'')==='upcoming'){unset($d['billing_notice'],$d['notice_kind']);}
+ $d['auto_renew']=$enabled;if($enabled!==$wasEnabled)$d['renewal_changed_at']=(new DateTimeImmutable())->format('Y-m-d\TH:i:s.uP');if(!$enabled&&($d['notice_kind']??'')==='upcoming'){unset($d['billing_notice'],$d['notice_kind']);}
  if($enabled)$d['renewal_consent']=['version'=>AB_CONSENT,'at'=>date('c'),'price'=>$renewalQuote['renewal_amount'],'months'=>12];
+ if(!$enabled&&$wasEnabled)ab_manager_event($d,'renewal_disabled',$d['renewal_changed_at'],$d['renewal_changed_at']);
  ab_store($dir.'/subscription.json',$d);});
+ ab_notify_manager_state($uid);
 }
 
 function ab_latest_payment(array $sub): array {
@@ -205,6 +222,7 @@ function ab_commit_refund(string $dir,array $d,array $r,array $body):array {
  $d['refund']=['status'=>'done','amount'=>$r['amount'],'payment_key'=>$r['payment_key'],'refunded_at'=>date('c')];unset($d['billing_notice']);
  $d['history'][]=['at'=>date('Y-m-d H:i:s'),'type'=>'refund','amount'=>$r['amount'],'memo'=>'해지·환불 완료'];
  if(($body['status']??'')==='CANCELED'){$d['manager_full_refunds'][]=$r['payment_key'];$d['manager_full_refunds']=array_values(array_unique($d['manager_full_refunds']));}
+ ab_manager_event($d,'subscription_refunded',(string)$r['id'],$d['refund']['refunded_at']);
  ab_store($dir.'/subscription.json',$d);return ['ok'=>true,'error'=>'','body'=>$body];
 }
 function ab_refund_user(string $uid,?callable $transport=null,bool $reconcileOnly=false):array {
@@ -221,16 +239,17 @@ function ab_refund_user(string $uid,?callable $transport=null,bool $reconcileOnl
   if($reconcileOnly)return ab_result(false,'확인할 환불이 없습니다.',true);
   if(!in_array($d['status']??'',['active','payment_failed'],true))return ab_result(false,'현재 구독 상태에서는 자동 환불할 수 없습니다.',true);
   $quote=ab_refund_quote($d);if(!$quote['ok']||$quote['payment']['payment_key']==='')return ab_result(false,'결제 식별정보를 확인할 수 없습니다. 관리자에게 문의해 주세요.',true);
-  if($quote['amount']<=0){$d['auto_renew']=false;$d['status']='canceled';ab_store($dir.'/subscription.json',$d);return ab_result(true);}
+  if($quote['amount']<=0){$d['auto_renew']=false;$d['status']='canceled';$d['canceled_at']=date('c');ab_manager_event($d,'subscription_canceled',$d['canceled_at'],$d['canceled_at']);ab_store($dir.'/subscription.json',$d);return ab_result(true);}
   $key=$quote['payment']['payment_key'];$q=ab_api($transport,'GET','/v1/payments/'.rawurlencode($key));
   if(!$q['ok']||($q['body']['paymentKey']??'')!==$key||(int)($q['body']['totalAmount']??0)!==$quote['payment']['amount']||(int)($q['body']['balanceAmount']??-1)<$quote['amount'])return ab_result(false,'현재 결제 잔액을 확인하지 못해 환불을 중단했습니다.',true);
   $id=bin2hex(random_bytes(16));$r=['id'=>$id,'state'=>'prepared','payment_key'=>$key,'amount'=>$quote['amount'],'reason'=>'연간 구독 환불 '.$id,'mode'=>ab_mode(),'merchant'=>hash('sha256',ab_config()['client']),'created_at'=>date('c')];
-  $d['refund_attempt']=$r;$d['auto_renew']=false;$d['status']='refund_pending';$d['refund']=['status'=>'pending','amount'=>$r['amount']];ab_store($dir.'/subscription.json',$d);
+  $d['refund_attempt']=$r;$d['auto_renew']=false;$d['status']='refund_pending';$d['refund']=['status'=>'pending','amount'=>$r['amount']];ab_manager_event($d,'refund_pending',$id,$r['created_at']);ab_store($dir.'/subscription.json',$d);
   $q=ab_api($transport,'POST','/v1/payments/'.rawurlencode($key).'/cancel',['cancelReason'=>$r['reason'],'cancelAmount'=>$r['amount']],'refund-'.$id);
   if($q['ok']&&ab_refund_match($q['body'],$r))return ab_commit_refund($dir,$d,$r,$q['body']);
   $d['refund_attempt']['state']='unknown';$d['billing_notice']='환불 결과를 확인 중입니다. 추가 청구와 환불 요청은 중단되어 있습니다.';ab_store($dir.'/subscription.json',$d);return ab_result(false,$d['billing_notice'],true);
  });
  if($res['ok']){try{$d=ab_read($uid);require_once __DIR__.'/manager_common.php';foreach($d['manager_full_refunds']??[] as $key)mg_reverse($uid,$key);}catch(Throwable $e){error_log('Annual billing refund reward reconciliation required');}}
+ ab_notify_manager_state($uid);
  return $res;
 }
 function ab_scheduler_settings():array{return ab_read_file(__DIR__.'/data/subscribe/_annual_scheduler.php')+['enabled'=>false,'mode'=>'test','token_hash'=>'','last_run'=>''];}

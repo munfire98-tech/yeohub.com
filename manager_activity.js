@@ -58,10 +58,13 @@
    disconnectUnread=Number(data.unread)||0;updateBadge();noticeHost.replaceChildren();const emptyNotice=sidebar.querySelector('[data-notices-empty]');if(emptyNotice)emptyNotice.hidden=(data.notifications||[]).some(n=>!n.read);
    for(const n of data.notifications||[]){
     if(n.read)continue;
-    const subscribed=['subscription_started','subscription_renewed'].includes(n.kind);
-    const card=node('article',undefined,subscribed?'ms-user ms-subscription-notice':'ms-user');const head=node('div',undefined,'ms-user-head');head.append(node('strong',n.name),node('span',subscribed?(n.kind==='subscription_renewed'?'PRO 구독 갱신':'PRO 구독 시작'):(n.kind==='disconnected'?'연결 해제':'요청 취소'),'ms-badge'));
-    card.append(head,node('p',subscribed?'PRO 구독을 시작했습니다. 업무 기록을 함께 작성·관리할 수 있습니다.':(n.kind==='disconnected'?'유저가 매니저 연결을 해제했습니다. 건물 화면에 접근할 수 없습니다.':'유저가 연결 요청을 취소했습니다.')));
-    if(subscribed&&n.started_at)card.append(node('p','구독 시작일 '+n.started_at,'ms-subscription-status'));
+    const labels={subscription_started:'PRO 구독 시작',subscription_renewed:'PRO 구독 갱신',renewal_disabled:'자동갱신 해지',refund_pending:'환불 확인 중',subscription_refunded:'해지·환불 완료',subscription_canceled:'구독 해지'};
+    const subscribed=Object.hasOwn(labels,n.kind);
+    const descriptions={subscription_started:'PRO 구독 결제가 완료되었습니다.',subscription_renewed:'PRO 구독 갱신 결제가 완료되었습니다.',renewal_disabled:'자동갱신을 해지했습니다.'+(n.expires_at?' 기존 이용기간은 '+n.expires_at+'까지입니다.':''),refund_pending:'해지·환불을 요청하여 처리 결과를 확인 중입니다. 아직 환불 완료 상태는 아닙니다.',subscription_refunded:'해지·환불이 완료되어 PRO 이용이 종료되었습니다.',subscription_canceled:'PRO 구독이 해지되었습니다.'};
+    const card=node('article',undefined,subscribed?'ms-user ms-subscription-notice':'ms-user');const head=node('div',undefined,'ms-user-head');head.append(node('strong',n.name),node('span',subscribed?((n.test?'테스트 · ':'')+labels[n.kind]):(n.kind==='disconnected'?'연결 해제':'요청 취소'),'ms-badge'));
+    card.append(head,node('p',subscribed?descriptions[n.kind]:(n.kind==='disconnected'?'유저가 매니저 연결을 해제했습니다. 건물 화면에 접근할 수 없습니다.':'유저가 연결 요청을 취소했습니다.')));
+    if(subscribed&&n.test)card.append(node('p','테스트 모드에서 처리된 구독 알림입니다.','ms-subscription-status'));
+    if(['subscription_started','subscription_renewed'].includes(n.kind)&&n.started_at)card.append(node('p','구독 시작일 '+n.started_at,'ms-subscription-status'));
     const date=new Date(n.at);card.append(node('p',Number.isNaN(date.getTime())?n.at:date.toLocaleString('ko-KR')));
     {const actions=node('div',undefined,'ms-actions');const b=node('button','확인 완료','ms-button ms-button--primary');b.type='button';b.addEventListener('click',()=>loadDisconnect(n.id));actions.append(b);card.append(actions);}noticeHost.append(card);
    }
@@ -69,6 +72,9 @@
   finally{noticeBusy=false;}
  }
  loadDisconnect();
+ setInterval(()=>{if(!document.hidden)loadDisconnect();},30000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadDisconnect();});
+ window.addEventListener('focus',()=>loadDisconnect());
  document.addEventListener('manager-buildings-updated',()=>loadDisconnect());
  document.addEventListener('manager-tab-changed',e=>{if(e.detail.tab==='notifications')loadDisconnect();});
  function requests(keys,items){

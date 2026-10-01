@@ -9,7 +9,7 @@
    const rows=[...p.querySelectorAll('.item')];
    const selected=rows.filter(r=>r.querySelector('input').checked).length;if(on)total+=selected;
    p.querySelector('.print-scope-state').textContent='선택한 시설 '+selected+'종';
-   rows.forEach(r=>{r.hidden=!r.dataset.name.toLowerCase().includes(q.value.trim().toLowerCase())||(only.checked&&!r.querySelector('input').checked);if(!p.hidden&&!r.hidden)visible++;});
+   rows.forEach(r=>{const type=r.querySelector('.hydrant-choice select');if(type)type.disabled=!r.querySelector('input').checked;r.hidden=!r.dataset.name.toLowerCase().includes(q.value.trim().toLowerCase())||(only.checked&&!r.querySelector('input').checked);if(!p.hidden&&!r.hidden)visible++;});
    p.querySelectorAll('.facility-group').forEach(g=>{const rs=[...g.querySelectorAll('.item')];g.hidden=!rs.some(r=>!r.hidden);g.querySelector('.group-count').textContent=rs.filter(r=>r.querySelector('input').checked).length+' / '+rs.length;});
   });
   document.getElementById('selected-total').textContent=total;document.getElementById('facility-empty').hidden=visible>0;

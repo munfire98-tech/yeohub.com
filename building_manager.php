@@ -2,6 +2,9 @@
 // building_manager.php — 건물 소방안전관리자 전용 페이지
 declare(strict_types=1);
 
+// 피난 시뮬레이션은 개발 보류: 사용자 화면의 진입 항목만 숨깁니다.
+$showEvacSimulation = false;
+
 
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 if (session_status() !== PHP_SESSION_ACTIVE) {
@@ -860,7 +863,7 @@ a.pstep:hover{background:#f2f6fd}
   padding:9px 12px;border-bottom:1px solid var(--bd)}
 .protools__head b{font-size:11px;color:var(--fg)}
 .protools__head span{font-size:10.5px;color:var(--mut2)}
-.protools__list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.protools__list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 .protool{display:flex;align-items:center;gap:8px;min-width:0;padding:10px 12px;
   color:var(--fg);text-decoration:none;transition:background .14s}
 .protool+.protool{border-left:1px solid var(--bd)}
@@ -1748,40 +1751,23 @@ a.pstep:hover{background:#f2f6fd}
                           <a class="building-task<?= $s5 ? ' is-done' : ($nowStep===6 ? ' is-now' : '') ?>" href="<?=h($url('/train.php'))?>">
                             <span class="building-task__no">6</span><span>소방훈련·교육</span><small><?= $s5 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '연간' ?></small>
                           </a>
+
+                          <?php if ($isPro): ?>
+                            <button type="button" class="building-task" data-education-open aria-haspopup="dialog" aria-controls="building-education-dialog"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v15M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v15h-5a5 5 0 0 0-4 1 5 5 0 0 0-4-1H3z"/></svg></span><span>소방교육 자료</span><small>PRO</small></button>
+                          <?php else: ?>
+                            <div class="building-task building-task--locked" aria-disabled="true"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v15M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v15h-5a5 5 0 0 0-4 1 5 5 0 0 0-4-1H3z"/></svg></span><span>소방교육 자료</span><small>PRO</small></div>
+                          <?php endif; ?>
                           <a class="building-task<?= $s6 ? ' is-done' : ($nowStep===7 ? ' is-now' : '') ?>" href="<?=h($url('/evacuation_plan.php'))?>">
                             <span class="building-task__no">7</span><span>피난계획</span><small><?= $s6 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '미진행' ?></small>
                           </a>
                           <a class="building-task<?= $nowStep===8 ? ' is-now' : '' ?>" href="<?=h($url('/fire_plan.php'))?>">
                             <span class="building-task__no">8</span><span>소방계획서</span><small>상시</small>
                           </a>
+
                           <?php if ($isPro): ?>
-                            <div class="building-tasknav__pro-title"><b>PRO 확장 업무</b><span>구독 중</span></div>
-                            <a class="building-task building-task--pro" href="<?=h($url('/ar.php'))?>">
-                              <span class="building-task__no">P1</span><span>피난 시뮬레이션</span><small>PRO</small>
-                            </a>
-                             <a class="building-task building-task--pro" href="<?=h($url('/ar.php'))?>">
-                              <span class="building-task__no">P1</span><span> 소방교육 자료 </span><small>PRO</small>
-                            </a>
-                            <a class="building-task building-task--pro" href="<?=h($url('/notifications.php'))?>">
-                              <span class="building-task__no">P2</span><span>자동 업무 알림</span><small>PRO</small>
-                            </a>
-                            <a class="building-task building-task--pro" href="<?=h($url('/print_all.php'))?>">
-                              <span class="building-task__no">P3</span><span>서류 전체 인쇄</span><small>PRO</small>
-                            </a>
+                            <a class="building-task" href="<?=h($url('/print_all.php'))?>"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8V3h12v5M6 17H3V9h18v8h-3M6 14h12v7H6zM17 11h1"/></svg></span><span>서류 전체 인쇄</span><small>PRO</small></a>
                           <?php else: ?>
-                            <div class="building-tasknav__pro-title"><b>PRO 확장 업무</b><span>PRO로 더 할 수 있어요</span></div>
-                            <div class="building-task building-task--pro building-task--locked" aria-disabled="true">
-                              <span class="building-task__no">P1</span><span>피난 시뮬레이션</span><small>PRO</small>
-                            </div>
-                            <div class="building-task building-task--pro building-task--locked" aria-disabled="true">
-                              <span class="building-task__no">P1</span><span>소방교육 자료</span><small>PRO</small>
-                            </div>
-                            <div class="building-task building-task--pro building-task--locked" aria-disabled="true">
-                              <span class="building-task__no">P2</span><span>자동 업무 알림</span><small>준비 중</small>
-                            </div>
-                            <div class="building-task building-task--pro building-task--locked" aria-disabled="true">
-                              <span class="building-task__no">P3</span><span>서류 전체 인쇄</span><small>PRO</small>
-                            </div>
+                            <div class="building-task building-task--locked" aria-disabled="true"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8V3h12v5M6 17H3V9h18v8h-3M6 14h12v7H6zM17 11h1"/></svg></span><span>서류 전체 인쇄</span><small>PRO</small></div>
                           <?php endif; ?>
                           <?php if ($isPro): ?>
                           <div class="pro-mode-status">PRO 업무 모드 <span>· 이용 중</span></div>
@@ -2132,23 +2118,7 @@ a.pstep:hover{background:#f2f6fd}
 
                     </div>
 
-                    <section class="protools" aria-label="PRO 도구">
-                      <div class="protools__head">
-                        <b>PRO TOOLS</b>
-                        <span><?= $isPro ? '모든 기능을 이용할 수 있습니다' : '구독하면 세 기능이 열립니다' ?></span>
-                      </div>
-                      <div class="protools__list">
-                        <a class="protool" href="<?=h($proLink('/ar.php'))?>">
-                          <span class="protool__ic">🔥</span><b>피난 시뮬레이션</b><span class="protool__go">→</span>
-                        </a>
-                        <a class="protool" href="<?=h($proLink('/notifications.php'))?>">
-                          <span class="protool__ic">🔔</span><b>자동알림</b><span class="protool__go">→</span>
-                        </a>
-                        <a class="protool" href="<?=h($proLink('/print_all.php'))?>">
-                          <span class="protool__ic">🖨</span><b>서류 전체 인쇄</b><span class="protool__go">→</span>
-                        </a>
-                      </div>
-                    </section>
+
 
                   </main>
 </div>
@@ -2471,6 +2441,8 @@ document.getElementById('oneStopFrame')?.addEventListener('load', function(){
 
 document.querySelectorAll('a.building-task, .safety-ai__next-link, .one-stop-trigger, a[href="/subscribe_page.php"], a[href^="/subscribe_page.php?"]').forEach(function(link){
   link.addEventListener('click', function(event){
+    // This card has its own modal; do not also open the inline workspace.
+    if (link.hasAttribute('data-evac-editor')) return;
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     const label = link.dataset.oneStopTitle || (link.classList.contains('building-task')
@@ -2724,4 +2696,9 @@ function showQr(id, name){
 <script src="/pro_collaboration.js?v=20260927-price-retention" data-pro="<?=$isPro?'1':'0'?>" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
 <link rel="stylesheet" href="/pro_subscription_popup.css?v=2"><script src="/pro_subscription_popup.js?v=1" defer></script>
 <script src="/building_service_access.js?v=1" data-connected="<?=$proManagerConnected?'1':'0'?>" data-paid="<?=pc_active($__subKey)?'1':'0'?>" defer></script>
+<?php if ($isPro): ?>
+<link rel="stylesheet" href="/building_evac_popup.css?v=1"><script src="/building_evac_popup.js?v=2" defer></script>
+<link rel="stylesheet" href="/building_education.css?v=6-facility-linked">
+<script src="/building_education.js?v=6-facility-linked" data-building-uid="<?=h($viewUid)?>" defer></script>
+<?php endif; ?>
 <?php require __DIR__ . '/_footer.php'; ?>

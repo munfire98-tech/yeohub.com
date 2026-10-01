@@ -18,7 +18,7 @@ try{
  }elseif($method!=='GET'){http_response_code(405);header('Allow: GET, POST');echo '{"ok":false}';exit;}
  ms_sync_notifications($actor,$members);
  $state=mg_read(mg_state_file());$rows=[];$unread=0;
- foreach($state['connection_notifications']??[] as $n){if(!is_array($n)||!$owns($n)||!empty($n['read_at']))continue;$read=false;$unread++;$rows[]=['id'=>$n['id'],'name'=>$n['name'],'kind'=>$n['kind'],'at'=>$n['at'],'read'=>$read,'started_at'=>$n['started_at']??'','period_started_at'=>$n['period_started_at']??'','expires_at'=>$n['expires_at']??''];}
+ foreach($state['connection_notifications']??[] as $n){if(!is_array($n)||!$owns($n)||!empty($n['read_at']))continue;$read=false;$unread++;$rows[]=['id'=>$n['id'],'name'=>$n['name'],'kind'=>$n['kind'],'at'=>$n['at'],'read'=>$read,'test'=>!empty($n['test']),'started_at'=>$n['started_at']??'','period_started_at'=>$n['period_started_at']??'','expires_at'=>$n['expires_at']??''];}
  usort($rows,static fn($a,$b)=>($a['read']<=>$b['read'])?:strcmp($b['at'],$a['at']));
  echo json_encode(['ok'=>true,'unread'=>$unread,'notifications'=>$rows],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
 }catch(Throwable $e){http_response_code(503);echo '{"ok":false,"error":"알림을 불러오지 못했습니다."}';}

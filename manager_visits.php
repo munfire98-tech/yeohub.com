@@ -16,7 +16,11 @@ try{
  if($method==='GET'){
   $month=(string)($_GET['month']??'');if(!preg_match('/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/D',$month))throw new RuntimeException('조회할 월을 확인해 주세요.');
   $data=mg_read($file);$rows=array_values(array_filter($data['visits']??[],fn($r)=>substr($r['date'],0,7)===$month||($r['status']==='completed'&&substr($r['visited_date'],0,7)===$month)));
-  echo json_encode(['ok'=>true,'visits'=>$rows],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;
+  echo json_encode(['ok'=>true,'visits'=>$rows,'days'=>(object)array_filter($data['days']??[],fn($key)=>substr((string)$key,0,7)===$month,ARRAY_FILTER_USE_KEY)],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;
+ }
+ if(($_POST['act']??'')==='save_day'){
+  $day=mg_tx($file,fn(array &$s)=>mvc_save_day($s,$_POST),true);
+  echo json_encode(['ok'=>true,'day'=>$day],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;
  }
  if(($_POST['act']??'')==='undo_batch'){
   $result=mg_tx($file,fn(array &$s)=>mvc_undo_batch($s,(string)($_POST['batch_token']??'')),true);

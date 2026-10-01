@@ -125,6 +125,11 @@ function bf_save_multi(array $inputs,array $included,string $revision,array $opt
    foreach(bf_catalog() as $g)foreach($g[1] as $name){$key=bf_id($name);$v=$inputs[$id][$key]??[];$prior=$scope['items'][$key]??[];
     if(!is_array($v)||!in_array($v['status']??'unknown',['yes','no','unknown'],true))throw new RuntimeException('설치 여부를 확인해 주세요.');
     $row=['status'=>$v['status']??'unknown'];foreach(['quantity'=>40,'location'=>200,'note'=>500] as $field=>$max){$row[$field]=trim((string)($v[$field]??$prior[$field]??''));if(mb_strlen($row[$field])>$max)throw new RuntimeException('시설 정보 길이를 줄여 주세요.');}
+    if($name==='옥내소화전설비'){
+     $type=$v['hydrant_start']??$prior['hydrant_start']??'';
+     if(!is_string($type)||!in_array($type,['','auto','manual','both'],true))throw new RuntimeException('옥내소화전 기동 방식을 확인해 주세요.');
+     $row['hydrant_start']=$row['status']==='yes'?$type:'';
+    }
     $scope['items'][$key]=$row;
    }
   }unset($scope);
@@ -135,9 +140,27 @@ function bf_save_multi(array $inputs,array $included,string $revision,array $opt
   $tmp=tempnam($dir,'.fac-');if(!$tmp||file_put_contents($tmp,"<?php exit; ?>\n".json_encode($out,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR))===false||!rename($tmp,$f))throw new RuntimeException('저장하지 못했습니다.');return $out;
  }finally{if($tmp&&is_file($tmp))unlink($tmp);flock($lock,LOCK_UN);fclose($lock);}
 }
-function bf_summary(array $d):string{if(!empty($d['scopes'])){$parts=[];foreach($d['scopes'] as $scope){if(empty($scope['included']))continue;$one=['items'=>$scope['items']??[]];$c=bf_counts($one);$parts[]='['.$scope['label'].']'."\n".(bf_summary($one)?:'선택한 시설이 없습니다.');}return implode("\n\n",$parts);}$lines=[];foreach(bf_catalog() as $group)foreach($group[1] as $name){$v=$d['items'][bf_id($name)]??[];if(($v['status']??'')==='yes')$lines[]=$name.(!empty($v['quantity'])?' / '.$v['quantity']:'').(!empty($v['location'])?' / '.$v['location']:'').(!empty($v['note'])?' / 메모: '.$v['note']:'');}return implode("\n",$lines);}
+function bf_summary(array $d):string{if(!empty($d['scopes'])){$parts=[];foreach($d['scopes'] as $scope){if(empty($scope['included']))continue;$one=['items'=>$scope['items']??[]];$c=bf_counts($one);$parts[]='['.$scope['label'].']'."\n".(bf_summary($one)?:'선택한 시설이 없습니다.');}return implode("\n\n",$parts);}$lines=[];foreach(bf_catalog() as $group)foreach($group[1] as $name){$v=$d['items'][bf_id($name)]??[];if(($v['status']??'')==='yes')$lines[]=$name.($name==='옥내소화전설비'&&!empty($v['hydrant_start'])?' / '.(['auto'=>'자동 기동 방식','manual'=>'ON·OFF 버튼 방식','both'=>'자동 기동 / ON·OFF 버튼 방식 함께 설치'][$v['hydrant_start']]??''):'').(!empty($v['quantity'])?' / '.$v['quantity']:'').(!empty($v['location'])?' / '.$v['location']:'').(!empty($v['note'])?' / 메모: '.$v['note']:'');}return implode("\n",$lines);}
 function bf_render_reference():void{require_once __DIR__.'/building_info.php';$d=bf_load();$c=bf_counts($d);$query=[];if(!empty($_GET['embed']))$query['embed']='1';if((!empty($_SESSION['is_admin'])||!empty($_SESSION['ID_OK']))&&is_string($_GET['uid']??null))$query['uid']=$_GET['uid'];$url='/building_facilities.php'.($query?'?'.http_build_query($query):'');$e=fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8'); ?>
 <details class="bf-reference" style="margin:14px auto;padding:12px 16px;max-width:1200px;border:1px solid #dce5ed;border-radius:10px;background:#f7fafc;font:13px/1.7 system-ui"><summary style="cursor:pointer">소방시설 현황</summary><p style="white-space:pre-wrap;margin:10px 0"><?=$e(bf_summary($d)?:'선택한 시설이 없습니다.')?></p><p>설치 현황을 참고해 업무를 작성하세요. 점검 결과나 훈련 실시 여부를 자동으로 판단하지 않습니다.</p><a href="<?=$e($url)?>">소방시설 확인·수정 →</a></details>
 <?php }
 
 function bf_reset(string $revision,array $options):array{return bf_save_multi([],['base'],$revision,$options,true);}
+
+/** Education reads the same aligned, included facility scopes as the facility form. */
+function bf_hydrant_education(array $data):array {
+ $rows=[];$modes=[];$unknown=false;$present=false;$key=bf_id('옥내소화전설비');
+ foreach(bf_scopes($data) as $scope){
+  if(empty($scope['included']))continue;
+  $v=$scope['items'][$key]??[];$status=$v['status']??'unknown';$type=$v['hydrant_start']??'';
+  if($status==='no')continue;
+  if($status==='yes'){
+   $present=true;
+   if(in_array($type,['auto','manual'],true))$modes[$type]=true;
+   elseif($type==='both'){$modes['auto']=true;$modes['manual']=true;}
+   else{$type='';$unknown=true;}
+  }else{$type='';$unknown=true;}
+  $rows[]=['label'=>(string)($scope['label']??'기본동'),'status'=>$status,'type'=>$type];
+ }
+ return ['rows'=>$rows,'modes'=>array_keys($modes),'unconfirmed'=>$unknown,'present'=>$present];
+}

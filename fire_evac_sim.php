@@ -887,6 +887,9 @@ const IS_ADMIN  = <?php echo $EVAC_IS_ADMIN ? 'true' : 'false'; ?>;
 const LIB_CSRF  = <?php echo json_encode($EVAC_CSRF); ?>;
 const LIB_API   = '/evac_library_api.php';
 const SAVE_URL  = <?php echo json_encode((string)$EVAC_SAVE_URL); ?>;
+let hostRevision = <?php echo (int)($EVAC_HOST_REVISION ?? 0); ?>;
+const HOST_BUILDINGS = <?php echo json_encode($EVAC_BUILDING_OPTIONS ?? [], JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;
+let hostSourceDong = '';
 const HOST_SCN  = <?php echo json_encode((string)$EVAC_SCENARIO); ?>;
 const EMBED_MAP = <?php echo json_encode((string)$EVAC_MAP); ?>;
 const EMBED_NAME= <?php echo json_encode((string)$EVAC_NAME); ?>;
@@ -2824,7 +2827,7 @@ let rectStart=null, rectNow=null;
 let viewMode = 'iso';                 // 'plan' | 'iso'
 function render(){
   if(viewMode==='iso' && !editMode) renderIso();
-  else renderPlan();
+  else {renderPlan();if(window.besDrawRoutes)window.besDrawRoutes();}
 }
 
 /* =========================================================
@@ -3273,7 +3276,7 @@ let models = {};          // { id: {name, map, scenario, stats, updated} }
 let curId  = null;
 
 /* 관리자는 서버 보관함(LIB_API)을, 그 외에는 브라우저를 쓴다. */
-const USE_LIB = IS_ADMIN && !EMBED;
+const USE_LIB = IS_ADMIN && !EMBED && !HOSTED;
 
 async function libList(){
   const r = await fetch(LIB_API + '?act=list', {credentials:'same-origin'});
@@ -3328,25 +3331,33 @@ function setCloud(txt, cls){
 
 /* 현재 작업 내용을 기록 — 호스트 페이지 안이면 서버로, 아니면 브라우저에 */
 let saveTimer=null;
-async function pushToHost(){
-  const body=new URLSearchParams();
-  body.set('act','save');
-  body.set('map', serializeMap());
-  body.set('meta', JSON.stringify({
-    name: modelName.value.trim(),
-    people:+rPeople.value, spread:+rSpread.value, speed:+rSpeed.value,
-    mix:{...MIX},
-    floors:FLOORS, basements:BASEMENTS,
-    area:diag.area, travel:diag.travel, isolated:diag.isolated,
-  }));
-  try{
-    const r=await fetch(SAVE_URL || location.href,
-      {method:'POST',credentials:'same-origin',body});
-    const j=await r.json();
-    setCloud(j.ok ? ('저장됨 · '+(j.saved||'')) : ('저장 실패 — '+(j.error||'')),
-             j.ok ? '' : 'failed');
-  }catch(e){ setCloud('저장 실패 — 통신 오류','failed'); }
+let hostSaving=null,hostPending=false,hostFailed=false;
+function pushToHost(){
+  hostPending=true;
+  if(hostSaving)return hostSaving;
+  hostSaving=(async()=>{
+    while(hostPending){
+      hostPending=false;
+      const body=new URLSearchParams({act:'save',csrf:LIB_CSRF,revision:String(hostRevision),map:serializeMap(),meta:JSON.stringify({name:modelName.value.trim(),people:+rPeople.value,spread:+rSpread.value,speed:+rSpeed.value,mix:{...MIX},source_dong:hostSourceDong,routes:window.besRoutes||[],room_labels:window.besRoomLabels||[],grade:document.getElementById('selGrade')?.value||'medium'})});
+      setCloud('저장 중…');
+      try{
+        const r=await fetch(SAVE_URL,{method:'POST',credentials:'same-origin',body});const j=await r.json();
+        if(!r.ok||!j.ok)throw new Error(j.error||'저장하지 못했습니다.');
+        hostRevision=j.revision;hostFailed=false;setCloud(dirtyFlag?'변경됨':'저장됨 · '+(j.saved||''),dirtyFlag?'dirty':'');
+      }catch(e){hostFailed=true;hostPending=false;setCloud('저장 실패 — '+e.message,'failed');return false;}
+    }
+    return true;
+  })().finally(()=>{hostSaving=null;});
+  return hostSaving;
 }
+window.buildingEvacFlush=async()=>{
+ if(!HOSTED)return true;
+ clearTimeout(saveTimer);
+ if(dirtyFlag||hostFailed){dirtyFlag=false;await pushToHost();}
+ else if(hostSaving)await hostSaving;
+ if(dirtyFlag)return window.buildingEvacFlush();
+ return !hostFailed;
+};
 
 /* 저장이 끝나기 전에 또 불리면 같은 도면이 여러 번 생성된다.
    진행 중에는 대기시켜두고, 끝나면 마지막 요청 한 번만 다시 보낸다. */
@@ -3420,7 +3431,7 @@ document.addEventListener('visibilitychange', ()=>{
 });
 window.addEventListener('pagehide', flushSave);
 window.addEventListener('beforeunload', e=>{
-  if(!dirtyFlag) return;
+  if(!dirtyFlag&&!(HOSTED&&(hostSaving||hostFailed))) return;
   flushSave();
   e.preventDefault();
   e.returnValue = '';       // 저장이 끝나기 전입니다. 나가시겠습니까?
@@ -4354,6 +4365,7 @@ function restore(txt){
   reset();
   if(editMode) mapTextEl.value=serializeMap();
   syncUndoUI(); runDiagnostics();
+  if(HOSTED)autoSave();
 }
 function undo(){
   if(!undoStack.length) return;
@@ -5035,6 +5047,9 @@ if(HOSTED){
     if(s.people){ rPeople.value=s.people; oPeople.textContent=s.people+'명'; }
     if(s.spread){ rSpread.value=s.spread; oSpread.textContent='×'+(+s.spread).toFixed(1); }
     if(s.speed ){ rSpeed.value =s.speed;  oSpeed.textContent ='×'+(+s.speed ).toFixed(1); }
+    hostSourceDong=s.source_dong||'';
+    if(s.mix)setMix(s.mix,'custom');
+    if(s.grade){const grade=document.getElementById('selGrade');grade.value=s.grade;grade.onchange?.();}
   }catch(e){}
   modelName.readOnly = true;              // 건물명은 기본정보에서 관리
   btnModels.hidden = true;                // 보관함 대신 이 건물 하나
@@ -5119,6 +5134,7 @@ if(_fresh) pushSave();
   });
 })();
 </script>
-<?php require_once __DIR__ . '/admin_quickmemo_widget.php'; ?>
+<?php if ($EVAC_HOST): ?><link rel="stylesheet" href="/building_evac_editor.css?v=text-1"><script src="/building_evac_editor.js?v=text-1"></script><?php else: require_once __DIR__ . '/admin_quickmemo_widget.php'; endif; ?>
+<?php if(!empty($EVAC_HOST)): ?><script src="building_evac_routes.js?v=simple-1"></script><script src="building_evac_simple.js?v=1"></script><script src="building_evac_text.js?v=1"></script><?php endif; ?>
 </body>
 </html>

@@ -17,7 +17,7 @@
  const kind=r=>r.preregistered?'pre':r.subscription?.active?'pro':'linked';
  function matching(r){return(status==='all'||kind(r)===status)&&(month==='all'||(month==='unknown'?!r.approval_month:String(r.approval_month)===month))&&[r.name,r.address].join(' ').toLocaleLowerCase().includes(input.value.trim().toLocaleLowerCase());}
  function emit(fit=false){document.dispatchEvent(new CustomEvent('manager-building-filter',{detail:{fit,selected: selected,uids:rows.filter(r=>matching(r)).map(r=>r.uid)}}));}
- function scrollToMap(){
+ function scrollToMap(animate=true){
    requestAnimationFrame(()=>{
      const target=document.querySelector('.main-cols')||document.querySelector('.focus-map');if(!target)return;
      let topInset=12;
@@ -32,7 +32,7 @@
      const rect=target.getBoundingClientRect();
      const top=Math.max(0,window.scrollY+rect.top-topInset);
      if(Math.abs(window.scrollY-top)<3)return;
-     window.scrollTo({top,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+     window.scrollTo({top,behavior:!animate||matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
    });
  }
  function choose(uid,fromMap=false){selected=uid;render();if(!fromMap)document.dispatchEvent(new CustomEvent('manager-map-focus',{detail:{uid}}));scrollToMap();}
@@ -89,4 +89,10 @@ const count=document.createElement('span');count.className='mb-filter-count';cou
  document.addEventListener('manager-month-filter',e=>{month=String(e.detail.month||'all');selected=null;render();});
  document.addEventListener('manager-buildings-unavailable',()=>{rows=[];selected=null;render();summary.textContent='목록을 불러오지 못했습니다. 새로고침해 주세요.';});
  summary.textContent='건물 목록을 불러오고 있습니다.';
+ // Start with the same all-buildings framing and workspace alignment as “전체”.
+ // Run only on entry; periodic server refreshes must not pull the page back.
+ function alignInitialWorkspace(){render(true);scrollToMap(false);}
+ if(document.readyState==='complete')alignInitialWorkspace();
+ else window.addEventListener('load',alignInitialWorkspace,{once:true});
+
 })();

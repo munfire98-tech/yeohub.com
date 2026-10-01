@@ -35,7 +35,7 @@ dialog.mvc-planner{height:calc(100dvh - 24px);max-height:calc(100dvh - 24px);ove
 .mvc-planner .mvc-map-panel{height:100%;min-height:0;align-self:stretch}.mvc-planner .mvc-map-title{display:flex;flex-direction:row;justify-content:space-between;align-items:center;gap:8px;height:46px;min-height:46px;flex:0 0 46px;padding:7px 10px}.mvc-planner .mvc-map-title>div:first-child{height:auto;min-width:0}.mvc-planner .mvc-map-title small{display:none}.mvc-planner .mvc-map-title h3{height:auto;min-height:0;margin:0;padding:0;font-size:12px;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mvc-planner .mvc-map-actions{height:30px;gap:5px;flex-shrink:0}.mvc-planner .mvc-map-actions button{height:30px;font-size:10px;padding:5px 7px}.mvc-planner .mvc-drag-handle{min-width:115px}.mvc-planner .mvc-plan-map{height:auto;min-height:0;flex:1}.mvc-planner .mvc-map-legend{flex:0 0 auto;padding:7px 10px;font-size:9px;gap:5px 8px}
 .mvc-planner .mvc-calendar-panel{height:100%;min-height:0;overflow:hidden}.mvc-planner .mvc-calendar-panel>section{height:100%;min-height:0;display:flex;flex-direction:column}.mvc-planner .mvc-week{flex:0 0 32px;padding:7px 0}.mvc-planner .mvc-grid{flex:1;min-height:0;height:auto;grid-auto-rows:minmax(0,1fr)}.mvc-planner .mvc-cell,.mvc-planner .mvc-empty,.mvc-planner .mvc-calendar-panel .mvc-cell,.mvc-planner .mvc-calendar-panel .mvc-empty{height:auto;min-height:0;padding:5px;overflow:hidden}.mvc-planner>.mvc-toast{position:absolute;bottom:14px;margin:0;left:50%;transform:translateX(-50%);max-width:calc(100% - 30px)}
 @media(max-width:900px){dialog.mvc-planner{width:calc(100vw - 12px);height:calc(100dvh - 12px);max-height:calc(100dvh - 12px)}.mvc-planner>.mvc-header{padding:8px 12px;min-height:46px}.mvc-planner>.mvc-header h2{font-size:17px}.mvc-planner>.mvc-toolbar{padding:3px 12px;flex-basis:38px}.mvc-planner>.mvc-notice,.mvc-planner>.mvc-notice:empty{margin:0 12px;flex-basis:16px;height:16px;line-height:16px}.mvc-planner>.mvc-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1.2fr);gap:8px;padding:0 10px 10px}.mvc-planner .mvc-map-title{height:40px;min-height:40px;flex-basis:40px;padding:5px 7px}.mvc-planner .mvc-map-title h3{font-size:11px}.mvc-planner .mvc-map-legend{display:none}.mvc-planner .mvc-week{flex-basis:23px;padding:3px 0}.mvc-planner .mvc-cell,.mvc-planner .mvc-empty{padding:2px;gap:2px}.mvc-planner .mvc-cell>b{font-size:10px;line-height:16px;width:18px}.mvc-planner .mvc-calendar-panel .mvc-chip{font-size:9px;padding:1px 3px}.mvc-planner .mvc-cell small{font-size:8px}}
-@media(max-height:650px){.mvc-planner .mvc-cell .mvc-chip:nth-of-type(n+2){display:none}.mvc-planner .mvc-week{flex-basis:22px;padding:3px 0}.mvc-planner .mvc-cell>b{line-height:17px;font-size:10px}.mvc-planner .mvc-cell{gap:2px}}
+@media(max-height:650px){.mvc-planner .mvc-cell .mvc-chip ~ .mvc-chip{display:none}.mvc-planner .mvc-week{flex-basis:22px;padding:3px 0}.mvc-planner .mvc-cell>b{line-height:17px;font-size:10px}.mvc-planner .mvc-cell{gap:2px}}
 
 .mvc-drag-demo{margin:13px 0 10px;padding:15px 12px 11px;border:1px solid #dce7f6;border-radius:12px;background:#f7faff}.mvc-demo-row{display:flex;align-items:center;justify-content:space-between;gap:12px}.mvc-demo-marker{display:flex;align-items:center;gap:8px;border-radius:10px;background:#3974c4;color:#fff;padding:7px 6px 7px 9px;font:600 12px system-ui;min-width:0}.mvc-demo-marker>div{white-space:nowrap}.mvc-demo-marker i{font-style:normal;font-size:12px}.mvc-demo-grip{display:flex;align-items:center;justify-content:center;font-style:normal;font-size:24px;line-height:1;width:29px;height:30px;border:2px solid #fff;border-radius:7px;background:#ffffff30;outline:2px solid #a7c9f7;outline-offset:2px;margin-left:3px}.mvc-demo-arrow{font-size:24px;color:#8eacce;flex-shrink:0}.mvc-demo-day{flex:0 0 49px;text-align:center;padding:5px 6px;border:1px solid #a9c5ed;border-radius:9px;background:#eaf2ff;color:#3f70ad}.mvc-demo-day small{display:block;font-size:9px}.mvc-demo-day b{display:block;font-size:20px}.mvc-drag-demo figcaption{margin-top:12px;color:#8092a8;font-size:10px;text-align:center;line-height:1.7}.mvc-drag-demo figcaption b{color:#3f70ad;margin-right:4px}@media(max-width:420px){.mvc-guide-content{padding:20px}.mvc-guide-content li{gap:9px}.mvc-drag-demo{padding:12px 8px}.mvc-demo-row{gap:7px}.mvc-demo-marker{gap:5px;font-size:11px;padding-left:6px}.mvc-demo-day{flex-basis:40px}.mvc-demo-arrow{font-size:19px}}
 
@@ -67,3 +67,96 @@ dialog.mvc-planner{height:calc(100dvh - 24px);max-height:calc(100dvh - 24px);ove
 .mvc-pin.mvc-approval-glow.mvc-half-year{border-color:#0d9488;box-shadow:0 0 0 3px #ffffffed,0 0 0 5px #5eead499,0 0 22px #14b8a680,0 5px 12px #134e4a35}
 .mvc-pin.mvc-half-year .mvc-pin-approval{background:#0f887e}
 .mvc-record.mvc-half-year .mvc-approval-label{color:#0f887e}
+/* Demonstrate the actual dotted grip: open hand -> grasp -> drag -> release. */
+.mvc-drag-demo{position:relative;overflow:hidden;margin-left:0;margin-right:0;padding-bottom:12px}
+.mvc-drag-demo .mvc-demo-row{padding-bottom:45px}
+.mvc-demo-motion{position:absolute;inset:0;pointer-events:none}
+.mvc-demo-traveler{position:absolute;left:var(--hand-x,100px);top:var(--hand-y,30px);width:52px;height:60px;filter:drop-shadow(0 3px 3px #23395a30)}
+.mvc-demo-traveler svg{position:absolute;inset:0;width:52px;height:60px;fill:#ffe0bd;stroke:#80563b;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.mvc-demo-carried{position:absolute;right:24px;top:-8px;white-space:nowrap;background:#3974c4;border:1px solid #fff;border-radius:7px;padding:5px 8px;color:white;font:600 10px system-ui;opacity:0}
+.mvc-hand-closed{opacity:0}
+.mvc-guide-dialog[open] .mvc-demo-traveler{animation:mvc-hand-travel 4.8s ease-in-out infinite}
+.mvc-guide-dialog[open] .mvc-hand-open{animation:mvc-hand-open 4.8s linear infinite}
+.mvc-guide-dialog[open] .mvc-hand-closed{animation:mvc-hand-grasp 4.8s linear infinite}
+.mvc-guide-dialog[open] .mvc-demo-carried{animation:mvc-hand-carry 4.8s linear infinite}
+.mvc-guide-dialog[open] .mvc-demo-grip{animation:mvc-grip-target 4.8s ease-in-out infinite}
+.mvc-demo-steps{position:relative;height:19px;margin-top:4px}
+.mvc-guide-content .mvc-demo-steps span{position:absolute;inset:0;margin:0;font-size:11px;color:#6c87a8;opacity:0}
+.mvc-guide-dialog[open] .mvc-demo-steps span:nth-child(1){animation:mvc-step-one 4.8s linear infinite}
+.mvc-guide-dialog[open] .mvc-demo-steps span:nth-child(2){animation:mvc-step-two 4.8s linear infinite}
+.mvc-guide-dialog[open] .mvc-demo-steps span:nth-child(3){animation:mvc-step-three 4.8s linear infinite}
+@keyframes mvc-hand-travel{0%,10%{transform:translate(0,8px);opacity:0}16%,30%{transform:translate(0,0);opacity:1}65%,88%{transform:translate(var(--hand-dx,100px),var(--hand-dy,0px));opacity:1}96%,100%{transform:translate(var(--hand-dx,100px),calc(var(--hand-dy,0px) + 8px));opacity:0}}
+@keyframes mvc-hand-open{0%,23%{opacity:1}24%,72%{opacity:0}73%,100%{opacity:1}}
+@keyframes mvc-hand-grasp{0%,23%{opacity:0}24%,72%{opacity:1}73%,100%{opacity:0}}
+@keyframes mvc-hand-carry{0%,28%{opacity:0}30%,72%{opacity:1}76%,100%{opacity:0}}
+@keyframes mvc-grip-target{0%,28%{box-shadow:0 0 0 5px #aacdf775}35%,100%{box-shadow:0 0 0 0 #aacdf700}}
+@keyframes mvc-step-one{0%,29%{opacity:1}30%,100%{opacity:0}}
+@keyframes mvc-step-two{0%,29%{opacity:0}30%,72%{opacity:1}73%,100%{opacity:0}}
+@keyframes mvc-step-three{0%,72%{opacity:0}73%,100%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.mvc-guide-dialog[open] .mvc-drag-demo *{animation:none!important}.mvc-demo-traveler{transform:none;opacity:1}.mvc-hand-open{opacity:1}.mvc-hand-closed,.mvc-demo-carried{opacity:0}.mvc-demo-steps{display:none}}
+/* Visible drag affordance, shared with the entry demonstration. */
+.mvc-pin .mvc-pin-grip,.mvc-demo-grip{display:inline-flex;align-items:center;justify-content:center;gap:4px;flex:0 0 auto;width:auto;min-width:66px;height:31px;box-sizing:border-box;padding:4px 7px;border:1px solid #d4e3f9;border-radius:8px;background:#fff;color:#285b9d;font:700 11px/1 system-ui;box-shadow:0 2px 4px #123b7625;cursor:grab;touch-action:manipulation;user-select:none}
+.mvc-pin-grip>*{pointer-events:none}
+.mvc-pin-grip svg,.mvc-demo-grip svg{flex:none;width:19px;height:22px;fill:#ffdfb9;stroke:#795334;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.mvc-pin .mvc-pin-grip span,.mvc-guide-content .mvc-demo-grip span{display:inline;overflow:visible;margin:0;color:inherit;font:inherit}
+.mvc-pin-grip .mvc-grip-arrow,.mvc-demo-grip .mvc-grip-arrow{font-size:14px!important;color:#7292bb!important}
+.mvc-pin .mvc-pin-grip:hover{background:#edf5ff;border-color:#89b0e2;box-shadow:0 0 0 3px #d3e6ff75}
+.mvc-pin .mvc-pin-grip:focus-visible{outline:3px solid #ffd48b;outline-offset:3px}
+.mvc-pin .mvc-pin-grip:active,.mvc-pin .mvc-pin-grip.mvc-grip-held{cursor:grabbing;background:#d9eaff;box-shadow:inset 0 2px 4px #17457c25}
+.mvc-pin .mvc-pin-grip:disabled{opacity:.55;cursor:wait}
+.mvc-demo-grip{margin-left:2px;outline:2px solid #9fc5f4;outline-offset:2px}
+.mvc-demo-marker{gap:5px}
+@media(pointer:coarse){.mvc-pin .mvc-pin-grip{display:none}}
+.mvc-demo-marker>div{min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* A translucent card demonstrates the route without changing any visit data. */
+.mvc-route-ghost{position:absolute;z-index:2100000;display:flex;align-items:center;gap:9px;max-width:190px;padding:10px 13px;border:1px solid #8bb8ef;border-radius:12px;background:#eff6ffe8;color:#345c8a;box-shadow:0 8px 24px #284f7926;pointer-events:none!important;user-select:none;box-sizing:border-box;will-change:transform,opacity}
+.mvc-route-ghost div{min-width:0}.mvc-route-ghost strong{display:block;max-width:125px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:650 12px/1.5 system-ui}.mvc-route-ghost small{display:block;margin-top:2px;color:#718ba9;font:10px/1.5 system-ui}
+.mvc-route-ghost.mvc-actual-ghost{opacity:.78}
+.mvc-pin-grip .mvc-mouse-icon,.mvc-demo-grip .mvc-mouse-icon,.mvc-route-ghost .mvc-mouse-icon,.mvc-demo-traveler .mvc-mouse-icon{width:21px;height:29px;flex:none;fill:#fff;stroke:#547baa;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.mvc-mouse-icon .mvc-mouse-left{fill:#a7cdf7;stroke:none}.mvc-mouse-icon .mvc-mouse-seam{fill:none}.mvc-mouse-icon .mvc-mouse-wheel{stroke:#386ba6;stroke-width:2.8}
+.mvc-demo-traveler .mvc-mouse-icon{position:absolute;left:14px;top:0;width:28px;height:38px}
+.mvc-demo-carried{background:#edf6ffe6;color:#315e90;border:1px solid #93bdec;box-shadow:0 4px 14px #325a8324;right:24px;top:-9px;padding:7px 10px;border-radius:9px}
+.mvc-guide-dialog[open] .mvc-demo-traveler .mvc-mouse-left{animation:mvc-mouse-press 4.8s linear infinite}
+@keyframes mvc-mouse-press{0%,23%,74%,100%{fill:#dceafa}24%,73%{fill:#4785d0}}
+@media(prefers-reduced-motion:reduce){.mvc-route-ghost:not(.mvc-actual-ghost){display:none}.mvc-guide-dialog[open] .mvc-demo-traveler .mvc-mouse-left{animation:none}}
+
+/* Date-level holidays and notes: compact, separate from visit records. */
+.mvc-day-title-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.mvc-holiday-toggle{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid #eadde0;border-radius:9px;background:#fff8f9;color:#9d5765;font:600 11px system-ui;cursor:pointer;white-space:nowrap}
+.mvc-holiday-toggle input{appearance:auto;width:14px;height:14px;margin:0;accent-color:#bd637b}
+.mvc-day-notes{padding:12px 14px;background:#f7f9fc;border:1px solid #e5ebf3;border-radius:12px;margin:0 0 14px}
+.mvc-day-notes>label{display:flex;align-items:center;gap:9px;color:#425b77;font:600 12px system-ui;margin-bottom:8px}
+.mvc-day-notes>label small{font-weight:400;font-size:10px;color:#8795a7}
+.mvc-day-notes textarea{box-sizing:border-box;display:block;width:100%;min-height:62px;max-height:180px;resize:vertical;border:1px solid #dce4ef;border-radius:8px;padding:9px 10px;background:#fff;color:#344e69;font:12px/1.6 system-ui}
+.mvc-day-notes textarea:focus-visible{outline:2px solid #8eadd7;outline-offset:2px}
+.mvc-day-note-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:9px}
+.mvc-day-note-status{font:11px/1.5 system-ui;color:#627e9b;overflow-wrap:anywhere}
+.mvc-day-note-save{flex-shrink:0;border:1px solid #d5e2f2;border-radius:8px;padding:7px 10px;background:#eaf1fc;color:#3869ab;font:600 11px system-ui;cursor:pointer}
+.mvc-cell{position:relative}.mvc-cell.is-holiday{background:#fff2f4}.mvc-cell.is-holiday>b{color:#b9526c}.mvc-cell.is-holiday.is-selected{background:#ffe9ef;box-shadow:inset 0 0 0 2px #c58ba0}
+.mvc-cell .mvc-day-flags{position:absolute;right:5px;top:7px;display:flex;align-items:center;gap:3px;pointer-events:none}
+.mvc-day-off-mark{font:600 9px/16px system-ui;color:#b6556c;background:#ffe0e8;border-radius:4px;padding:0 3px}
+.mvc-day-memo-mark{display:flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:4px;background:#e8eef9;color:#5f7fb4}.mvc-day-memo-mark svg{width:14px;height:14px}
+@media(max-width:900px){.mvc-cell .mvc-day-flags{right:2px;top:3px;gap:1px}.mvc-day-off-mark{font-size:8px;padding:0 2px;line-height:13px}.mvc-day-memo-mark{width:13px;height:13px}.mvc-day-memo-mark svg{width:12px;height:12px}}
+
+/* Readable memo badges; only newly saved notes glow, at most three cycles. */
+.mvc-cell .mvc-date-line{display:flex;align-items:center;flex-wrap:wrap;gap:3px;width:100%;min-height:23px;flex-shrink:0}
+.mvc-date-line>b{flex-shrink:0;width:23px;line-height:23px;font-size:12px;font-weight:500;text-align:center;border-radius:50%}
+.mvc-cell.is-today .mvc-date-line>b{background:#e7effb;color:#326ac1}
+.mvc-cell.is-holiday .mvc-date-line>b{color:#b9526c}
+.mvc-cell .mvc-day-flags{position:static;display:flex;align-items:center;gap:3px;margin-left:auto}
+.mvc-day-memo-mark{width:auto;height:21px;display:inline-flex;gap:3px;padding:0 5px;box-sizing:border-box;border:1px solid #ecd389;border-radius:6px;background:#fff5cd;color:#8c6517;font:600 10px/1 system-ui;white-space:nowrap}
+.mvc-day-memo-mark svg{width:13px;height:13px;flex-shrink:0}
+.mvc-day-memo-mark.is-just-saved{animation:mvc-memo-glow 1.4s ease-in-out 3}
+@keyframes mvc-memo-glow{0%,100%{box-shadow:0 0 0 0 #edbe4900;background:#fff5cd}50%{box-shadow:0 0 0 2px #edbe4933,0 0 9px #eabd4566;background:#ffe8a0}}
+@media(max-width:900px){.mvc-cell .mvc-date-line{min-height:17px;gap:2px}.mvc-date-line>b{width:17px;line-height:17px;font-size:10px}.mvc-cell .mvc-day-flags{gap:2px}.mvc-day-memo-mark{height:17px;padding:0 3px;font-size:9px;gap:2px}.mvc-day-memo-mark svg{width:11px;height:11px}}
+@media(max-width:600px){.mvc-cell .mvc-date-line{gap:1px}.mvc-date-line>b{width:14px}.mvc-day-memo-mark{padding:0 2px}.mvc-day-memo-mark svg{display:none}.mvc-day-flags:has(.mvc-day-memo-mark) .mvc-day-off-mark{display:none}}
+@media(prefers-reduced-motion:reduce){.mvc-day-memo-mark.is-just-saved{animation:none}}
+
+/* Quick phrases stay secondary to the memo and save action. */
+.mvc-memo-shortcuts{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:7px 0 10px}
+.mvc-memo-shortcuts>button{border:1px solid #dce5ef;border-radius:7px;background:#fff;color:#58718f;padding:6px 9px;font:500 11px/1.3 system-ui;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s}
+.mvc-memo-shortcuts>button:hover{background:#edf4ff;border-color:#b9cee9;color:#3565a3}
+.mvc-memo-shortcuts>button:active{background:#e1edfc}
+.mvc-memo-shortcut-hint{font:11px/1.4 system-ui;color:#a25059}
+.mvc-memo-shortcut-hint:empty{display:none}
+.mvc-form label:has(textarea[name="memo"]){margin-bottom:0}
