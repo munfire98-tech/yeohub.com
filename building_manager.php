@@ -1793,6 +1793,7 @@ a.pstep:hover{background:#f2f6fd}
 <section class="building-support" aria-labelledby="buildingSupportTitle">
                             <h3 id="buildingSupportTitle" class="building-support__title">교육자료 · 인쇄</h3>
                             <div class="building-support__grid">
+<button type="button" class="building-task" data-fmb-open aria-haspopup="dialog" aria-controls="fire-manager-board"><span class="building-task__no" aria-hidden="true">▤</span><span>소방안전관리자 현황표</span><small>인쇄</small></button>
                           <?php if ($isPro): ?>
                             <button type="button" class="building-task" data-education-open aria-haspopup="dialog" aria-controls="building-education-dialog"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v15M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v15h-5a5 5 0 0 0-4 1 5 5 0 0 0-4-1H3z"/></svg></span><span>소방교육 자료</span><small>PRO</small></button>
                           <?php else: ?>
@@ -2739,6 +2740,7 @@ function showQr(id, name){
 <?php endif; ?>
 <link rel="stylesheet" href="/false_alarm.css?v=20261001-print-popup">
 <script src="/false_alarm.js?v=20261001-print-popup" data-uid="<?=h($viewUid)?>" defer></script>
+<?php require __DIR__ . '/fire_manager_board.php'; ?>
 <?php require __DIR__ . '/_footer.php'; ?>
 
 
