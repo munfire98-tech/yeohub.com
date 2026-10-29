@@ -1,11 +1,14 @@
 <?php
 /* 연간 단일 요금제: 69,000원 / 12개월. 기존 결제 내역은 보존합니다. */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 date_default_timezone_set('Asia/Seoul');
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -69,6 +72,8 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
 $sub=sub_read();$status=ap_status($sub);
 $quote=ap_quote($UID,$sub);$checkoutPrice=$quote['amount'];$renewalPrice=$quote['renewal_amount'];$promoEligible=$quote['retain_price'];
 $promoCustomerType=(string)($quote['customer_type']??'');
+$promoMembers=mg_members();$promoManagerUid=mg_connection_manager($promoMembers[$UID]??[],$promoMembers);
+$promoManagerName=($promoManagerUid!==''&&mg_can_view($promoManagerUid,$UID,$promoMembers,mg_read(mg_state_file())))?trim((string)($promoMembers[$promoManagerUid]['nickname']??'')):'';
 $promoNewCustomer=!ap_has_paid($sub,ab_mode());
 $promoConfig=require __DIR__.'/promotion_config.php';
 $promoEnd=trim((string)($promoConfig['ends_on']??''));
@@ -95,6 +100,10 @@ $NAV_MODE = 'account';
 $IS_LOGGED_IN = true;                          // 이 페이지는 이미 위에서 로그인 필수 처리했으므로 항상 true
 $ACCOUNT_NICK = $_SESSION['nickname'] ?? '사용자';
 $ACCOUNT_IS_ADMIN = is_admin();
+    $tbData  = tb_read();
+    $tbCard  = $tbData['card'] ?? [];
+    $hasCard = trim((string)($tbData['billing_key'] ?? '')) !== '';
+
 require __DIR__ . '/_header.php';
 ?>
 <script>
@@ -241,9 +250,14 @@ details.sub-fold{padding:0;overflow:hidden}
 .sub-promo-note--connect{background:#f3f7ff;border-color:#d3def3;color:#334e7b}
 .sub-promo-note--connect .sub-promo-note__icon{background:#4269ac}
 .sub-promo-note a{display:inline-block;margin-top:10px;color:#25599d;text-decoration:underline;text-underline-offset:3px;font-size:13px;font-weight:700}
+
+.checkout-next-heading{margin:0 0 18px}.checkout-next-heading>span{font-size:12px;font-weight:700;color:#386b9e}.checkout-next-heading h2{font-size:22px;line-height:1.4;word-break:keep-all;margin:8px 0}.checkout-next-heading p{font-size:13px;color:#718096;line-height:1.8;margin:0}#checkout-payment-step{scroll-margin-top:88px}#checkout-payment-step:focus{outline:none}.subscription-embedded #checkout-payment-step{scroll-margin-top:16px}
+
+.page-head[hidden]{display:none!important}.checkout-ready{color:#21845f}.checkout-pay-title{font-size:21px;line-height:1.4;letter-spacing:-.6px;margin:0 0 16px;word-break:keep-all}.checkout-pay-price{display:grid;gap:4px;border-radius:12px;background:#f5f8ff;border:1px solid #e2eaf8;padding:16px}.checkout-pay-price>span{font-size:12px;color:#697f9b}.checkout-pay-price strong{font-size:30px;line-height:1.3;color:#203e68;white-space:nowrap}.checkout-pay-price small{font-size:16px;margin-left:4px}.checkout-price-info{margin-top:17px;color:#738197;font-size:12px;line-height:1.7}.checkout-price-info summary{cursor:pointer}.checkout-price-info p{margin:10px 0 0}
 </style>
 
-<header class="page-head">
+<link rel="stylesheet" href="/subscription_mobile.css?v=20261026-back-1">
+<header class="page-head subscription-heading" <?=in_array($status,['none','canceled','expired','refunded','payment_failed'],true)?'hidden':''?>>
   <div class="page-head__inner">
     <div class="page-head__label"><span></span> 구독</div>
     <h1>구독</h1>
@@ -251,38 +265,49 @@ details.sub-fold{padding:0;overflow:hidden}
   </div>
 </header>
 
-<main class="wrap">
-  <p class="subscription-payment-note">카드 등록과 구독 결제를 이 팝업에서 이어서 진행하세요. 카드사 인증만 별도 보안창에서 열립니다.</p>
+<?php if(($_GET['embed']??'')!=='1'): ?><nav class="subscription-mobile-back" aria-label="구독 화면 이동"><a href="/FireDesk.php">← 건물관리로 돌아가기</a></nav><?php endif; ?>
+<main class="wrap subscription-layout">
+<link rel="stylesheet" href="/pro_plan_preview.css?v=20261026-mobile-tabs-2"><script src="/pro_plan_preview.js?v=20261026-1" defer></script>
+<?php if($status!=='active'): ?>
+<section class="pro-plan-showcase" aria-labelledby="pro-plan-sample-title">
+ <div><small>RECORDS TO FIRE SAFETY PLAN</small><h2 id="pro-plan-sample-title">우리 건물의 기록이,<br>한 권의 소방계획서로.</h2><p>작성한 자료가 어떻게 정리되는지 먼저 살펴보세요.<br>표지부터 시설 현황, 피난계획, 조직·임무까지.</p><button type="button" data-pro-plan-preview aria-haspopup="dialog">완성 예시 미리보기 <span aria-hidden="true">↗</span></button><div class="pps-tags">실제 출력 디자인 · A4 인쇄 · PDF 저장</div></div>
+ <div class="pps-book" aria-hidden="true"><em>FIRE SAFETY PLAN</em><strong>2026<br>소방계획서</strong><span>한빛 비즈니스센터</span><i></i><i></i><span>가상 건물 · 완성 예시</span></div>
+</section>
+<?php endif; ?>
+
   <?php if ($flash): ?>
     <div class="sub-flash <?=h($flashType)?>"><?=h($flash)?></div>
   <?php endif; ?>
 
-  <?php if (!$hasUser): ?>
-    <div class="sub-flash err">로그인 정보를 확인할 수 없어 구독 정보를 불러오지 못했습니다. 다시 로그인해 주세요.</div>
-  <?php endif; ?>
 
-  <?php require_once __DIR__ . '/toss_billing.php'; if (!tb_ready()): ?>
-  <!-- 결제키가 아직 설정되지 않은 경우에만 표시 -->
-  <div class="sub-notice">
-    <div class="sub-notice__t">
-      <span class="sub-notice__badge">준비 중</span>
-      결제 시스템을 연동하고 있습니다
-    </div>
-    <p class="sub-notice__d">
-      결제 시스템을 준비하고 있습니다.
-      준비가 완료되면 카드 등록과 구독 결제를 이용할 수 있습니다.
-      문의는 아래 문의하기를 이용해 주세요.
-    </p>
+<?php if($status==='active')require __DIR__.'/invite_checkout_notice.php'; ?>
+<?php if(!$hasCard&&in_array($status,['none','canceled','expired','refunded','payment_failed'],true)): ?>
+<section class="checkout-next-heading"><span>PRO 구독 시작하기</span><h2>카드 등록 후 결제해 주세요</h2><p>카드 등록만으로 결제되지 않습니다. 요금과 자동갱신 안내를 확인한 후 결제해 주세요.</p></section>
+<?php endif; ?>
+  <!-- 플랜 선택 -->
+  <?php if ($hasCard && in_array($status, ['none','canceled','expired','refunded','payment_failed'], true)): ?>
+  <div class="card" id="checkout-payment-step" tabindex="-1">
+    <div class="sub-sec-t">카드 등록 완료 <span class="checkout-ready">✓</span></div><h2 class="checkout-pay-title">구독을 시작할 준비가 됐어요</h2>
+    <form method="post" id="planForm">
+      <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
+      <input type="hidden" name="act" value="subscribe"><input type="hidden" name="offer" value="<?=h(AP_OFFER)?>"><input type="hidden" name="quote_id" value="<?=h($quote['id'])?>">
+      <input type="hidden" name="plan" id="planInput" value="yearly">
+
+      <div class="checkout-pay-price"><span>PRO · 12개월 이용</span><strong><?=number_format($checkoutPrice)?><small>원</small></strong><span>이후 매년 <?=number_format($renewalPrice)?>원 자동갱신</span></div>
+      <label style="display:flex;gap:9px;align-items:flex-start;margin:15px 0;font-size:13px;line-height:1.7"><input type="checkbox" name="renewal_consent" value="<?=h(AB_CONSENT)?>" required style="margin-top:5px"><span>오늘 <?=number_format($checkoutPrice)?>원 결제 후, 자동갱신을 해제하기 전까지 매년 <?=number_format($renewalPrice)?>원이 등록 카드로 결제되는 것에 동의합니다. 갱신 결제 실패 시 총 3회까지 시도하며, 이 화면에서 자동갱신을 해제할 수 있습니다.</span></label>
+      <button class="btn btn--primary" type="submit" style="width:100%;justify-content:center"
+        <?= $hasUser && $hasCard ? '' : 'disabled' ?>><?=$hasCard?number_format($checkoutPrice).'원 결제하기':'카드 등록 후 결제할 수 있습니다'?></button>
+      <details class="checkout-price-info"><summary>프로모션·이용 안내</summary>
+      <p style="font-size:12px;line-height:1.7;color:#64748b">프로모션 대상 고객에게 적용됩니다. 프로모션 기간 중에는 구독 종료 후 다시 구독해도 59,000원이 적용되며, 프로모션 종료 후 구독이 끊긴 상태에서 재구독하면 당시 요금이 적용됩니다. 자동갱신을 꺼도 남은 이용기간은 유지됩니다.</p>
+      <p>모든 PRO 기능을 12개월 동안 이용할 수 있습니다.</p></details>
+    </form>
   </div>
   <?php endif; ?>
 
+
+
   <!-- 카드 등록 (토스페이먼츠 자동결제) -->
-  <?php
-    $tbData  = tb_read();
-    $tbCard  = $tbData['card'] ?? [];
-    $hasCard = trim((string)($tbData['billing_key'] ?? '')) !== '';
-  ?>
-  <details class="card sub-fold" <?=!$hasCard?'open':''?>>
+  <details id="checkout-card-step" class="card sub-fold" <?=!$hasCard?'open':''?>>
     <summary><span class="sub-fold__title">결제카드 관리</span><span class="sub-fold__hint"><?=$hasCard?'등록된 카드 확인·변경':'카드 등록 필요'?></span></summary>
     <div class="sub-fold__body">
     <div class="sub-sec-t">결제 카드</div>
@@ -320,6 +345,44 @@ details.sub-fold{padding:0;overflow:hidden}
     <?php endif; ?>
     </div>
 
+  <?php if($promoEligible): ?>
+  <section class="sub-promo-note" aria-label="적용된 프로모션">
+    <span class="sub-promo-note__icon" aria-hidden="true">✓</span>
+    <div><strong><?=$promoCustomerType==='local_manager'?'로컬 파트너 연결 프로모션':'사전등록 고객 프로모션'?></strong>
+    <?php if($promoManagerName!==''): ?><p>연결된 업체 · <b><?=h($promoManagerName)?></b></p><?php endif; ?>
+    <p>프로모션 이용 요금 <b>연 <?=number_format($checkoutPrice)?>원</b><br>소방안전관리 업무를 이어가며 구독을 유지하는 동안, 프로모션 종료 후에도 매년 59,000원으로 이용할 수 있습니다.</p>
+    <small>프로모션 대상 고객에게 적용됩니다. 프로모션 기간 중에는 구독 종료 후 다시 구독해도 59,000원이 적용되며, 프로모션 종료 후 구독이 끊긴 상태에서 재구독하면 당시 요금이 적용됩니다.</small></div>
+  </section>
+  <?php elseif($promoNewCustomer&&$promoOpen): ?>
+  <section class="sub-promo-note sub-promo-note--connect" aria-label="파트너 연결 프로모션 안내">
+    <span class="sub-promo-note__icon" aria-hidden="true">＋</span>
+    <div><strong>파트너와 먼저 연결하고 프로모션 혜택을 받으세요</strong>
+    <p>연결 업체의 사전등록 거래처와 연결하거나, 로컬 파트너의 연결 수락을 받으면 프로모션 대상이 될 수 있습니다.<br>프로모션 기간에 구독하면 <b>연 <?=number_format(AP_PROMO_PRICE)?>원</b>으로 시작하고, 소방안전관리 업무를 이어가며 구독을 유지하는 동안 같은 가격으로 이용할 수 있습니다.</p>
+    <small>요청 대기 중에는 적용되지 않습니다. 연결 완료 후 이 화면을 다시 열어 적용 가격을 확인해 주세요.</small>
+    <a href="/FireDesk.php#manager-connect" target="_top">담당·로컬 파트너 연결 확인하기 →</a></div>
+  </section>
+  <?php endif; ?>
+
+  <p class="subscription-payment-note">카드 등록 후 구독 결제를 진행해 주세요. 카드 인증은 토스 화면에서 안전하게 진행됩니다.</p>
+  <?php if (!$hasUser): ?>
+    <div class="sub-flash err">로그인 정보를 확인할 수 없어 구독 정보를 불러오지 못했습니다. 다시 로그인해 주세요.</div>
+  <?php endif; ?>
+
+  <?php require_once __DIR__ . '/toss_billing.php'; if (!tb_ready()): ?>
+  <!-- 결제키가 아직 설정되지 않은 경우에만 표시 -->
+  <div class="sub-notice">
+    <div class="sub-notice__t">
+      <span class="sub-notice__badge">준비 중</span>
+      결제 시스템을 연동하고 있습니다
+    </div>
+    <p class="sub-notice__d">
+      결제 시스템을 준비하고 있습니다.
+      준비가 완료되면 카드 등록과 구독 결제를 이용할 수 있습니다.
+      문의는 아래 문의하기를 이용해 주세요.
+    </p>
+  </div>
+  <?php endif; ?>
+
   <?php if (tb_ready()): ?>
   <script>
     /* 카드 등록창을 띄웁니다.
@@ -327,6 +390,26 @@ details.sub-fold{padding:0;overflow:hidden}
        거기서 빌링키를 발급받아 저장합니다. */
     let cardAuthWindow=null;
     function registerCard(){
+      try{sessionStorage.setItem('sobang-card-return','1');}catch(e){}
+      const inviteFlow=<?=json_encode(($promoMembers[$UID]['joined_via']??'')==='manager_qr')?>;
+      const mobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+        || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1)
+        || window.top.matchMedia('(max-width:760px)').matches;
+      if(inviteFlow || mobile){
+        const params=new URLSearchParams();
+        if(inviteFlow)params.set('invite_flow','1');
+        else {
+          params.set('mobile_flow','1');
+          if(new URLSearchParams(location.search).get('pro_popup')==='1')params.set('pro_popup','1');
+        }
+        // Keep the PRO guide open while mobile Toss authentication owns its own browser window.
+        params.set('auth_window','1');
+        if(cardAuthWindow&&!cardAuthWindow.closed){cardAuthWindow.focus();return;}
+        cardAuthWindow=window.open('/pro_card_auth.php?'+params.toString(),'sobangProCardAuth');
+        if(!cardAuthWindow){alert('카드 입력 화면은 별도 창으로 열립니다. 브라우저에서 이 사이트의 팝업을 허용한 뒤 다시 눌러 주세요.');return;}
+        cardAuthWindow.focus();
+        return;
+      }
       if(cardAuthWindow&&!cardAuthWindow.closed){cardAuthWindow.focus();return;}
       const host=window.top;
       const width=Math.min(1000,screen.availWidth),height=Math.min(820,screen.availHeight);
@@ -470,58 +553,16 @@ details.sub-fold{padding:0;overflow:hidden}
   <?php if(!empty($sub['auto_renew'])&&($sub['renewal_consent']['version']??'')!==AB_CONSENT): ?>
   <p class="card">요금 정책이 변경되어 기존 자동결제 동의는 적용되지 않습니다. 현재 이용기간은 유지되며, 다음 갱신을 원하시면 표시된 갱신 금액에 다시 동의해 주세요.</p>
   <?php endif; ?>
-  <?php if($promoEligible): ?>
-  <section class="sub-promo-note" aria-label="적용된 프로모션">
-    <span class="sub-promo-note__icon" aria-hidden="true">✓</span>
-    <div><strong><?=$promoCustomerType==='local_manager'?'로컬 매니저 연결 고객 혜택이 적용되었습니다':'사전등록 고객 프로모션이 적용되었습니다'?></strong>
-    <p>프로모션 이용 요금 <b>연 <?=number_format($checkoutPrice)?>원</b><br>소방안전관리 업무를 이어가며 구독을 유지하는 동안, 프로모션 종료 후에도 매년 59,000원으로 이용할 수 있습니다.</p>
-    <small>프로모션 대상 고객에게 적용됩니다. 프로모션 기간 중에는 구독 종료 후 다시 구독해도 59,000원이 적용되며, 프로모션 종료 후 구독이 끊긴 상태에서 재구독하면 당시 요금이 적용됩니다.</small></div>
-  </section>
-  <?php elseif($promoNewCustomer&&$promoOpen): ?>
-  <section class="sub-promo-note sub-promo-note--connect" aria-label="매니저 연결 프로모션 안내">
-    <span class="sub-promo-note__icon" aria-hidden="true">＋</span>
-    <div><strong>매니저와 먼저 연결하고 프로모션 혜택을 받으세요</strong>
-    <p>담당 매니저의 사전등록 거래처와 연결하거나, 로컬 매니저의 연결 수락을 받으면 프로모션 대상이 될 수 있습니다.<br>프로모션 기간에 구독하면 <b>연 <?=number_format(AP_PROMO_PRICE)?>원</b>으로 시작하고, 소방안전관리 업무를 이어가며 구독을 유지하는 동안 같은 가격으로 이용할 수 있습니다.</p>
-    <small>요청 대기 중에는 적용되지 않습니다. 연결 완료 후 이 화면을 다시 열어 적용 가격을 확인해 주세요.</small>
-    <a href="/building_manager.php#manager-connect" target="_top">담당·로컬 매니저 연결 확인하기 →</a></div>
-  </section>
-  <?php endif; ?>
-  <!-- 플랜 선택 -->
-  <?php if (in_array($status, ['none','canceled','expired','refunded','payment_failed'], true)): ?>
-  <div class="card">
-    <div class="sub-sec-t">요금제 선택</div>
-    <form method="post" id="planForm">
-      <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
-      <input type="hidden" name="act" value="subscribe"><input type="hidden" name="offer" value="<?=h(AP_OFFER)?>"><input type="hidden" name="quote_id" value="<?=h($quote['id'])?>">
-      <input type="hidden" name="plan" id="planInput" value="yearly">
-
-      <div class="sub-plans">
-        <!-- 연 -->
-        <label class="sub-plan sel" data-plan="yearly" onclick="pickPlan('yearly')">
-          <span class="sub-plan__badge"><?=$promoEligible?'초기 고객 가격 유지':'12개월 이용'?></span>
-          <div class="sub-plan__name"><?=h($yearly['name'])?></div>
-          <div class="sub-plan__price">
-            <span class="sub-plan__num"><?=number_format($yearly['price'])?></span>
-            <span class="sub-plan__unit">원 / <?=h($yearly['period'])?></span>
-            
-          </div>
-          <div class="sub-plan__sub">매년 <?=number_format($renewalPrice)?>원 자동결제 · 12개월 이용</div>
-          <ul class="sub-plan__list">
-            <li>모든 기능 사용</li>
-            <li>연간 단일 요금제</li>
-            <li><?=$promoEligible?'프로모션 종료 후에도 구독 유지 시 같은 가격':'12개월 이용'?></li>
-          </ul>
-        </label>
-      </div>
-
-      <p style="font-size:12px;line-height:1.7;color:#64748b">프로모션 대상 고객에게 적용됩니다. 프로모션 기간 중에는 구독 종료 후 다시 구독해도 59,000원이 적용되며, 프로모션 종료 후 구독이 끊긴 상태에서 재구독하면 당시 요금이 적용됩니다. 자동갱신을 꺼도 남은 이용기간은 유지됩니다.</p>
-      <label style="display:flex;gap:9px;align-items:flex-start;margin:15px 0;font-size:13px;line-height:1.7"><input type="checkbox" name="renewal_consent" value="<?=h(AB_CONSENT)?>" required style="margin-top:5px"><span>오늘 <?=number_format($checkoutPrice)?>원 결제 후, 자동갱신을 해제하기 전까지 매년 <?=number_format($renewalPrice)?>원이 등록 카드로 결제되는 것에 동의합니다. 갱신 결제 실패 시 총 3회까지 시도하며, 이 화면에서 자동갱신을 해제할 수 있습니다.</span></label>
-      <button class="btn btn--primary" type="submit" style="width:100%;justify-content:center"
-        <?= $hasUser && $hasCard ? '' : 'disabled' ?>><?=$hasCard?number_format($checkoutPrice).'원 결제하기':'카드 등록 후 결제할 수 있습니다'?></button>
-    </form>
-  </div>
-  <?php endif; ?>
-
+  <script>
+(()=>{
+ const target=document.getElementById('checkout-payment-step');
+ let returned=false;try{returned=sessionStorage.getItem('sobang-card-return')==='1';sessionStorage.removeItem('sobang-card-return');}catch(e){}
+ if(target){const heading=document.querySelector('.checkout-next-heading h2');if(heading)heading.textContent='이제 구독 결제만 하면 됩니다';}
+ if(!target)return;
+ function reveal(){target.scrollIntoView({block:'start',behavior:'auto'});target.focus({preventScroll:true});}
+ if(document.readyState==='complete')reveal();else window.addEventListener('load',reveal,{once:true});
+})();
+</script>
   <!-- 결제 내역 -->
   <details class="card sub-fold">
     <summary><span class="sub-fold__title">신청 · 결제 내역</span><span class="sub-fold__hint"><?=count((array)($sub['history'] ?? []))?>건</span></summary>
@@ -553,7 +594,7 @@ details.sub-fold{padding:0;overflow:hidden}
     <div class="sub-faq">
       <div>
         <div class="sub-faq__q">결제는 어떻게 이루어지나요?</div>
-        <div class="sub-faq__a">프로모션 기간에 구독하고, 연 59,000원 혜택을 계속 누리세요. 소방안전관리 업무를 이어가며 구독을 유지하는 동안, 프로모션 종료 후에도 매년 59,000원으로 이용할 수 있습니다. 사전등록 거래처 또는 로컬 매니저 연결이 완료된 프로모션 대상 고객에게 적용됩니다. 프로모션 대상 고객에게 적용됩니다. 프로모션 기간 중에는 구독 종료 후 다시 구독해도 59,000원이 적용되며, 프로모션 종료 후 구독이 끊긴 상태에서 재구독하면 당시 요금이 적용됩니다. 자동갱신을 해제하면 다음 청구가 중단되고 남은 기간까지 이용할 수 있습니다.
+        <div class="sub-faq__a">프로모션 기간에 구독하고, 연 59,000원 혜택을 계속 누리세요. 소방안전관리 업무를 이어가며 구독을 유지하는 동안, 프로모션 종료 후에도 매년 59,000원으로 이용할 수 있습니다. 사전등록 거래처 또는 로컬 파트너 연결이 완료된 프로모션 대상 고객에게 적용됩니다. 프로모션 기간 중에는 구독 종료 후 다시 구독해도 59,000원이 적용되며, 프로모션 종료 후 구독이 끊긴 상태에서 재구독하면 당시 요금이 적용됩니다. 자동갱신을 해제하면 다음 청구가 중단되고 남은 기간까지 이용할 수 있습니다.
           결제는 토스페이먼츠 시스템에서 처리되며, 카드번호는 저희 서버에 저장되지 않습니다.
           결제사가 발급한 결제키만 보관합니다.</div>
       </div>

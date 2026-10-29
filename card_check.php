@@ -6,11 +6,14 @@
    확인이 끝나면 이 파일은 지우시면 됩니다.
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 if (!ini_get('date.timezone')) date_default_timezone_set('Asia/Seoul');
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']);
-session_start();
+alp_session_start();
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {

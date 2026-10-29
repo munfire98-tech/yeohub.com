@@ -5,9 +5,12 @@
    비용이 들지 않고, 정해둔 문장만 나오므로 오답이 없습니다.
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
-if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
+if (session_status() !== PHP_SESSION_ACTIVE) { alp_session_start(); }
 
 require_once __DIR__ . '/assist_flows.php';
 
@@ -155,7 +158,7 @@ button{font:inherit;color:inherit;cursor:pointer}
     <a class="brand" href="/index.php">TWORIX</a>
     <div style="display:flex;gap:8px;align-items:center">
       <?php if ($LOGGED): ?>
-        <a class="btn" href="/building_manager.php">← 메인</a>
+        <a class="btn" href="/FireDesk.php">← 메인</a>
       <?php else: ?>
         <a class="btn" href="/index.php">서비스 소개</a>
       <?php endif; ?>

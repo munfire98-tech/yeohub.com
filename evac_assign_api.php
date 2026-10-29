@@ -9,6 +9,9 @@
  *        → 연결 해제 (다른 회원이 안 쓰면 모델 파일도 삭제)
  */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 /* admin_members.php와 동일한 세션 설정 (같은 세션을 봐야 함) */
 
@@ -27,7 +30,7 @@ if (PHP_VERSION_ID >= 70300) {
     'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
   ]);
 }
-session_start();
+alp_session_start();
 
 require_once __DIR__ . '/evac_common.php';
 

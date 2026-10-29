@@ -1,0 +1,47 @@
+/* Compact controls shared by desktop and mobile walkthroughs. */
+.pwt-playback{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:12px 22px;background:#f7faff;border-top:1px solid #dce5f1;color:#52647c;font-size:12px}
+.pwt-playback>label:first-child{flex:1;min-width:140px}.pwt-playback output{float:right;font-variant-numeric:tabular-nums}.pwt-playback input[type=range]{display:block;width:100%;height:22px;margin:4px 0 0;accent-color:#2865c5;cursor:pointer;touch-action:pan-y}
+.pwt-speed{display:flex;align-items:center;gap:8px}.pwt-speed select{padding:7px;border:1px solid #ccd9ea;border-radius:8px;color:#23466f;background:white;font-size:16px}.pwt-playback [data-pwt-seeking]{width:100%;color:#245eb0}.pwt-dialog.is-seeking .pwt-view{opacity:.35;pointer-events:none}.pwt-dialog.is-seeking [data-pwt-pause]{opacity:.45;pointer-events:none}
+@media(max-width:640px){.pwt-playback{padding:8px 12px;gap:10px}.pwt-speed{font-size:11px}}
+
+.pwt-playback{flex-shrink:0}
+.pwt-speed{flex-shrink:0;white-space:nowrap}
+.pwt-dialog .pwt-pause-notice{inset:8px 12px auto auto;flex-direction:row;gap:10px;padding:8px 12px;background:#fff8e6;border:1px solid #ead29d;border-radius:12px;backdrop-filter:none;box-shadow:0 3px 12px #27374b12}.pwt-dialog .pwt-pause-notice strong{font-size:12px}.pwt-dialog .pwt-pause-notice span{display:none}.pwt-dialog .pwt-pause-notice button{font-size:12px;padding:6px 10px}
+
+/* One mobile-width stage on every device: the same guide, not a second PC flow. */
+.pwt-dialog{width:min(780px,calc(100vw - 24px));height:calc(100dvh - 24px);max-height:1000px}
+.pwt-layout{grid-template-columns:220px minmax(0,1fr);background:#e9eef5}
+.pwt-view{width:min(100%,414px);justify-self:center;border-inline:1px solid #d7e0ed;background:white;overflow:hidden}
+.pwt-rail{padding:20px 16px}.pwt-steps{gap:10px;margin:18px 0}.pwt-rail h3{font-size:18px}
+.pwt-entry{padding:20px}.pwt-entry h3{font-size:21px}.pwt-dialog .pd-head strong{font-size:14px}
+@media(max-width:760px){.pwt-dialog{width:calc(100vw - 12px);height:calc(100dvh - 12px)}.pwt-layout{grid-template-columns:1fr}.pwt-view{width:100%;max-width:414px}.pwt-footer{gap:8px}.pwt-caption strong{font-size:13px}.pwt-caption small{font-size:12px}.pwt-controls{margin-left:auto}.pwt-playback{padding:6px 12px}.pwt-dialog .pd-head{padding:10px 12px}}
+
+/* Pause status lives beside the transport, never on top of the scene. */
+.pwt-dialog .pwt-pause-notice{display:none!important}
+.pwt-dialog.is-paused .pwt-caption::before{content:'Ⅱ 일시정지';display:inline-block;margin-bottom:4px;font-size:10px;font-weight:700;color:#89611c}
+@media(min-width:761px){
+ .pwt-layout{padding:18px 22px 18px 0;gap:20px;grid-template-columns:200px minmax(0,1fr)}
+ .pwt-view{box-sizing:border-box;width:min(100%,380px);border:7px solid #253044;border-top-width:25px;border-bottom-width:20px;border-radius:34px;box-shadow:0 12px 30px #18283e26;background:#fff;isolation:isolate}
+ .pwt-view::before{content:'';position:absolute;top:-18px;left:50%;transform:translateX(-50%);width:64px;height:7px;background:#101828;border-radius:8px;z-index:200}
+ .pwt-view iframe{border-radius:22px}.pwt-entry{border-radius:22px}.pwt-rail{padding:4px 16px}
+}
+
+@media(min-width:761px){.pwt-view{align-self:center;max-width:none;flex-shrink:0}.pwt-view iframe,.pwt-view .pwt-entry{position:absolute;inset:0;width:390px;height:720px;max-width:none;box-sizing:border-box;transform:scale(var(--phone-scale,1));transform-origin:top left}.pwt-view::after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:60px;height:4px;border-radius:9px;background:#b6bfce;pointer-events:none}}
+
+/* Keep text at native size on PC. Only the side rails suggest a phone. */
+@media(min-width:761px){.pwt-dialog{width:min(1120px,calc(100vw - 32px))}.pwt-layout{grid-template-columns:190px minmax(0,1fr);padding:12px 18px 12px 0;gap:14px}.pwt-view{width:100%;height:100%;align-self:stretch;border:0;border-left:7px solid #253044;border-right:7px solid #253044;border-radius:22px;max-width:none}.pwt-view iframe,.pwt-view .pwt-entry{position:absolute;inset:0;width:100%;height:100%;transform:none;border-radius:15px}.pwt-view::before,.pwt-view::after{display:none}}
+
+/* The calendar scene needs the same useful map area as the real mobile planner. */
+@media(max-width:760px){
+ .pwt-dialog.pwt-visit-scene{width:100%;height:100dvh;max-height:100dvh;border-radius:0;inset:0!important;transform:none!important;left:0!important;top:0!important}
+ .pwt-visit-scene .pd-head{padding:5px 10px;min-height:30px}.pwt-visit-scene .pd-head strong{font-size:11px}.pwt-visit-scene .pd-demo-badge{display:none}.pwt-visit-scene .pd-close{width:28px;height:28px;font-size:20px}
+ .pwt-visit-scene .pwt-view{max-width:none;border:0}.pwt-visit-scene .pwt-playback{padding:3px 10px;gap:8px;font-size:10px}.pwt-visit-scene .pwt-playback input[type=range]{height:16px;margin-top:0}.pwt-visit-scene .pwt-speed select{padding:3px;font-size:14px}
+ .pwt-visit-scene .pwt-footer{padding:5px 10px;flex-wrap:nowrap;gap:8px}.pwt-visit-scene .pwt-caption{flex:1;min-width:0;flex-basis:auto}.pwt-visit-scene .pwt-caption strong{font-size:11px;line-height:1.4}.pwt-visit-scene .pwt-caption small{display:none}.pwt-visit-scene .pwt-caption::before{display:none!important}.pwt-visit-scene .pwt-controls{margin:0}.pwt-visit-scene [data-pwt-replay]{display:none}.pwt-visit-scene .pwt-controls button{padding:7px 9px}
+}
+
+/* Keep the desktop planner inside the existing example viewport. */
+@media(min-width:761px){
+ .pwt-dialog.pwt-visit-scene{width:min(1120px,calc(100vw - 32px));height:calc(100dvh - 24px);max-height:1000px}
+ .pwt-visit-scene .pwt-layout{grid-template-columns:190px minmax(0,1fr);padding:12px 18px 12px 0;gap:14px;min-height:0}
+ .pwt-visit-scene .pwt-view{min-height:0;overflow:hidden}
+}

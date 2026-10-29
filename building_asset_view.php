@@ -25,7 +25,7 @@ header('Cache-Control: no-store');
 </main>
 <script>
 window.buildingInfoDirty=false;
-window.buildingInfoRequestClose=function(){if(window.parent!==window)window.parent.postMessage({type:'building-info-close'},location.origin);else location.href=<?=json_encode($url('/building_manager.php'),JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;};
+window.buildingInfoRequestClose=function(){if(window.parent!==window)window.parent.postMessage({type:'building-info-close'},location.origin);else location.href=<?=json_encode($url('/FireDesk.php'),JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;};
 window.buildingInfoPrint=function(){window.focus();window.print();};
 document.addEventListener('keydown',function(e){if(e.key==='Escape')buildingInfoRequestClose();});
 const savedAsset=<?=json_encode($payload,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_THROW_ON_ERROR)?>;

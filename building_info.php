@@ -7,6 +7,7 @@ declare(strict_types=1);
 @include_once __DIR__ . '/_imp.php';
 
 require_once __DIR__ . '/user_key.php';
+require_once __DIR__.'/building_dong_names.php';
 
 /** 사용자 키.
  *  회원을 특정하지 못하면 '' 를 돌려줍니다.
@@ -126,6 +127,8 @@ function bi_blank(): array {
     'bd_energy'   => '',   // 에너지효율등급 (engrGrade)
     'bd_road_addr'=> '',   // 도로명대지위치 (newPlatPlc)
     'bd_dongs'    => '',   // 여러 동일 때 동별 층수·구조 (한 줄에 한 동)
+    'bd_floor_manual'=> [], // 동별·층별 면적/용도/구조 직접 입력 · 대장 원본 보존
+    'bd_dong_names'=> [], // 사용자 지정 표시 이름. 대장 원본·동별 기록 식별자는 유지
     'bd_dong_list'=> [],   // 건축물대장에서 조회한 동별 상세 목록
     'bd_dong_pick'=> '',   // 대표 기준동(연면적이 가장 큰 동)
     'bd_looked'   => '',   // 자동조회 시각 (YYYY-mm-dd HH:ii:ss)
@@ -188,6 +191,9 @@ function bi_save(array $d, bool $resetFacilities = false): bool {
     if ($k === 'mgrs') continue;
     $out[$k] = is_string($v) ? trim((string)($d[$k] ?? '')) : ($d[$k] ?? $v);
   }
+  $out['bd_dong_names']=bdn_clean_names($out);
+  require_once __DIR__.'/building_floor_common.php';
+  $out['bd_floor_manual']=bfl_clean_manual($out);
   // 등급 검증
   if (!in_array($out['grade'], ['특급','1급','2급','3급'], true)) $out['grade'] = '';
 
@@ -229,7 +235,9 @@ function bi_save(array $d, bool $resetFacilities = false): bool {
   $legacy['note_etc']    = $out['note_etc'];
   bi_write_json(bi_legacy_file(), $legacy);
 
-  return bi_write_json(bi_file(), $out, $resetFacilities);
+  $saved=bi_write_json(bi_file(), $out, $resetFacilities);
+  if($saved){require_once __DIR__.'/fire_plan_auto_sync.php';fpa_queue();}
+  return $saved;
 }
 
 /** 입력 완료 여부 (대상명 기준 — 기존 호환용) */

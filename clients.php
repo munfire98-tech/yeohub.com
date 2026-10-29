@@ -1,6 +1,9 @@
 <?php
 // clients.php — 등록/목록/편집/코멘트(추가/삭제) + 업무(할 일) 패널 + 접힘형 신규등록 폼 + 업무 개수 배지 + CSRF + 검색 + 디버그
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 /* ── 30일 로그인 유지 ── */
 $SESSION_TTL = 60 * 60 * 24 * 30;
@@ -15,7 +18,7 @@ if (PHP_VERSION_ID >= 70300) {
     'samesite' => 'Lax',
   ]);
 }
-session_start();
+alp_session_start();
 
 /* ── 헬퍼 ── */
 function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }

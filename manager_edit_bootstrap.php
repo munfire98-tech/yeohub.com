@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 function mge_routes(): array {
-    return ['building_facilities.php','building_manager.php','building_setup.php','building_setup_chat.php',
+    return ['building_facilities.php','building_multi_use.php','FireDesk.php','building_setup.php','building_setup_chat.php',
     'work_log.php','work_log_form.php','work_log_print.php','jawi.php','jawi_edit.php','jawi_chat.php','jawi_print.php',
     'train.php','train_edit.php','train_chat.php','train_print.php','train_photo.php',
     'evacuation_plan.php','evacuation_plan_chat.php','evac_view.php','evac_assign_api.php',
-    'fire_plan.php','fire_plan_new.php','fire_plan_edit.php','fire_plan_chat.php','fire_plan_jawi.php','fire_plan_print.php',
+    'flame_retardant_api.php','fire_plan_share_api.php','fire_plan_schedule.php','fire_plan.php','fire_plan_new.php','fire_plan_edit.php','fire_plan_chat.php','fire_plan_jawi.php','fire_plan_print.php','fire_plan_book.php',
     'print_all.php','safety_ai_api.php','notifications.php'];
 }
 function mge_hook(string $source): string {
@@ -34,7 +34,7 @@ function mge_prepare(): void {
     $lock=fopen($dir.'/data/manager_edit_patch.lock','c+');
     if(!$lock||!flock($lock,LOCK_EX))throw new RuntimeException('편집 연결이 진행 중입니다. 잠시 후 다시 열어 주세요.');
     try{
-        foreach(['building_manager.php','building_setup.php'] as $required)if(!is_file($dir.'/'.$required))throw new RuntimeException($required.' 파일이 같은 폴더에 필요합니다.');
+        foreach(['FireDesk.php','building_setup.php'] as $required)if(!is_file($dir.'/'.$required))throw new RuntimeException($required.' 파일이 같은 폴더에 필요합니다.');
         $changes=[];
         foreach(mge_routes() as $name){
             $path=$dir.'/'.$name;if(!is_file($path))continue;

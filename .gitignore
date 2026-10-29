@@ -56,3 +56,19 @@ Thumbs.db
 
 mail_secret.php
 .DS_Store
+
+# Runtime records and private service configuration (never commit user data)
+/data/*
+!/data/.htaccess
+/oauth_keys.php
+/.env
+/.env.*
+!/.env.example
+*.pem
+*.p12
+*.p8
+*.key
+*.sqlite
+*.sqlite3
+*.sql
+/dbeditor/

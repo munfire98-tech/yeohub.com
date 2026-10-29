@@ -50,11 +50,14 @@ function tr_list(): array {
 }
 
 /* 새 기록 생성 → id 반환 */
-function tr_create(): string {
+function tr_create(?int $recordYear = null): string {
+  $currentYear=(int)(new DateTimeImmutable('now',new DateTimeZone('Asia/Seoul')))->format('Y');
+  if($recordYear!==null&&($recordYear<1900||$recordYear>$currentYear))throw new InvalidArgumentException('실시기록의 연도를 확인해 주세요.');
   $id  = date('YmdHis') . substr((string)microtime(), 2, 4);
   $now = date('Y-m-d H:i:s');
   $rec = [
     'id'         => $id,
+    'record_year' => $recordYear ?? $currentYear,
     'created_at' => $now,
     'updated_at' => $now,
     'data'       => [],
@@ -76,6 +79,9 @@ function tr_load(string $id): ?array {
 function tr_save(string $id, array $data): bool {
   $rec = tr_load($id);
   if (!$rec) return false;
+  // A table edit or restart must retain the link to its planned event.
+  if (is_array($rec['data']['_planned_schedule'] ?? null)) $data['_planned_schedule'] = $rec['data']['_planned_schedule'];
+  else unset($data['_planned_schedule']);
   $rec['data']       = $data;
   $rec['updated_at'] = date('Y-m-d H:i:s');
   if (!tr_write_json(tr_file($id), $rec)) return false;
@@ -97,6 +103,16 @@ function tr_save(string $id, array $data): bool {
 }
 
 function tr_delete(string $id): void {
+  require_once __DIR__.'/manager_train_help.php';
+  if(!mth_file(tr_user_key(),$id))return;
+  mg_tx(__DIR__.'/data/manager_help_requests.php',function(array &$rows)use($id){
+    tr_delete_record($id);
+    if(is_file(tr_file($id)))return;
+    foreach($rows as $key=>$row){$q=mth_parse((string)($row['field']??''));
+      if($q && $q['id']===$id && ($row['uid']??'')===tr_user_key())unset($rows[$key]);}
+  },true);
+}
+function tr_delete_record(string $id): void {
   @unlink(tr_file($id));
   $idx = array_values(array_filter(tr_read_json(tr_index_file()), fn($r) => ($r['id'] ?? '') !== $id));
   tr_write_json(tr_index_file(), $idx);

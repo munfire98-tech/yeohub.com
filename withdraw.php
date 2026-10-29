@@ -9,6 +9,9 @@
  *    data/kakao_killed.json 에 기록한다. (index.php 가 처리)
  */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 $SESSION_TTL = 60 * 60 * 24 * 30;
 ini_set('session.cookie_httponly', '1');
@@ -24,9 +27,11 @@ if (PHP_VERSION_ID >= 70300) {
     'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
   ]);
 }
-session_start();
+alp_session_start();
 
 require_once __DIR__ . '/telegram_config.php';
+require_once __DIR__ . '/withdraw_manager.php';
+if(!empty($_SESSION['_imp'])||!empty($_SESSION['_mge'])){http_response_code(403);exit('회원 탈퇴는 본인 계정에서 진행해 주세요.');}
 
 /* 로그인한 회원만 */
 $isMember = !empty($_SESSION['is_user']) || !empty($_SESSION['member_id']);
@@ -45,6 +50,7 @@ $nick     = (string)($_SESSION['nickname'] ?? '');
 $isKakao  = ($_SESSION['login_type'] ?? '') === 'kakao' || $kakaoId !== '';
 
 if ($uid === '') { header('Location: /index.php'); exit; }
+$signupSourceMember=mg_members()[$uid]??[];
 
 function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
 
@@ -126,14 +132,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
   } elseif (empty($_POST['agree'])) {
     $error = '안내 사항에 동의해 주세요.';
   } else {
+    try {
     $stamp = date('Ymd_His');
     $dest  = $BACKUP . '/' . preg_replace('/[^A-Za-z0-9_\-]/', '_', $uid) . '_' . $stamp;
     if (!is_dir($dest)) @mkdir($dest, 0775, true);
 
     /* 1) 회원 레코드를 백업에 남기고 members.json 에서 제거 */
-    $members = wd_read($MEMBERS);
-    $record  = $members[$uid] ?? [];
-    if (isset($members[$uid])) { unset($members[$uid]); wd_write($MEMBERS, $members); }
+    $record = wm_remove_member($uid, $dest . '/_member.json');
 
     /* 2) 개인 데이터 폴더 이동 */
     $moved = [];
@@ -173,16 +178,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
       'ip'         => $_SERVER['REMOTE_ADDR'] ?? '',
     ]);
 
-    /* 6) 관리자 알림 */
-    @send_telegram(
-        "🔴 <b>회원 탈퇴</b>\n"
-      . "아이디: " . h($uid) . "\n"
-      . "닉네임: " . h($nick !== '' ? $nick : '-') . "\n"
-      . "가입경로: " . ($isKakao ? '카카오' : '자체가입') . "\n"
-      . "정리한 데이터: " . (count($moved) ? implode(', ', $moved) : '없음') . "\n"
-      . "백업 보관: 1년 (" . date('Y-m-d', strtotime('+1 year')) . " 이후 정리)\n"
-      . "시각: " . date('Y-m-d H:i:s')
-    );
+    /* 6) 운영자 텔레그램 알림: 삭제 전 회원 정보로 가입 경로를 표시 */
+    require_once __DIR__.'/telegram_member_events.php';
+    tme_withdraw($uid,$record);
 
     /* 7) 세션 종료 */
     $_SESSION = [];
@@ -193,6 +191,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     session_destroy();
 
     header('Location: /index.php?withdrawn=1'); exit;
+    } catch (Throwable $e) {
+      error_log('Withdrawal processing failed: '.$e->getMessage());
+      $error = '탈퇴 처리 결과를 확인하지 못했습니다. 잠시 후 다시 시도하거나 관리자에게 문의해 주세요.';
+    }
   }
 }
 ?><!doctype html>
@@ -245,7 +247,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
   <div class="who">
     <b><?=h($nick !== '' ? $nick : $uid)?></b> 님
-    · <?=$isKakao ? '카카오 로그인' : '자체 가입'?>
+    · <?=($signupSourceMember['joined_via']??'')==='manager_qr' ? '파트너 QR 가입' : ($isKakao ? '카카오 가입' : '자체 가입')?>
     <br><span style="color:var(--muted)"><?=h($uid)?></span>
   </div>
 
@@ -254,7 +256,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     <ul>
       <li>건물 기본정보, 업무일지, 소방계획서, 교육·훈련 기록이 삭제됩니다.</li>
       <li>배정받은 피난 시뮬레이션 도면을 볼 수 없습니다.</li>
-      <li>같은 계정으로 다시 가입하셔도 이전 자료는 이어지지 않습니다.</li>
+      <li>PRO 이용과 자동갱신이 종료되고, 등록 카드 연결이 해제됩니다.</li>
+      <li>같은 아이디로 다시 가입하셔도 이전 구독·카드·자료는 이어지지 않습니다.</li>
+      <li>탈퇴만으로 결제금이 자동 환불되지는 않습니다. 환불이 필요하면 먼저 구독 화면에서 해지·환불을 진행해 주세요.</li>
       <li>자료는 오기재·착오에 대비해 <b>1년간</b> 별도 보관 후 완전 삭제되며,
           이 기간에는 관리자에게 문의해 복구를 요청하실 수 있습니다.</li>
     </ul>

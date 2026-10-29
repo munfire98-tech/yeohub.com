@@ -1,0 +1,1066 @@
+<!doctype html>
+<html lang="ko">
+<head><meta name="robots" content="noindex,nofollow">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>한빛 비즈니스센터 소방계획서 — 소방계획서.com</title>
+<style>
+:root{--brand:#2563eb;--brand-dark:#17345f;--ink:#172033;--mut:#667085;--line:#d9e2ee;--line-dark:#b9c5d4;--soft:#f4f7fb;--ok:#047857;--warn:#b45309}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#edf2f7}
+body{background:#edf2f7;color:var(--ink);font-family:Pretendard,"Noto Sans KR","Malgun Gothic","맑은 고딕",system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+
+.fp-floor-heading{margin:18px 12px 8px;font-size:13px;color:var(--brand-dark);break-after:avoid;page-break-after:avoid}
+.fp-floor-note{margin:8px 12px 14px;color:var(--mut);font-size:10.5px}
+table.fp-floor-table{table-layout:fixed}table.fp-floor-table th{width:auto;white-space:normal}table.fp-floor-table th:nth-child(1){width:21%}table.fp-floor-table th:nth-child(2){width:16%}table.fp-floor-table th:nth-child(3){width:27%}table.fp-floor-table th:nth-child(4){width:18%}table.fp-floor-table th:nth-child(5){width:18%}
+
+/* 화면 전용 툴바 */
+.topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:12px 22px;background:rgba(255,255,255,.94);border-bottom:1px solid #dde4ed;backdrop-filter:blur(12px)}
+.topbar .ttl{font-size:15px;font-weight:850;color:#15243a}
+.topbar .ttl small{margin-left:8px;color:var(--mut);font-size:12.5px;font-weight:500}
+.tb-btns{display:flex;gap:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 15px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#344054;font:inherit;font-size:13px;font-weight:750;text-decoration:none;cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn--primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn--primary:hover{background:#1d4ed8;color:#fff}
+.hint{max-width:880px;margin:14px auto 0;padding:0 14px;color:var(--mut);font-size:12px;text-align:center}
+
+/* 화면 문서 */
+.doc{max-width:880px;margin:18px auto 44px;padding:18mm 16mm;background:#fff;border:1px solid #e0e6ef;border-radius:12px;box-shadow:0 18px 55px rgba(27,45,75,.1)}
+
+/* 표지 */
+.cover{position:relative;display:flex;min-height:540px;flex-direction:column;align-items:center;justify-content:center;margin-bottom:28px;padding:50px 34px 42px;overflow:hidden;border:1px solid #dbe4ef;border-radius:12px;background:linear-gradient(180deg,#f8fbff 0,#fff 38%);text-align:center}
+.cover::before{position:absolute;top:0;left:0;width:100%;height:8px;background:linear-gradient(90deg,var(--brand-dark),var(--brand),#60a5fa);content:""}
+.cover-mark{display:flex;align-items:center;gap:9px;margin-bottom:42px;color:var(--brand-dark)}
+.cover-mark strong{font-size:13px;font-weight:900;letter-spacing:.13em}
+.cover-mark span{width:1px;height:12px;background:#bdc9d8}
+.cover-mark small{color:#708096;font-size:9px;font-weight:750;letter-spacing:.09em}
+.cover .cat{margin-bottom:14px;color:#67809f;font-size:11.5px;font-weight:750;letter-spacing:.14em}
+.cover h1{position:relative;margin-bottom:0;padding:15px 34px;border-top:2px solid var(--brand-dark);border-bottom:2px solid var(--brand-dark);color:#102642;font-size:36px;font-weight:850;letter-spacing:.22em;line-height:1.35}
+.cover .bld{margin:28px 0 6px;color:#192c48;font-size:20px;font-weight:800;letter-spacing:-.03em}
+.cover .addr{max-width:560px;color:#64748b;font-size:12.5px;line-height:1.55}
+.cover-service-principle{width:100%;max-width:620px;margin:20px 0 0;padding:16px 20px;border-top:2px solid #496c98;border-bottom:1px solid #dbe4ef;background:#f5f8fc;color:#455a73;text-align:center;word-break:keep-all;overflow-wrap:anywhere}
+.cover-service-principle .principle-label{display:block;margin-bottom:8px;color:#365d8b;font-size:10px;font-weight:800;letter-spacing:.08em}
+.cover-service-principle p{margin:0;font-size:12px;line-height:1.85}.cover-service-principle .principle-line{display:block}.cover-service-principle strong{color:#203e63;font-weight:800}
+.cover .date{margin-top:12px;color:#536176;font-size:12.5px;font-weight:650}
+.law-box{max-width:620px;margin-top:38px;padding:15px 17px;border:1px solid #d9e3ef;border-radius:9px;background:rgba(244,248,253,.9);color:#59677a;font-size:10.5px;line-height:1.7;text-align:left}
+.law-title{margin-bottom:5px;color:#2d4f79;font-size:10.5px;font-weight:850}
+.law-box strong{color:#314e72}
+.law-box>p+p{margin-top:8px}
+.law-review{margin-top:11px;padding-top:10px;border-top:1px solid #dfe6ee}
+.law-review p{font-size:9.5px;line-height:1.7}
+.law-ref{margin-top:7px;padding-top:7px;border-top:1px solid #dfe6ee;color:#748094;font-size:9.5px}
+
+/* 항목 */
+.sec{margin-bottom:18px;padding:0;overflow:hidden;border:1px solid var(--line);border-radius:9px;background:#fff;break-inside:avoid-page;page-break-inside:avoid}
+.sec__h{display:flex;align-items:center;gap:10px;min-height:46px;padding:9px 12px;background:linear-gradient(90deg,#eef4fb,#f8fafc);border-bottom:1px solid var(--line)}
+.sec__no{display:flex;width:27px;height:27px;flex-shrink:0;align-items:center;justify-content:center;border-radius:7px;background:var(--brand-dark);color:#fff;font-size:12px;font-weight:850}
+.fp-appendix .sec__no{width:auto;min-width:48px;padding:0 7px;white-space:nowrap;font-size:10px}
+.sec__t{color:#18314f;font-size:14px;font-weight:850;letter-spacing:-.025em}
+.sec__skip{margin-left:auto;padding:3px 9px;border:1px solid #d9dee6;border-radius:999px;background:#fff;color:#8791a0;font-size:10.5px;white-space:nowrap}
+.sec>table.d,.sec>.para,.sec>.empty-note,.sec>div:not(.sec__h){margin:12px}
+
+/* 데이터 표 */
+table.d{width:calc(100% - 24px);margin:12px;border:1px solid var(--line-dark);border-collapse:separate;border-spacing:0;border-radius:7px;overflow:hidden;font-size:11.7px}
+table.d th,table.d td{padding:7px 9px;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);vertical-align:middle}
+table.d tr:last-child>*{border-bottom:0}
+table.d tr>*:last-child{border-right:0}
+table.d th{width:96px;background:#f2f5f9;color:#34445a;font-weight:750;text-align:center;white-space:nowrap}
+table.d th.w2{width:120px}
+table.d td{color:#243247;word-break:break-word;overflow-wrap:anywhere}
+.tag{display:inline-flex;align-items:center;margin:2px 4px 2px 0;padding:2px 7px;border:1px solid #cfe0fa;border-radius:999px;background:#eff5ff;color:#2457a5;font-size:10.5px;font-weight:650;white-space:nowrap}
+.none{color:#9aa4b2}
+.para{min-height:48px;padding:11px 13px;border:1px solid var(--line);border-radius:7px;background:#fbfcfe;color:#2d3b4f;font-size:11.8px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
+.empty-note{padding:9px 11px;border:1px solid #f1d5a8;border-radius:7px;background:#fffbeb;color:var(--warn);font-size:11px}
+.doc-foot{margin-top:26px;padding:14px 12px 0;border-top:1px solid #cbd5e1;color:#7a8595;font-size:10.5px;line-height:1.7;text-align:center}
+
+@media screen and (max-width:680px){
+  .topbar{padding:10px 12px}.topbar .ttl small{display:none}.tb-btns{width:100%}.tb-btns .btn{flex:1}
+  .doc{margin:10px;padding:18px 13px;border-radius:10px}
+  .cover{min-height:460px;padding:42px 18px 32px}.cover-mark{margin-bottom:30px}.cover h1{padding:12px 20px;font-size:27px;letter-spacing:.15em}.cover .bld{font-size:18px}
+  .law-box{margin-top:28px}.sec__h{align-items:flex-start}.sec__skip{white-space:normal;text-align:right}
+  table.d{font-size:10.8px}table.d th{width:76px;padding:6px 5px;font-size:10.5px;white-space:normal}table.d th.w2{width:88px}table.d td{padding:6px}
+}
+
+/* A4 인쇄 */
+@page{size:A4 portrait;margin:13mm 12mm 14mm}
+@media print{
+  html,body{width:100%;min-height:auto;background:#fff}
+  body{font-family:"Noto Sans KR","Malgun Gothic",sans-serif;color:#111827;font-size:9pt;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .topbar,.hint,[class*="quickmemo"],[id*="quickmemo"]{display:none!important}
+  .doc{max-width:none;margin:0;padding:0;border:0;border-radius:0;box-shadow:none}
+  .cover{min-height:calc(297mm - 27mm);margin:0;padding:16mm 15mm;border:1px solid #cbd5e1;border-radius:0;background:#fff;break-after:page;page-break-after:always}
+  .cover::before{height:4mm}
+  .cover-service-principle{margin-top:5mm;padding:4mm 5mm;border-top:0.5mm solid #496c98;break-inside:avoid;page-break-inside:avoid}
+  .cover-service-principle .principle-label{font-size:8pt;margin-bottom:2mm}.cover-service-principle p{font-size:9pt;line-height:1.8}
+  .cover-mark{margin-bottom:20mm}.cover .cat{font-size:8.5pt}.cover h1{font-size:28pt}.cover .bld{margin-top:12mm;font-size:16pt}.cover .addr,.cover .date{font-size:9pt}
+  .law-box{margin-top:17mm;padding:4mm 5mm;border-radius:1.5mm;background:#f4f7fb;font-size:7.5pt}.law-title{font-size:8pt}.law-ref{font-size:7pt}
+  .law-box>p+p{margin-top:2.5mm}.law-review{margin-top:3mm;padding-top:3mm}.law-review p{font-size:7pt}
+  .sec{margin-bottom:4mm;border-color:#cbd5e1;border-radius:1.5mm;box-shadow:none;break-inside:avoid-page;page-break-inside:avoid}
+  .sec__h{min-height:11mm;padding:2.2mm 3mm;background:#edf3f9;border-bottom-color:#cbd5e1}
+  .sec__no{width:7mm;height:7mm;border-radius:1.5mm;font-size:8pt}.sec__t{font-size:10.5pt}.sec__skip{font-size:7.2pt}
+  table.d{width:calc(100% - 6mm);margin:3mm;border-radius:1mm;font-size:8.3pt}
+  table.d th,table.d td{padding:1.8mm 2.2mm}table.d th{width:24mm;font-size:8pt}table.d th.w2{width:29mm}
+  .tag{padding:.4mm 1.5mm;font-size:7.2pt}.para{min-height:12mm;margin:3mm!important;padding:2.5mm 3mm;font-size:8.3pt}.empty-note{margin:3mm!important;padding:2mm 3mm;font-size:8pt}
+  .doc-foot{margin-top:6mm;padding-top:3mm;font-size:7.2pt;break-inside:avoid}
+}
+</style>
+<link rel="stylesheet" href="/fire_plan_document.css?v=20261010-blue-1">
+
+
+<link rel="stylesheet" href="/evacuation_plan_document.css?v=20261021-kakao-1">
+<link rel="stylesheet" href="/fire_plan_team_document.css?v=20261021-1">
+<link rel="stylesheet" href="/fire_plan_training_forms.css?v=20261021-1">
+<link rel="stylesheet" href="/fire_plan_print_layout.css?v=20261015-safari-2">
+<script src="/fire_plan_print.js?v=20261021-kakao-1" defer></script>
+</head>
+<body class="fp-shared"><style>.sample-nav{position:sticky;top:0;z-index:30;background:#17345f;color:white;padding:12px 20px;text-align:center;font:600 12px/1.8 system-ui}.sample-nav a{color:#dce9ff;margin:0 8px;text-decoration:none;white-space:nowrap}.sample-nav b{display:block;letter-spacing:.08em}.sample-nav small{display:block;opacity:.8;font-weight:400}.topbar{position:static}@media(max-width:600px){.sample-nav{padding:9px 8px}.sample-nav nav{overflow-x:auto;white-space:nowrap}.topbar{position:static}}@media print{.sample-nav{display:none}}</style><header class="sample-nav"><b>PRO · 소방계획서 완성 예시</b><small>가상 건물의 작성 예시입니다. 실제 건물의 시설·운영 여건에 맞게 작성합니다.</small><nav aria-label="예시 문서 바로가기"><a href="#fp-shared-document">표지</a><a href="#section-1">일반현황</a><a href="#section-5">피난계획</a><a href="#section-9">조직·임무</a><a href="#section-11">훈련·교육</a><a href="#appendix-multi-use">다중이용업소</a></nav></header>
+
+<div class="topbar">
+  <div class="ttl">2026년 소방계획서 <small>인쇄용 문서 · 한빛 비즈니스센터</small></div>
+  <div class="tb-btns"><button class="btn btn--primary" onclick="window.fpPrintDocument ? window.fpPrintDocument() : window.print()">인쇄 / PDF 저장</button></div>
+</div>
+<div class="hint">
+    <p>표지·목차 → 본문 1~15번 → 별첨 순서로 인쇄합니다. 각 항목은 새 A4 페이지에서 시작하며, 긴 내용은 다음 장으로 이어집니다.</p>
+  <b>PDF로 저장하려면</b> 인쇄를 누른 뒤 대상(프린터)에서 <b>‘PDF로 저장’</b>을 선택하세요.
+</div>
+
+<div class="doc" id="fp-shared-document">
+
+  <!-- ── 표지 ── -->
+ <div class="cover">
+    <div class="cover-mark"><strong>소방계획서.com</strong><span></span><small>소방안전관리 계획</small></div>
+    <div class="cat">2026년 연간 소방계획</div>
+
+    <h1>소방계획서</h1>
+
+    <div class="bld">한빛 비즈니스센터</div>
+
+            <div class="addr">
+            경기도 파주시 한빛로 100 (가상 주소)        </div>
+    
+    <div class="date">2026년 10월 01일</div>
+
+    <div class="law-box">
+      <div class="law-title">작성 근거</div>
+      <p>공개된 「소방계획서 작성매뉴얼」의 ‘소방계획서 작성 시 주의사항’에서는 대상물의 특성에 따라 권장서식을 수정·추가하거나 자체서식을 첨부할 수 있도록 안내하고 있으며, 「화재의 예방 및 안전관리에 관한 법률 시행령」 제27조제1항에 따른 사항을 포함하도록 명시하고 있습니다.</p>
+      <p>본 소방계획서는 <strong>위 권장서식의 작성 안내를 참고하여, 「화재의 예방 및 안전관리에 관한 법률」 제24조 및 같은 법 시행령 제27조제1항에서 정한 작성사항을 근거로 구성하였습니다.</strong></p>
+      <div class="law-review">
+        <div class="law-title">완성 형태 예시 · 가상 건물</div>
+        <p>대상물에 해당하는 작성사항과 실제 시설·인원·피난경로를 확인하여 내용을 보완하고, 변경사항이 생기면 갱신해 주세요.</p>
+      </div>
+      <div class="law-ref">항목 채움 99 / 99개 · 자료 6종 반영 · 2026-10-01 09:00:00 기준</div>
+    </div>
+    <div class="cover-service-principle"><span class="principle-label">서비스 운영 원칙</span><p><span class="principle-line">소방계획서.com은 <strong>관련 법령에서 정한 필수 사항을 정확히 반영</strong>하는 것을 기본 원칙으로 삼고,</span> <span class="principle-line"><strong>소방청의 권장사항에 최대한 부합</strong>하도록 서비스를 지속적으로 점검하고 개선하고 있습니다.</span></p></div>
+</div>
+
+  <section class="fp-doc-summary">
+    <p class="fp-doc-kicker">계획서 구성</p><h2>우리 건물 안전관리 한눈에 보기</h2>
+    <div class="fp-doc-stats"><div><small>소방안전관리자</small><strong>이안전</strong><span>연락처 예시</span></div><div><small>관리 등급</small><strong>2급</strong><span>업무시설</span></div><div><small>대피 후 집결지</small><strong>정문 맞은편 옥외 광장 · 차량 통행구역 밖</strong><span>저장된 피난계획 기준</span></div></div>
+    <h3>계획서 구성</h3><ol class="fp-doc-toc"><li><span>1. 일반현황 (위치·구조·연면적·용도·수용인원)</span><small>내용 입력</small></li><li><span>2. 소방·방화·전기·가스·위험물시설 현황</span><small>내용 입력</small></li><li><span>3. 자체점검계획 및 대응대책</span><small>내용 입력</small></li><li><span>4. 소방·피난·방화시설 점검·정비계획</span><small>내용 입력</small></li><li><span>5. 피난계획 (피난경로·화재안전취약자)</span><small>내용 입력</small></li><li><span>6. 방화구획·마감재·방염물품 유지관리</span><small>내용 입력</small></li><li><span>7. 관리 권원 분리 대상물 안전관리</span><small>해당 없음</small></li><li><span>8. 공동 소방안전관리 협의</span><small>해당 없음</small></li><li><span>9. 자위소방대 조직 및 임무</span><small>내용 입력</small></li><li><span>10. 화기취급 작업 안전조치·감독</span><small>내용 입력</small></li><li><span>11. 소방훈련 및 교육 계획</span><small>내용 입력</small></li><li><span>12. 위험물 저장·취급</span><small>해당 없음</small></li><li><span>13. 업무수행 기록·유지</span><small>내용 입력</small></li><li><span>14. 화재 초기대응 (경보·초기소화·피난유도)</span><small>내용 입력</small></li><li><span>15. 그 밖에 소방서장 요청사항</span><small>내용 입력</small></li></ol>
+    <div class="fp-doc-source"><h3>반영한 자료</h3><p>기본정보 · 소방시설·업무수행 기록 · 피난계획 · 자위소방대 조직·임무 · 자위소방대 교육 기록부 · 소방훈련·교육 기록부</p><small>자료 반영 시점의 내용이 보관됩니다. 원본 자료의 변경은 다시 반영한 뒤 확인해 주세요.</small></div>  </section>
+  <!-- ── 15개 항목 ── -->
+    <section class="sec" id="section-1">
+    <div class="sec__h">
+      <div class="sec__no">1</div>
+      <div class="sec__t">일반현황 (위치·구조·연면적·용도·수용인원)</div>
+                </div>
+
+          <table class="d">
+        <tr><th>명 칭</th><td colspan="3">한빛 비즈니스센터</td></tr>
+        <tr><th>도로명주소</th><td colspan="3">경기도 파주시 한빛로 100 (가상 주소)</td></tr>
+        <tr>
+          <th>대표자</th><td>김한빛 (연락처 예시)</td>
+          <th class="w2">소방안전관리자</th><td>이안전 (연락처 예시)</td>
+        </tr>
+        <tr>
+          <th>대상물 급수</th><td>2급</td>
+          <th class="w2">주용도</th><td>업무시설</td>
+        </tr>
+        <tr>
+          <th>연면적</th><td>2400 ㎡</td>
+          <th class="w2">건축면적</th><td>400 ㎡</td>
+        </tr>
+        <tr>
+          <th>층수 / 높이</th><td>지하 1층 / 지상 5층  / 22m</td>
+          <th class="w2">구조 / 지붕</th><td>철근콘크리트구조  / 철근콘크리트 평지붕</td>
+        </tr>
+        <tr>
+          <th>사용승인일</th><td>2018-08-20</td>
+          <th class="w2">수신기 위치</th><td>1층 방재실 · 주출입구 오른쪽</td>
+        </tr>
+        <tr><th>승강기</th><td colspan="3"><span class="tag">✓ 승용</span></td></tr>
+        <tr><th>주차장</th><td colspan="3"><span class="tag">✓ 옥내</span><span class="tag">✓ 옥외</span><span class="tag">✓ 자주식</span>          </td></tr>
+        <tr><th>계 단</th><td colspan="3"><span class="tag">✓ 직통계단</span></td></tr>
+        <tr>
+          <th>운영시간<br>(평일)</th><td>주간 09:00~18:00<br>야간 18:00~22:00 · 당직 근무</td>
+          <th class="w2">운영시간<br>(휴일)</th><td>주간 휴무 · 출입통제<br>야간 휴무 · 당직 연락체계 유지</td>
+        </tr>
+        <tr><th>인원현황</th><td colspan="3">
+          근무 <b>40</b>명 ·
+          거주 <b>0</b>명 ·
+          최대수용 <b>160</b>명
+                      <span class="tag">자위소방대 Type-III</span>
+                  </td></tr>
+        <tr><th>해당 여부</th><td colspan="3">
+          공공기관 <b>해당없음</b> ·
+          권원분리 <b>해당없음</b> ·
+          공동관리 <b>해당없음</b> ·
+          위험물 <b>해당없음</b>
+        </td></tr>
+        <tr><th>화재보험</th><td colspan="3">
+                      예시 화재보험사 · 기간 2026.01.01~2026.12.31 ·
+            대인 보험증권 기재 한도 확인 · 대물 보험증권 기재 한도 확인                  </td></tr>
+      </table>
+
+
+      <h3 class="fp-floor-heading">층별 면적·용도 현황</h3>
+                    <table class="d fp-floor-table">
+          <thead><tr><th scope="col">동 · 층</th><th scope="col">면적(㎡)</th><th scope="col">용도</th><th scope="col">구조</th><th scope="col">자료</th></tr></thead>
+          <tbody>
+                      <tr><td><b>본관</b><br>지하 1층</td>
+              <td>400</td>
+              <td>주차장·기계실·노래연습장</td><td>철근콘크리트</td>
+              <td>직접 입력</td></tr>
+                      <tr><td><b>본관</b><br>지상 1층</td>
+              <td>400</td>
+              <td>로비·업무시설</td><td>철근콘크리트</td>
+              <td>직접 입력</td></tr>
+                      <tr><td><b>본관</b><br>지상 2층</td>
+              <td>400</td>
+              <td>업무시설</td><td>철근콘크리트</td>
+              <td>직접 입력</td></tr>
+                      <tr><td><b>본관</b><br>지상 3층</td>
+              <td>400</td>
+              <td>업무시설</td><td>철근콘크리트</td>
+              <td>직접 입력</td></tr>
+                      <tr><td><b>본관</b><br>지상 4층</td>
+              <td>400</td>
+              <td>업무시설</td><td>철근콘크리트</td>
+              <td>직접 입력</td></tr>
+                      <tr><td><b>본관</b><br>지상 5층</td>
+              <td>400</td>
+              <td>업무시설</td><td>철근콘크리트</td>
+              <td>직접 입력</td></tr>
+                    </tbody>
+        </table>
+        <p class="fp-floor-note">기본정보를 반영한 시점의 자료입니다. 같은 층에 여러 용도가 있으면 층별 면적을 합산해 표시하며, 연면적 산정 값과 다를 수 있습니다. 직접 수정한 값은 ‘직접 입력’으로 표시합니다.</p>
+      
+      </section>
+    <section class="sec" id="section-2">
+    <div class="sec__h">
+      <div class="sec__no">2</div>
+      <div class="sec__t">소방·방화·전기·가스·위험물시설 현황</div>
+                </div>
+
+          <table class="d">
+        <tr><th>소화설비</th><td><span class="tag">✓ 소화기구 및 자동소화장치</span><span class="tag">✓ 옥내소화전설비</span></td></tr>
+        <tr><th>경보설비</th><td><span class="tag">✓ 자동화재탐지설비 및 시각경보기</span><span class="tag">✓ 비상방송설비</span></td></tr>
+        <tr><th>피난구조<br>설비</th><td><span class="tag">✓ 유도등</span><span class="tag">✓ 비상조명등</span></td></tr>
+        <tr><th>소화용수<br>설비</th><td><span class="none">해당없음</span></td></tr>
+        <tr><th>소화활동<br>설비</th><td><span class="none">해당없음</span></td></tr>
+        <tr><th>기타시설</th><td><span class="tag">✓ 전기시설</span><span class="tag">✓ 방화시설</span></td></tr>
+                  <tr><th>비 고</th><td><div style="white-space:pre-wrap">소화기 20대: 층별 복도 및 주출입구 주변.
+옥내소화전 6개소: 지하 1층~지상 5층 계단 앞.
+화재수신기: 1층 방재실. 방화문: 각 층 계단실 출입구.
+시설별 수량·위치는 예시이며 실제 설치 현황을 확인하여 작성합니다.</div></td></tr>
+              </table>
+
+      </section>
+    <section class="sec" id="section-3">
+    <div class="sec__h">
+      <div class="sec__no">3</div>
+      <div class="sec__t">자체점검계획 및 대응대책</div>
+                </div>
+
+                <table class="d">
+        <tr><th>구 분</th><th>실시 시기</th><th>담당자</th><th>비 고</th></tr>
+                <tr>
+          <th>작동점검</th>
+          <td>매년 2월</td>
+          <td>연결 점검업체 · 한빛소방(가상)</td>
+          <td>사용승인월로부터 6개월 후 실시 계획</td>
+        </tr>
+                <tr>
+          <th>종합점검</th>
+          <td>매년 8월</td>
+          <td>연결 점검업체 · 한빛소방(가상)</td>
+          <td>사용승인월 기준 실시 계획</td>
+        </tr>
+                <tr>
+          <th>외관점검</th>
+          <td>매월 1일</td>
+          <td>소방안전관리자 이안전</td>
+          <td>피난통로·방화문·소화기 외관 확인</td>
+        </tr>
+              </table>
+              <div style="margin-top:8px"><div class="para">불량사항 발견 시 관계인에게 즉시 보고하고 임시 안전조치를 시행한다. 보수 담당자와 완료 예정일을 정하여 관리하고 조치 결과를 기록한다.</div></div>
+      
+      </section>
+    <section class="sec" id="section-4">
+    <div class="sec__h">
+      <div class="sec__no">4</div>
+      <div class="sec__t">소방·피난·방화시설 점검·정비계획</div>
+                </div>
+
+                <table class="d">
+        <tr><th>구 분</th><th>실시 시기</th><th>담당자</th><th>비 고</th></tr>
+                <tr>
+          <th>소방시설</th>
+          <td>매월 첫째 주</td>
+          <td>소방안전관리자</td>
+          <td>시설 작동상태·외관·접근성 확인</td>
+        </tr>
+                <tr>
+          <th>피난시설</th>
+          <td>매일 개관 전</td>
+          <td>시설관리 담당자</td>
+          <td>피난통로 적치물·유도등 확인</td>
+        </tr>
+                <tr>
+          <th>방화시설</th>
+          <td>매월 첫째 주</td>
+          <td>시설관리 담당자</td>
+          <td>방화문 닫힘·자동폐쇄장치 확인</td>
+        </tr>
+              </table>
+              <div style="margin-top:8px"><div class="para">불량 발견 → 위치·증상 기록 → 임시 안전조치 → 보수 요청 → 완료 후 재확인 순서로 관리한다. 피난에 영향을 주는 사항은 우선 조치한다.</div></div>
+      
+      </section>
+    <section class="sec" id="section-5">
+    <div class="sec__h">
+      <div class="sec__no">5</div>
+      <div class="sec__t">피난계획 (피난경로·화재안전취약자)</div>
+                </div>
+
+                      <table class="d">
+        <tr><th>피난층</th><td colspan="3">1층 주출입구 및 후면 출입구</td></tr>
+        <tr><th>피난경로</th><td colspan="3"><div style="white-space:pre-wrap">지하 1층: 동측 계단 → 1층 후면 출입구 → 옥외 집결지.
+지상 2~5층: 가장 가까운 직통계단 → 1층 출구 → 집결지.
+연기 유입 시 반대편 계단을 이용하고 승강기는 사용하지 않는다.</div></td></tr>
+        <tr><th>피난기구</th><td colspan="3"><span class="tag">✓ 유도등·유도표지</span></td></tr>
+        <tr>
+          <th>화재안전<br>취약자</th>
+          <td colspan="3">
+            인원 <b>2</b>명 · 위치 2층 방문객 안내 공간                          <div style="white-space:pre-wrap;margin-top:5px;padding-top:5px;border-top:1px dashed #ddd">피난유도 담당자가 이동 지원 필요 여부를 확인하고 동행한다. 계단 이동이 어려우면 안전한 대기 위치를 확보하고 소방대에 위치를 전달한다.</div>
+                      </td>
+        </tr>
+        <tr><th>집결지</th><td colspan="3">정문 맞은편 옥외 광장 · 차량 통행구역 밖</td></tr>
+      </table>
+
+        <p class="empty-note">층별 주 대피경로와 대체 경로, 피난유도 담당자, 집결지 인원확인 절차를 함께 관리합니다. 상세 피난계획은 문서 뒤 별첨에서 확인할 수 있습니다.</p>
+      
+      </section>
+    <section class="sec" id="section-6">
+    <div class="sec__h">
+      <div class="sec__no">6</div>
+      <div class="sec__t">방화구획·마감재·방염물품 유지관리</div>
+                </div>
+
+                <table class="d">
+                        <tr><th>방화구획<br>기준</th><td><span class="tag">✓ 층별</span></td></tr>
+        <tr><th>구획설비</th><td><span class="tag">✓ 방화문</span><span class="tag">✓ 자동폐쇄장치</span></td></tr>
+        <tr><th>제연설비</th><td><span class="tag">✓ 해당없음</span></td></tr>
+        <tr><th>내부 마감재</th><td>복도·계단실 불연 마감재</td></tr>
+        <tr><th>방염물품</th><td><span class="tag">✓ 커튼류</span>          <span class="tag">성능검사 필증 있음</span></td></tr>
+                  <tr><th>유지관리<br>계획</th><td><div style="white-space:pre-wrap">방화문 고정 개방과 통로 적치를 금지한다. 마감재 변경 및 방염물품 교체 전 성능과 관련 증빙을 확인하고 관리대장에 기록한다.</div></td></tr>
+              </table>
+
+      </section>
+    <section class="sec" id="section-7">
+    <div class="sec__h">
+      <div class="sec__no">7</div>
+      <div class="sec__t">관리 권원 분리 대상물 안전관리</div>
+            <div class="sec__skip">권원분리 해당없음</div>    </div>
+
+          <div class="para"><span class="none">해당사항 없음</span></div>
+
+      </section>
+    <section class="sec" id="section-8">
+    <div class="sec__h">
+      <div class="sec__no">8</div>
+      <div class="sec__t">공동 소방안전관리 협의</div>
+            <div class="sec__skip">공동관리 해당없음</div>    </div>
+
+          <div class="para"><span class="none">해당사항 없음</span></div>
+
+      </section>
+    <section class="sec" id="section-9">
+    <div class="sec__h">
+      <div class="sec__no">9</div>
+      <div class="sec__t">자위소방대 조직 및 임무</div>
+                </div>
+
+                <table class="d">
+        <tr><th>편성 유형</th><td>
+                      <b>Type-III</b>
+            <span style="color:#777;font-size:11.5px">(연면적·근무인원 기준 자동 판정)</span>
+                  </td></tr>
+      </table>
+      <div class="fp-team-document">
+ <div class="team-roster">
+  <header class="team-print-head"><h3>자 위 소 방 대 편 성 표</h3><p>自衛消防隊 編成表</p><div class="team-meta"><span>대상물명 : 한빛 비즈니스센터</span><span>근무형태 : 주간근무 · 야간 당직 · 편성인원 5명</span></div></header>
+  <table class="team-table"><colgroup><col style="width:15%"><col style="width:14%"><col style="width:15%"><col style="width:18%"><col></colgroup><thead><tr><th>직책</th><th>성명</th><th>소속</th><th>연락처</th><th>임무</th></tr></thead><tbody>
+  <tr><td class="role-cell">대 장<br><small>(소방안전관리자)</small><br></td><td>이안전</td><td>시설관리팀(가상)</td><td>연락처 예시</td><td class="task">화재 대응 총괄·관계인 보고</td></tr><tr><td class="role-cell">부 대 장<br></td><td>김시설</td><td>시설관리팀(가상)</td><td>연락처 예시</td><td class="task">설비 확인·소방대 인계</td></tr>  <tr class="grp-row"><td colspan="5">① 비상연락반 <small>1명</small></td></tr>
+   <tr><td>비상연락반<br></td><td>박연락</td><td>시설관리팀(가상)</td><td>연락처 예시</td><td class="task">119 신고·비상연락</td></tr>  <tr class="grp-row"><td colspan="5">② 초기소화반 <small>1명</small></td></tr>
+   <tr><td>초기소화반<br></td><td>최진압</td><td>시설관리팀(가상)</td><td>연락처 예시</td><td class="task">안전 확보 후 초기소화</td></tr>  <tr class="grp-row"><td colspan="5">③ 피난유도반 <small>1명</small></td></tr>
+   <tr><td>피난유도반<br></td><td>정유도</td><td>시설관리팀(가상)</td><td>연락처 예시</td><td class="task">대피 안내·집결지 인원 확인</td></tr>    </tbody></table>
+  <p class="team-sign">저장일 : 2026-10-01<br>소방안전관리자 : 이안전 (서명 또는 인)</p>
+ </div>
+ <div class="team-chart-page">
+  <h3>조직도 <small>소방계획서 2.3.3 Type-Ⅲ · 상시 근무인원 50명 미만 권장</small></h3>
+  <div class="chart">
+   <div class="chart__t">1. 자위소방대 및 초기대응체계 조직도</div>
+   <div class="crow"><div class="ccol"><div class="cbox"><div class="cbox__h">자위소방대장</div><table class="ctab"><tr><th>소속</th><th>성명</th></tr><tr><td>시설관리팀(가상)</td><td class="nm">이안전</td></tr></table></div><div class="cstem"></div><div class="cbox"><div class="cbox__h">부대장</div><table class="ctab"><tr><th>소속</th><th>성명</th></tr><tr><td>시설관리팀(가상)</td><td class="nm">김시설</td></tr></table></div></div><div class="clink"></div><div class="ccol"><div class="cbox"><div class="cbox__h">초기대응체계</div><table class="ctab"><tr><th>조</th><th>인원</th></tr><tr><td>비상연락반</td><td class="ppl">박연락 (1명)</td></tr><tr><td>초기소화반</td><td class="ppl">최진압 (1명)</td></tr><tr><td>피난유도반</td><td class="ppl">정유도 (1명)</td></tr></table></div></div></div>
+   <div class="cwide"><div class="cbox"><div class="cbox__h">현장대응팀</div><table class="ctab"><tr><th>소속</th><th>인원</th></tr><tr><td>비상연락반</td><td class="ppl">박연락 (1명)</td></tr><tr><td>초기소화반</td><td class="ppl">최진압 (1명)</td></tr><tr><td>피난유도반</td><td class="ppl">정유도 (1명)</td></tr></table></div></div>
+   <div class="chart__t task-heading">2. 자위소방대 및 초기대응체계 임무</div>
+   <div class="crow"><div class="ccol"><div class="cbox"><div class="cbox__h">자위소방대장</div><table class="ctab"><tr><td class="task">화재 대응 총괄·관계인 보고</td></tr></table></div><div class="cstem"></div><div class="cbox"><div class="cbox__h">부대장</div><table class="ctab"><tr><td class="task">설비 확인·소방대 인계</td></tr></table></div></div><div class="clink"></div><div class="ccol"><div class="cbox"><div class="cbox__h">초기대응체계</div><table class="ctab"><tr><td class="task"><b>비상연락반</b><br>119 신고·비상연락</td></tr><tr><td class="task"><b>초기소화반</b><br>안전 확보 후 초기소화</td></tr><tr><td class="task"><b>피난유도반</b><br>대피 안내·집결지 인원 확인</td></tr></table></div></div></div>
+   <div class="cwide"><div class="cbox"><div class="cbox__h">현장대응팀</div><table class="ctab"><tr><td class="task"><b>비상연락반</b><br>119 신고·비상연락</td></tr><tr><td class="task"><b>초기소화반</b><br>안전 확보 후 초기소화</td></tr><tr><td class="task"><b>피난유도반</b><br>대피 안내·집결지 인원 확인</td></tr></table></div></div>
+  </div>
+ </div>
+</div>
+                    <div class="para">대장 이안전: 상황판단·관계인 보고·현장대응 총괄.
+부대장 김시설: 대장 보좌·설비상태 확인·소방대 인계.
+비상연락반 박연락: 119 신고·비상방송·관계자 연락.
+초기소화반 최진압: 안전 확보 후 소화기·옥내소화전 사용.
+피난유도반 정유도: 출구 안내·취약자 지원·집결지 인원 확인.</div>
+      
+      </section>
+    <section class="sec" id="section-10">
+    <div class="sec__h">
+      <div class="sec__no">10</div>
+      <div class="sec__t">화기취급 작업 안전조치·감독</div>
+                </div>
+
+                        <div class="para">작업 전: 화기작업 승인, 주변 가연물 제거, 소화기 배치, 화재감시자 지정.
+작업 중: 불티 비산 방지와 감시체계 유지, 이상 시 작업 중지.
+작업 후: 잔불·열원 및 인접 구역을 확인하고 작업 결과를 기록한다.</div>
+            </section>
+    <section class="sec" id="section-11">
+    <div class="sec__h">
+      <div class="sec__no">11</div>
+      <div class="sec__t">소방훈련 및 교육 계획</div>
+                </div>
+
+                <table class="d">
+        <tr><th>구 분</th><th>실시 시기</th><th>대 상</th><th>방 법</th></tr>
+                <tr>
+          <th>소방훈련</th>
+          <td>매년 9월 · 세부일정 사전 안내</td>
+          <td>전 근무자 및 입주사 담당자</td>
+          <td>화재 가정 시나리오에 따른 신고·초기소화·피난·인원확인 합동훈련</td>
+        </tr>
+                <tr>
+          <th>소방교육</th>
+          <td>매년 3월</td>
+          <td>전 근무자</td>
+          <td>소화기 사용법, 피난통로 확인, 화재 시 행동요령 교육</td>
+        </tr>
+                <tr>
+          <th>신규자 교육</th>
+          <td>신규 배치 시</td>
+          <td>신규 근무자 및 관리 담당자</td>
+          <td>담당 임무, 비상연락망, 출구와 집결지 현장 안내</td>
+        </tr>
+              </table>
+              <div style="margin-top:8px"><div class="para">교육·훈련 실시 후 참석자, 내용, 결과와 개선사항을 기록한다. 확인된 개선사항은 담당자·완료일을 지정하여 후속 관리한다. 아래 기록부는 가상으로 작성한 예시이다.</div></div>
+      
+      <div class="fp-training-records">
+ <h3>법정보관 교육·훈련 기록부</h3>
+ <p class="fp-training-caption">2026년 자료 반영 시점의 원본 기록입니다. 예정 일정은 위 계획표에서, 실제 실시 내용은 아래 기록부에서 확인합니다.</p>
+    <div class="fp-training-form fp-training-form--jawi">
+  <p class="fp-training-form-label">자위소방대 교육·훈련 · 기록 SAMPLE-01 · 저장 2026-03-12</p>
+  <div class="sheet">
+  <div class="law">■ 화재의 예방 및 안전관리에 관한 법률 시행규칙 [별지 제13호서식]</div>
+  <div class="title">자위소방대 및 초기대응체계 교육·훈련 실시 결과 기록부</div>
+  <div class="guide">
+    <span>※ [ ]에는 해당되는 곳에 √표를 합니다.</span><span>(앞쪽)</span>
+  </div>
+
+  <!-- 작성일자 / 작성자 -->
+  <table>
+    <colgroup><col style="width:80px"><col><col style="width:80px"><col style="width:120px"><col style="width:60px"></colgroup>
+    <tr>
+      <td class="lb">작성일자</td><td>2026-03-12</td>
+      <td class="lb">작성자</td><td>이안전</td><td class="c">(서명)</td>
+    </tr>
+  </table>
+
+  <!-- 소방안전관리대상물 -->
+  <table class="secline">
+    <colgroup><col style="width:80px"><col style="width:80px"><col><col style="width:80px"><col style="width:130px"></colgroup>
+    <tr>
+      <td class="lb" rowspan="5">소방안전<br>관리대상물</td>
+      <td class="lb2">대상명</td><td>한빛 비즈니스센터</td>
+      <td class="lb2">대표자</td><td>김한빛</td>
+    </tr>
+    <tr>
+      <td class="lb2">소재지</td><td>경기도 파주시 한빛로 100 (가상 주소)</td>
+      <td class="lb2">전화번호</td><td>연락처 예시</td>
+    </tr>
+    <tr>
+      <td class="lb2" rowspan="3">근무인원</td>
+      <th colspan="2">평일</th><th colspan="1">휴일</th>
+    </tr>
+    <tr>
+      <td class="c">주간 40</td>
+      <td class="c">야간 2</td>
+      <td class="c">주간 2 / 야간 2</td>
+    </tr>
+    <tr>
+      <td class="lb2">등급</td>
+      <td colspan="2" class="c">
+        ☐ 특급 &nbsp;
+        ☐ 1급 &nbsp;
+        ☑ 2급 &nbsp;
+        ☐ 3급
+      </td>
+    </tr>
+  </table>
+
+  <!-- 소방안전관리자 -->
+  <table class="secline">
+    <colgroup><col style="width:80px"><col><col style="width:80px"><col style="width:80px"><col style="width:90px"><col style="width:100px"><col style="width:70px"></colgroup>
+    <tr>
+      <td class="lb" rowspan="5">소방안전<br>관리자</td>
+      <th>성명</th><th>선임일자</th><th>보유자격</th><th>자격구분</th><th>연락처</th><th>비고</th>
+    </tr>
+          <tr>
+        <td>이안전</td>
+        <td class="c">2026-01-01</td>
+        <td class="c">2급 소방안전관리자</td>
+        <td class="c">☑ 주 ☐ 보조</td>
+        <td class="c">연락처 예시</td>
+        <td></td>
+      </tr>
+          <tr>
+        <td></td>
+        <td class="c"></td>
+        <td class="c"></td>
+        <td class="c">☐ 주 ☐ 보조</td>
+        <td class="c"></td>
+        <td></td>
+      </tr>
+          <tr>
+        <td></td>
+        <td class="c"></td>
+        <td class="c"></td>
+        <td class="c">☐ 주 ☐ 보조</td>
+        <td class="c"></td>
+        <td></td>
+      </tr>
+          <tr>
+        <td></td>
+        <td class="c"></td>
+        <td class="c"></td>
+        <td class="c">☐ 주 ☐ 보조</td>
+        <td class="c"></td>
+        <td></td>
+      </tr>
+      </table>
+
+  <!-- 자위소방대 -->
+  <table class="secline">
+    <colgroup><col style="width:80px"><col style="width:90px"><col><col><col><col></colgroup>
+    <tr>
+      <td class="lb" rowspan="4">자위소방대</td>
+      <th>총원(명)</th><th>대장성명</th><th>부대장(명)</th><th>통보연락(명)</th><th>초기소화(명)</th>
+    </tr>
+    <tr>
+      <td class="c">5</td><td class="c">이안전</td>
+      <td class="c">김시설</td><td class="c">1</td>
+      <td class="c">1</td>
+    </tr>
+    <tr>
+      <th>대장연락처</th><th>피난유도(명)</th><th>비상연락(명)</th><th colspan="2"></th>
+    </tr>
+    <tr>
+      <td class="c">연락처 예시</td><td class="c">1</td>
+      <td class="c">1</td><td colspan="2"></td>
+    </tr>
+  </table>
+
+  <!-- 초기대응체계 -->
+  <table class="secline">
+    <colgroup><col style="width:80px"><col style="width:90px"><col></colgroup>
+    <tr><td class="lb" rowspan="2">초기대응체계</td>
+      <td class="lb2">조직구성</td><td>시설관리팀</td></tr>
+    <tr><td class="lb2">총원(명)</td><td class="c">5</td></tr>
+  </table>
+
+  <!-- 교육·훈련 결과 -->
+  <table class="secline">
+    <tr><th colspan="7">교육 · 훈련 결과</th></tr>
+  </table>
+  <table>
+    <colgroup><col style="width:80px"><col><col><col><col><col><col></colgroup>
+    <tr>
+      <td class="lb" rowspan="3">인원</td>
+      <th colspan="3">자위소방대</th><th colspan="3">초기대응</th>
+    </tr>
+    <tr>
+      <th>총원(명)</th><th>참석</th><th>미참석</th>
+      <th>총원(명)</th><th>참석</th><th>미참석</th>
+    </tr>
+    <tr>
+      <td class="c">5</td><td class="c">5</td><td class="c">0</td>
+      <td class="c">5</td><td class="c">5</td><td class="c">0</td>
+    </tr>
+  </table>
+  <table>
+    <colgroup><col style="width:80px"><col></colgroup>
+    <tr><td class="lb">일시/장소</td>
+      <td>2026-03-12 14:00~15:00 / 1층 교육실</td></tr>
+    <tr><td class="lb">주요내용</td><td class="big2">비상연락망 확인, 담당 임무 숙지, 소화기 사용 시연 및 집결지 이동 연습</td></tr>
+    <tr><td class="lb">보완사항</td><td class="big">후면 출입구 안내표지 식별성 보완</td></tr>
+    <tr><td class="lb">조치사항</td><td class="big">표지 위치 조정 후 피난유도반 재확인</td></tr>
+  </table>
+
+  <div class="foot">210mm×297mm[백상지(80g/㎡) 또는 중질지(80g/㎡)]</div>
+</div>
+
+<!-- ═══════════ 뒤쪽 : 참석확인 ═══════════ -->
+<div class="sheet pbreak">
+  <div class="guide"><span>□ 교육·훈련 참석확인</span><span>(뒤쪽)</span></div>
+  <table>
+    <colgroup>
+      <col style="width:44px"><col style="width:110px"><col><col style="width:52px">
+      <col style="width:44px"><col style="width:110px"><col><col style="width:52px">
+    </colgroup>
+    <tr>
+      <th>연번</th><th>직책</th><th>성명</th><th>확인</th>
+      <th>연번</th><th>직책</th><th>성명</th><th>확인</th>
+    </tr>
+          <tr>
+        <td class="c">1</td>
+        <td>자위소방대원</td>
+        <td>이안전</td>
+        <td class="c"></td>
+        <td class="c">26</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">2</td>
+        <td>자위소방대원</td>
+        <td>김시설</td>
+        <td class="c"></td>
+        <td class="c">27</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">3</td>
+        <td>자위소방대원</td>
+        <td>박연락</td>
+        <td class="c"></td>
+        <td class="c">28</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">4</td>
+        <td>자위소방대원</td>
+        <td>최진압</td>
+        <td class="c"></td>
+        <td class="c">29</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">5</td>
+        <td>자위소방대원</td>
+        <td>정유도</td>
+        <td class="c"></td>
+        <td class="c">30</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">6</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">31</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">7</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">32</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">8</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">33</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">9</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">34</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">10</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">35</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">11</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">36</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">12</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">37</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">13</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">38</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">14</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">39</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">15</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">40</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">16</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">41</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">17</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">42</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">18</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">43</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">19</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">44</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">20</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">45</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">21</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">46</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">22</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">47</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">23</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">48</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">24</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">49</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+          <tr>
+        <td class="c">25</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+        <td class="c">50</td>
+        <td></td>
+        <td></td>
+        <td class="c"></td>
+      </tr>
+      </table>
+</div>
+
+ </div>
+    <div class="fp-training-form fp-training-form--train">
+  <p class="fp-training-form-label">소방훈련·교육 · 기록 SAMPLE-02 · 저장 2026-09-17</p>
+  <div class="sheet">
+  <div class="formno">■ 화재의 예방 및 안전관리에 관한 법률 시행규칙 [별지 제28호서식]</div>
+  <div class="title">소방훈련ㆍ교육 실시 결과 기록부</div>
+  <div class="note">※ ☐에는 해당되는 곳에 ☑ 표시</div>
+
+  <!-- 대상물 -->
+  <table>
+    <tr><td class="lb">대상명</td><td>한빛 비즈니스센터</td>
+        <td class="lb">용도</td><td>업무시설</td></tr>
+    <tr><td class="lb">대표자</td><td>김한빛</td>
+        <td class="lb">전화번호</td><td>연락처 예시</td></tr>
+    <tr><td class="lb">주소</td><td colspan="3">경기도 파주시 한빛로 100 (가상 주소)</td></tr>
+    <tr><td class="lb">등급</td><td colspan="3" class="chkline">
+      ☐ 특급　☐ 1급　☑ 2급　☐ 3급
+    </td></tr>
+  </table>
+
+  <!-- 소방안전관리자 -->
+  <div class="form-section-title">소방안전관리자</div>
+  <table>
+    <tr><th>성명</th><th>선임일자</th><th>보유자격</th><th>자격구분</th><th>연락처</th></tr>
+        <tr>
+      <td style="text-align:center">이안전</td>
+      <td style="text-align:center">2026-01-01</td>
+      <td style="text-align:center">2급 소방안전관리자</td>
+      <td style="text-align:center" class="chkline">☑주 ☐보조</td>
+      <td style="text-align:center">연락처 예시</td>
+    </tr>
+        <tr>
+      <td style="text-align:center"><span class="e"></span></td>
+      <td style="text-align:center"><span class="e"></span></td>
+      <td style="text-align:center"><span class="e"></span></td>
+      <td style="text-align:center" class="chkline">☐주 ☐보조</td>
+      <td style="text-align:center"><span class="e"></span></td>
+    </tr>
+        <tr>
+      <td style="text-align:center"><span class="e"></span></td>
+      <td style="text-align:center"><span class="e"></span></td>
+      <td style="text-align:center"><span class="e"></span></td>
+      <td style="text-align:center" class="chkline">☐주 ☐보조</td>
+      <td style="text-align:center"><span class="e"></span></td>
+    </tr>
+        <tr>
+      <td style="text-align:center"><span class="e"></span></td>
+      <td style="text-align:center"><span class="e"></span></td>
+      <td style="text-align:center"><span class="e"></span></td>
+      <td style="text-align:center" class="chkline">☐주 ☐보조</td>
+      <td style="text-align:center"><span class="e"></span></td>
+    </tr>
+      </table>
+
+  <!-- 소방훈련 결과 -->
+  <div class="form-section-title">소방훈련 결과</div>
+  <table>
+    <tr><td class="lb">일시</td><td>2026-09-17 14:00~15:00</td>
+        <td class="lb">장소</td><td>본관 전층 및 옥외 집결지</td></tr>
+    <tr><td class="lb">구분</td><td class="chkline">☑ 자체훈련　☐ 합동훈련</td>
+        <td class="lb">훈련교관</td><td>이안전</td></tr>
+    <tr><td class="lb">참석결과</td><td colspan="3">
+      참석대상 <b>40</b>명　·　참석 <b>40</b>명　·　미참석 <b>0</b>명
+    </td></tr>
+    <tr><td class="lb">훈련보조재료</td><td colspan="3">교육용 소화기·비상연락망·층별 안내도</td></tr>
+    <tr><td class="lb" rowspan="2">훈련내용</td>
+        <td class="sub">☐ 소화훈련</td>
+        <td class="sub">☐ 통보훈련</td>
+        <td class="sub">☐ 피난훈련</td></tr>
+    <tr class="big">
+        <td class="tri">소화기 사용 시연</td>
+        <td class="tri">119 신고요령 모의훈련</td>
+        <td class="tri">양방향 피난 및 집결지 확인</td></tr>
+        <tr><td class="lb">그 밖의<br>훈련내용</td><td colspan="3">화재 발견·신고·피난·인원확인 순서에 따른 합동훈련</td></tr>
+        <tr class="big"><td class="lb">훈련성과</td><td colspan="3">전원 집결 확인, 임무별 대응 절차 숙지</td></tr>
+    <tr class="big"><td class="lb">문제점</td><td colspan="3">일부 방문객 대체 출구 인지 부족</td></tr>
+    <tr class="big"><td class="lb">개선계획</td><td colspan="3">방문객 안내 시 대체 피난경로 추가 설명</td></tr>
+  </table>
+
+  <!-- 소방교육 결과 -->
+  <div class="form-section-title">소방교육 결과</div>
+  <table>
+    <tr><td class="lb">일시</td><td>2026-03-12 14:00~15:00</td>
+        <td class="lb">장소</td><td>1층 교육실</td></tr>
+    <tr><td class="lb">교육강사</td><td>이안전</td>
+        <td class="lb">참석결과</td><td>
+          대상 <b>40</b>　참석 <b>40</b>　미참석 <b>0</b>
+        </td></tr>
+    <tr class="big"><td class="lb">교육내용</td><td colspan="3">화재 시 행동요령과 소화기 사용법</td></tr>
+    <tr class="big"><td class="lb">교육성과</td><td colspan="3">참석자 전원 안내·실습 완료</td></tr>
+    <tr class="big"><td class="lb">문제점</td><td colspan="3">후면 출구 표지 식별 보완 필요</td></tr>
+    <tr class="big"><td class="lb">개선계획</td><td colspan="3">표지 위치 조정 및 현장 안내</td></tr>
+  </table>
+
+  <!-- 소방훈련·교육 관련사진 (서식 뒤쪽) -->
+    <div class="pbreak"></div>
+  <div class="form-section-title">소방훈련·교육 관련사진</div>
+  <table class="ptbl">
+    <tr>
+              <td class="pcell"></td>
+              <td class="pcell"></td>
+          </tr>
+    <tr><td class="pcap">소방훈련</td><td class="pcap">소방훈련</td></tr>
+    <tr>
+              <td class="pcell"></td>
+              <td class="pcell"></td>
+          </tr>
+    <tr><td class="pcap">소방교육</td><td class="pcap">소방교육</td></tr>
+  </table>
+  <div style="margin-top:14px;font-size:11px;color:#666;text-align:center">
+    작성일 2026-09-17 · 210mm×297mm
+  </div>
+</div>
+ </div>
+ </div>
+
+      </section>
+    <section class="sec" id="section-12">
+    <div class="sec__h">
+      <div class="sec__no">12</div>
+      <div class="sec__t">위험물 저장·취급</div>
+            <div class="sec__skip">위험물 해당없음</div>    </div>
+
+          <div class="para"><span class="none">해당사항 없음</span></div>
+
+      </section>
+    <section class="sec" id="section-13">
+    <div class="sec__h">
+      <div class="sec__no">13</div>
+      <div class="sec__t">업무수행 기록·유지</div>
+                </div>
+
+                        <div class="para">작성자: 소방안전관리자 이안전.
+매월 업무수행 내용을 기록하고 시설 불량·피난 방해요인·조치결과를 함께 관리한다.
+전자 기록은 FireDesk에 보관하며 관계인과 필요한 사항을 공유한다. 변경사항은 소방계획서에 반영하고 기록부 원본과 증빙을 확인한다.</div>
+            </section>
+    <section class="sec" id="section-14">
+    <div class="sec__h">
+      <div class="sec__no">14</div>
+      <div class="sec__t">화재 초기대응 (경보·초기소화·피난유도)</div>
+                </div>
+
+          <table class="d">
+        <tr><th>① 화재경보</th><td>화재 발견자는 주변에 알리고 발신기로 경보한다. 비상연락반은 수신기에서 위치를 확인하고 비상방송한다.</td></tr>
+        <tr><th>② 화재신고</th><td>비상연락반이 119에 건물명·주소·화재 위치·대피 상황을 신고한다.</td></tr>
+        <tr><th>③ 초기소화</th><td>초기소화반은 퇴로가 확보된 경우에만 소화기 등으로 초기소화한다. 연기가 확산되면 즉시 철수한다.</td></tr>
+        <tr><th>④ 피난유도</th><td>피난유도반은 각 층 출구를 안내하고 승강기 이용을 통제한다. 이동지원 대상자를 동행 지원한다.</td></tr>
+        <tr><th>⑤ 인원확인</th><td>집결지에서 부서별 인원을 확인한다. 미확인자의 마지막 위치를 소방대에 전달하고 임의 재진입을 금지한다.</td></tr>
+                  <tr><th>비 고</th><td><div style="white-space:pre-wrap">소방차는 정문 진입로를 이용한다. 출입구와 진입로 주정차를 통제하고 시설관리 담당자가 소방대에 수신기·설비·미확인자 위치를 인계한다. 야간·휴일에는 당직자가 비상연락망을 가동한다.</div></td></tr>
+              </table>
+
+      </section>
+    <section class="sec" id="section-15">
+    <div class="sec__h">
+      <div class="sec__no">15</div>
+      <div class="sec__t">그 밖에 소방서장 요청사항</div>
+                </div>
+
+                        <div class="para">작성 시점 별도 요청사항 없음. 관할 소방서의 안내 또는 요청사항이 있는 경우 내용을 기록하고 담당자와 조치기한을 지정하여 관리한다.</div>
+            </section>
+  
+  <span id="plan-references" aria-hidden="true"></span>
+  <div class="fp-appendix-title"><p class="fp-doc-kicker">반영 자료</p><h2>동별 현황과 반영 자료</h2><p>자료 반영 시점에 저장한 상세 현황입니다. 기본정보에 저장된 규모와 동별 면적을 함께 확인하세요.</p></div>
+<section class="sec fp-appendix" data-plan-section="1"><div class="sec__h"><div class="sec__no">별첨 1</div><div class="sec__t">관리하는 동별 건물 현황</div></div><table class="d"><thead><tr><th>동 이름</th><th>용도</th><th>층수</th><th>연면적(㎡)</th><th>구조</th></tr></thead><tbody><tr><td><b>본관</b><br><span class="tag">기준동</span></td><td>업무시설</td><td>지상 5층<br>지하 1층</td><td>2400</td><td>철근콘크리트구조</td></tr></tbody></table></section><section class="sec fp-appendix" data-plan-section="1"><div class="sec__h"><div class="sec__no">별첨 2</div><div class="sec__t">소방안전관리자 현황</div></div><table class="d"><thead><tr><th>구분</th><th>성명</th><th>연락처</th><th>선임일</th></tr></thead><tbody><tr><td>주</td><td>이안전</td><td>연락처 예시</td><td>2026-01-01</td></tr></tbody></table></section><section class="sec fp-appendix" data-plan-section="2"><div class="sec__h"><div class="sec__no">별첨 3</div><div class="sec__t">동별 소방시설 상세</div></div><table class="d"><thead><tr><th>동 이름</th><th>설치 시설 · 수신기 · 수량 · 위치</th><th>확인 현황</th></tr></thead><tbody><tr><td><b>본관</b></td><td class="preserve">소화기 20대: 층별 복도 및 주출입구 주변.
+옥내소화전 6개소: 지하 1층~지상 5층 계단 앞.
+화재수신기: 1층 방재실. 방화문: 각 층 계단실 출입구.
+시설별 수량·위치는 예시이며 실제 설치 현황을 확인하여 작성합니다.</td><td>설치 8종<br>전체 확인</td></tr></tbody></table></section><section class="sec fp-appendix" data-plan-section="5"><div class="sec__h"><div class="sec__no">별첨 4</div><div class="sec__t">동별 · 층별 피난계획</div></div><table class="d"><thead><tr><th>동 · 층</th><th>재실인원</th><th>주 대피경로 / 대체 경로</th><th>피난유도 · 잔류 확인</th></tr></thead><tbody><tr><td><b>본관 · 2~5층</b></td><td>160명</td><td class="preserve">동측 계단 → 1층 정문 → 옥외 광장<br>대체: 서측 계단 → 후면 출입구</td><td>유도: 정유도<br>확인: 김시설</td></tr></tbody></table></section><section class="sec fp-appendix" data-plan-section="13"><div class="sec__h"><div class="sec__no">별첨 5</div><div class="sec__t">2026년 저장된 업무수행 기록 현황</div></div><table class="d"><thead><tr><th>기록 월</th><th>수행일</th><th>작성자</th></tr></thead><tbody><tr><td>1월</td><td>2026-01-05</td><td>이안전</td></tr><tr><td>2월</td><td>2026-02-02</td><td>이안전</td></tr></tbody></table><p class="empty-note">월별 기록의 내용과 서명은 원본 업무수행 기록표에서 확인합니다.</p></section>
+
+      <section class="sec fp-appendix" data-plan-section="1" id="appendix-multi-use"><div class="sec__h"><div class="sec__no">별첨 6</div><div class="sec__t">다중이용업소 현황</div></div>
+            <table class="d fp-floor-table"><thead><tr><th>업소명</th><th>업종</th><th>영업층</th></tr></thead><tbody>
+            <tr><td>한빛 노래연습장 (가상)</td><td>노래연습장</td><td>본관 · 지하 1층</td></tr>
+      </tbody></table>
+      
+</section>
+    <div class="doc-foot">작성일 2026년 10월 01일 · 소방안전관리자 이안전 (서명)<br>소방계획서.com · 2026년 안전관리 계획</div>
+
+</div>
+
+</body>
+</html>

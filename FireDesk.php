@@ -1,0 +1,3070 @@
+<?php
+// FireDesk.php — 건물 소방안전관리자 전용 페이지
+declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
+
+// 피난 시뮬레이션은 개발 보류: 사용자 화면의 진입 항목만 숨깁니다.
+$showEvacSimulation = false;
+
+
+/* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
+if (session_status() !== PHP_SESSION_ACTIVE) {
+ini_set('session.cookie_httponly', '1');
+if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
+alp_session_start();
+}
+
+function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
+function is_admin(): bool {
+  return (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'])
+      || (!empty($_SESSION['ID_OK']) && $_SESSION['ID_OK'] == 1);
+}
+function is_logged_in(): bool {
+  return is_admin() || !empty($_SESSION['is_user']);
+}
+
+// 로그인 안 했으면 메인으로
+if (!is_logged_in()) { header('Location: /index.php'); exit; }
+
+// Preserve explicit member reviews, but route the administrator's own dashboard to manager management.
+if (is_admin() && empty($_GET['uid']) && !defined('MANAGER_VIEW_UID')) { header('Location: /admin_manager_payouts.php', true, 303); exit; }
+
+// 유형이 건물 관리자가 아니면 자기 유형 페이지로 돌려보냄 (관리자는 통과)
+$role = $_SESSION['role'] ?? 'agency';
+if (!defined('MANAGER_VIEW_UID') && !is_admin() && $role !== 'building') {
+  header('Location: /partner_center.php'); exit;
+}
+
+require_once __DIR__ . '/building_info.php';
+
+/** Compare persisted records, not iframe navigation or file modification times.
+ * Reading a card, cancelling edits, or rewriting identical JSON must not reload the dashboard.
+ * Only the already-authorized user's current records are read; uploads/backups are not traversed.
+ */
+function bm_record_revision(string $dataRoot, string $uid): ?string {
+  if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $uid)) return null;
+  $files = [
+    $dataRoot.'/building/'.$uid.'/info.json',
+    $dataRoot.'/building/'.$uid.'/facilities.php',
+    $dataRoot.'/building/'.$uid.'/evacuation_plan.json',
+  ];
+  foreach (['fireplan'=>$uid, 'jawi'=>$uid, 'train'=>$uid, 'worklog'=>preg_replace('/[^A-Za-z0-9_]/', '_', $uid)] as $folder=>$key) {
+    $matches = glob($dataRoot.'/'.$folder.'/'.$key.'/*.json');
+    if ($matches === false) return null;
+    $files = array_merge($files, $matches);
+  }
+  sort($files, SORT_STRING);
+  $hash = hash_init('sha256');
+  hash_update($hash, $uid."\0");
+  foreach ($files as $file) {
+    if (!is_file($file)) continue;
+    $contentHash = @hash_file('sha256', $file);
+    if ($contentHash === false) return null;
+    hash_update($hash, substr($file, strlen($dataRoot))."\0".$contentHash."\0");
+  }
+  return hash_final($hash);
+}
+
+// Use this page's existing owner / administrator / partner authorization for the small status request.
+if (($_GET['dashboard_revision'] ?? '') === '1') {
+  header('Content-Type: application/json; charset=utf-8');
+  header('Cache-Control: no-store');
+  $revision = bm_record_revision(__DIR__.'/data', app_user_key());
+  if ($revision === null) http_response_code(503);
+  echo json_encode(['revision'=>$revision]);
+  exit;
+}
+$bi     = bi_load();
+require_once __DIR__.'/building_facilities_common.php';
+$facilityData=bf_load();$facilityDone=bf_complete($facilityData);$facilityCounts=bf_counts($facilityData);
+$biName = trim((string)$bi['name']);
+$hasBi  = $biName !== '';
+
+/* 회원을 특정할 수 있는가 (못하면 남의 데이터를 보여주지 않는다) */
+$hasUser = !function_exists('app_has_user_key') || app_has_user_key();
+$viewUid = function_exists('app_user_key') ? app_user_key() : '';
+$adminView = is_admin() && trim((string)($_GET['uid'] ?? '')) !== '' && $viewUid !== '';
+$adminQuery = $adminView ? ('uid=' . rawurlencode($viewUid)) : '';
+$url = function(string $path) use ($adminQuery): string {
+  if ($adminQuery === '') return $path;
+  return $path . (strpos($path, '?') === false ? '?' : '&') . $adminQuery;
+};
+
+/* 기본정보가 얼마나 채워졌는지 — 이름만 적어도 "완료"로 보이던 문제 보완 */
+$biProg = function_exists('bi_progress')
+  ? bi_progress()
+  : ['filled' => $hasBi ? 1 : 0, 'total' => 1, 'percent' => $hasBi ? 100 : 0, 'missing' => []];
+$biDone = $biProg['filled'] >= $biProg['total'];
+
+$nick = $_SESSION['nickname'] ?? '사용자';
+if (defined('MANAGER_FULL_DASHBOARD')) $nick = (string)(mg_members()[$viewUid]['nickname'] ?? $viewUid);
+
+/* 알림 미확인 개수 — notifications.php 가 아직 없어도 안전하게 0으로 둡니다 */
+$unreadCount = 0;
+if (function_exists('app_user_key')) {
+  $__nUid = app_user_key();
+  if ($__nUid !== '') {
+    $__nFile = __DIR__ . '/data/notifications/' . $__nUid . '.json';
+    if (is_file($__nFile)) {
+      $__nList = json_decode((string)@file_get_contents($__nFile), true);
+      if (is_array($__nList)) {
+        foreach ($__nList as $__n) { if (empty($__n['read'])) $unreadCount++; }
+      }
+    }
+  }
+}
+$targetNick = $nick;
+if ($adminView) {
+  $membersFileForName = __DIR__ . '/data/members.json';
+  $membersForName = is_file($membersFileForName) ? json_decode((string)@file_get_contents($membersFileForName), true) : [];
+  if (is_array($membersForName) && isset($membersForName[$viewUid])) {
+    $targetNick = trim((string)($membersForName[$viewUid]['nickname'] ?? '')) ?: $viewUid;
+  } else {
+    $targetNick = $viewUid;
+  }
+}
+
+/* ── 건물 기본정보 검토요청 상태
+ * building_setup_chat.php 에서 보낸 "건물 기본정보:" 요청만 집계한다.
+ * 미확인 요청은 개수로 보여준다.
+ * ※ '관리자 확인완료'는 더 이상 여기에 배지로 띄우지 않는다.
+ *    관리자가 처리하는 순간 회원에게 알림(notifications)으로 보내므로,
+ *    진행 현황에는 남기지 않는다. (아래 $reviewResolvedRecent 는 계산만 남겨 둠) */
+$reviewPending = 0;
+$reviewResolvedRecent = false;
+$adminReviewRows = [];
+
+
+$reviewResolvedUntil = strtotime('-7 days');
+$reviewFile = __DIR__ . '/data/assist_log.json';
+$memberUid = $viewUid;
+$memberCreatedAt = 0;
+if ($memberUid !== '') {
+  $membersFile = __DIR__ . '/data/members.json';
+  $membersRows = is_file($membersFile) ? json_decode((string)@file_get_contents($membersFile), true) : [];
+  if (is_array($membersRows) && isset($membersRows[$memberUid])) {
+    $memberCreatedAt = strtotime((string)($membersRows[$memberUid]['created'] ?? '')) ?: 0;
+  }
+}
+if ($memberUid !== '' && is_file($reviewFile)) {
+  $reviewRows = json_decode((string)@file_get_contents($reviewFile), true);
+  if (is_array($reviewRows)) {
+    foreach ($reviewRows as $reviewRow) {
+      if (($reviewRow['kind'] ?? '') !== 'review') continue;
+      if ((string)($reviewRow['uid'] ?? '') !== $memberUid) continue;
+
+      $requestedAt = strtotime((string)($reviewRow['at'] ?? '')) ?: 0;
+      if ($memberCreatedAt > 0 && $requestedAt > 0 && $requestedAt < $memberCreatedAt) continue;
+
+      if ($adminView && ($reviewRow['status'] ?? 'pending') !== 'resolved') {
+        $adminReviewRows[] = $reviewRow;
+      }
+
+      if (strpos((string)($reviewRow['text'] ?? ''), '건물 기본정보:') !== 0) continue;
+
+      if (($reviewRow['status'] ?? 'pending') === 'resolved') {
+        $resolvedAt = strtotime((string)($reviewRow['resolved_at'] ?? ''));
+        if ($resolvedAt !== false && $resolvedAt >= $reviewResolvedUntil) {
+          $reviewResolvedRecent = true;
+        }
+      } else {
+        $reviewPending++;
+      }
+    }
+  }
+}
+
+/* ── 관리자가 배정한 피난 시뮬레이션 ── */
+require_once __DIR__ . '/evac_common.php';
+$evacUid    = (defined('MANAGER_VIEW_UID') || $adminView) ? $viewUid : evac_current_uid();
+$evacModels = evac_models_for($evacUid);
+
+/* 배정이 없는 회원은 관리자에게 배정을 요청할 수 있다.
+   요청 목록: data/evac_requests.json = { uid: {at: "..."} } */
+$evacRequested = false;
+if (!$evacModels && $evacUid !== '') {
+  $rf = __DIR__ . '/data/evac_requests.json';
+  if (is_file($rf)) {
+    $ra = json_decode((string)@file_get_contents($rf), true);
+    $evacRequested = is_array($ra) && isset($ra[$evacUid]);
+  }
+}
+if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
+$CSRF = (string)$_SESSION['csrf'];
+
+/* ── 배정 신청 팝업에 미리 채워 넣을 값 ──
+ * 기본정보(building_info.php)에 이미 적어둔 내용을 그대로 가져옵니다.
+ * 소방안전관리자는 '주' 담당을 우선으로, 없으면 첫 번째 사람을 씁니다. */
+$reqMgrName = '';
+$reqMgrTel  = '';
+if (!empty($bi['mgrs']) && is_array($bi['mgrs'])) {
+  $pick = null;
+  foreach ($bi['mgrs'] as $m) {
+    if (!is_array($m)) continue;
+    if (trim((string)($m['name'] ?? '')) === '') continue;
+    if ($pick === null) $pick = $m;
+    if (strpos((string)($m['type'] ?? ''), '주') === 0) { $pick = $m; break; }
+  }
+  if ($pick) {
+    $reqMgrName = trim((string)($pick['name'] ?? ''));
+    $reqMgrTel  = trim((string)($pick['tel'] ?? ''));
+  }
+}
+/* 관리자 전화가 비어 있으면 건물 대표번호로 대신 채워줍니다 */
+if ($reqMgrTel === '') $reqMgrTel = trim((string)($bi['tel'] ?? ''));
+
+$reqPrefill = [
+  'building_name' => $biName,
+  'address'       => trim((string)($bi['address'] ?? '')),
+  'manager_name'  => $reqMgrName,
+  'manager_phone' => $reqMgrTel,
+];
+/* 팝업에서 바로 보낼 수 있는 상태인가 (비어 있으면 팝업에서 직접 채웁니다) */
+$reqReady = $reqPrefill['address'] !== '' && $reqPrefill['manager_name'] !== '' && $reqPrefill['manager_phone'] !== '';
+
+/* ── 업무 진행 상태 자동 감지 ──
+ * 각 서식의 실제 저장 파일을 읽어 완료 여부를 판단한다. */
+if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
+$mon = date('n') . '월';
+
+$rawKey = $viewUid !== '' ? $viewUid : (string)($_SESSION['member_id'] ?? ('kakao_' . ($_SESSION['kakao_id'] ?? 'guest')));
+$keySafe = !preg_match('#[/\\\\]|\.\.#', $rawKey);          // 경로 문자 방어
+$wlKey   = preg_replace('/[^A-Za-z0-9_]/', '_', $rawKey);   // work_log.php와 같은 규칙
+
+/* 구독(Pro) 상태 — 우측 패널의 안내를 무엇으로 보여줄지 정하는 데 씁니다.
+   ★ 저장 위치는 subscribe_page.php / toss_billing.php 와 똑같이
+     app_user_key() 기준이어야 합니다(다르면 파일을 못 찾습니다). */
+$proStatus = 'none';
+/* 요금제·다음 결제일 등 자세한 내용은 subscribe_page.php 에서 보여줍니다.
+   여기서는 '이용 중' 여부만 쓰지만, 필요해질 때를 위해 읽어는 둡니다. */
+$proPlan = ''; $proNext = ''; $proPrice = 0;
+if (!function_exists('app_user_key') && is_file(__DIR__ . '/user_key.php')) {
+  require_once __DIR__ . '/user_key.php';
+}
+$__subKey = function_exists('app_user_key') ? app_user_key() : '';
+if ($__subKey !== '') {
+  require_once __DIR__.'/subscription_account.php';
+  $subData = sa_read($__subKey);
+  if ($subData) {
+    if (is_array($subData)) {
+      $proStatus = (string)($subData['status'] ?? 'none');
+      $proPlan   = (string)($subData['plan_name'] ?? '');
+      $proNext   = (string)($subData['next_billing'] ?? '');
+      $proPrice  = (int)($subData['price'] ?? 0);
+    }
+  }
+}
+require_once __DIR__.'/pro_collaboration.php';
+$isPro = pc_active($__subKey);
+
+/* Pro 기능 링크 — 구독 중이면 원래 페이지로, 아니면 구독 페이지로 보냅니다.
+   카드는 구독 여부와 상관없이 똑같이 보여줍니다(있는 줄 알아야 구독하니까요). */
+$proLink = function (string $path) use ($isPro, $url): string {
+  return $isPro ? $url($path) : $url('/subscribe_page.php');
+};
+
+/* ① 이번 달 업무수행 기록표: data/worklog/{uid}/mYYYY-MM.json 존재 여부 */
+$doneWorkLog = is_file(__DIR__ . '/data/worklog/' . $wlKey . '/m' . date('Y-m') . '.json');
+
+/* ② 자위소방대 교육·훈련을 올해 실시했는가
+ *    ★ 예전에는 편성표(_jawi.json)가 있으면 교육까지 한 것으로 처리했는데,
+ *      편성표는 '명단'이고 교육은 '실시 기록'이라 서로 다른 것입니다.
+ *      명단만 만들어도 '교육 완료'로 표시되던 문제가 있어 분리했습니다.
+ *      편성표 존재 여부는 아래 $hasRoster 가 따로 판단합니다. */
+$doneJawi = false;
+
+$jawiStatus = null;   // 올해 자위소방대 교육·훈련 기록의 진행 상태
+
+/* ②-1 자위소방대 편성표(명단)를 만들어 두었는가
+ *     교육·훈련 기록부가 이 명단을 불러 쓰므로, 편성표가 먼저입니다.
+ *     저장 위치는 fire_plan_jawi.php 와 같은 규칙(app_user_key)을 씁니다. */
+$hasRoster   = false;
+$rosterCount = 0;
+$rosterName  = '';
+if ($viewUid !== '') {
+  $rf2 = __DIR__ . '/data/fireplan/' . $viewUid . '/_jawi.json';
+  if (is_file($rf2)) {
+    $ra2 = json_decode((string)@file_get_contents($rf2), true);
+    if (is_array($ra2) && $ra2) {
+      $rosterCount = count($ra2);
+      $hasRoster   = true;
+      $last = end($ra2);
+      if (is_array($last)) $rosterName = trim((string)($last['site'] ?? $last['siteName'] ?? ''));
+    }
+  }
+}
+
+/* ②-2 자위소방대 교육·훈련 — 새 기록부(jawi_db.php)가 있으면 그쪽을 먼저 봅니다 */
+$jdb = __DIR__ . '/jawi_db.php';
+if (is_file($jdb)) {
+  require_once $jdb;
+  if (function_exists('jw_done_this_year')) {
+    if (jw_done_this_year()) $doneJawi = true;
+    if (function_exists('jw_year_status')) $jawiStatus = jw_year_status();
+  }
+}
+
+/* ③ 올해 소방훈련·교육: train_db.php의 tr_list()로 올해 실시 기록 확인
+ *    (이미 선언된 함수와 이름이 겹치면 치명적 오류가 나므로, 겹치지 않을 때만 불러온다) */
+$doneTrain   = false;
+$trainStatus = null;   // 올해 훈련 기록의 진행 상태
+$tdb = __DIR__ . '/train_db.php';
+if (is_file($tdb)) {
+  $tsrc = (string)@file_get_contents($tdb);
+  $safe = true;
+  if (preg_match_all('/^\s*function\s+([A-Za-z_]\w*)/mi', $tsrc, $tm)) {
+    foreach ($tm[1] as $fn) { if (function_exists($fn)) { $safe = false; break; } }
+  }
+  if ($safe) {
+    require_once $tdb;
+    if (function_exists('tr_list')) {
+      try {
+        /* 날짜만 적힌 빈 기록이 완료로 잡히지 않도록,
+           훈련 일시·종류·참석 인원이 모두 채워진 것만 완료로 봅니다. */
+        if (function_exists('tr_done_this_year')) {
+          $doneTrain = tr_done_this_year();
+          /* 몇 %인지, 무엇이 남았는지도 같이 가져옵니다 */
+          if (function_exists('tr_year_status')) $trainStatus = tr_year_status();
+        } else {
+          foreach (tr_list() as $r) {
+            $d = (string)($r['train_date'] ?? '');
+            if (strncmp($d, date('Y'), 4) === 0) { $doneTrain = true; break; }
+          }
+        }
+      } catch (Throwable $e) { /* 감지 실패 시 미진행으로 표시 */ }
+    }
+  }
+}
+
+/* 건물 시각화용 층수 — '지상 5층'처럼 저장된 값에서도 숫자만 안전하게 읽습니다. */
+$floorNumber = static function($value): int {
+  return preg_match('/\d+/', (string)$value, $m) ? max(0, (int)$m[0]) : 0;
+};
+$floorAbove = $floorNumber($bi['floor_a'] ?? '');
+$floorBelow = $floorNumber($bi['floor_b'] ?? '');
+
+/* 건축물대장에서 조회한 동별 목록.
+   대표 수치는 가장 큰 동 하나만 쓰고, 나머지 동은 현장 구성으로 별도 표시합니다. */
+$dongListRaw = $bi['bd_dong_list'] ?? [];
+if (is_string($dongListRaw) && trim($dongListRaw) !== '') {
+  $decodedDongList = json_decode($dongListRaw, true);
+  if (is_array($decodedDongList)) $dongListRaw = $decodedDongList;
+}
+$buildingDongs = [];
+if (is_array($dongListRaw)) {
+  foreach (bdn_rows($bi) as $dongEntry) {
+    $dong=$dongEntry['row'];
+    $dongName=$dongEntry['name'];
+    $buildingDongs[] = [
+      'dong' => $dongName,
+      'floor_a' => $floorNumber($dong['floor_a'] ?? ''),
+      'floor_b' => $floorNumber($dong['floor_b'] ?? ''),
+      'area' => max(0, (float)str_replace(',', '', (string)($dong['area'] ?? '0'))),
+      'struct' => trim((string)($dong['struct'] ?? '')),
+      'height' => max(0, (float)($dong['height'] ?? 0)),
+      'use' => trim((string)($dong['use'] ?? '')),
+    ];
+  }
+}
+/* 이전 저장본은 구조화 목록이 없을 수 있으므로 동별 요약 문자열에서 복원합니다. */
+if (!$buildingDongs && trim((string)($bi['bd_dongs'] ?? '')) !== '') {
+  foreach (preg_split('/\R/u', trim((string)$bi['bd_dongs'])) ?: [] as $line) {
+    if (!preg_match('/^\s*(.*?)\s*:\s*지상\s*(\d+)\s*\/\s*지하\s*(\d+)\s*층/u', $line, $match)) continue;
+    preg_match('/([\d,.]+)\s*㎡/u', $line, $areaMatch);
+    preg_match('/([\d.]+)\s*m(?:\s|·|$)/u', $line, $heightMatch);
+    $buildingDongs[] = [
+      'dong' => trim($match[1]) ?: '동명 미상',
+      'floor_a' => (int)$match[2],
+      'floor_b' => (int)$match[3],
+      'area' => isset($areaMatch[1]) ? (float)str_replace(',', '', $areaMatch[1]) : 0,
+      'struct' => '',
+      'height' => isset($heightMatch[1]) ? (float)$heightMatch[1] : 0,
+      'use' => '',
+    ];
+  }
+}
+if ($buildingDongs) {
+  usort($buildingDongs, static fn(array $a, array $b): int => ($b['area'] <=> $a['area']));
+} elseif ($hasBi) {
+  $buildingDongs[] = [
+    'dong' => trim((string)($bi['bd_dong_pick'] ?? '')) ?: $biName,
+    'floor_a' => $floorAbove,
+    'floor_b' => $floorBelow,
+    'area' => max(0, (float)str_replace(',', '', (string)($bi['area_t'] ?? '0'))),
+    'struct' => trim((string)($bi['bd_struct'] ?? '')),
+    'height' => max(0, (float)($bi['bd_height'] ?? 0)),
+    'use' => trim((string)($bi['bd_use_main'] ?? '')),
+  ];
+}
+$declaredDongCount = $floorNumber($bi['dongsu'] ?? '');
+$siteDongCount = max(count($buildingDongs), $declaredDongCount);
+$primaryDong = $buildingDongs[0] ?? null;
+$primaryDongName = trim((string)($primaryDong['dong'] ?? '')) ?: $biName;
+$otherDongs = array_slice($buildingDongs, 1);
+$carouselDongCount = count($buildingDongs);
+$otherDongNames = array_values(array_filter(array_map(static fn(array $dong): string => trim((string)($dong['dong'] ?? '')), $otherDongs)));
+$otherDongText = implode(', ', $otherDongNames);
+if ($siteDongCount > count($buildingDongs)) {
+  $otherDongText .= ($otherDongText !== '' ? ' · ' : '') . '상세 미확인 ' . ($siteDongCount - count($buildingDongs)) . '개 동';
+}
+if ($primaryDong) {
+  $floorAbove = (int)$primaryDong['floor_a'];
+  $floorBelow = (int)$primaryDong['floor_b'];
+}
+
+/* 지도에서 실제로 설정한 핵심 안전자산 */
+$fireRouteRaw = $bi['fire_engine_route'] ?? '';
+$fireRoutePoints = is_array($fireRouteRaw) ? $fireRouteRaw : json_decode((string)$fireRouteRaw, true);
+$hasFireRoute = is_array($fireRoutePoints) && count($fireRoutePoints) >= 2;
+$hasAssemblyPoint = trim((string)($bi['assembly_lat'] ?? '')) !== ''
+  && trim((string)($bi['assembly_lng'] ?? '')) !== '';
+
+require_once __DIR__.'/building_location_rules.php';
+$locationSetupStatus=bl_setup_status($bi);
+$needsLocationSetup=$hasBi&&(!$locationSetupStatus['route']||!$locationSetupStatus['assembly']);
+$locationSetupUrl=$url('/building_setup.php?setup_locations=1');
+
+/* 피난계획 화면과 같은 저장 파일·완료 기준을 사용합니다. */
+$evacuationPlan = [];
+$biFile = function_exists('bi_file') ? bi_file() : '';
+$evacuationPlanFile = $biFile !== '' ? dirname($biFile) . '/evacuation_plan.json' : '';
+if ($evacuationPlanFile !== '' && is_file($evacuationPlanFile)) {
+  $evacuationRaw = json_decode((string)@file_get_contents($evacuationPlanFile), true);
+  if (is_array($evacuationRaw)) $evacuationPlan = $evacuationRaw;
+}
+$evacuationFloors = is_array($evacuationPlan['floors'] ?? null) ? $evacuationPlan['floors'] : [];
+$evacuationGroups = is_array($evacuationPlan['floor_groups'] ?? null) ? $evacuationPlan['floor_groups'] : [];
+foreach ($evacuationGroups as $group) {
+  $groupPlan = is_array($group['plan'] ?? null) ? $group['plan'] : [];
+  if (!$groupPlan) continue;
+  foreach ((array)($group['floors'] ?? []) as $floorKey) {
+    $evacuationFloors[$floorKey] = array_merge((array)($evacuationFloors[$floorKey] ?? []), $groupPlan);
+  }
+}
+$hasEvacuationPlan = !empty($evacuationFloors)
+  || trim((string)($evacuationPlan['alarm_method'] ?? '')) !== ''
+  || trim((string)($evacuationPlan['assembly_confirmed'] ?? '')) !== '';
+
+if (empty($_SESSION['safety_ai_csrf'])) $_SESSION['safety_ai_csrf'] = bin2hex(random_bytes(24));
+$safetyAiCsrf = (string)$_SESSION['safety_ai_csrf'];
+$aiCompleted = [];
+$aiPending = [];
+if ($biDone) $aiCompleted[] = '건물 기본정보'; else $aiPending[] = '건물 기본정보';
+if ($facilityDone) $aiCompleted[]='소방시설 현황'; else $aiPending[]='소방시설 현황';
+if ($hasRoster) $aiCompleted[] = '자위소방대 편성'; else $aiPending[] = '자위소방대 편성';
+if ($doneWorkLog === true) $aiCompleted[] = '이번 달 업무수행 기록'; else $aiPending[] = '이번 달 업무수행 기록';
+if ($doneJawi === true) $aiCompleted[] = '자위소방대 교육'; else $aiPending[] = '자위소방대 교육';
+if ($doneTrain === true) $aiCompleted[] = '소방훈련·교육'; else $aiPending[] = '소방훈련·교육';
+if ($hasEvacuationPlan) $aiCompleted[] = '피난계획'; else $aiPending[] = '피난계획';
+
+$s1 = $biDone;
+$s2 = $hasRoster;
+$s3 = ($doneWorkLog === true);
+$s4 = ($doneJawi === true);
+$s5 = ($doneTrain === true);
+$s6 = $hasEvacuationPlan;
+$nowStep = !$s1 ? 1 : (!$facilityDone ? 2 : (!$s2 ? 3 : (!$s6 ? 4 : (!$s3 ? 5 : (!$s4 ? 6 : (!$s5 ? 7 : 8))))));
+
+if (!$hasBi) {
+  $aiNextTask = '건물 기본정보 입력'; $aiNextAction = '기본정보 입력'; $aiNextUrl = $url('/building_setup_chat.php');
+} elseif (!$biDone) {
+  $aiNextTask = '건물 기본정보 마무리'; $aiNextAction = '이어서 입력'; $aiNextUrl = $url('/building_setup_chat.php');
+} elseif (!$facilityDone) {
+  $aiNextTask='소방시설 현황 확인';$aiNextAction='시설현황 입력';$aiNextUrl=$url('/building_facilities.php');
+} elseif (!$hasRoster) {
+  $aiNextTask = '자위소방대 편성'; $aiNextAction = '편성 시작'; $aiNextUrl = $url('/fire_plan_jawi.php');
+} elseif (!$hasEvacuationPlan) {
+  $aiNextTask = '피난계획 작성'; $aiNextAction = '피난계획 작성'; $aiNextUrl = $url('/evacuation_plan.php');
+} elseif ($doneWorkLog !== true) {
+  $aiNextTask = date('n').'월 업무수행 기록'; $aiNextAction = '기록 작성'; $aiNextUrl = $url('/work_log.php');
+} elseif ($doneJawi !== true) {
+  $aiNextTask = '자위소방대 교육·훈련 기록'; $aiNextAction = '교육 기록'; $aiNextUrl = $url('/jawi.php?stay=1');
+} elseif ($doneTrain !== true) {
+  $aiNextTask = '소방훈련·교육 기록'; $aiNextAction = '훈련 기록'; $aiNextUrl = $url('/train.php');
+} else {
+  $aiNextTask = '소방계획서 상시 관리'; $aiNextAction = '계획서 확인'; $aiNextUrl = $url('/fire_plan.php');
+}
+?>
+<?php
+if (defined('MANAGER_VIEW_UID') && !defined('MANAGER_FULL_DASHBOARD')) { require __DIR__ . '/manager_snapshot.php'; exit; }
+$PAGE_TITLE = '건물 소방안전관리';
+$NAV_MODE = 'account';
+$IS_LOGGED_IN = true;              // 이 페이지는 이미 위에서 로그인 필수 처리했으므로 항상 true
+$ACCOUNT_NICK = $nick;
+$ACCOUNT_IS_ADMIN = is_admin();
+$ACCOUNT_UNREAD = $unreadCount;    // 위에서 이미 계산한 값을 그대로 재사용
+require __DIR__ . '/_header.php';
+require_once __DIR__ . '/manager_ui.php';
+// 수락이 완료된 연결에 PRO 이용 안내를 표시합니다.
+$localRegistrationAllowed=false;
+$proManagerConnected = false;
+$safetyManagerTitle = '소방안전관리 파트너';
+try {
+    if(function_exists('mg_local_reconcile_pending'))mg_local_reconcile_pending($__subKey);
+    $proMembers = mg_members();
+    $proMember = $proMembers[$__subKey] ?? [];
+    $localRegistrationAllowed=function_exists('bsa_local_registration')&&bsa_local_registration($__subKey,$proMembers,mg_read(mg_state_file()));
+    $proManagerUid = mg_connection_manager($proMember, $proMembers);
+    $proManagerConnected = mg_active($proMember, 'building')
+        && $proManagerUid !== ''
+        && mg_link_status($__subKey, $proMember, mg_read(mg_state_file())) === 'accepted';
+    if ($proManagerConnected) {
+        $safetyManagerName = trim((string)($proMembers[$proManagerUid]['nickname'] ?? ''));
+        $safetyManagerName = trim((string)preg_replace('/(?:\s*(?:매니저|파트너))+$/u', '', $safetyManagerName));
+        $safetyManagerTitle = $safetyManagerName !== '' ? $safetyManagerName . ' 파트너' : '연결 업체';
+    }
+} catch (Throwable $e) {
+    $proManagerConnected = false;
+}
+$localSetupPrompt=$localRegistrationAllowed&&!$hasBi&&empty($_SESSION['_mge_actor'])&&!defined('MANAGER_FULL_DASHBOARD')&&!defined('MANAGER_VIEW_UID');
+$proInvite = $proManagerConnected && !$isPro && empty($_SESSION['_mge_actor']);
+$proButtonClass = $isPro ? ' plan-link--on' : ($proInvite ? ' plan-link--collaborate' : ($proStatus === 'pending' ? ' plan-link--wait' : ''));
+$proButtonLabel = $isPro ? 'PRO 이용 중' : ($proStatus === 'pending' ? 'PRO 신청 확인' : 'PRO 이용 안내');
+
+echo '<link rel="stylesheet" href="/manager.css?v=3"><script src="/manager.js?v=2" defer></script>';
+?>
+<style>
+/* FireDesk.php 전용 -- _header.php 가 :root.nav.wrap.card.page-head 기본값을 이미 제공합니다.
+   여기서는 이 페이지만의 것(진행 패널.평가 배너.팝업 등)만 추가.보완합니다. */
+.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;border:1px solid var(--bd2);background:#fff;color:var(--mut2);font-size:12px;margin-bottom:14px}
+.badge span{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block}
+.page-head h1{font-size:clamp(24px,3.5vw,34px);font-weight:700;letter-spacing:-.5px;margin-bottom:8px}
+.page-head p{color:var(--mut2);font-size:15px}
+.wrap{max-width:1120px;margin:0 auto;padding:22px 24px 40px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;
+  padding:15px 17px;display:flex;flex-direction:column;gap:6px;min-height:104px}
+.card h3{font-size:16px;font-weight:700;line-height:1.4}
+.card--link{color:inherit;transition:.15s}
+.card--link h3{color:var(--brand2)}
+.card--link:hover{border-color:var(--brand);box-shadow:0 8px 20px rgba(37,99,235,.08);transform:translateY(-1px)}
+.card__top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card .badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;
+  background:#ecfdf5;color:#047857;white-space:nowrap;border:0;margin:0}
+.card .badge--plan{background:#fff7ed;color:#b45309}
+.card .badge--setup{background:#eef2ff;color:var(--brand2)}
+.card__arrow{margin-left:auto;color:var(--mut);font-size:15px;flex-shrink:0}
+.card__sub{color:var(--mut2);font-size:12.5px;line-height:1.55;margin-top:auto}
+.card--soon{opacity:.7}
+.card--soon h3{color:var(--fg)}
+.tag-soon{font-size:11px;padding:3px 9px;border-radius:999px;background:#f1f5f9;color:var(--mut2)}
+.card--setup{border-color:#c7dbff;background:linear-gradient(180deg,#f8fbff,#fff)}
+.setup-badge{font-size:11px;padding:3px 9px;border-radius:999px;font-weight:700}
+.setup-badge--ok{background:#ecfdf5;color:#047857}
+.setup-badge--need{background:#fff7ed;color:#b45309}
+.setup-badge--review{background:#fef3c7;color:#b45309}
+.setup-badge--admin{background:#e0f2fe;color:#0369a1}
+@media(max-width:680px){.page-head__inner{padding:36px 20px 28px}}
+/* -- 배정된 피난 시뮬레이션 -- */
+.evac-strip{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px}
+.evac-strip__label{font-size:12px;font-weight:700;color:var(--mut2);
+  display:inline-flex;align-items:center;gap:6px}
+.evac-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 15px;border-radius:999px;
+  border:1px solid #b6d0f5;background:#fff;color:var(--brand2);font-size:13px;font-weight:700;
+  box-shadow:0 2px 8px rgba(37,99,235,.08);transition:.15s}
+.evac-chip:hover{border-color:var(--brand);box-shadow:0 6px 16px rgba(37,99,235,.15);transform:translateY(-1px)}
+.evac-chip .ic{font-size:14px}
+.evac-chip .go{color:var(--mut);font-weight:400}
+.evac-qr-btn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;
+  border-radius:999px;border:1px solid #b6d0f5;background:#fff;cursor:pointer;font-size:15px;
+  box-shadow:0 2px 8px rgba(37,99,235,.08);transition:.15s;flex-shrink:0}
+.evac-qr-btn:hover{border-color:var(--brand);transform:translateY(-1px)}
+.qrov{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;
+  align-items:center;justify-content:center;z-index:100;padding:20px}
+.qrov.on{display:flex}
+.qrbox{background:#fff;border-radius:16px;padding:24px;max-width:320px;width:100%;text-align:center}
+.qrbox h4{font-size:15px;font-weight:800;margin:0 0 4px}
+.qrbox .qsub{font-size:12px;color:var(--mut2);margin:0 0 14px}
+.qrbox .qimg{width:220px;height:220px;margin:0 auto 12px;display:flex;align-items:center;
+  justify-content:center;border:1px solid var(--bd);border-radius:12px}
+.qrbox .qurl{font-size:11px;color:var(--mut2);word-break:break-all;background:var(--bg);
+  border-radius:8px;padding:8px 10px;margin-bottom:14px;font-family:ui-monospace,monospace}
+.qrbox .qclose{width:100%;padding:10px;border:0;border-radius:10px;background:var(--brand);
+  color:#fff;font-size:13px;font-weight:700;cursor:pointer}
+
+/* -- 시뮬레이션 배정 요청 -- */
+.evac-req{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;
+  padding:13px 16px;border-radius:12px;background:#fff;border:1px dashed #b6d0f5}
+.evac-req__t{font-size:13px;font-weight:700;color:var(--brand2)}
+.evac-req__d{font-size:12px;color:var(--mut2)}
+.evac-req__btn{margin-left:auto;padding:9px 16px;border:0;border-radius:10px;background:var(--brand);
+  color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+.evac-req__btn:hover{filter:brightness(1.08)}
+.evac-req__btn:disabled{background:#e8edf5;color:#8a94a6;cursor:default}
+.evac-req--done{border-style:solid;border-color:#b7e2c6;background:#f6fdf8}
+.evac-req--done .evac-req__t{color:#15803d}
+.evac-req--wait{background:#fff7ed;border-color:#f6d8a8}
+.evac-req--wait .evac-req__t{color:#92400e}
+/* 자동알림 서비스 구독 배너 (배정 시뮬레이션 아래) */
+.subs{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
+  padding:13px 16px;border-radius:12px;background:#f7f5ff;border:1px solid #ddd6fe}
+.subs__t{font-size:13px;font-weight:700;color:#5b3fd1}
+.subs__d{font-size:12px;color:var(--mut2)}
+.subs__btn{margin-left:auto;padding:9px 16px;border:0;border-radius:10px;background:#6d4aff;
+  color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;
+  display:inline-flex;align-items:center;text-decoration:none}
+.subs__btn:hover{filter:brightness(1.08)}
+
+/* ── Pro 기능 카드: 미구독은 어둡게, 구독 중은 밝게 ── */
+/* ── Pro 기능 카드 (우측 패널 · 진행 현황 아래) ────────────
+   폭이 좁으므로 세로로 쌓습니다. 글자는 읽기 편한 크기를 유지합니다. */
+.prolock{margin-top:12px;background:#fff;border:1px solid var(--bd);color:var(--fg);
+  border-radius:16px;padding:16px 17px;box-shadow:0 4px 16px rgba(15,30,60,.06)}
+.prolock__hd{display:block;padding-bottom:13px;margin-bottom:13px;
+  border-bottom:1px solid var(--bd)}
+.prolock__badge{display:inline-block;font-size:11px;font-weight:900;letter-spacing:.05em;
+  padding:4px 10px;border-radius:7px;background:#fff7ed;color:#b45309;
+  border:1px solid #f6d8a8;margin-bottom:9px}
+.prolock__ttx b{display:block;font-size:15px;font-weight:800;color:var(--fg);line-height:1.45}
+.prolock__ttx small{display:block;font-size:12.5px;color:var(--mut2);margin-top:4px;line-height:1.6}
+.prolock__btn{display:block;text-align:center;margin-top:11px;
+  background:var(--brand);color:#fff;border-radius:10px;
+  padding:11px;font-size:14px;font-weight:800;text-decoration:none;transition:.14s}
+.prolock__btn:hover{filter:brightness(1.08);color:#fff}
+
+.prolock__list{display:flex;flex-direction:column;gap:0;
+  border:1px solid var(--bd);border-radius:11px;overflow:hidden}
+.prolock__i{display:flex;align-items:center;gap:11px;text-decoration:none;
+  background:#fff;padding:13px 14px;min-height:60px;transition:.14s}
+.prolock__i+.prolock__i{border-top:1px solid var(--bd)}
+.prolock__i:hover{background:#f4f8ff}
+.prolock__ic{width:34px;height:34px;flex-shrink:0;display:inline-flex;
+  align-items:center;justify-content:center;border-radius:10px;
+  background:#eef4ff;font-size:17px;line-height:1}
+.prolock__i > div{flex:1;min-width:0}
+.prolock__i b{display:block;font-size:13.5px;font-weight:700;color:var(--fg);line-height:1.4}
+.prolock__i small{display:block;font-size:11.5px;color:var(--mut2);margin-top:2px;line-height:1.5}
+.prolock__go{flex-shrink:0;font-size:15px;color:var(--mut);font-weight:700}
+.prolock__i:hover .prolock__go{color:var(--brand2)}
+
+/* 구독 중 — 초록 계열 강조만 다릅니다 */
+.prolock--on{border-color:#bbf7d0;box-shadow:0 4px 16px rgba(21,128,61,.08)}
+.prolock--on .prolock__badge{background:#f0fdf4;color:#15803d;border-color:#bbf7d0}
+.prolock--on .prolock__btn{background:#ecfdf5;color:#047857;border:1px solid #bbf7d0}
+.prolock--on .prolock__btn:hover{background:#dcfce7;border-color:#86efac;color:#047857;filter:none}
+.prolock--on .prolock__ic{background:#f0fdf4}
+@media(max-width:760px){.prolock{margin-top:14px}}
+.prolock--on .prolock__go{color:var(--mut);transition:transform .14s,color .14s}
+.prolock--on .prolock__i:hover .prolock__go{color:var(--brand2);transform:translateX(2px)}
+
+@media(max-width:680px){
+  .prolock--on .prolock__list{grid-template-columns:1fr}
+  .prolock--on .prolock__i+.prolock__i{border-left:0;border-top:1px solid var(--bd)}
+}
+
+@media(max-width:560px){
+  .prolock__hd{gap:9px}
+  .prolock__btn{width:100%;text-align:center;order:3}
+}
+
+/* 전체 인쇄 카드 (자동알림 배너 아래) — 같은 형태에 색만 구분합니다 */
+.prt{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
+  padding:13px 16px;border-radius:12px;background:#f0f9ff;border:1px solid #bae6fd}
+.prt__t{font-size:13px;font-weight:700;color:#0369a1}
+.prt__d{font-size:12px;color:var(--mut2)}
+.prt__btn{margin-left:auto;padding:9px 16px;border:0;border-radius:10px;background:#0284c7;
+  color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;
+  display:inline-flex;align-items:center;text-decoration:none}
+.prt__btn:hover{filter:brightness(1.08);color:#fff}
+@media(max-width:560px){.prt__btn{margin-left:0;width:100%;justify-content:center}}
+.evac-req__btn--go{margin-left:auto;display:inline-flex;align-items:center;text-decoration:none;
+  background:#b45309;color:#fff;font-weight:700;font-size:13px;padding:9px 16px;border-radius:10px}
+.evac-req__btn--go:hover{filter:brightness(1.08);color:#fff}
+@media(max-width:560px){.evac-req__btn,.evac-req__btn--go{margin-left:0;width:100%;justify-content:center}}
+
+/* -- 배정 신청 팝업 -- */
+.rqov{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;
+  align-items:center;justify-content:center;z-index:200;padding:18px}
+.rqov.on{display:flex}
+.rqbox{background:#fff;border-radius:16px;padding:22px;max-width:420px;width:100%;
+  max-height:90vh;overflow:auto}
+.rqbox h4{font-size:16px;font-weight:800;margin:0 0 4px}
+.rqbox .rsub{font-size:12.5px;color:var(--mut2);margin:0 0 16px;line-height:1.55}
+.rqf{margin-bottom:12px}
+.rqf label{display:block;font-size:12px;font-weight:700;color:var(--mut2);margin-bottom:5px}
+.rqf label .req{color:#dc2626;margin-left:2px}
+.rqf input{width:100%;padding:10px 12px;border:1px solid var(--bd2);border-radius:9px;
+  font-size:14px;font-family:inherit;color:var(--fg);background:#fff}
+.rqf input:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.rqf__hint{font-size:11px;color:var(--mut);margin-top:4px}
+.rqerr{display:none;font-size:12.5px;font-weight:600;color:#b91c1c;background:#fef2f2;
+  border:1px solid #fecaca;border-radius:9px;padding:9px 11px;margin-bottom:12px}
+.rqerr.on{display:block}
+.rqnote{font-size:11.5px;color:var(--mut);background:var(--bg);border-radius:9px;
+  padding:9px 11px;margin:2px 0 14px;line-height:1.55}
+.rqbtns{display:flex;gap:8px}
+.rqbtns button{flex:1;padding:11px;border-radius:10px;font-size:13.5px;font-weight:700;
+  cursor:pointer;font-family:inherit;border:1px solid var(--bd2);background:#fff;color:var(--mut2)}
+.rqbtns .rqgo{border:0;background:var(--brand);color:#fff}
+.rqbtns .rqgo:hover{filter:brightness(1.08)}
+.rqbtns .rqgo:disabled{background:#e8edf5;color:#8a94a6;cursor:default;filter:none}
+
+/* -- 진행 현황 (헤더 우측 패널) -- */
+/* 헤더를 낮춰 본문이 한 화면에 들어오게 합니다 */
+.page-head__inner{display:flex;gap:24px;align-items:flex-start;padding:24px 24px 20px!important}
+.page-head h1{font-size:26px!important;margin-bottom:5px!important}
+.page-head p{font-size:14px!important}
+.page-head__label{margin-bottom:9px!important}
+.ph-left{flex:1;min-width:0}
+/* Pro 배너와 진행 현황을 한 덩어리로 묶어 세로로 쌓습니다 */
+.rightcol{width:290px;flex-shrink:0;display:flex;flex-direction:column}
+@media(max-width:760px){.rightcol{width:100%}}
+
+/* ── Pro 구독 안내 (진행 현황 위) ── */
+.pro{width:236px;flex-shrink:0;border-radius:14px;padding:15px 16px;margin-bottom:12px;
+  background:#111827;color:#e2e8f0;border:1px solid #293548;
+  box-shadow:0 6px 18px rgba(15,23,42,.18)}
+.pro__row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.pro__badge{font-size:10px;font-weight:900;letter-spacing:.06em;padding:3px 8px;border-radius:6px;
+  background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#3b2500}
+.pro__badge--on{background:#ecfdf5;color:#047857;border:1px solid #bbf7d0}
+.pro__badge--wait{background:#475569;color:#cbd5e1}
+.pro__t{font-size:13.5px;font-weight:800;color:#fff}
+.pro__d{font-size:11.5px;color:#94a3b8;line-height:1.7;margin-bottom:11px}
+.pro__btn{display:block;text-align:center;background:#fff;color:#0f172a;border-radius:9px;
+  padding:9px;font-size:12.5px;font-weight:800;text-decoration:none;transition:.14s}
+.pro__btn:hover{background:#f1f5f9;color:#0f172a}
+.pro__price{font-size:10.5px;color:#64748b;text-align:center;margin-top:7px}
+.pro__link{display:inline-block;font-size:11.5px;color:#93c5fd;text-decoration:none;font-weight:700}
+.pro__link:hover{color:#bfdbfe}
+.pro--on{background:#fff;color:var(--fg);border-color:var(--bd);
+  box-shadow:0 4px 14px rgba(15,30,60,.06)}
+/* 구독 중 — 요금제·다음 결제일까지 보여줍니다 */
+.pro__dot{width:7px;height:7px;border-radius:50%;background:#34d399;margin-left:auto;
+  box-shadow:0 0 0 3px rgba(52,211,153,.22);animation:proPulse 2.4s ease-in-out infinite}
+@keyframes proPulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media(prefers-reduced-motion:reduce){.pro__dot{animation:none}}
+.pro--on .pro__t{color:var(--fg)}
+.pro--on .pro__d{color:var(--mut2)}
+.pro--wait .pro__d{color:#94a3b8}
+
+/* 구독 관리 버튼 */
+.pro__btn--on{background:#fff;color:var(--brand2);
+  border:1px solid #c7dbff;cursor:pointer}
+.pro__btn--on:hover{background:#f8fbff;border-color:var(--brand);color:var(--brand2)}
+.pro__btn--wait{background:rgba(255,255,255,.10);color:#cbd5e1;
+  border:1px solid rgba(255,255,255,.16)}
+.pro__btn--wait:hover{background:rgba(255,255,255,.16);color:#fff}
+.pro--on .pro__price{color:var(--mut)}
+.pro--wait{background:#111827}
+@media(max-width:760px){.pro{width:100%}}
+
+/* ── 진행 현황 ──────────────────────────────────────────────
+   나이가 있으신 분들도 편하게 보실 수 있도록
+   글자·번호·누르는 영역을 넉넉히 잡았습니다. */
+.prog{width:290px;flex-shrink:0;background:#fff;border:1px solid var(--bd);border-radius:16px;
+  padding:20px 20px;box-shadow:0 4px 16px rgba(15,30,60,.06)}
+.prog__t{font-size:15px;font-weight:800;color:var(--fg);letter-spacing:0;margin-bottom:14px;
+  padding-bottom:12px;border-bottom:1px solid var(--bd)}
+.pstep{display:flex;align-items:center;gap:12px;padding:14px 6px;font-size:15px;font-weight:700;
+  color:var(--mut2);text-decoration:none;border-radius:10px;transition:.12s;min-height:56px}
+a.pstep:hover{background:#f2f6fd}
+.pstep .no{width:30px;height:30px;border-radius:50%;background:#e8edf5;color:var(--mut2);
+  display:inline-flex;align-items:center;justify-content:center;font-size:14px;
+  font-weight:800;flex-shrink:0}
+.pstep__label{min-width:0;flex:1;line-height:1.45}
+.pstep--done{color:#15803d}
+.pstep--done .no{background:#22c55e;color:#fff}
+.pstep--now{color:var(--brand2)}
+.pstep--now .no{background:var(--brand);color:#fff;box-shadow:0 0 0 4px rgba(37,99,235,.16)}
+.pstep+.pstep{border-top:1px dashed var(--bd)}
+.ptag{margin-left:auto;font-size:12px;font-weight:800;padding:4px 11px;border-radius:999px;flex-shrink:0;white-space:nowrap}
+.ptag--done{background:#f0fdf4;color:#15803d}
+.ptag--no{background:#fef2f2;color:#dc2626}
+.ptag--wait{background:#eef1f6;color:#8a94a6}
+.ptag--part{background:#eff6ff;color:#1d4ed8}
+.ptag--always{background:#faf5ff;color:#7e22ce}
+.ptag--review{background:#fef3c7;color:#b45309}
+.ptag--admin{background:#e0f2fe;color:#0369a1}
+.prog__hint{font-size:13px;color:var(--mut2);margin-top:14px;text-align:center;line-height:1.6}
+.prog__start{font-size:13.5px;font-weight:800;color:var(--brand2);text-align:center;
+  margin:2px 0 6px;animation:startNudge 1.8s ease-in-out infinite}
+@keyframes startNudge{0%,100%{transform:translateY(0)}50%{transform:translateY(2px)}}
+.pstep--first{background:#eff6ff;border-radius:10px;padding-left:8px;padding-right:8px;
+  box-shadow:0 0 0 2px rgba(37,99,235,.18)}
+.pstep--first+.pstep{border-top:0}
+.pstep--lock{opacity:.45}
+.pstep--lock .no{background:#eef1f6;color:#8a94a6}
+@media(prefers-reduced-motion:reduce){.prog__start{animation:none}}
+
+@media(max-width:760px){
+  .page-head__inner{flex-direction:column}
+  .prog{width:100%}
+}
+
+/* -- 지금 할 일 배너 -- */
+.todo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:15px 18px;border-radius:14px;
+  margin-bottom:6px;font-size:14px;font-weight:600;line-height:1.55}
+.todo--need{background:#fff7ed;border:1px solid #f6d8a8;color:#92400e}
+.todo--ok{background:#eef4ff;border:1px solid #c7dbff;color:var(--brand2)}
+.todo .btn2{margin-left:auto;padding:9px 16px;border-radius:10px;background:var(--brand);color:#fff;
+  font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;transition:.15s}
+.todo .btn2:hover{filter:brightness(1.08)}
+@media(max-width:560px){.todo .btn2{margin-left:0;width:100%;text-align:center}}
+
+/* -- 주기별 섹션 -- */
+.sec{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:18px 0 9px}
+.sec__chip{font-size:11px;font-weight:800;padding:4px 11px;border-radius:999px;letter-spacing:.02em}
+.chip-first{background:#eef2ff;color:var(--brand2)}
+.chip-month{background:#f0fdf4;color:#15803d}
+.chip-year{background:#fefce8;color:#a16207}
+.chip-always{background:#faf5ff;color:#7e22ce}
+.sec__t{font-size:15px;font-weight:800}
+.sec__d{font-size:12.5px;color:var(--mut2)}
+.sec--dim .sec__lock{font-size:12px;color:#b45309;font-weight:700}
+.grid--dim{opacity:.5}
+.due{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;
+  padding:3px 9px;border-radius:999px}
+.due--need{background:#fff7ed;color:#b45309}
+.due--ok{background:#f0fdf4;color:#15803d}
+.due--wait{background:#eef1f6;color:#8a94a6}
+.badge--roster{background:#fff1f2;color:#be123c}
+.card--roster{border-color:#fbcfe8}
+.card--next{box-shadow:0 0 0 2px rgba(190,18,60,.16);background:linear-gradient(180deg,#fff,#fff6f8)}
+.card--wait{opacity:.62}
+.ptag--part{background:#eff6ff;color:#1d4ed8}
+.psub{display:flex;gap:12px;flex-wrap:wrap;padding:2px 0 8px 42px;font-size:13px;color:var(--mut2);line-height:1.6}
+.psub--why{display:block;padding:0 4px 10px 42px;line-height:1.65}
+.psub__i.is-ok{color:#15803d;font-weight:700}
+.cardprog{margin-top:11px;padding-top:11px;border-top:1px dashed var(--bd)}
+.cardprog__bar{height:5px;background:#eef2f7;border-radius:3px;overflow:hidden}
+.cardprog__bar i{display:block;height:100%;background:var(--brand);
+  border-radius:3px;transition:width .4s cubic-bezier(.2,.7,.3,1)}
+.cardprog__t{font-size:12px;color:var(--mut2);margin-top:6px;line-height:1.5}
+.cardprog__t b{color:var(--brand2);font-weight:800;margin-right:3px}
+.cardprog__t--ok{color:#15803d}
+.cardprog__t--ok b{color:#15803d}
+/* ── 첫 방문 안내 팝업 ── */
+.gdov{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;
+  align-items:center;justify-content:center;z-index:300;padding:20px}
+.gdov.on{display:flex}
+.gdbox{background:#fff;border-radius:16px;padding:26px 24px 20px;max-width:400px;width:100%;
+  box-shadow:0 20px 50px rgba(15,30,60,.25);text-align:center}
+.gdbox__ico{font-size:34px;margin-bottom:12px}
+.gdbox h4{font-size:17px;font-weight:800;margin:0 0 8px;line-height:1.45}
+.gdbox p{font-size:13.5px;color:var(--mut2);margin:0 0 18px;line-height:1.7}
+.gdbox__hi{display:inline-block;background:#eff6ff;color:var(--brand2);
+  font-weight:700;padding:2px 8px;border-radius:6px}
+.gdbox__btn{width:100%;padding:12px;border:0;border-radius:11px;background:var(--brand);
+  color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+.gdbox__btn:hover{filter:brightness(1.08)}
+.gdbox__again{display:flex;align-items:center;justify-content:center;gap:7px;
+  margin-top:14px;font-size:12.5px;color:var(--mut);cursor:pointer}
+.gdbox__again input{cursor:pointer}
+
+/* 안내가 가리키는 진행 현황 패널을 잠깐 강조합니다 */
+.prog.gd-hi{box-shadow:0 0 0 4px rgba(37,99,235,.35),0 4px 14px rgba(15,30,60,.05);
+  border-color:var(--brand);transition:box-shadow .3s,border-color .3s}
+
+/* ── 한 화면 업무 관제판 ────────────────────────────────── */
+.dashboard-shell{max-width:1120px;margin:0 auto;padding:18px 24px 40px;
+  display:grid;grid-template-columns:minmax(0,1fr) 290px;column-gap:24px;align-items:start}
+.dashboard-shell .page-head,.dashboard-shell .page-head__inner{display:contents}
+.dashboard-shell .ph-left{grid-column:1;grid-row:1;padding:2px 0 14px}
+.dashboard-shell .rightcol{grid-column:2;grid-row:1 / span 2;width:290px}
+.dashboard-shell .wrap{grid-column:1;grid-row:2;max-width:none;width:100%;margin:0;padding:0;
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+
+.dashboard-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px}
+.dashboard-head__copy{min-width:0}
+.dashboard-head .badge{margin-bottom:8px}
+.dashboard-head h1{margin:0 0 4px!important}
+.dashboard-head p{margin:0}
+.plan-link{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+  min-height:36px;padding:8px 13px;border:1px solid var(--bd2);border-radius:8px;
+  background:#fff;color:var(--mut2);font-size:12px;font-weight:800;text-decoration:none}
+.plan-link:hover{border-color:var(--brand);color:var(--brand2)}
+.plan-link--on{border-color:#bbf7d0;background:#f0fdf4;color:#047857}
+.plan-link--wait{background:#f8fafc;color:#64748b}
+
+/* 현재 해야 할 일 하나만 강하게 보여줍니다. */
+.mission{grid-column:1 / -1;display:flex;align-items:center;gap:18px;min-height:78px;
+  padding:14px 16px;border-radius:12px;background:#111827;color:#fff}
+.mission__copy{flex:1;min-width:0}
+.mission__label{display:block;margin-bottom:5px;color:#93c5fd;font-size:10px;
+  font-weight:900;letter-spacing:0}
+.mission__text{display:block;font-size:14px;line-height:1.45}
+.mission__text b{color:#fff}
+.mission__btn{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+  min-height:38px;padding:9px 14px;border-radius:8px;background:#fff;color:#111827;
+  font-size:12.5px;font-weight:800;text-decoration:none;white-space:nowrap}
+.mission__btn:hover{background:#eff6ff;color:#1d4ed8}
+.mission--error{background:#7f1d1d}
+
+.ops-head{grid-column:1 / -1;display:flex;align-items:baseline;gap:9px;margin-top:5px;padding:3px 1px}
+.ops-head b{font-size:14px;color:var(--fg)}
+.ops-head span{font-size:11.5px;color:var(--mut2)}
+.dashboard-shell .wrap>.section,.dashboard-shell .wrap>.todo{grid-column:1 / -1}
+.dashboard-shell .sec{display:none}
+.dashboard-shell .grid{display:contents}
+.dashboard-shell .grid--dim>.card{opacity:.5}
+
+/* 실제 업무 여섯 개를 동일한 크기의 3 x 2 카드로 정리합니다. */
+.dashboard-shell .card{min-height:110px;padding:12px 13px;gap:5px;border-radius:10px;
+  background:#fff;box-shadow:none}
+.dashboard-shell .card--setup,.dashboard-shell .card--next{background:#fff}
+.dashboard-shell .card h3{font-size:14px;line-height:1.35}
+.dashboard-shell .card__top{gap:6px}
+.dashboard-shell .card__sub{font-size:11.5px;line-height:1.4;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.dashboard-shell .card .badge,.dashboard-shell .setup-badge,
+.dashboard-shell .due{font-size:10px;padding:3px 7px}
+.dashboard-shell .cardprog{margin-top:7px;padding-top:7px}
+.dashboard-shell .cardprog__t{font-size:10.5px;margin-top:4px;line-height:1.35;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* PRO 기능은 별도 카드 대신 가로 실행 도구로 둡니다. */
+.protools{grid-column:1 / -1;margin-top:5px;border:1px solid var(--bd);
+  border-radius:10px;background:#fff;overflow:hidden}
+.protools__head{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:9px 12px;border-bottom:1px solid var(--bd)}
+.protools__head b{font-size:11px;color:var(--fg)}
+.protools__head span{font-size:10.5px;color:var(--mut2)}
+.protools__list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.protool{display:flex;align-items:center;gap:8px;min-width:0;padding:10px 12px;
+  color:var(--fg);text-decoration:none;transition:background .14s}
+.protool+.protool{border-left:1px solid var(--bd)}
+.protool:hover{background:#f8fbff}
+.protool__ic{font-size:15px;flex-shrink:0}
+.protool b{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.protool__go{margin-left:auto;color:var(--mut);font-size:12px}
+
+@media(max-width:900px){
+  .dashboard-shell{grid-template-columns:1fr;padding:18px 20px 40px}
+  .dashboard-shell .ph-left{grid-column:1;grid-row:1}
+  .dashboard-shell .wrap{grid-column:1;grid-row:2;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dashboard-shell .rightcol{grid-column:1;grid-row:3;width:100%;margin-top:14px}
+  .dashboard-shell .prog{width:100%}
+}
+@media(max-width:620px){
+  .dashboard-head{align-items:flex-start}
+  .dashboard-head p{display:none}
+  .dashboard-shell .wrap{grid-template-columns:1fr}
+  .mission{align-items:flex-start;flex-direction:column;gap:11px}
+  .mission__btn{width:100%}
+  .protools__head{align-items:flex-start;flex-direction:column;gap:2px}
+  .protools__list{grid-template-columns:1fr}
+  .protool+.protool{border-left:0;border-top:1px solid var(--bd)}
+}
+
+/* ── 화면 위계·클릭 유도 보완 ───────────────────────────── */
+.dashboard-shell{column-gap:28px}
+.dashboard-shell .wrap{gap:12px}
+.dashboard-shell .card{
+  position:relative;min-height:136px;padding:17px 18px 15px;border-radius:14px;
+  border-color:#e2e8f0;box-shadow:0 1px 2px rgba(15,23,42,.03);
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease
+}
+.dashboard-shell .card--link:hover{
+  transform:translateY(-2px);border-color:#a9c4f5;
+  box-shadow:0 10px 26px rgba(30,64,175,.09)
+}
+.dashboard-shell .card h3{font-size:15px;letter-spacing:-.18px;margin-top:2px}
+.dashboard-shell .card__sub{font-size:12px;line-height:1.55;-webkit-line-clamp:2}
+.dashboard-shell .card__top{min-height:25px}
+.dashboard-shell .card__arrow{
+  margin-left:auto;display:inline-flex;align-items:center;justify-content:center;
+  min-height:27px;padding:4px 9px;border-radius:7px;background:#eff6ff;
+  color:#1d4ed8;font-size:0;font-weight:800
+}
+.dashboard-shell .card__arrow::after{content:'열기';font-size:10.5px}
+.dashboard-shell .card--link:hover .card__arrow{background:#2563eb;color:#fff}
+.dashboard-shell .card--next{
+  border-color:#f1b8ca;box-shadow:0 0 0 3px rgba(190,18,60,.07)
+}
+.dashboard-shell .card--wait{opacity:.72;background:#f8fafc}
+.dashboard-shell .due--ok::first-letter{font-size:0}
+
+.mission{border:1px solid #253249;box-shadow:0 8px 22px rgba(15,23,42,.10)}
+.mission__label{letter-spacing:.08em}
+.mission__btn{padding-left:18px;padding-right:18px}
+
+.prog{border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(15,30,60,.06)}
+.prog__start{animation:none;text-align:left;margin:5px 7px 3px;font-size:11.5px;color:#1d4ed8}
+.pstep--first{box-shadow:none;border:1px solid #bfdbfe;background:#eff6ff}
+
+.protools{margin-top:7px;border-radius:12px;background:#fbfcfe}
+.protools__head{padding:10px 13px}
+.protool{padding:11px 13px;color:var(--mut2)}
+.protool:hover{background:#fff;color:var(--fg)}
+.protool__go{font-size:0}
+.protool__go::after{content:'열기';font-size:10px;font-weight:800;color:#64748b}
+
+@media(max-width:620px){
+  .dashboard-shell .card{min-height:122px;padding:15px 16px}
+  .dashboard-shell .card__arrow{min-height:26px}
+}
+
+/* ── Notion형 좌측 업무 사이드바 ─────────────────────────── */
+.dashboard-shell{
+  max-width:1280px;grid-template-columns:272px minmax(0,1fr);
+  column-gap:34px;padding:20px 28px 56px
+}
+.dashboard-shell .ph-left{grid-column:2;grid-row:1;padding:5px 0 18px}
+.dashboard-shell .rightcol{
+  grid-column:1;grid-row:1 / span 2;width:272px;min-height:calc(100vh - 96px);
+  padding:15px 12px;border:1px solid #e5e7eb;border-radius:16px;
+  background:#f7f8fa
+}
+.dashboard-shell .wrap{
+  grid-column:2;grid-row:2;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px
+}
+.dashboard-shell .prog{
+  position:sticky;top:76px;width:100%;padding:5px;background:transparent;
+  border:0;border-radius:0;box-shadow:none
+}
+.dashboard-shell .prog__t{
+  margin:0 6px 9px;padding:7px 8px 12px;font-size:12px;letter-spacing:.02em;
+  color:#64748b;border-bottom:1px solid #e5e7eb
+}
+.dashboard-shell .pstep{
+  min-height:48px;padding:9px 9px;gap:10px;border:0!important;border-radius:8px;
+  font-size:13px;font-weight:650
+}
+.dashboard-shell .pstep+.pstep{margin-top:2px}
+.dashboard-shell .pstep:hover{background:#eceef2}
+.dashboard-shell .pstep .no{width:26px;height:26px;font-size:11px;background:#e5e7eb}
+.dashboard-shell .pstep--done .no{background:#dcfce7;color:#15803d}
+.dashboard-shell .pstep--now,.dashboard-shell .pstep--first{
+  background:#e8eefc;border:0!important;box-shadow:none;color:#1d4ed8
+}
+.dashboard-shell .pstep--now .no{background:#2563eb;color:#fff;box-shadow:none}
+.dashboard-shell .ptag{font-size:10px;padding:3px 7px}
+.dashboard-shell .psub{padding:3px 8px 7px 44px;gap:6px;font-size:10.5px;flex-direction:column}
+.dashboard-shell .prog__start{
+  margin:7px 7px 4px;padding:0;color:#2563eb;font-size:10.5px;font-weight:800
+}
+.dashboard-shell .prog__hint{
+  margin:12px 7px 3px;padding-top:12px;border-top:1px solid #e5e7eb;
+  text-align:left;font-size:10.5px;line-height:1.5
+}
+.dashboard-head{min-height:60px}
+.ops-head{margin-top:2px;padding:4px 1px}
+/* 업무 실행 메뉴를 좌측으로 옮겼으므로 본문의 중복 카드 목록은 감춥니다. */
+.dashboard-shell .wrap>.ops-head,
+.dashboard-shell .wrap>.sec,
+.dashboard-shell .wrap>.grid{display:none}
+.dashboard-shell .wrap>.mission{margin-bottom:4px}
+.dashboard-shell .wrap>.protools{margin-top:10px}
+
+/* ── 건물 업무 완성도 시각화 ────────────────────────────── */
+.building-board{grid-column:1/-1;display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,.85fr);
+  gap:28px;align-items:center;min-height:390px;padding:28px 30px;border:1px solid var(--bd);
+  border-radius:18px;background:linear-gradient(180deg,#fbfdff 0%,#f6f8fb 72%,#eef2e9 72%,#e8eddf 100%);
+  overflow:hidden}
+.building-board__copy{align-self:start}
+.building-board__head{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;
+  gap:18px;padding-bottom:17px;border-bottom:1px solid rgba(148,163,184,.24)}
+.building-board__head-copy{min-width:0}
+.building-board__head-label{font-size:11px;font-weight:800;color:var(--brand2);margin-bottom:4px}
+.building-board__head h1{font-size:23px!important;letter-spacing:-.45px;margin:0!important}
+.building-dong-strip{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap;margin-top:8px}
+.building-dong-strip span{display:inline-flex;align-items:center;min-height:23px;padding:3px 8px;border-radius:999px;
+  background:#eef2f7;color:#64748b;font-size:10.5px;font-weight:750}
+.building-dong-strip .is-count{background:#e8f1ff;color:#1d4ed8}
+.building-dong-strip .is-primary{background:#ecfdf5;color:#047857}
+.building-dong-strip .is-others{max-width:min(480px,70vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.building-board__head .plan-link{background:#fff;min-width:92px}
+.building-board__eyebrow{font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--brand2);margin-bottom:8px}
+.building-board__copy h2{font-size:22px;letter-spacing:-.4px;margin:0 0 7px}
+.building-board__copy p{font-size:13px;color:var(--mut2);line-height:1.65;margin:0}
+.build-stages{display:grid;gap:7px;margin-top:22px}
+.build-stage{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;color:#94a3b8;font-size:12px}
+.build-stage__dot{width:21px;height:21px;border-radius:7px;background:#e2e8f0;color:#64748b;
+  display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0}
+.build-stage b{font-size:12.5px;color:inherit}
+.build-stage span:last-child{margin-left:auto;font-size:10.5px}
+.build-stage.is-done{background:#ecfdf5;color:#15803d}
+.build-stage.is-done .build-stage__dot{background:#22c55e;color:#fff}
+.build-stage.is-now{background:#eff6ff;color:#1d4ed8}
+.build-stage.is-now .build-stage__dot{background:#2563eb;color:#fff}
+.building-scene{position:relative;height:290px;min-height:290px;max-height:290px;display:flex;align-items:flex-end;
+  justify-content:center;padding:8px 14px 8px;overflow:hidden}
+.building-carousel{width:100%;height:100%;display:flex;flex-direction:column;justify-content:flex-end;gap:6px}
+.building-carousel__viewport{height:232px;overflow:hidden;touch-action:pan-y}
+.building-slide{display:none;height:100%;flex-direction:column;align-items:center;justify-content:flex-end}
+.building-slide.is-active{display:flex;animation:buildingSlideIn .22s ease-out}
+@keyframes buildingSlideIn{from{opacity:.3;transform:translateX(10px)}to{opacity:1;transform:translateX(0)}}
+.building-slide__figure{position:relative;flex:1;width:100%;min-height:0;display:flex;align-items:flex-end;justify-content:center;padding:2px 0 5px}
+.building-slide__figure .building-skyline{width:min(165px,62%)}
+.building-slide__figure .building-skyline.is-high-rise{width:min(138px,54%)}
+.building-slide__info{display:flex;align-items:center;justify-content:center;gap:7px;min-width:0;max-width:100%;min-height:38px;
+  padding:6px 11px;border:1px solid rgba(148,163,184,.24);border-radius:10px;background:rgba(255,255,255,.82)}
+.building-slide__badge{flex-shrink:0;padding:2px 6px;border-radius:999px;background:#eef2f7;color:#64748b;font-size:8.5px;font-weight:850}
+.building-slide__badge.is-primary{background:#dcfce7;color:#15803d}
+.building-slide__name{max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e293b;font-size:11px;font-weight:850}
+.building-slide__meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#64748b;font-size:9px}
+.building-carousel__controls{display:grid;grid-template-columns:auto minmax(80px,1fr) auto;align-items:center;gap:7px;min-height:38px}
+.building-carousel__nav{min-width:62px;padding:7px 9px;border:1px solid #d7e1ed;border-radius:9px;background:rgba(255,255,255,.9);
+  color:#334155;font:inherit;font-size:10px;font-weight:800;cursor:pointer}
+.building-carousel__nav:hover{border-color:#8eadd2;background:#fff;color:#1d4ed8}
+.building-carousel__nav:disabled{opacity:.35;cursor:default;color:#94a3b8}
+.building-carousel__status{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;color:#475569;font-size:9.5px;font-weight:800}
+.building-carousel__dots{display:flex;align-items:center;justify-content:flex-start;gap:4px;max-width:150px;overflow-x:auto;scrollbar-width:none}
+.building-carousel__dots::-webkit-scrollbar{display:none}
+.building-carousel__dot{width:6px;height:6px;flex:0 0 6px;padding:0;border:0;border-radius:999px;background:#cbd5e1;cursor:pointer;transition:.18s}
+.building-carousel__dot.is-active{width:17px;flex-basis:17px;background:#2563eb}
+.building-carousel__single .building-carousel__controls{grid-template-columns:1fr}
+.building-carousel__single .building-carousel__nav,.building-carousel__single .building-carousel__dots{display:none}
+.building-skyline{position:relative;width:min(165px,68%);z-index:2}
+.building-skyline.is-high-rise{width:min(138px,58%)}
+.building-height-label{position:absolute;right:8px;top:3px;z-index:3;padding:3px 7px;border-radius:6px;
+  background:#1e3a5f;color:#fff;font-size:10px;font-weight:900;letter-spacing:.04em;box-shadow:0 3px 9px rgba(30,58,95,.18)}
+.building-roof{height:12px;margin:0 9px;background:#d7dee9;border:1px solid #b9c3d1;border-bottom:0;
+  clip-path:polygon(8% 100%,18% 0,82% 0,92% 100%);opacity:.42}
+.building-roof.is-built{background:#315f9f;border-color:#234b84;opacity:1}
+.building-floor{height:var(--floor-h,23px);display:grid;grid-template-columns:repeat(3,1fr);gap:7px;align-items:center;
+  padding:0 10px;border:1px solid #cbd5e1;border-bottom:0;background:rgba(255,255,255,.36)}
+.building-floor:first-of-type{border-radius:6px 6px 0 0}
+.building-floor:last-of-type{border-bottom:1px solid #cbd5e1}
+.building-window{height:clamp(4px,calc(var(--floor-h,23px) - 7px),10px);border-radius:2px;background:#e2e8f0;border:1px solid #cbd5e1}
+.building-floor__label{display:none}
+.building-skyline.is-high-rise .building-floor{position:relative;grid-template-columns:repeat(2,1fr);padding-left:34px;padding-right:10px;gap:7px}
+.building-skyline.is-high-rise .building-floor__label{display:block;position:absolute;left:7px;top:50%;transform:translateY(-50%);
+  color:#64748b;font-size:7.5px;font-weight:800}
+.building-compressed{height:34px;position:relative;display:flex;align-items:center;justify-content:center;text-align:center;
+  border:1px solid #8fa4bd;border-bottom:0;background:repeating-linear-gradient(180deg,#eef4fa 0,#eef4fa 5px,#d9e4ef 6px,#eef4fa 7px);
+  color:#27496d}
+.building-compressed::before,.building-compressed::after{content:'';position:absolute;top:8px;bottom:8px;width:1px;background:#b7c7d8}
+.building-compressed::before{left:28%}.building-compressed::after{right:28%}
+.building-compressed b{position:relative;z-index:1;display:block;padding:4px 7px;border-radius:6px;background:rgba(255,255,255,.88);
+  font-size:9px;line-height:1.35;box-shadow:0 2px 7px rgba(39,73,109,.08)}
+.building-compressed small{display:block;color:#64748b;font-size:7.5px;font-weight:700}
+.building-skyline.stage-2 .building-floor{border-color:#8fa4bd;background:rgba(255,255,255,.64)}
+.building-skyline.stage-3 .building-window{background:#bdd7f4;border-color:#92b9e5}
+.building-skyline.stage-4 .building-window:nth-child(2){background:#86efac;border-color:#4ade80}
+.building-skyline.stage-5 .building-floor{background:#f8fbff;border-color:#7896b8}
+.building-entry{height:30px;display:flex;align-items:flex-end;justify-content:center;border:1px solid #94a3b8;
+  background:#edf2f7;padding-top:5px}
+.building-door{width:28px;height:23px;background:#cbd5e1;border:1px solid #94a3b8;border-bottom:0}
+.building-skyline.stage-4 .building-door{background:#4f86c6;border-color:#315f9f}
+.building-basement{height:16px;margin:0 12px;border:1px dashed #94a3b8;border-top:0;background:rgba(226,232,240,.55);
+  display:flex;align-items:center;justify-content:center;color:#64748b;font-size:9px}
+.building-ground{height:6px;border-radius:50%;background:#9aaa85;box-shadow:0 7px 16px rgba(77,93,57,.18)}
+.building-basement-label{position:absolute;left:50%;bottom:0;z-index:4;transform:translateX(-50%);
+  display:flex;align-items:center;gap:6px;padding:4px 9px;border-radius:7px;background:rgba(255,255,255,.9);
+  color:#475569;font-size:9.5px;font-weight:750;white-space:nowrap;box-shadow:0 2px 8px rgba(71,85,105,.08)}
+.building-basement-label b{color:#1e3a5f;font-size:10.5px}
+.building-basement-label small{color:#94a3b8;font-size:8.5px}
+.building-layer{position:absolute;z-index:5;pointer-events:none}
+/* 2단계: 자위소방대가 편성되면 건물 앞에 대원들이 배치됩니다. */
+.building-crew{left:8px;bottom:29px;display:flex;align-items:flex-end;gap:4px;padding:18px 7px 4px;
+  border-radius:9px;background:rgba(255,255,255,.86);box-shadow:0 3px 10px rgba(15,23,42,.08)}
+.building-crew::before{content:'자위소방대';position:absolute;left:7px;top:4px;color:#b91c1c;font-size:7.5px;font-weight:900;white-space:nowrap}
+.building-person{position:relative;width:10px;height:20px;border-radius:4px 4px 3px 3px;background:#ef4444}
+.building-person::before{content:'';position:absolute;left:1px;top:-7px;width:8px;height:8px;border-radius:50%;background:#f1c7a5}
+.building-person::after{content:'';position:absolute;left:0;top:-8px;width:10px;height:4px;border-radius:6px 6px 2px 2px;background:#dc2626}
+.building-person:nth-child(2){height:23px;background:#2563eb}.building-person:nth-child(2)::after{background:#1d4ed8}
+.building-person:nth-child(3){height:19px;background:#f97316}.building-person:nth-child(3)::after{background:#ea580c}
+/* 3단계: 월간 기록 완료 표식 */
+.building-inspection{right:8px;top:88px;width:66px;padding:7px 6px;border-radius:8px;background:rgba(255,255,255,.9);
+  border:1px solid #bfdbfe;color:#1d4ed8;text-align:center;box-shadow:0 3px 10px rgba(37,99,235,.08)}
+.building-inspection b{display:block;font-size:8.5px;line-height:1.3}.building-inspection span{display:block;margin-top:2px;color:#64748b;font-size:7px}
+.building-inspection::before{content:'✓';display:flex;align-items:center;justify-content:center;width:16px;height:16px;margin:0 auto 3px;
+  border-radius:50%;background:#2563eb;color:#fff;font-size:9px;font-weight:900}
+/* 4단계: 피난 유도선과 집결지 */
+.building-evac-route{left:18%;right:10%;bottom:21px;height:15px;border-bottom:2px dashed #22c55e;z-index:3}
+.building-evac-route::before{content:'피난 유도';position:absolute;left:32%;bottom:4px;padding:2px 5px;border-radius:5px;
+  background:#ecfdf5;color:#15803d;font-size:7.5px;font-weight:850;white-space:nowrap}
+.building-evac-route::after{content:'집결';position:absolute;right:-4px;bottom:-9px;width:25px;height:25px;border-radius:50%;
+  background:#22c55e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:900;box-shadow:0 0 0 4px rgba(34,197,94,.15)}
+/* 5단계: 연간 훈련 완료 */
+.building-safety-seal{left:8px;top:24px;width:54px;padding:7px 5px;border-radius:10px;background:#0f766e;color:#fff;
+  text-align:center;box-shadow:0 5px 14px rgba(15,118,110,.18)}
+.building-safety-seal::before{content:'✓';display:block;font-size:15px;font-weight:900;line-height:1}
+.building-safety-seal b{display:block;margin-top:3px;font-size:7.5px;line-height:1.25}.building-safety-seal small{display:block;color:#ccfbf1;font-size:6.5px}
+.building-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;
+  color:#64748b;font-size:13px;line-height:1.7;z-index:4}
+.building-empty a{display:inline-block;margin-top:8px;color:var(--brand2);font-weight:800}
+
+/* 완료된 실제 안전설정만 보여주는 핵심 카드 */
+.safety-assets{display:grid;gap:9px;margin-top:20px}
+.safety-assets__label{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  color:#64748b;font-size:10.5px;font-weight:800;letter-spacing:.03em}
+.safety-assets__label strong{color:#1e3a5f;font-size:11px}
+.safety-asset{display:flex;align-items:center;gap:11px;padding:12px;border:1px solid #dbe7f4;
+  border-radius:11px;background:rgba(255,255,255,.82);color:#1e3a5f;text-decoration:none;
+  box-shadow:0 3px 12px rgba(37,99,235,.05);transition:.15s}
+.safety-asset:hover{border-color:#93b4ef;background:#fff;transform:translateY(-1px)}
+.safety-asset__icon{width:34px;height:34px;flex:0 0 34px;border-radius:10px;background:#e8f1ff;
+  display:flex;align-items:center;justify-content:center;color:#2563eb;font-size:16px}
+.safety-asset__copy{min-width:0;flex:1}.safety-asset__copy b{display:block;font-size:12.5px}
+.safety-asset__copy small{display:block;margin-top:2px;color:#64748b;font-size:10.5px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}.safety-asset__ok{color:#16a34a;font-size:10.5px;font-weight:900}
+.safety-asset--empty{border-style:dashed;background:rgba(248,250,252,.75);box-shadow:none}
+.safety-asset--empty .safety-asset__icon{background:#f1f5f9;color:#94a3b8}
+.protection-state{display:flex;align-items:center;gap:8px;margin-top:11px;color:#64748b;font-size:11px;font-weight:750}
+.protection-state__dots{display:flex;gap:4px}.protection-state__dots i{width:16px;height:4px;border-radius:999px;background:#dbe3ed}
+.protection-state__dots i.is-on{background:#60a5fa;box-shadow:0 0 7px rgba(59,130,246,.35)}
+.protection-state.is-complete{color:#047857}.protection-state.is-complete .protection-state__dots i{background:#34d399}
+
+/* 업무가 채워질수록 건물 외곽의 보호광만 강해집니다. */
+.building-skyline[class*="protection-"]::before{content:'';position:absolute;inset:-16px -20px -9px;
+  z-index:-1;border-radius:42% 42% 18px 18px;border:1px solid rgba(96,165,250,.28);
+  background:radial-gradient(ellipse at 50% 58%,rgba(147,197,253,.12),transparent 68%);
+  opacity:var(--protect-opacity,.15);box-shadow:0 0 var(--protect-blur,10px) rgba(59,130,246,.28);
+  transition:opacity .45s ease,box-shadow .45s ease}
+.building-skyline.protection-0{--protect-opacity:0}
+.building-skyline.protection-1{--protect-opacity:.18;--protect-blur:10px}
+.building-skyline.protection-2{--protect-opacity:.3;--protect-blur:15px}
+.building-skyline.protection-3{--protect-opacity:.46;--protect-blur:21px}
+.building-skyline.protection-4{--protect-opacity:.65;--protect-blur:28px}
+.building-skyline.protection-5{--protect-opacity:.9;--protect-blur:38px}
+.building-skyline.protection-5::before{border-color:rgba(52,211,153,.48);
+  background:radial-gradient(ellipse at 50% 58%,rgba(110,231,183,.18),rgba(147,197,253,.08) 55%,transparent 72%);
+  box-shadow:0 0 38px rgba(16,185,129,.3);animation:protectedGlow 2.8s ease-in-out infinite}
+@keyframes protectedGlow{50%{opacity:.72;box-shadow:0 0 48px rgba(16,185,129,.38)}}
+@media(prefers-reduced-motion:reduce){.building-skyline.protection-5::before{animation:none}}
+@media(prefers-reduced-motion:reduce){.building-slide.is-active{animation:none}}
+@media(max-width:820px){.building-board{grid-template-columns:1fr;gap:8px}.building-scene{height:280px;min-height:280px;max-height:280px}}
+@media(max-width:520px){.building-board{padding:22px 18px}.building-board__copy h2{font-size:19px}.building-scene{padding-left:5px;padding-right:5px}}
+@media(max-width:520px){.building-crew{left:1px}.building-inspection{right:1px}.building-safety-seal{left:1px}}
+@media(max-width:520px){.building-carousel__viewport{height:225px}.building-slide__figure .building-skyline{width:min(145px,58%)}.building-slide__info{max-width:96%}.building-carousel__nav{min-width:58px;padding-left:7px;padding-right:7px}}
+
+/* 시각화와 다음 실행을 하나의 작업 카드로 묶습니다. */
+.building-workspace{grid-column:1/-1;display:flex;flex-direction:column}
+.building-workspace .building-board{order:1;border-radius:18px 18px 0 0;border-bottom:0}
+.building-workspace .mission{order:2;margin:0;min-height:82px;border-radius:0 0 18px 18px;
+  border:1px solid #253249;border-top-color:rgba(255,255,255,.13);padding:16px 20px}
+.building-workspace .mission__label{font-size:10px;color:#93c5fd;letter-spacing:.1em}
+.building-workspace .mission__text{font-size:13.5px}
+.building-workspace .mission__btn{min-width:128px;min-height:42px;border-radius:9px}
+.building-workspace .mission{display:none}
+
+/* ── AI 업무 도우미 팝업 ────────────────────────────────── */
+.building-workspace .building-board{border-radius:18px;border-bottom:1px solid var(--bd)}
+
+.safety-ai-launch{position:fixed;right:24px;bottom:24px;z-index:420;display:inline-flex;align-items:center;gap:9px;
+  min-height:50px;padding:11px 17px;border:0;border-radius:15px;background:#111827;color:#fff;
+  box-shadow:0 12px 32px rgba(15,23,42,.25);font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.safety-ai-launch:hover{background:#1e293b;transform:translateY(-1px)}
+.safety-ai-launch__mark{width:25px;height:25px;border-radius:8px;background:#2563eb;display:inline-flex;
+  align-items:center;justify-content:center;font-size:10px;font-weight:900}
+.safety-ai-overlay{position:fixed;inset:0;z-index:500;display:none;align-items:flex-end;justify-content:flex-end;
+  padding:22px;background:rgba(15,23,42,.48)}
+.safety-ai-overlay.on{display:flex}
+.safety-ai{width:min(520px,100%);max-height:min(720px,calc(100vh - 44px));overflow:auto;
+  border:1px solid #253249;border-radius:18px;background:#111827;color:#e5e7eb;
+  padding:17px 20px 18px;box-shadow:0 24px 70px rgba(15,23,42,.36)}
+.safety-ai__head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+.safety-ai__title{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:800;color:#fff}
+.safety-ai__mark{width:27px;height:27px;border-radius:9px;background:#2563eb;display:inline-flex;
+  align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:900}
+.safety-ai__mode{font-size:10px;color:#93c5fd}
+.safety-ai__head-actions{display:flex;align-items:center;gap:10px}
+.safety-ai__close{width:30px;height:30px;border:1px solid #40516a;border-radius:8px;background:#192334;
+  color:#cbd5e1;font-size:18px;line-height:1;cursor:pointer}
+.safety-ai__close:hover{border-color:#93c5fd;color:#fff}
+.safety-ai__chat{display:grid;gap:9px;min-height:110px;max-height:280px;overflow-y:auto;margin-bottom:12px;padding-right:3px}
+.safety-ai__bubble{width:fit-content;max-width:88%;padding:10px 12px;border-radius:4px 13px 13px 13px;
+  background:#1e293b;color:#e5e7eb;font-size:12.5px;line-height:1.65;white-space:pre-wrap}
+.safety-ai__bubble--user{margin-left:auto;border-radius:13px 4px 13px 13px;background:#2563eb;color:#fff}
+.safety-ai__bubble--loading{color:#93c5fd}
+.safety-ai__quick{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
+.safety-ai__quick button{border:1px solid #40516a;border-radius:8px;background:#192334;color:#cbd5e1;
+  padding:7px 10px;font:inherit;font-size:11px;font-weight:700;cursor:pointer}
+.safety-ai__quick button:hover{border-color:#60a5fa;color:#fff}
+.safety-ai__form{display:flex;gap:8px}
+.safety-ai__input{min-width:0;flex:1;border:1px solid #40516a;border-radius:9px;background:#fff;color:#111827;
+  padding:10px 12px;font:inherit;font-size:13px}
+.safety-ai__send{border:0;border-radius:9px;background:#2563eb;color:#fff;padding:10px 15px;
+  font:inherit;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+.safety-ai__send:disabled{opacity:.55;cursor:wait}
+.safety-ai__next{display:flex;align-items:center;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid #2d3a4d}
+.safety-ai__next-copy{flex:1;min-width:0;font-size:11px;color:#94a3b8}
+.safety-ai__next-copy b{display:block;margin-top:2px;color:#fff;font-size:13px}
+.safety-ai__next-link{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 14px;
+  border-radius:8px;background:#fff;color:#111827;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap}
+@media(max-width:620px){
+  .safety-ai-launch{right:16px;bottom:16px;min-height:46px;padding:10px 14px}
+  .safety-ai-overlay{padding:0;align-items:flex-end}
+  .safety-ai{width:100%;max-height:88vh;border-radius:18px 18px 0 0;padding:15px}
+  .safety-ai__form{flex-direction:column}.safety-ai__send{width:100%}
+  .safety-ai__next{align-items:flex-start;flex-direction:column}.safety-ai__next-link{width:100%}
+}
+
+/* 페이지 제목을 시각화 카드 안으로 옮겨 좌·우 시작선을 맞춥니다. */
+.dashboard-shell .ph-left{display:none}
+.dashboard-shell .wrap{grid-column:2;grid-row:1}
+.dashboard-shell .rightcol{grid-row:1}
+@media(max-width:940px){
+  .dashboard-shell .ph-left{display:none}
+  .dashboard-shell .wrap{grid-column:2;grid-row:1}
+  .dashboard-shell .rightcol{grid-column:1;grid-row:1}
+}
+@media(max-width:720px){
+  .dashboard-shell .rightcol{order:1}
+  .dashboard-shell .wrap{order:2}
+  .building-board__head{align-items:flex-start}
+  .building-board__head h1{font-size:20px!important}
+  .building-workspace .mission{align-items:flex-start}
+}
+
+@media(max-width:940px){
+  .dashboard-shell{grid-template-columns:230px minmax(0,1fr);column-gap:22px;padding:18px 20px 44px}
+  .dashboard-shell .rightcol{grid-column:1;grid-row:1 / span 2;width:230px}
+  .dashboard-shell .ph-left{grid-column:2;grid-row:1}
+  .dashboard-shell .wrap{grid-column:2;grid-row:2;grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:720px){
+  .dashboard-shell{display:flex;flex-direction:column;padding:16px 18px 42px}
+  .dashboard-shell .ph-left{order:1;width:100%}
+  .dashboard-shell .rightcol{order:2;width:100%;min-height:0;padding:10px;margin:0 0 16px}
+  .dashboard-shell .prog{position:static}
+  .dashboard-shell .wrap{order:3;width:100%;grid-template-columns:1fr}
+  .dashboard-shell .pstep{min-height:46px}
+}
+
+/* ── 최종 배치: 좌측 AI · 건물 카드 내부 업무 메뉴 ─────── */
+.dashboard-shell{grid-template-columns:320px minmax(0,1fr);column-gap:24px}
+.dashboard-shell .rightcol{width:320px;min-height:0;padding:0;border:0;background:transparent}
+.dashboard-shell .rightcol .prog{display:none}
+.safety-ai--rail{position:sticky;top:76px;width:100%;max-height:calc(100vh - 96px);border-radius:17px;
+  padding:18px;overflow:auto;box-shadow:0 12px 32px rgba(15,23,42,.16)}
+.safety-ai--rail .safety-ai__head{align-items:flex-start}
+.safety-ai--rail .safety-ai__mode{display:block;margin-top:5px}
+.safety-ai--rail .safety-ai__chat{max-height:360px;min-height:150px}
+.safety-ai--rail .safety-ai__form{flex-direction:column}
+.safety-ai--rail .safety-ai__send{width:100%}
+.safety-ai--rail .safety-ai__next{align-items:flex-start;flex-direction:column}
+.safety-ai--rail .safety-ai__next-link{width:100%}
+
+.building-tasknav{grid-column:1/-1;padding:2px 0 3px}
+.building-tasknav__head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px}
+.building-tasknav__head b{font-size:13px;color:var(--fg)}
+.building-tasknav__head span{font-size:10.5px;color:var(--mut2)}
+.building-tasknav__grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.building-task{display:flex;align-items:center;gap:8px;min-width:0;min-height:48px;padding:8px 9px;
+  border:1px solid #dbe2ea;border-radius:10px;background:rgba(255,255,255,.76);color:var(--fg);text-decoration:none;
+  transition:transform .15s,border-color .15s,background .15s}
+.building-task:hover{transform:translateY(-1px);border-color:#9bb9eb;background:#fff}
+.building-task__no{width:23px;height:23px;border-radius:7px;background:#e8edf5;color:#64748b;
+  display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0}
+.building-task>span:nth-child(2){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;font-weight:750}
+.building-task small{display:inline-flex;align-items:center;flex-shrink:0;margin-left:auto;color:#94a3b8;font-size:9.5px;white-space:nowrap}
+.building-task.is-done{border-color:#bfe6cb;background:rgba(240,253,244,.86);color:#15803d}
+.building-task.is-done .building-task__no{background:#e8edf5;color:#64748b}.task-done{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;background:#eaf6f0;color:#238064;border:1px solid #d0e8dc;box-sizing:border-box}.task-done svg{display:block}.building-task__no{line-height:1;box-sizing:border-box}.building-task__no svg{display:block;flex-shrink:0}
+.building-task.is-now{border-color:#93b4ef;background:#eff6ff;color:#1d4ed8;box-shadow:0 0 0 2px rgba(37,99,235,.08)}
+.building-task.is-now .building-task__no{background:#2563eb;color:#fff}
+.building-tasknav__pro-title{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin-top:4px;padding:10px 2px 1px;
+  border-top:1px dashed #d8d5ec;color:#5b4ca2}
+.building-tasknav__pro-title b{font-size:10.5px;letter-spacing:.03em}
+.building-tasknav__pro-title span{font-size:8.5px;font-weight:800;padding:2px 6px;border-radius:5px;background:#ede9fe;color:#6d28d9}
+.building-tasknav__pro-guide{color:#5b4ca2;font-size:10px;font-weight:600;text-decoration:none;white-space:nowrap}
+.building-tasknav__pro-guide:hover{text-decoration:underline}
+.building-tasknav__pro-guide:focus-visible{outline:2px solid #a78bfa;outline-offset:3px}
+.pro-disclosure{grid-column:1/-1;min-width:0;margin-top:4px;border-top:1px dashed #d8d5ec}
+.pro-disclosure>summary{display:flex;align-items:center;gap:10px;padding:12px 2px;list-style:none;cursor:pointer;color:#5b4ca2;font-size:10.5px;font-weight:700}
+.pro-disclosure>summary::-webkit-details-marker{display:none}
+.pro-disclosure>summary::after{content:'';width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);margin-top:-3px}
+.pro-disclosure[open]>summary::after{transform:rotate(225deg);margin-top:3px}
+.pro-disclosure>summary:focus-visible{outline:2px solid #a78bfa;outline-offset:2px;border-radius:4px}
+.pro-disclosure__footer{display:flex;flex-wrap:wrap;align-items:center;gap:5px 8px;margin:10px 2px 2px;color:#727d8b;font-size:10px;line-height:1.6}
+.pro-mode-link{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid #e5e1ed;border-radius:8px;background:#fff;color:#514568;text-decoration:none;font-size:11px}
+.pro-mode-link__badge{padding:3px 5px;border-radius:4px;background:#f3eff9;color:#69568e;font-size:8px;font-weight:700}
+.pro-mode-link small{margin-left:auto;color:#7c7489;font-size:10px}
+.pro-mode-link:hover{background:#faf9fc;border-color:#cfc5df}
+.pro-mode-link:focus-visible{outline:2px solid #a78bfa;outline-offset:2px}
+.pro-mode-status{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:6px 2px;color:#727d8b;font-size:10px}
+.pro-mode-status span{color:#69568e;font-weight:600}
+.building-task--pro{border-color:#ddd6fe;background:rgba(250,245,255,.84);color:#5b3f99}
+.building-task--pro:hover{border-color:#b9a8ea;background:#faf5ff}
+.pro-preview{grid-column:1/-1;margin-top:6px;border:1px solid #e2e6eb;border-radius:10px;overflow:hidden;background:#fff}
+.pro-preview__hero{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px}
+.pro-preview__badge{display:inline-flex;align-items:center;gap:8px;color:#303746;font-size:12px;font-weight:600}
+.pro-preview__badge b{padding:3px 6px;border:1px solid #e5e1f1;border-radius:5px;background:#f5f3fa;color:#69568e;font-size:9px;line-height:1.2;letter-spacing:.04em}
+.pro-preview__hero p{margin:6px 0 0;color:#697382;font-size:11px;line-height:1.5}
+.pro-preview__cta{flex-shrink:0}
+.pro-preview__cta a{display:flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:7px 11px;border:1px solid #e5e1f1;border-radius:7px;background:#f5f3fa;color:#69568e;font-size:11px;font-weight:600;text-decoration:none}
+.pro-preview__cta a:hover{background:#eeebf6;border-color:#cdc4df}
+.pro-preview summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 16px;padding:11px 0;border-top:1px solid #edf0f3;cursor:pointer;list-style:none;color:#697382;font-size:11px;font-weight:500}
+.pro-preview summary::-webkit-details-marker{display:none}.pro-preview summary::after{content:'';width:5px;height:5px;flex-shrink:0;margin-right:3px;border-right:1px solid #8b93a0;border-bottom:1px solid #8b93a0;transform:rotate(45deg)}.pro-preview details[open] summary::after{transform:rotate(225deg)}
+.pro-preview summary:focus-visible,.pro-preview__cta a:focus-visible{outline:2px solid #60a5fa;outline-offset:-3px}
+.pro-preview__features{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 15px 16px}
+.pro-preview__features div{font-size:12px;color:#465365}
+.pro-preview__features small{display:block;font-size:11px;color:#64748b;margin-top:4px;line-height:1.6}
+@media(max-width:480px){.pro-preview__hero{flex-wrap:wrap}.pro-preview__features{grid-template-columns:1fr}}
+.building-task--pro .building-task__no{background:#ede9fe;color:#6d28d9;font-size:8px}
+.building-task--pro small{color:#7c3aed;font-weight:800}
+.building-task--locked,.building-task--locked:hover{border-color:#e5e7eb;background:#f8f9fb;color:#697382;cursor:default;box-shadow:none;transform:none}
+.building-task--locked .building-task__no{background:#eef0f4;color:#7b8491}
+.building-task--locked small{color:#7b8491;font-weight:600}
+
+@media(max-width:1040px){
+  .dashboard-shell{grid-template-columns:290px minmax(0,1fr);column-gap:18px}
+  .dashboard-shell .rightcol{width:290px;padding:0}
+  .building-tasknav__grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:720px){
+  .dashboard-shell{display:flex}
+  .dashboard-shell .rightcol{order:1;width:100%;padding:0}
+  .dashboard-shell .wrap{order:2}
+  .safety-ai--rail{position:static;max-height:none}
+  .building-tasknav__grid{grid-template-columns:1fr}
+  .building-tasknav__head{align-items:flex-start;flex-direction:column;gap:3px}
+}
+
+/* AI 카드 색상·텍스트 기준선 정돈 */
+.safety-ai--rail{background:#fff;color:var(--fg);border:1px solid var(--bd);box-shadow:0 8px 24px rgba(15,30,60,.07)}
+.safety-ai--rail .safety-ai__head{display:block;margin-bottom:16px;padding:1px 1px 13px;border-bottom:1px solid var(--bd)}
+.safety-ai--rail .safety-ai__title{display:grid;grid-template-columns:28px minmax(0,1fr);align-items:center;
+  gap:9px;color:var(--fg);font-size:14px;line-height:1.4}
+.safety-ai--rail .safety-ai__manager-name{min-width:0;overflow-wrap:anywhere;word-break:keep-all}
+.safety-ai--rail .safety-ai__mark{width:28px;height:28px;border-radius:9px;background:#e8f0ff;color:#1d4ed8}
+.safety-ai--rail .safety-ai__mode{margin:5px 0 0 37px;color:#64748b;font-size:10.5px;line-height:1.4}
+.safety-ai--rail .safety-ai__chat{gap:8px;margin-bottom:13px;padding:0 2px 9px 0;scroll-padding-bottom:9px}
+.safety-ai--rail .safety-ai__bubble{max-width:94%;border:1px solid #e2e8f0;background:#f6f8fb;color:#334155;
+  border-radius:5px 12px 12px 12px;font-size:12px;line-height:1.65}
+.safety-ai--rail .safety-ai__bubble--user{margin-left:auto;border-color:#2563eb;background:#2563eb;color:#fff;
+  border-radius:12px 5px 12px 12px}
+.safety-ai--rail .safety-ai__bubble--loading{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
+.safety-ai--rail .safety-ai__quick{gap:6px;margin-bottom:10px}
+.safety-ai--rail .safety-ai__quick button{border-color:#dbe3ee;background:#f8fafc;color:#475569;
+  padding:7px 9px;border-radius:8px;font-size:10.5px}
+.safety-ai--rail .safety-ai__quick button:hover{border-color:#9db9e9;background:#eff6ff;color:#1d4ed8}
+.safety-ai--rail .safety-ai__input{border-color:#cbd5e1;background:#fff;color:var(--fg);font-size:12.5px}
+.safety-ai--rail .safety-ai__input:focus{outline:0;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.10)}
+.safety-ai--rail .safety-ai__send{background:#2563eb;color:#fff}
+.safety-ai--rail .safety-ai__next{border-top-color:#e2e8f0;margin-top:14px;padding-top:13px}
+.safety-ai--rail .safety-ai__next-copy{color:#64748b;line-height:1.5}
+.safety-ai--rail .safety-ai__next-copy b{color:var(--fg);font-size:12.5px;line-height:1.45}
+.safety-ai--rail .safety-ai__next-link{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.safety-ai--rail .safety-ai__next-link:hover{background:#dbeafe;border-color:#93c5fd}
+.safety-ai__setup{margin:-2px 0 13px;padding:12px;border:1px solid #bfdbfe;border-radius:11px;background:#eff6ff}
+.safety-ai__setup-label{font-size:9.5px;font-weight:800;letter-spacing:.06em;color:#2563eb;margin-bottom:4px}
+.safety-ai__setup b{display:block;color:#1e3a8a;font-size:12.5px;line-height:1.45;margin-bottom:3px}
+.safety-ai__setup p{margin:0 0 9px;color:#52647c;font-size:10.5px;line-height:1.55}
+.safety-ai__setup-link{display:flex;align-items:center;justify-content:center;min-height:36px;border-radius:8px;
+  background:#2563eb;color:#fff;font-size:11.5px;font-weight:800;text-decoration:none}
+.safety-ai__setup-link:hover{background:#1d4ed8;color:#fff}
+
+/* 기존 하단 PRO 도구는 숨기고, 건물 상단 구독 버튼만 사용합니다. */
+.dashboard-shell .wrap>.protools{display:none}
+.building-board__head .plan-link{min-width:104px;border-color:#1e293b;background:#111827;color:#fff;
+  box-shadow:0 5px 14px rgba(15,23,42,.14)}
+.building-board__head .plan-link:hover{background:#1e293b;border-color:#1e293b;color:#fff}
+.building-board__head .plan-link--on{border-color:#86efac;background:#f0fdf4;color:#15803d;box-shadow:none}
+.building-board__head .plan-link--on:hover{background:#dcfce7;border-color:#4ade80;color:#15803d}
+.building-board__head .plan-link--wait{border-color:#cbd5e1;background:#f8fafc;color:#64748b;box-shadow:none}
+
+
+/* 연결 완료 후 구독 안내: 6초마다 짧게 빛이 지나갑니다. */
+.dashboard-shell .plan-link--collaborate{position:relative;isolation:isolate;overflow:hidden;
+  flex-direction:column;align-items:flex-start;gap:4px;min-height:58px;padding:11px 16px;
+  border:1px solid #319caa;border-radius:12px;background:#111827;color:#fff;
+  box-shadow:0 4px 14px rgba(15,23,42,.12),inset 0 1px 0 rgba(153,246,228,.12)}
+.dashboard-shell .plan-link--collaborate::before{content:"";position:absolute;inset:0;z-index:-1;
+  background:linear-gradient(110deg,transparent 25%,rgba(153,246,228,.04) 38%,rgba(153,246,228,.23) 50%,rgba(153,246,228,.04) 62%,transparent 75%);
+  transform:translateX(-140%);animation:pro-collaboration-shine 6s ease-in-out infinite;pointer-events:none}
+.plan-link__hint{font-size:10px;line-height:1.4;font-weight:500;color:#b1cbd1;white-space:nowrap}
+.plan-link__label{display:inline-flex;align-items:center;gap:12px;line-height:1.5}
+.plan-link__arrow{color:#67e8d5;font-size:17px;line-height:1}
+.dashboard-shell .plan-link--collaborate:hover{background:#172333;border-color:#5eead4;color:#fff}
+.plan-link:focus-visible{outline:3px solid #0891b2;outline-offset:4px}
+@keyframes pro-collaboration-shine{0%{transform:translateX(-140%)}22%,100%{transform:translateX(140%)}}
+@media(prefers-reduced-motion:reduce){.dashboard-shell .plan-link--collaborate::before{animation:none;display:none}}
+@media(max-width:480px){.dashboard-shell .plan-link--collaborate{padding:9px 11px;min-height:54px}.plan-link__hint{font-size:9px}.plan-link__label{gap:8px}}
+
+/* ── 원스톱 업무 작업 공간 ─────────────────────────────── */
+.one-stop{display:none;grid-column:1/-1;border:1px solid var(--bd);border-radius:18px;background:#fff;
+  overflow:hidden;box-shadow:0 8px 26px rgba(15,30,60,.07);scroll-margin-top:78px}
+.one-stop.on{display:block}
+.dashboard-shell.workspace-open .building-workspace{display:none}
+.dashboard-shell.workspace-open .protools{display:none}
+.one-stop__head{display:flex;align-items:center;gap:13px;min-height:64px;padding:11px 14px;
+  border-bottom:1px solid var(--bd);background:#fbfcfe}
+.one-stop__back{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:8px 11px;
+  border:1px solid var(--bd2);border-radius:8px;background:#fff;color:var(--mut2);font:inherit;font-size:11.5px;font-weight:800;cursor:pointer}
+.one-stop__copy{flex:1;min-width:0}
+.one-stop__eyebrow{font-size:9.5px;font-weight:800;letter-spacing:.08em;color:var(--brand2);margin-bottom:2px}
+.one-stop__title{font-size:15px;font-weight:800;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.one-stop__state{font-size:10.5px;color:var(--mut2)}
+.one-stop__external{font-size:11px;font-weight:700;color:var(--brand2);text-decoration:none;white-space:nowrap}
+.one-stop__frame-wrap{position:relative;height:min(760px,calc(100vh - 150px));min-height:560px;background:#f8fafc}
+.one-stop__loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#64748b;
+  font-size:12px;background:#f8fafc;z-index:2}
+.one-stop__loading.is-hidden{display:none}
+.one-stop__frame{width:100%;height:100%;border:0;background:#fff}
+@media(max-width:720px){
+  .one-stop__head{align-items:flex-start;flex-wrap:wrap}.one-stop__copy{min-width:160px}
+  .one-stop__state{width:100%;order:4}.one-stop__frame-wrap{height:72vh;min-height:500px}
+}
+
+/* Keep the original task-card dimensions; accent only numbers, checks and the next task. */
+.building-task:not(.building-task--pro) .building-task__no{background:#dbeafe;color:#2563eb}
+.building-task.is-now .building-task__no{background:#2563eb;color:#fff}
+.building-task .task-done{background:#16845b;color:#fff;border-color:#16845b;border-radius:5px}
+.building-task.is-now{border-color:#6097ed;animation:building-next-border-glow 2.8s ease-in-out infinite}
+@keyframes building-next-border-glow{
+  0%,100%{border-color:#86aceb;box-shadow:0 0 0 1px rgba(59,130,246,.08)}
+  50%{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.15),0 0 9px rgba(59,130,246,.14)}
+}
+@media(prefers-reduced-motion:reduce){
+  .building-task.is-now{animation:none;border-color:#6097ed;box-shadow:0 0 0 2px rgba(59,130,246,.12)}
+}
+
+
+/* Utility cards are visually separate from retained records. */
+.building-support{grid-column:1/-1;margin-top:10px;padding-top:16px;border-top:1px solid #dce4ed}
+.building-support__title{margin:0 0 9px;color:#64748b;font-size:12px;font-weight:750;line-height:1.5}
+.building-support__grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media(max-width:1040px){.building-support__grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.building-support__grid{grid-template-columns:1fr}}
+.building-retention{grid-column:1/-1;margin-top:6px;padding-top:13px;border-top:1px solid #e2e8f0}
+.building-retention__title{display:flex;align-items:center;gap:7px;margin:0 0 9px;font-size:12px;font-weight:750;color:#475569}
+.building-retention__title span{padding:3px 7px;border-radius:6px;background:#e8f1ff;color:#2563eb;font-size:11px;line-height:1.3}
+.building-retention__grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media(max-width:1040px){.building-retention__grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.building-retention__grid{grid-template-columns:1fr}}
+
+/* Mobile content must fit the viewport, including long multi-building names. */
+@media screen and (max-width:720px){
+ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+ .dashboard-shell,.dashboard-shell>.wrap,.dashboard-shell>.page-head,.dashboard-shell .page-head__inner,.dashboard-shell .rightcol{box-sizing:border-box;min-width:0;max-width:100%}
+ .dashboard-shell{width:100%}
+ .dashboard-shell .wrap{grid-template-columns:minmax(0,1fr)}
+ .dashboard-shell .wrap>*,.building-workspace,.building-board>*{min-width:0;max-width:100%}
+ .building-workspace .building-board{box-sizing:border-box;width:100%;grid-template-columns:minmax(0,1fr)}
+ .building-board__head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px;width:100%;min-width:0}
+ .building-board__head-copy{width:100%;min-width:0;max-width:100%}
+ .building-board__head h1{white-space:normal;word-break:keep-all;overflow-wrap:anywhere;line-height:1.45}
+ .building-board__head .plan-link{box-sizing:border-box;min-width:0;width:104px;max-width:104px;min-height:40px;padding:9px 8px;align-items:center;justify-content:center;white-space:normal}
+ .building-board__head .plan-link__hint{display:none}
+ .building-board__head .plan-link__label{font-size:12px;gap:5px;white-space:nowrap}
+ .building-dong-strip{width:100%;max-width:100%;min-width:0}
+ .building-dong-strip span{box-sizing:border-box;min-width:0;max-width:100%;overflow-wrap:anywhere;white-space:normal}
+ .building-dong-strip .is-others{display:block;width:100%;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #manager-connect{box-sizing:border-box;min-width:0;max-width:100%}
+ #manager-connect .mc-mini__summary{flex-wrap:wrap;min-width:0}
+ #manager-connect .mc-mini__copy{flex:1 1 100px;min-width:0;overflow-wrap:anywhere}
+ #manager-connect .mc-mini__subtitle{white-space:normal;overflow-wrap:anywhere}
+}
+</style>
+
+<div class="dashboard-shell dashboard-compact dashboard-planhome" data-compact-dashboard>
+<header class="page-head">
+  <div class="page-head__inner">
+    <div class="ph-left">
+      <div class="dashboard-head">
+        <div class="dashboard-head__copy">
+          <div class="badge"><span></span> 건물 소방안전관리자</div>
+          <h1>건물 소방안전관리</h1>
+          <p>필요한 업무와 진행 상태를 한 화면에서 확인하세요.</p>
+        </div>
+        <a class="plan-link<?=h($proButtonClass)?>"
+           href="<?=h($url('/subscribe_page.php'))?>">
+          <?php if ($proInvite): ?><span class="plan-link__hint">소방안전 업무 기록을 한곳에서 관리하세요</span><?php endif; ?>
+                          <span class="plan-link__label"><?=h($proButtonLabel)?><?php if ($proInvite): ?><span class="plan-link__arrow" aria-hidden="true">↗</span><?php endif; ?></span>
+        </a>
+      </div>
+    </div>
+
+    <div class="planhome-legacy-progress" hidden>
+
+    <aside class="prog">
+      <div class="prog__t">소방안전관리 업무</div>
+      <?php
+        /* 좌측 업무 메뉴: 각 기록을 합치지 않고 실제 작성 화면 단위로 보여줍니다. */
+        $s1 = $biDone;
+        $s2 = $hasRoster;
+        $s3 = ($doneWorkLog === true);
+        $s4 = ($doneJawi === true);
+        $s5 = ($doneTrain === true);
+        $s6 = $hasEvacuationPlan;
+        $nowStep = !$s1 ? 1 : (!$facilityDone ? 2 : (!$s2 ? 3 : (!$s6 ? 4 : (!$s3 ? 5 : (!$s4 ? 6 : (!$s5 ? 7 : 8))))));
+      ?>
+      <?php
+        /* 현재 해야 할 단계 바로 위에 클릭 유도 문구를 띄웁니다.
+           기존 '여기부터 시작하세요'와 같은 방식이되, 진행에 따라 위치가 내려갑니다. */
+        function stepNudge(int $step, int $nowStep, string $text): void {
+          if ($step !== $nowStep) return;
+          echo '<div class="prog__start">현재 단계 · ' . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . '</div>';
+        }
+      ?>
+
+      <?php stepNudge(1, $nowStep, '여기부터 시작하세요'); ?>
+      <!-- ① 기본정보 -->
+      <a class="pstep <?= $s1 ? 'pstep--done' : 'pstep--now' ?><?= $nowStep===1 ? ' pstep--first' : '' ?>" href="<?= $needsLocationSetup ? h($locationSetupUrl) : ($biDone ? h($url('/building_setup.php')) : h($url('/building_setup_chat.php'))) ?>">
+        <span class="no"><?= $s1 ? '✓' : '1' ?></span><span class="pstep__label">기본정보</span>
+        <?php if ($s1): ?><span class="ptag ptag--done">완료</span>
+        <?php elseif ($reviewPending > 0): ?><span class="ptag ptag--review">확인요청 <?=$reviewPending?>건</span>
+        <?php elseif ($hasBi): ?><span class="ptag ptag--part"><?=$biProg['percent']?>%</span>
+        <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
+      </a>
+
+      <?php stepNudge(2,$nowStep,'소방시설 설치 여부를 확인하세요'); ?>
+      <a class="pstep <?= $facilityDone?'pstep--done':($nowStep===2?'pstep--now pstep--first':'') ?>" href="<?=h($url('/building_facilities.php'))?>"><span class="no"><?=$facilityDone?'✓':'2'?></span><span class="pstep__label">소방시설 현황 체크리스트</span><span class="ptag <?=$facilityDone?'ptag--done':'ptag--no'?>"><?=$facilityDone?'확인 완료':$facilityCounts['confirmed'].'/'.$facilityCounts['total']?></span></a>
+      <?php stepNudge(3, $nowStep, '이제 자위소방대를 편성하세요'); ?>
+      <!-- ② 자위소방대 편성 — 매월 기록·훈련 기록이 이 명단을 불러 쓰므로 먼저입니다 -->
+      <a class="pstep <?= $s2 ? 'pstep--done' : ($nowStep===3 ? 'pstep--now' : '') ?><?= $nowStep===3 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/fire_plan_jawi.php'))?>">
+        <span class="no"><?= $s2 ? '✓' : '3' ?></span><span class="pstep__label">자위소방대 편성</span>
+        <?php if ($s2): ?><span class="ptag ptag--done"><?=$rosterCount?>건</span>
+        <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
+        <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
+      </a>
+      <?php if ($hasBi && !$s2): ?>
+        <div class="psub psub--why"></div>
+      <?php endif; ?>
+
+      <!-- ⑥ 피난계획 -->
+      <?php stepNudge(4, $nowStep, '피난계획을 작성하세요'); ?>
+      <a class="pstep <?= $s6 ? 'pstep--done' : ($nowStep===4 ? 'pstep--now' : '') ?><?= $nowStep===4 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/evacuation_plan.php'))?>">
+        <span class="no"><?= $s6 ? '✓' : '4' ?></span><span class="pstep__label">피난계획</span>
+        <?php if ($s6): ?><span class="ptag ptag--done">완료</span>
+        <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
+        <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
+      </a>
+
+      <?php stepNudge(5, $nowStep, '이번 달 기록표를 작성하세요'); ?>
+      <!-- ③ 매월 기록 -->
+      <a class="pstep <?= $s3 ? 'pstep--done' : ($nowStep===5 ? 'pstep--now' : '') ?><?= $nowStep===5 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/work_log.php'))?>">
+        <span class="no"><?= $s3 ? '✓' : '5' ?></span>매월 기록 (<?=h($mon)?>)
+        <?php if ($s3): ?><span class="ptag ptag--done">완료</span>
+        <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
+        <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
+      </a>
+
+      <?php stepNudge(6, $nowStep, '자위소방대 교육을 기록하세요'); ?>
+      <!-- ④ 자위소방대 교육·훈련 -->
+      <a class="pstep <?= $s4 ? 'pstep--done' : ($nowStep===6 ? 'pstep--now' : '') ?><?= $nowStep===6 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
+        <span class="no"><?= $s4 ? '✓' : '6' ?></span><span class="pstep__label">자위소방대 교육</span>
+        <?php if ($s4): ?><span class="ptag ptag--done">완료</span>
+        <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
+        <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
+      </a>
+
+      <?php stepNudge(7, $nowStep, '소방훈련·교육을 기록하세요'); ?>
+      <!-- ⑤ 소방훈련·교육 -->
+      <a class="pstep <?= $s5 ? 'pstep--done' : ($nowStep===7 ? 'pstep--now' : '') ?><?= $nowStep===7 ? ' pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/train.php'))?>">
+        <span class="no"><?= $s5 ? '✓' : '7' ?></span><span class="pstep__label">소방훈련·교육</span>
+        <?php if ($s5): ?><span class="ptag ptag--done">완료</span>
+        <?php elseif (!$hasBi): ?><span class="ptag ptag--wait">대기</span>
+        <?php else: ?><span class="ptag ptag--no">미진행</span><?php endif; ?>
+      </a>
+
+      <?php stepNudge(8, $nowStep, '소방계획서를 확인하세요'); ?>
+      <!-- ⑦ 소방계획서 -->
+      <a class="pstep <?= $nowStep===8 ? 'pstep--now pstep--first' : '' ?><?= $hasBi ? '' : ' pstep--lock' ?>" href="<?=h($url('/fire_plan.php'))?>">
+        <span class="no">8</span><span class="pstep__label">소방계획서</span>
+        <span class="ptag ptag--always">상시</span>
+      </a>
+
+      <div class="prog__hint"><?= $hasBi ? '업무를 선택하면 작성 화면으로 바로 이동합니다' : '기본정보를 입력하면 나머지 업무가 열립니다' ?></div>
+    </aside>
+    </div>
+  </div>
+</header>
+
+                  <main class="wrap">
+
+                    <?php if ($adminView): ?>
+                    <div class="section" style="background:#fff;border:1px solid var(--bd);border-radius:14px;padding:18px 20px;margin-bottom:18px">
+                      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+                        <b>관리자 전용 · <?=h($targetNick)?> 회원 화면</b>
+                        <?php if ($adminReviewRows): ?>
+                          <span class="setup-badge setup-badge--review">확인요청 <?=count($adminReviewRows)?>건</span>
+                        <?php else: ?>
+                          <span class="setup-badge setup-badge--ok">대기 요청 없음</span>
+                        <?php endif; ?>
+                      </div>
+                      <?php if ($adminReviewRows): ?>
+                        <div style="display:grid;gap:8px;margin:10px 0 12px">
+                          <?php foreach (array_slice($adminReviewRows, 0, 5) as $req): ?>
+                            <div style="font-size:13px;color:var(--mut2);background:#fff7ed;border:1px solid #fed7aa;border-radius:9px;padding:9px 11px">
+                              <b style="color:#92400e"><?=h($req['at'] ?? '')?></b>
+                              · <?=h($req['text'] ?? '')?>
+                            </div>
+                          <?php endforeach; ?>
+                        </div>
+                      <?php else: ?>
+                        <p style="font-size:13px;color:var(--mut2);margin:4px 0 12px">이 회원의 미처리 확인요청은 없습니다.</p>
+                      <?php endif; ?>
+                      <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <a class="btn" href="/admin_member_review.php?uid=<?=h(rawurlencode($viewUid))?>">확인요청 처리</a>
+                        <a class="btn" href="<?=h($url('/building_setup.php'))?>">기본정보 수정</a>
+                        <a class="btn" href="<?=h($url('/building_setup_chat.php'))?>">문답형 수정</a>
+                      </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="building-workspace">
+                    <?php if (!$hasUser): ?>
+                    <div class="mission mission--error">
+                      <div class="mission__copy">
+                        <span class="mission__label">SYSTEM CHECK</span>
+                        <span class="mission__text">로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.</span>
+                      </div>
+                    </div>
+                    <?php elseif (!$hasBi): ?>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">지금 할 일</span>
+                        <span class="mission__text"><b>건물 기본정보</b>를 입력하세요. 한 번 입력하면 모든 서식에 반영됩니다.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/building_setup_chat.php'))?>">기본정보 입력</a>
+                    </div>
+                    <?php elseif (!$biDone): ?>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">지금 할 일 · <?=$biProg['percent']?>%</span>
+                        <span class="mission__text"><b><?=h(implode(', ', array_slice($biProg['missing'], 0, 3)))?><?= count($biProg['missing']) > 3 ? ' 외' : '' ?></b> 항목을 이어서 입력하세요.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/building_setup_chat.php'))?>">이어서 입력</a>
+                    </div>
+                    <?php elseif (!$hasRoster): ?>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">지금 할 일</span>
+                        <span class="mission__text"><b>자위소방대 편성표</b>를 먼저 만드세요. 이후 교육·훈련 기록에서 명단을 불러옵니다.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/fire_plan_jawi.php'))?>">편성표 만들기</a>
+                    </div>
+                    <?php elseif ($doneWorkLog !== true): ?>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">지금 할 일 · <?=h($mon)?></span>
+                        <span class="mission__text"><b>업무수행 기록표</b>를 작성하세요. 매월 1회 이상 작성해야 합니다.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/work_log.php'))?>">기록표 작성</a>
+                    </div>
+                    <?php elseif ($doneJawi !== true): ?>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">지금 할 일 · 연간 업무</span>
+                        <span class="mission__text"><b>자위소방대 교육·훈련 기록부</b>를 작성하세요.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/jawi.php?stay=1'))?>">교육·훈련 기록</a>
+                    </div>
+                    <?php elseif ($doneTrain !== true): ?>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">지금 할 일 · 연간 업무</span>
+                        <span class="mission__text"><b>소방훈련·교육 기록부</b>를 작성하면 올해 교육·훈련 업무가 완료됩니다.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/train.php'))?>">훈련 기록 작성</a>
+                    </div>
+                    <?php elseif (!$hasEvacuationPlan): ?>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">지금 할 일 · 피난 안전</span>
+                        <span class="mission__text"><b>피난계획</b>을 작성해 층별 대피방법과 집결 절차를 준비하세요.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/evacuation_plan.php'))?>">피난계획 작성</a>
+                    </div>
+                    <?php else: ?>
+                    <div class="mission">
+                      <div class="mission__copy">
+                        <span class="mission__label">정기 업무 완료</span>
+                        <span class="mission__text">정기 업무가 완료되었습니다. <b>소방계획서</b>를 상시 관리하세요.</span>
+                      </div>
+                      <a class="mission__btn" href="<?=h($url('/fire_plan.php'))?>">소방계획서 열기</a>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php
+                      $buildChecks = [$s1, $s2, $s3, $s4, $s5];
+                      $buildStage = 0;
+                      foreach ($buildChecks as $check) { if ($check) $buildStage++; }
+                      $safetyAssetCount = ($hasFireRoute ? 1 : 0) + ($hasAssemblyPoint ? 1 : 0)
+                        + ($s2 ? 1 : 0) + ($s6 ? 1 : 0);
+                    ?>
+                    <?php
+                      require_once __DIR__.'/fire_plan_dashboard_common.php';
+                      require_once __DIR__.'/building_work_year_common.php';
+                      $bookToday=fpsc_today();$bookYear=(int)substr($bookToday,0,4);$bookYears=[];$bookReadError=false;
+                      $workYearRecords=bwy_read($viewUid,__DIR__.'/data');
+                      $workCommonDone=count(array_filter([$s1,$facilityDone,$s2,$s6]));
+                      try {
+                        require_once __DIR__.'/fire_plan_share_common.php';
+                        require_once __DIR__.'/fire_plan_auto_sync.php';
+                        if($viewUid===fp_user_key())fpa_sync();
+                        $bookSavedPlans=fps_plans($viewUid);
+                      } catch(Throwable $e) {$bookSavedPlans=[];$bookReadError=true;}
+                      foreach([$bookYear-1=>'지난해 계획',$bookYear=>'올해 계획',$bookYear+1=>'차기년도 계획'] as $year=>$label){
+                        $saved=$bookSavedPlans[$year]??null;
+                        $entry=fpdc_summary($saved,$bookReadError);
+                        $savedName=$saved['sections']['1']['data']['name']??null;
+                        $entry['name']=is_string($savedName)&&trim($savedName)!==''?trim($savedName):($biName!==''?$biName:'우리 건물');
+                        $editArgs=['year'=>$year];
+                        if($entry['hasPlan']&&preg_match('/^[0-9]{1,64}$/D',$entry['id']))$editArgs['id']=$entry['id'];
+                        $entry+=['year'=>$year,'label'=>$label,'href'=>$url('/fire_plan_book.php?year='.$year),
+                            'editHref'=>$url('/fire_plan.php?'.http_build_query($editArgs))];
+                        $entry['previewOnly']=false;
+                        $entry['actionLabel']='작성 업무로';
+                        $sourceHref=$url('/fire_plan.php?'.http_build_query($editArgs+['workspace'=>'sources']));
+                        $entry['workflow']=[
+                          'sources'=>$sourceHref,
+                          'write'=>$entry['hasPlan']&&$entry['sourceSelected']?$url('/fire_plan_chat.php?'.http_build_query($editArgs+['workflow'=>'1','section'=>$entry['nextSection']])):$sourceHref,
+                          'review'=>$entry['hasPlan']?$url('/fire_plan.php?'.http_build_query($editArgs+['workspace'=>'review'])):$sourceHref
+                        ];
+                        $entry['work']=bwy_summary($workYearRecords,$saved,$year,$bookToday,$workCommonDone);
+                        foreach(['monthly'=>'work_log','jawi'=>'jawi','train'=>'train'] as $task=>$page){
+                          $args=['year'=>$year];$path='/'.$page.'.php';
+                          if($year>$bookYear&&$task!=='monthly'){
+                            $kind=$task==='jawi'?'jawi':'fire';
+                            if($entry['hasPlan']){$path='/fire_plan_schedule.php';$args+=['id'=>$entry['id'],'kind'=>$kind];}
+                            else {$path='/fire_plan.php';$args['schedule_kind']=$kind;}
+                          }
+                          $entry['work']['tasks'][$task]['href']=$url($path.'?'.http_build_query($args));
+                          if($task!=='monthly')$entry['work']['tasks'][$task]['recordIds']=array_values(array_map('strval',array_keys(array_filter($workYearRecords[$task],static fn($r)=>bwy_record_year($r,$task,$year)))));
+                        }
+                        $bookYears[]=$entry;
+                      }
+                      $bookCurrent=$bookYears[1];$bookState=$bookCurrent['state'];
+                      // The seven source workflows and the resulting annual plan have separate progress.
+                      $compactTaskStates = [$s1, $facilityDone, $s2, $s6, $s3, $s4, $s5];
+                      $compactTaskTotal = count($compactTaskStates);
+                      $compactTaskDone = count(array_filter($compactTaskStates));
+                      $compactTaskPercent = (int)round($compactTaskDone * 100 / $compactTaskTotal);
+
+                    ?>
+                    <section class="building-board" aria-labelledby="buildingBoardTitle">
+                      <div class="building-board__head building-board__head--book">
+                        <div class="planhome-header-building">
+                        <span class="compact-building-emblem" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 27h22M9 27V7l14-3v23M13 11h2m4-1h1m-7 6h2m4-1h1m-7 6h2m4-1h1M15 27v-3h4v3"/></svg></span>
+                        <div class="building-board__head-copy">
+                           <div class="building-board__head-label">건물 소방안전관리</div>
+                           <h1 id="buildingBoardTitle"><?= $hasBi ? h($biName) : '우리 건물 안전관리 현황' ?></h1>
+                           <?php if ($hasBi): ?>
+                             <p class="building-mobile-summary"><?php
+                               $mobileSummary=[];
+                               $mobileUse=trim((string)($primaryDong['use'] ?? $bi['bd_use_main'] ?? ''));
+                               if($mobileUse!=='')$mobileSummary[]=$mobileUse;
+                               if($floorAbove>0)$mobileSummary[]='지상 '.$floorAbove.'층';
+                               if($floorBelow>0)$mobileSummary[]='지하 '.$floorBelow.'층';
+                               if($siteDongCount>1)array_unshift($mobileSummary,'기준동 현황');
+                               echo h(implode(' · ',$mobileSummary));
+                             ?></p>
+                           <?php endif; ?>
+                           <?php if ($hasBi && $siteDongCount > 1): ?>
+                             <div class="building-dong-strip" aria-label="현장 동 구성">
+                               <span class="is-count">총 <?=$siteDongCount?>개 동</span>
+                               <span class="is-primary">기준동 · <?=h($primaryDongName)?></span>
+                               <span class="is-others" title="<?=h($otherDongText)?>">나머지 동 · <?=h($otherDongText ?: '상세 확인 필요')?></span>
+                             </div>
+                           <?php endif; ?>
+
+                        </div>
+                        </div>
+                        <div class="planhome-header-manager" id="compactManagerPanel" aria-label="연결 업체">
+                          <?php mg_connect_card(true, 'building'); ?>
+                        </div>
+                        <div class="planhome-header-actions">
+                           <div class="building-plan-membership">
+                        <a class="plan-link<?=h($proButtonClass)?>"
+                           href="<?=h($url('/subscribe_page.php'))?>">
+                          <?php if ($proInvite): ?><span class="plan-link__hint">소방안전 업무 기록을 한곳에서 관리하세요</span><?php endif; ?>
+                          <span class="plan-link__label"><?=h($proButtonLabel)?><?php if ($proInvite): ?><span class="plan-link__arrow" aria-hidden="true">↗</span><?php endif; ?></span>
+                        </a>
+                           </div>
+
+    <details class="planhome-assistance"><summary>작성 도움말 <span aria-hidden="true">⌄</span></summary>
+    <section class="safety-ai safety-ai--rail" aria-labelledby="safetyAiTitle">
+      <div class="safety-ai__head">
+        <div class="safety-ai__title" id="safetyAiTitle">
+          <span class="safety-ai__mark">M</span>
+          <span class="safety-ai__manager-name"><?=h($safetyManagerTitle)?></span>
+        </div>
+        <span class="safety-ai__mode" id="safetyAiMode">현재 상태 분석 완료</span>
+      </div>
+      <div class="safety-ai__next">
+        <div class="safety-ai__next-copy">추천하는 다음 업무<b><?=h($aiNextTask)?></b></div>
+        <a class="safety-ai__next-link" href="<?=h($aiNextUrl)?>"><?=h($aiNextAction)?></a>
+      </div>
+      <div class="safety-ai__chat" id="safetyAiChat" aria-live="polite">
+        <div class="safety-ai__bubble">
+          <?=h($biName !== '' ? $biName : '건물')?>의 상태를 확인했습니다. 지금은 <?=h($aiNextTask)?>부터 진행하는 것이 좋습니다.
+        </div>
+      </div>
+      <?php if (!$biDone): ?>
+        <div class="safety-ai__setup">
+          <div class="safety-ai__setup-label">가장 먼저 할 일</div>
+          <b>건물 기본정보를 입력해 주세요</b>
+          <p>주소와 건축물대장 정보를 확인하면 층수에 맞는 건물과 이후 업무가 자동으로 준비됩니다.</p>
+          <a class="safety-ai__setup-link one-stop-trigger" data-one-stop-title="기본정보 입력"
+             href="<?=h($url('/building_setup_chat.php'))?>">기본정보부터 시작하기</a>
+        </div>
+      <?php endif; ?>
+      <div class="safety-ai__quick" aria-label="빠른 질문">
+        <button type="button" data-ai-question="지금 뭘 해야 해?">지금 뭘 해야 해?</button>
+        <button type="button" data-ai-question="완료된 업무와 남은 업무를 알려줘">진행 상태</button>
+        <button type="button" data-ai-question="이 건물의 층수와 기본정보를 알려줘">건물정보</button>
+      </div>
+      <form class="safety-ai__form" id="safetyAiForm">
+        <input class="safety-ai__input" id="safetyAiInput" type="text" maxlength="800"
+          placeholder="궁금한 업무를 물어보세요" autocomplete="off" aria-label="AI 도우미에게 질문">
+        <button class="safety-ai__send" id="safetyAiSend" type="submit">전송</button>
+      </form>
+    </section>
+    </details>
+                        </div>
+                      </div>
+                      
+<div class="building-mobile-guide"><span aria-hidden="true">↗</span><p><?php if($needsLocationSetup): ?><a href="<?=h($locationSetupUrl)?>" style="color:inherit;text-decoration:none"><strong>먼저 기본정보에서 안전 위치를 설정해 주세요 ›</strong><span>큰도로에서 건물까지 진입로 · 화재 시 집결지</span></a><?php else: ?><strong>업무 카드를 눌러 기록을 작성하세요</strong><span>작성한 자료를 모아 소방계획서를 완성할 수 있어요.</span><?php endif; ?></p></div>
+                      <nav class="compact-mobile-tabs" aria-label="빌딩매니저 화면" hidden>
+                        <button type="button" data-compact-view="plan" aria-controls="compactPlanPanel" aria-pressed="true">소방계획서</button>
+                        <button type="button" data-compact-view="work" aria-controls="compactWorkPanel compactToolsPanel" aria-pressed="false">업무</button>
+                        <button type="button" data-compact-view="building" aria-controls="compactBuildingPanel" aria-pressed="false">건물현황</button>
+                      </nav>
+                      <section class="compact-section-deck" id="compactSectionDeck" aria-label="소방안전관리 업무와 건물현황">
+<?php if($localSetupPrompt): ?>
+<div class="local-building-start" id="local-building-start" role="region" aria-label="건물등록 시작" tabindex="-1"><span class="local-building-start__step">다음 단계 · 기본정보</span><strong>이제 우리 건물을 등록해 주세요.</strong><p>로컬 파트너<?=$proManagerConnected?'와 연결되었습니다.':' 연결을 신청했습니다. 수락을 기다리는 동안에도'?> 기본정보에서 건물을 등록할 수 있습니다.</p><a class="one-stop-trigger" data-one-stop-title="건물 기본정보 등록" href="<?=h($url('/building_setup_chat.php'))?>">기본정보 · 건물등록 시작 <span aria-hidden="true">→</span></a></div>
+<style>.local-building-start{grid-column:1/-1;margin:12px 0;padding:18px 20px;border:1px solid #acc8ec;border-radius:14px;background:#eef5ff;color:#294e7d;scroll-margin-top:90px}.local-building-start__step{display:block;font-size:10px;font-weight:750;color:#517ba9;margin-bottom:6px}.local-building-start strong{display:block;font-size:16px}.local-building-start p{margin:7px 0 12px;color:#6a809b;font-size:12px;line-height:1.7}.local-building-start a{display:inline-flex;align-items:center;justify-content:space-between;gap:26px;background:#3267bd;color:#fff;border-radius:9px;padding:10px 14px;font-size:12px;font-weight:700;text-decoration:none}.local-setup-next{outline:2px solid #5b91d5;outline-offset:2px;box-shadow:0 0 0 5px #dceaff!important;animation:local-setup-attention 1.6s ease-out 3}@keyframes local-setup-attention{50%{box-shadow:0 0 0 9px #dceaff55}}@media(prefers-reduced-motion:reduce){.local-setup-next{animation:none}}@media(max-width:600px){.local-building-start{padding:15px}.local-building-start strong{font-size:14px}.local-building-start a{display:flex}}</style>
+<script>document.addEventListener('DOMContentLoaded',()=>{const first=document.querySelector('#compactWorkPanel a.building-task');first?.classList.add('local-setup-next');if(new URLSearchParams(location.search).get('setup_start')==='1'){window.showBuildingCompactPanel?.('work');const guide=document.getElementById('local-building-start');guide?.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});guide?.focus({preventScroll:true});}});</script>
+<?php endif; ?>
+<?php if($needsLocationSetup): ?>
+<a class="location-start one-stop-trigger" data-one-stop-title="안전 위치 설정" href="<?=h($locationSetupUrl)?>"><span class="location-start__icon">↗</span><span><strong>기본정보에서 안전 위치를 먼저 설정해 주세요</strong><small>건물 정보는 준비됐어요 · 소방차 진입로와 화재 시 집결지만 확인하면 됩니다.</small><em><?= $locationSetupStatus['route']?'✓ 진입로 설정됨':'① 큰도로 → 건물 진입로' ?>　<?= $locationSetupStatus['assembly']?'✓ 집결지 설정됨':'② 화재 시 집결지' ?></em></span><b>설정하기 ›</b></a>
+<style>.location-start{display:flex;align-items:center;gap:12px;padding:16px 18px;background:#edf4ff;border:1px solid #a9caff;border-radius:14px;color:#234f93;text-decoration:none;margin:14px 0;grid-column:1/-1}.location-start__icon{display:grid;place-items:center;flex-shrink:0;width:34px;height:34px;border-radius:10px;background:#2563c4;color:white;font-size:22px}.location-start strong,.location-start small,.location-start em{display:block}.location-start strong{font-size:14px}.location-start small{font-size:12px;color:#647b9b;margin-top:5px}.location-start em{font-size:11px;font-style:normal;margin-top:8px}.location-start>b{margin-left:auto;white-space:nowrap;font-size:12px}.building-task.location-needed{border-color:#79aafa!important;background:#edf4ff!important;box-shadow:0 0 0 2px #dceaff}.building-task.location-needed small{color:#2563c4!important;font-weight:750}@media(max-width:600px){.location-start{padding:13px;gap:9px;flex-wrap:wrap}.location-start>span:nth-child(2){flex:1}.location-start>b{padding-left:43px;margin-left:0}.location-start strong{font-size:13px}}</style>
+<?php endif; ?>
+                        <header class="compact-deck__head">
+                          <div class="compact-deck__title">
+                            <span class="compact-deck__section-label" data-deck-section>업무 1</span>
+                            <div class="compact-deck__title-line">
+                              <h2 data-deck-title>소방안전관리 업무</h2>
+                              <div class="compact-work-controls"><div class="compact-work-pages" role="group" aria-label="업무 페이지 선택" hidden>
+                                <button type="button" data-deck-view="work" aria-controls="compactWorkPanel" aria-pressed="true" aria-label="업무 1 · 작성 업무" title="업무 1 · 작성 업무">1</button>
+                                <button type="button" data-deck-view="tools" aria-controls="compactToolsPanel" aria-pressed="false" aria-label="업무 2 · 현장 기록·교육·인쇄" title="업무 2 · 현장 기록·교육·인쇄">2</button>
+                              </div>
+<?php if(empty($_SESSION['_mge_actor'])&&!defined('MANAGER_FULL_DASHBOARD')&&!defined('MANAGER_VIEW_UID')&&!defined('PARTNER_DEMO_RUNTIME')): ?>
+<?php if($isPro): ?><button type="button" class="building-push-entry building-push-entry--inline" data-building-inbox aria-haspopup="dialog"><?php else: ?><button type="button" class="building-push-entry building-push-entry--inline is-pro-locked" data-pro-notification-preview aria-label="업무알림 PRO 예시 보기" aria-haspopup="dialog"><?php endif; ?>
+<svg aria-hidden="true" viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8a5 5 0 0 1 10 0c0 5 2 5 2 6H3c0-1 2-1 2-6Z"/><path d="M8 17h4M10 2v1"/></svg><span>업무알림</span><?php if($isPro): ?><b data-building-unread hidden></b></button><?php else: ?><small>PRO</small></button><?php endif; ?>
+<?php endif; ?>
+</div>
+                            </div>
+                          </div>
+                          <div class="compact-deck__arrows" role="group" aria-label="업무와 건물현황 전환" hidden>
+                            <button type="button" class="compact-deck__switch" data-deck-next data-deck-target="building" aria-label="건물현황 보기" aria-controls="compactWorkPanel compactToolsPanel compactBuildingPanel"><span data-deck-destination>건물현황 보기</span><span class="compact-deck__mobile-destination" data-deck-mobile-destination aria-hidden="true">건물현황</span><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button>
+                          </div>
+                        </header>
+                        <div class="compact-deck__body">
+                      <nav class="building-tasknav" id="compactWorkPanel" aria-label="소방안전관리 업무">
+                        <div class="building-tasknav__head">
+                          <b data-work-year-title>업무 작성 현황</b>
+                          <span class="compact-progress-count"><strong><?=$compactTaskDone?></strong><span> / <?=$compactTaskTotal?></span> 완료</span>
+                        </div>
+                        <div class="compact-progress" aria-label="업무 작성 현황">
+                          <div class="compact-progress__track" role="progressbar" aria-label="업무 작성 완료" aria-valuemin="0" aria-valuemax="<?=$compactTaskTotal?>" aria-valuenow="<?=$compactTaskDone?>" aria-valuetext="전체 <?=$compactTaskTotal?>개 업무 중 <?=$compactTaskDone?>개 작성 완료">
+                            <span style="width:<?=$compactTaskPercent?>%"></span>
+                          </div>
+                          <p class="compact-progress__note">매월 기록은 <?=h(date('n'))?>월 · 교육은 <?=h(date('Y'))?>년 기준</p>
+                        </div>
+                        <div class="building-tasknav__grid">
+                          <a class="building-task<?= $needsLocationSetup ? ' location-needed' : '' ?><?= $s1 ? ' is-done' : ($nowStep===1 ? ' is-now' : '') ?>" href="<?= $needsLocationSetup ? h($locationSetupUrl) : ($biDone ? h($url('/building_setup.php')) : h($url('/building_setup_chat.php'))) ?>">
+                            <span class="building-task__no">1</span><span>기본정보</span><em class="building-task__description"><?= $needsLocationSetup ? '진입로 · 집결지 먼저 설정' : '대상물 · 안전관리자' ?></em><small><?= $needsLocationSetup ? '위치 설정' : ($s1 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '시작') ?></small>
+                          </a>
+                          <a class="building-task<?= $facilityDone?' is-done':($nowStep===2?' is-now':'') ?>" href="<?=h($url('/building_facilities.php'))?>"><span class="building-task__no">2</span><span>소방시설 현황</span><em class="building-task__description">설비 종류 · 설치 현황</em><small><?=$facilityDone?'<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>':'작성 전'?></small></a>
+                          <a class="building-task<?= $s2 ? ' is-done' : ($nowStep===3 ? ' is-now' : '') ?>" href="<?=h($url('/fire_plan_jawi.php'))?>">
+                            <span class="building-task__no">3</span><span>자위소방대 편성</span><em class="building-task__description">우리 건물의 대응 조직</em><small><?= $s2 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '미진행' ?></small>
+                          </a>
+
+
+                          <a class="building-task<?= $s6 ? ' is-done' : ($nowStep===4 ? ' is-now' : '') ?>" href="<?=h($url('/evacuation_plan.php'))?>">
+                            <span class="building-task__no">4</span><span>피난계획</span><em class="building-task__description">층별 대피 방법과 경로</em><small><?= $s6 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '미진행' ?></small>
+                          </a>
+
+
+                          <div class="building-task-pair" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;grid-column:1/-1">
+<button type="button" class="building-task" style="grid-column:auto" data-frg-open aria-haspopup="dialog" aria-controls="flame-retardant-guide"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 4 4 7 8 9 4-2 8-5 8-9V6z"/><path d="M12 8c1 2 3 3 3 5a3 3 0 0 1-6 0c0-1 1-2 2-3v2c1-1 1-2 1-4z"/></svg></span><span>방염 확인</span><em class="building-task__description">대상 여부 · 방염 물품</em><small>안내 ›</small></button>
+<a class="building-task" href="<?=h($url('/building_multi_use.php'))?>"><span class="building-task__no" aria-hidden="true">＋</span><span>다중이용업소 현황</span><em class="building-task__description">업소명 · 업종 · 영업층</em><small>입력 ›</small></a>
+</div>
+
+                          <section class="building-retention" aria-labelledby="buildingRetentionTitle">
+                            <h3 id="buildingRetentionTitle" class="building-retention__title"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h12v3H2zM3 6v8h10V6M6 9h4"/></svg>법정 보관 <span>2년</span><strong class="work-year-label" data-work-year-label><?=$bookYear?>년 기록</strong></h3>
+                            <div class="building-retention__grid">
+                          <a class="building-task building-task--monthly<?= $s3 ? ' is-done' : ($nowStep===5 ? ' is-now' : '') ?>" data-annual-task="monthly" href="<?=h($url('/work_log.php'))?>">
+                            <span class="building-task__no">5</span><span>매월 기록</span><em class="building-task__description">이달의 업무수행기록</em><small><?= $s3 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : h($mon) ?></small>
+                          </a>
+                          <a class="building-task<?= $s4 ? ' is-done' : ($nowStep===6 ? ' is-now' : '') ?>" data-annual-task="jawi" href="<?=h($url('/jawi.php?stay=1'))?>">
+                            <span class="building-task__no">6</span><span>자위소방대 교육</span><em class="building-task__description">대원별 임무와 교육</em><small><?= $s4 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '연간' ?></small>
+                          </a>
+                          <a class="building-task<?= $s5 ? ' is-done' : ($nowStep===7 ? ' is-now' : '') ?>" data-annual-task="train" href="<?=h($url('/train.php'))?>">
+                            <span class="building-task__no">7</span><span>소방훈련·교육</span><em class="building-task__description">훈련 · 교육 결과 기록</em><small><?= $s5 ? '<span class="task-done" role="img" aria-label="작성 완료" title="작성 완료"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true"><path d="m4.5 10 3.5 3.5 7.5-7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '연간' ?></small>
+                          </a>
+
+                            </div>
+                          </section>
+
+                        </div>
+                      </nav>
+                      <nav class="building-tasknav compact-tools-panel" id="compactToolsPanel" aria-label="업무 2 · 현장 기록·교육·인쇄">
+                        <p class="compact-tools-panel__intro">현장 기록부터 교육자료, 인쇄까지 필요한 항목을 선택하세요.</p>
+                        <div class="building-tasknav__grid compact-tools__grid">
+
+                          <section class="building-field-records" aria-labelledby="buildingFieldRecordsTitle">
+  <h3 id="buildingFieldRecordsTitle"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h5l1 2h6v8H2z"/></svg>현장 기록 · 교육 · 인쇄</h3>
+  <div class="building-field-records__grid">
+  <?php if ($isPro || !empty($_SESSION['_mge_actor'])): ?>
+    <button type="button" class="building-task" data-false-alarm-open="<?=h($viewUid)?>" aria-haspopup="dialog"><span class="building-task__no" aria-hidden="true">!</span><span>비화재보 기록</span><em class="building-task__description">발생 원인 · 조치 내용</em><small data-false-alarm-count="<?=h($viewUid)?>">기록 보기</small></button>
+  <?php else: ?>
+    <div class="building-task building-task--locked" aria-disabled="true"><span class="building-task__no" aria-hidden="true">!</span><span>비화재보 기록</span><em class="building-task__description">발생 원인 · 조치 내용</em><small>PRO</small></div>
+  <?php endif; ?>
+  </div>
+</section>
+<section class="building-support" aria-label="교육자료 및 인쇄">
+                            
+                            <div class="building-support__grid">
+<button type="button" class="building-task" data-fmb-open aria-haspopup="dialog" aria-controls="fire-manager-board"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4zM8 8h8M8 12h2M8 16h8M13 12h3"/></svg></span><span>소방안전관리자 현황표</span><em class="building-task__description">안전관리자 · 연락처</em><small>인쇄</small></button>
+                          <?php if ($isPro): ?>
+                            <button type="button" class="building-task" data-education-open aria-haspopup="dialog" aria-controls="building-education-dialog"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v15M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v15h-5a5 5 0 0 0-4 1 5 5 0 0 0-4-1H3z"/></svg></span><span>소방교육 자료</span><em class="building-task__description">소화기 · 옥내소화전 사용법</em><small>자료 보기</small></button>
+                          <?php else: ?>
+                            <div class="building-task building-task--locked" aria-disabled="true"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v15M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v15h-5a5 5 0 0 0-4 1 5 5 0 0 0-4-1H3z"/></svg></span><span>소방교육 자료</span><em class="building-task__description">소화기 · 옥내소화전 사용법</em><small>PRO</small></div>
+                          <?php endif; ?>
+                          <?php if ($isPro): ?>
+                            <a class="building-task" href="<?=h($url('/print_all.php'))?>"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8V3h12v5M6 17H3V9h18v8h-3M6 14h12v7H6zM17 11h1"/></svg></span><span>서류 전체 인쇄</span><em class="building-task__description">작성 서류 · PDF 인쇄</em><small>인쇄 / PDF</small></a>
+                          <?php else: ?>
+                            <div class="building-task building-task--locked" aria-disabled="true"><span class="building-task__no" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8V3h12v5M6 17H3V9h18v8h-3M6 14h12v7H6zM17 11h1"/></svg></span><span>서류 전체 인쇄</span><em class="building-task__description">작성 서류 · PDF 인쇄</em><small>PRO</small></div>
+                          <?php endif; ?>
+                            </div>
+                          </section>
+
+                        </div>
+                      </nav>
+
+                        <section id="compactBuildingPanel" class="compact-building-panel" aria-labelledby="compactBuildingTitle">
+                          <div class="compact-building-heading"><h2 id="compactBuildingTitle">등록된 건물</h2><span><?= $hasBi ? max(1,$siteDongCount).'개 동' : '등록 전' ?></span></div>
+<div class="building-scene" aria-label="<?= $hasBi ? h($biName).' '.max(1,$siteDongCount).'개 동 건물 안전관리 완성도 '.$buildStage.'단계' : '등록 전 대지' ?>">
+                        <?php if (!$hasBi): ?>
+                          <div class="building-empty">
+                            <div>아직 대지만 준비되어 있습니다.<br><a class="one-stop-trigger" data-one-stop-title="기본정보 입력"
+                              href="<?=h($url('/building_setup_chat.php'))?>">기본정보 입력하기</a></div>
+                          </div>
+                          <div class="building-skyline"><div class="building-ground"></div></div>
+                        <?php else: ?>
+                          <div class="building-carousel<?= $carouselDongCount <= 1 ? ' building-carousel__single' : '' ?>"
+                               data-building-carousel data-count="<?=$carouselDongCount?>" tabindex="0">
+                            <div class="building-carousel__viewport">
+                              <?php foreach ($buildingDongs as $dongIndex => $dong):
+                                $slideAbove = max(0, (int)$dong['floor_a']);
+                                $slideBelow = max(0, (int)$dong['floor_b']);
+                                $slideHighRise = $slideAbove > 20;
+                                $slideVisualAbove = min(20, max(1, $slideAbove));
+                                $slideVisualBelow = min(3, $slideBelow);
+                                $slideFixedHeight = 48 + ($slideVisualBelow * 16);
+                                $slideFloorHeight = $slideHighRise
+                                  ? 9
+                                  : max(5, min(18, (int)floor((190 - $slideFixedHeight) / max(1, $slideVisualAbove))));
+                                $slideMeta = ['지상 '.$slideAbove.'층'];
+                                if ($slideBelow > 0) $slideMeta[] = '지하 '.$slideBelow.'층';
+                                if ((float)$dong['area'] > 0) $slideMeta[] = number_format((float)$dong['area']).'㎡';
+                                if (trim((string)$dong['struct']) !== '') $slideMeta[] = trim((string)$dong['struct']);
+                              ?>
+                                <article class="building-slide<?= $dongIndex === 0 ? ' is-active' : '' ?>"
+                                         data-building-slide data-dong-name="<?=h($dong['dong'])?>"
+                                         aria-hidden="<?= $dongIndex === 0 ? 'false' : 'true' ?>"<?= $dongIndex === 0 ? '' : ' hidden' ?>>
+                                  <div class="building-slide__figure">
+                                    <div class="building-skyline stage-<?=$buildStage?> protection-<?=$buildStage?><?= $slideHighRise ? ' is-high-rise' : '' ?>" style="--floor-h:<?=$slideFloorHeight?>px">
+                                      <?php if ($slideHighRise): ?><span class="building-height-label"><?=$slideAbove?>F</span><?php endif; ?>
+                                      <div class="building-roof<?= $buildStage >= 5 ? ' is-built' : '' ?>"></div>
+                                      <?php if ($slideHighRise): ?>
+                                        <?php for ($floor = $slideAbove; $floor >= $slideAbove - 2; $floor--): ?>
+                                          <div class="building-floor" aria-label="지상 <?=$floor?>층">
+                                            <span class="building-floor__label"><?=$floor?>F</span>
+                                            <span class="building-window"></span><span class="building-window"></span>
+                                          </div>
+                                        <?php endfor; ?>
+                                        <div class="building-compressed" aria-label="지상 4층부터 <?=$slideAbove-3?>층까지 압축 표시">
+                                          <b>4~<?=$slideAbove-3?>층<small><?=max(0,$slideAbove-6)?>개 층 압축</small></b>
+                                        </div>
+                                        <?php for ($floor = 3; $floor >= 1; $floor--): ?>
+                                          <div class="building-floor" aria-label="지상 <?=$floor?>층">
+                                            <span class="building-floor__label"><?=$floor?>F</span>
+                                            <span class="building-window"></span><span class="building-window"></span>
+                                          </div>
+                                        <?php endfor; ?>
+                                      <?php else: ?>
+                                        <?php for ($floor = $slideVisualAbove; $floor >= 1; $floor--): ?>
+                                          <div class="building-floor" aria-label="지상 <?=$floor?>층">
+                                            <span class="building-window"></span><span class="building-window"></span><span class="building-window"></span>
+                                          </div>
+                                        <?php endfor; ?>
+                                      <?php endif; ?>
+                                      <div class="building-entry"><span class="building-door"></span></div>
+                                      <?php for ($basement = 1; $basement <= $slideVisualBelow; $basement++): ?>
+                                        <div class="building-basement">지하 <?=$basement?>층</div>
+                                      <?php endfor; ?>
+                                      <div class="building-ground"></div>
+                                    </div>
+                                    <?php if ($slideBelow > 3): ?>
+                                      <div class="building-basement-label">
+                                        <b>B<?=$slideBelow?></b><span>지하 <?=$slideBelow?>층</span>
+                                        <small><?=($slideBelow-3)?>개 층 압축</small>
+                                      </div>
+                                    <?php endif; ?>
+                                  </div>
+                                  <div class="building-slide__info">
+                                    <span class="building-slide__badge<?= $dongIndex === 0 ? ' is-primary' : '' ?>"><?= $dongIndex === 0 ? '업무 기준동' : '별도 동' ?></span>
+                                    <strong class="building-slide__name"><?=h($dong['dong'])?></strong>
+                                    <span class="building-slide__meta"><?=h(implode(' · ', $slideMeta))?></span>
+                                  </div>
+                                </article>
+                              <?php endforeach; ?>
+                            </div>
+                            <div class="building-carousel__controls">
+                              <button class="building-carousel__nav" type="button" data-building-prev>이전 동</button>
+                              <div class="building-carousel__status" aria-live="polite">
+                                <span data-building-position>1 / <?=$carouselDongCount?> · <?=h($primaryDongName)?></span>
+                                <span class="building-carousel__dots" aria-label="동 바로 선택">
+                                  <?php foreach ($buildingDongs as $dongIndex => $dong): ?>
+                                    <button class="building-carousel__dot<?= $dongIndex === 0 ? ' is-active' : '' ?>" type="button"
+                                            data-building-index="<?=$dongIndex?>" aria-label="<?=h($dong['dong'])?> 보기"></button>
+                                  <?php endforeach; ?>
+                                </span>
+                              </div>
+                              <button class="building-carousel__nav" type="button" data-building-next>다음 동</button>
+                            </div>
+                          </div>
+                        <?php endif; ?>
+                      </div>
+                          <section class="compact-inline-assets" aria-labelledby="buildingAssetsTitle">
+                            <div class="compact-inline-assets__heading"><h3 id="buildingAssetsTitle">안전자산</h3><span><?=$safetyAssetCount?>개 설정</span></div>
+                            <p class="compact-inline-assets__hint">항목을 누르면 저장된 내용을 확인할 수 있어요.</p>
+                            <div class="compact-inline-assets__grid">
+                          <?php if ($hasFireRoute): ?>
+                            <a class="safety-asset" href="<?=h($url('/building_setup.php?asset_view=route'))?>">
+                              <span class="safety-asset__icon">🚒</span>
+                              <span class="safety-asset__copy"><b>소방차 진입로 확보</b><small><?=count($fireRoutePoints)?>개 지점으로 진입 경로 설정</small></span>
+                              <span class="safety-asset__ok" aria-label="설정 완료">✓</span>
+                            </a>
+                          <?php endif; ?>
+                          <?php if ($hasAssemblyPoint): ?>
+                            <a class="safety-asset" href="<?=h($url('/building_setup.php?asset_view=assembly'))?>">
+                              <span class="safety-asset__icon">◎</span>
+                              <span class="safety-asset__copy"><b>비상 집결지 지정</b><small><?=h((string)($bi['assembly_kind'] ?? '') ?: '집결 위치 저장 완료')?></small></span>
+                              <span class="safety-asset__ok" aria-label="설정 완료">✓</span>
+                            </a>
+                          <?php endif; ?>
+                          <?php if ($s2): ?>
+                            <a class="safety-asset" href="<?=h($url('/fire_plan_jawi.php'))?>">
+                              <span class="safety-asset__icon">👥</span>
+                              <span class="safety-asset__copy"><b>자위소방대 편성 완료</b><small>화재 초기대응 조직과 담당 임무 준비</small></span>
+                              <span class="safety-asset__ok" aria-label="편성 완료">✓</span>
+                            </a>
+                          <?php endif; ?>
+                          <?php if ($s6): ?>
+                            <a class="safety-asset" href="<?=h($url('/evacuation_plan.php'))?>">
+                              <span class="safety-asset__icon">↗</span>
+                              <span class="safety-asset__copy"><b>피난계획 수립 완료</b><small>층별 대피방법과 상황 전파·집결 절차 준비</small></span>
+                              <span class="safety-asset__ok" aria-label="계획 완료">✓</span>
+                            </a>
+                          <?php endif; ?>
+                          <?php if ($safetyAssetCount === 0): ?>
+                            <a class="safety-asset safety-asset--empty" href="<?=h($url('/building_setup.php'))?>">
+                              <span class="safety-asset__icon">＋</span>
+                              <span class="safety-asset__copy"><b>첫 안전자산 설정하기</b><small>소방차 진입로와 비상 집결지를 지정하세요</small></span>
+                            </a>
+                          <?php endif; ?>
+                            </div>
+                          </section>
+                        </section>
+                        </div>
+                        <div class="compact-deck__pages" role="group" aria-label="관리 화면 선택" hidden>
+                          <button type="button" data-deck-view="work" aria-controls="compactWorkPanel" aria-pressed="true"><i aria-hidden="true"></i>업무 1</button>
+                          <button type="button" data-deck-view="tools" aria-controls="compactToolsPanel" aria-pressed="false"><i aria-hidden="true"></i>업무 2 · 기록·인쇄</button>
+                          <button type="button" data-deck-view="building" aria-controls="compactBuildingPanel" aria-pressed="false"><i aria-hidden="true"></i>건물현황</button>
+                        </div>
+                        <span class="compact-deck__announce" data-deck-announce role="status" aria-live="polite" aria-atomic="true"></span>
+                      </section>
+                      <aside class="compact-overview" aria-label="연도별 소방계획서">
+                        <section id="compactPlanPanel" class="building-plan-book building-plan-summary" aria-label="연도별 소방계획서" data-book-card data-book-years="<?=h(json_encode($bookYears,JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT))?>">
+                          <div class="building-plan-book__heading"><strong class="building-plan-book__title">소방계획서</strong><span class="building-plan-book__retention">보관 2년</span></div>
+                          <div class="building-plan-book__intro"><span>업무 자료를 한 권으로</span><a class="building-plan-book__help" data-book-help href="<?=h($bookCurrent['editHref'])?>" hidden aria-haspopup="dialog"></a></div>
+                          <div class="building-plan-book__years" role="group" aria-label="카드 연도 선택">
+                            <button type="button" data-book-prev aria-label="<?=h((string)($bookYear-1))?>년 계획서로 넘기기"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m10 4-4 4 4 4"/></svg></button>
+                            <div class="building-plan-book__selection"><span data-book-label>올해 계획</span><strong class="building-plan-book__year" data-book-year><?=h((string)$bookYear)?>년</strong></div>
+                            <button type="button" data-book-next aria-label="<?=h((string)($bookYear+1))?>년 계획서로 넘기기"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg></button>
+                          </div>
+                          <div class="planhome-document" aria-label="소방계획서 표지와 작성 현황">
+                            <a class="planhome-paper" data-book-cover-open href="<?=h($bookCurrent['href'])?>" aria-haspopup="dialog" aria-label="<?=$bookYear?>년 소방계획서 열기">
+                              <div class="planhome-paper__top"><span>소방계획서.com</span><span data-book-cover-year><?=$bookYear?></span></div>
+                              <p class="planhome-paper__eyebrow">FIRE SAFETY PLAN</p>
+                              <h2><span data-book-title-year><?=$bookYear?>년</span> 소방계획서</h2>
+                              <strong class="planhome-paper__building" data-book-name><?=h($bookCurrent['name'])?></strong>
+                              <div class="planhome-paper__lines" aria-hidden="true"><i></i><i></i><i></i></div>
+                              <div class="planhome-paper__progress">
+                                <div class="building-plan-book__progress-heading"><span data-book-progress-label><?=$bookCurrent['reviewed']?'최종 확인 완료':'항목 채움 현황'?></span><strong data-book-percent><?=$bookCurrent['known']?($bookCurrent['awaitingImport']?'준비 중':$bookCurrent['percent'].'%'):'—'?></strong></div>
+                                <div class="building-plan-book__track" data-book-progress role="progressbar" aria-label="계획서 항목 채움" aria-valuemin="0" aria-valuemax="100" <?php if($bookCurrent['known']):?>aria-valuenow="<?=$bookCurrent['percent']?>"<?php endif;?>><span data-book-fill style="width:<?=$bookCurrent['percent']??0?>%"></span></div>
+                                <div class="planhome-paper__count"><span data-book-count><?=$bookCurrent['known']?($bookCurrent['awaitingImport']?'저장된 업무자료를 반영해 주세요':$bookCurrent['filled'].' / '.$bookCurrent['total'].'개 질문'):'상태 확인 필요'?></span><span> · 해당 없는 항목 제외</span></div>
+                              </div>
+                              <span class="planhome-cover-hint">눌러서 자료 반영 · 내용 작성 <span aria-hidden="true">↗</span></span>
+                            </a>
+                          </div>
+                          <div class="planhome-plan-status"><span class="building-plan-book__state<?=$bookCurrent['reviewed']?' is-reviewed':''?>" data-book-state><?=h($bookState)?></span><span data-book-remaining><?=$bookCurrent['known']?($bookCurrent['awaitingImport']?'기본정보·시설 현황 불러오기':'남은 질문 '.$bookCurrent['remaining'].'개'):'잠시 후 다시 확인'?></span></div>
+                          <details class="building-plan-book__sources"><summary>반영한 자료 <span><b data-book-source-count><?=$bookCurrent['known']?$bookCurrent['sourceCount']:'—'?></b>종 <i aria-hidden="true">⌄</i></span></summary><ul data-book-source-list><?php foreach($bookCurrent['sources'] as $source):?><li><?=h($source)?></li><?php endforeach;?></ul><p data-book-source-note><?=$bookCurrent['sourceCount']?'기본정보·소방시설은 저장 시 자동 반영됩니다.':'기본정보·소방시설을 저장하면 자동으로 반영됩니다.'?></p></details>
+                          <div class="building-plan-book__actions"><a class="building-plan-book__edit" data-book-edit href="<?=h($bookCurrent['href'])?>" aria-haspopup="dialog"><?=$bookCurrent['previewOnly']?'예시 소방계획서 미리보기':($bookCurrent['awaitingImport']?'저장자료로 계획서 시작':'계획서 완성하기')?> <span aria-hidden="true">→</span></a><a class="building-plan-book__open" data-book-open href="<?=h($bookCurrent['href'])?>" aria-haspopup="dialog" aria-label="<?=$bookYear?>년 소방계획서 문서 보기" <?=$bookCurrent['hasPlan']?'':'hidden'?>>문서 보기</a></div>
+                          <span class="building-plan-book__announce" data-book-announce role="status" aria-live="polite" aria-atomic="true"></span>
+                        </section>
+                      </aside>
+                    </section>
+
+                    </div>
+
+                    <section class="one-stop" id="oneStopWorkspace" aria-labelledby="oneStopTitle">
+                      <div class="one-stop__head">
+                        <button class="one-stop__back" type="button" onclick="closeOneStop()">현황으로 돌아가기</button>
+                        <div class="one-stop__copy">
+                          <div class="one-stop__eyebrow">HUB 업무 도우미 · 원스톱 작성</div>
+                          <div class="one-stop__title" id="oneStopTitle">업무 작성</div>
+                        </div>
+                        <span class="one-stop__state" id="oneStopState">작성 내용을 자동으로 불러옵니다</span>
+                        <a class="one-stop__external" id="oneStopExternal" href="#" target="_blank" rel="noopener">새 창으로 열기</a>
+                      </div>
+                      <div class="one-stop__frame-wrap">
+                        <div class="one-stop__loading" id="oneStopLoading">작성 화면을 불러오는 중입니다…</div>
+                        <iframe class="one-stop__frame" id="oneStopFrame" title="소방안전관리 업무 작성 화면"
+                          src="about:blank" referrerpolicy="same-origin"></iframe>
+                      </div>
+                    </section>
+
+                    <div class="ops-head">
+                      <b>업무</b>
+                      <span>상태를 확인하고 바로 실행하세요</span>
+                    </div>
+
+                    <!-- ── STEP 1 · 처음 한 번 ── -->
+                    <div class="sec">
+                      <span class="sec__chip chip-first">STEP 1 · 처음 한 번</span>
+                      <span class="sec__t">건물 기본정보</span>
+                      <span class="sec__d">모든 서식의 출발점 — 필수</span>
+                    </div>
+                    <div class="grid">
+                      <a class="card card--link card--setup" href="<?= $needsLocationSetup ? h($locationSetupUrl) : ($biDone ? h($url('/building_setup.php')) : h($url('/building_setup_chat.php'))) ?>">
+                        <div class="card__top">
+                          <span class="badge badge--setup">기본정보</span>
+                          <?php if ($reviewPending > 0): ?>
+                            <span class="setup-badge setup-badge--review">확인요청 <?=$reviewPending?>건</span>
+                          <?php elseif ($biDone): ?>
+                            <span class="setup-badge setup-badge--ok">입력 완료</span>
+                          <?php elseif ($hasBi): ?>
+                            <span class="setup-badge setup-badge--need"><?=$biProg['percent']?>% 입력됨</span>
+                          <?php else: ?>
+                            <span class="setup-badge setup-badge--need">먼저 입력하세요</span>
+                          <?php endif; ?>
+                          <span class="card__arrow">→</span>
+                        </div>
+                        <h3><?= $hasBi ? h($biName) : '건물 기본정보 입력' ?></h3>
+                        <p class="card__sub"><?php
+                          if ($reviewPending > 0) echo 'YeoHub에 검토요청한 기본정보 항목이 ' . (int)$reviewPending . '건 있습니다. 관리자 확인 후 완료 표시로 바뀝니다.';
+                          elseif ($biDone) echo '대상명·주소·등급·소방안전관리자 정보 · 모든 서식에 자동 반영';
+                          elseif ($hasBi) echo '남은 항목: ' . h(implode(', ', $biProg['missing']));
+                          else echo '한 번만 입력하면 아래 모든 서식에 자동으로 채워집니다';
+                        ?></p>
+                      </a>
+                    </div>
+
+                    <!-- ── 매월 반복 · 매년 업무보다 먼저 확인 ── -->
+                    <div class="sec <?= $hasBi ? '' : 'sec--dim' ?>">
+                      <span class="sec__chip chip-month">매월</span>
+                      <span class="sec__t">정기 기록</span>
+                      <span class="sec__d">월 1회 이상 · 매달 반복되는 핵심 업무</span>
+                      <?php if (!$hasBi): ?><span class="sec__lock">🔒 기본정보 입력 후 진행하세요</span><?php endif; ?>
+                    </div>
+                    <div class="grid <?= $hasBi ? '' : 'grid--dim' ?>">
+                      <a class="card card--link" href="<?=h($url('/work_log.php'))?>">
+                        <div class="card__top">
+                          <span class="badge">매월 · 별지 제12호</span>
+                          <?php if ($doneWorkLog === true): ?>
+                            <span class="due due--ok">✓ <?=h($mon)?> 완료</span>
+                          <?php else: ?>
+                            <span class="due due--need"><?=h($mon)?> 작성 대상</span>
+                          <?php endif; ?>
+                          <span class="card__arrow">→</span>
+                        </div>
+                        <h3>업무수행 기록표</h3>
+                        <p class="card__sub">소방안전관리자 업무 수행 기록표 · 월 1회 이상 작성</p>
+                      </a>
+                    </div>
+
+                    <!-- ── 매년 반복 ── -->
+                
+
+                    <div class="sec <?= $hasBi ? '' : 'sec--dim' ?>">
+                      <span class="sec__chip chip-year">매년</span>
+                      <span class="sec__t">자위소방대 · 훈련·교육</span>
+                      <span class="sec__d">먼저 대원을 편성하고, 그 명단으로 훈련·교육을 기록합니다</span>
+                      <?php if (!$hasBi): ?><span class="sec__lock">🔒 기본정보 입력 후 진행하세요</span><?php endif; ?>
+                    </div>
+
+                    <div class="grid <?= $hasBi ? '' : 'grid--dim' ?>">
+
+                      <!-- ① 편성표 — 나머지의 출발점 -->
+                      <a class="card card--link card--roster<?= $hasRoster ? '' : ' card--next' ?>" href="<?=h($url('/fire_plan_jawi.php'))?>">
+                        <div class="card__top">
+                          <span class="badge badge--roster">매년 · 1단계</span>
+                          <?php if ($hasRoster): ?>
+                            <span class="due due--ok">✓ 편성 <?=$rosterCount?>건</span>
+                          <?php else: ?>
+                            <span class="due due--need">먼저 하세요</span>
+                          <?php endif; ?>
+                          <span class="card__arrow">→</span>
+                        </div>
+                        <h3><?= $hasRoster && $rosterName !== '' ? h($rosterName) . ' 자위소방대' : '자위소방대 편성표' ?></h3>
+                        <p class="card__sub"><?php
+                          if ($hasRoster) echo '대장·부대장·활동조 편성이 저장되어 있습니다 · 인원이 바뀌면 여기서 수정하세요';
+                          else echo '이름만 붙여넣으면 대장·부대장·활동조로 자동 배치됩니다 · 5분이면 끝납니다';
+                        ?></p>
+                      </a>
+
+                      <!-- ② 자위소방대 교육·훈련 (편성표 기반) -->
+                      <a class="card card--link<?= $hasRoster ? '' : ' card--wait' ?>" href="<?=h($url('/jawi.php?stay=1'))?>">
+                        <div class="card__top">
+                          <span class="badge">매년 · 2단계</span>
+                          <?php if ($doneJawi === true): ?><span class="due due--ok">✓ 올해 완료</span>
+                          <?php elseif (!$hasRoster): ?><span class="due due--wait">편성표 먼저</span><?php endif; ?>
+                          <span class="card__arrow">→</span>
+                        </div>
+                        <h3>자위소방대 교육·훈련 기록부</h3>
+                        <p class="card__sub"><?php
+                          if (!$hasRoster) echo '편성표를 만들면 대원 명단을 그대로 불러와 참석자로 채울 수 있습니다';
+                          else echo '자위소방대 및 초기대응체계 교육·훈련 실시 결과 기록부 · 연 1회 이상';
+                        ?></p>
+
+                        <?php if ($jawiStatus && $jawiStatus['percent'] < 100): $jm = $jawiStatus['missing']; ?>
+                          <div class="cardprog">
+                            <div class="cardprog__bar"><i style="width:<?=$jawiStatus['percent']?>%"></i></div>
+                            <div class="cardprog__t">
+                              <b><?=$jawiStatus['percent']?>%</b>
+                              <?php if (count($jm) === 1): ?>
+                                <?=h($jm[0])?><?= $jm[0] === '참석자 명단' ? '을 넣으면' : '을(를) 채우면' ?> 완료됩니다
+                              <?php else: ?>
+                                남은 항목 <?=count($jm)?>개 · <?=h(implode(', ', array_slice($jm, 0, 2)))?><?= count($jm) > 2 ? ' 외' : '' ?>
+                              <?php endif; ?>
+                            </div>
+                          </div>
+                        <?php elseif ($jawiStatus && $jawiStatus['percent'] >= 100): ?>
+                          <div class="cardprog">
+                            <div class="cardprog__bar"><i style="width:100%"></i></div>
+                            <div class="cardprog__t cardprog__t--ok"><b>100%</b> 참석 명단까지 모두 채웠습니다</div>
+                          </div>
+                        <?php endif; ?>
+                      </a>
+
+                      <!-- ③ 소방훈련·교육 (별도 서식) -->
+                      <a class="card card--link" href="<?=h($url('/train.php'))?>">
+                        <div class="card__top">
+                          <span class="badge">매년 · 별지 제28·29호</span>
+                          <?php if ($doneTrain === true): ?><span class="due due--ok">✓ 올해 완료</span><?php endif; ?>
+                          <span class="card__arrow">→</span>
+                        </div>
+                        <h3>소방훈련·교육 기록부</h3>
+                        <p class="card__sub">소방훈련·교육 실시 결과 기록부 · 실시 후 2년 보관</p>
+
+                        <?php if ($trainStatus && $trainStatus['percent'] < 100): $tm = $trainStatus['missing']; ?>
+                          <div class="cardprog">
+                            <div class="cardprog__bar"><i style="width:<?=$trainStatus['percent']?>%"></i></div>
+                            <div class="cardprog__t">
+                              <b><?=$trainStatus['percent']?>%</b>
+                              <?php if (count($tm) === 1): ?>
+                                <?=h($tm[0])?><?= $tm[0] === '훈련·교육 사진' ? '을 첨부하면' : '을(를) 채우면' ?> 완료됩니다
+                              <?php else: ?>
+                                남은 항목 <?=count($tm)?>개 · <?=h(implode(', ', array_slice($tm, 0, 2)))?><?= count($tm) > 2 ? ' 외' : '' ?>
+                              <?php endif; ?>
+                            </div>
+                          </div>
+                        <?php elseif ($trainStatus && $trainStatus['percent'] >= 100): ?>
+                          <div class="cardprog">
+                            <div class="cardprog__bar"><i style="width:100%"></i></div>
+                            <div class="cardprog__t cardprog__t--ok"><b>100%</b> 사진까지 모두 채웠습니다</div>
+                          </div>
+                        <?php endif; ?>
+                      </a>
+                    </div>
+
+                    <!-- ── 상시 관리 ── -->
+                    <div class="sec <?= $hasBi ? '' : 'sec--dim' ?>">
+                      <span class="sec__chip chip-always">상시</span>
+                      <span class="sec__t">계획 관리</span>
+                      <span class="sec__d">차기년도 소방계획 — 한 번에 끝내는 서식이 아니라 여유 있게 다듬어 가세요</span>
+                      <?php if (!$hasBi): ?><span class="sec__lock">🔒 기본정보 입력 후 진행하세요</span><?php endif; ?>
+                    </div>
+                    <div class="grid <?= $hasBi ? '' : 'grid--dim' ?>">
+                      <a class="card card--link" href="<?=h($url('/fire_plan.php'))?>">
+                        <div class="card__top">
+                          <span class="badge badge--plan">상시 · 시행령 제27조</span>
+                          <span class="card__arrow">→</span>
+                        </div>
+                        <h3>소방계획서</h3>
+                        <p class="card__sub">법정 15개 항목에 따라 작성하고 관리합니다 · 천천히 수정해 나가는 문서</p>
+                      </a>
+
+                    </div>
+
+
+
+                  </main>
+</div>
+
+<!-- 피난 시뮬레이션 배정 신청 — 기본정보를 불러와 확인·수정 -->
+<div class="rqov" id="rqov" onclick="if(event.target===this)closeEvacReq()">
+  <div class="rqbox">
+    <h4>피난 시뮬레이션 배정 신청</h4>
+    <p class="rsub">기본정보에 입력하신 내용을 불러왔습니다. 맞는지 확인하고, 다르면 고쳐서 보내주세요.</p>
+
+    <div class="rqerr" id="rqErr"></div>
+
+    <div class="rqf">
+      <label for="rqBuilding">건물명</label>
+      <input type="text" id="rqBuilding" maxlength="120" value="<?=h($reqPrefill['building_name'])?>" placeholder="예) 두리빌딩">
+    </div>
+    <div class="rqf">
+      <label for="rqAddress">건물 주소<span class="req">*</span></label>
+      <input type="text" id="rqAddress" maxlength="200" value="<?=h($reqPrefill['address'])?>" placeholder="도로명 주소를 적어주세요">
+      <div class="rqf__hint">도면 확인을 위해 정확한 주소가 필요합니다.</div>
+    </div>
+    <div class="rqf">
+      <label for="rqName">소방안전관리자 이름<span class="req">*</span></label>
+      <input type="text" id="rqName" maxlength="60" value="<?=h($reqPrefill['manager_name'])?>" placeholder="예) 홍길동">
+    </div>
+    <div class="rqf">
+      <label for="rqPhone">연락처<span class="req">*</span></label>
+      <input type="tel" id="rqPhone" maxlength="30" value="<?=h($reqPrefill['manager_phone'])?>" placeholder="예) 010-1234-5678">
+      <div class="rqf__hint">배정 관련 안내를 이 번호로 드립니다.</div>
+    </div>
+
+    <div class="rqnote">여기서 고친 내용은 이번 신청에만 쓰입니다. 기본정보를 함께 바꾸려면
+      <a href="<?=h($url('/building_setup.php'))?>">기본정보 수정</a>에서 변경해 주세요.</div>
+
+    <div class="rqbtns">
+      <button type="button" onclick="closeEvacReq()">취소</button>
+      <button type="button" class="rqgo" id="rqGo" onclick="sendEvacReq()">신청 보내기</button>
+    </div>
+  </div>
+</div>
+
+<div class="qrov" id="qrov" onclick="if(event.target===this)this.classList.remove('on')">
+  <div class="qrbox">
+    <h4 id="qrTitle">피난 시뮬레이션</h4>
+    <p class="qsub">QR을 스캔하면 각자 폰에서 대피 시뮬레이션을 볼 수 있습니다</p>
+    <div class="qimg" id="qrImg"></div>
+    <div class="qurl" id="qrUrl"></div>
+    <button class="qclose" onclick="document.getElementById('qrov').classList.remove('on')">닫기</button>
+  </div>
+</div>
+<script>
+/* AI 업무 도우미 — 안내 전용이며 실제 저장은 기존 작성 화면에서만 처리합니다. */
+const safetyAiContext = <?=json_encode([
+  'building_name'=>$biName,
+  'above_floors'=>$floorAbove,
+  'below_floors'=>$floorBelow,
+  'current_task'=>$aiNextTask,
+  'current_action'=>$aiNextAction,
+  'completed'=>$aiCompleted,
+  'pending'=>$aiPending,
+], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
+const safetyAiCsrf = <?=json_encode($safetyAiCsrf, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
+
+// 목록, 문답, 표 작성, 인쇄 사이의 이동을 하나의 팝업 안에서 유지합니다.
+function setupRecordPopupFrame(frame, dialog, fromPrintAll = false){
+  const win = frame.contentWindow, doc = frame.contentDocument;
+  const current = new URL(win.location.href);
+  const name = current.pathname.split('/').pop();
+  const pages = ['building_multi_use.php','building_facilities.php','work_log.php','work_log_form.php','work_log_print.php','jawi.php','jawi_chat.php','jawi_edit.php','jawi_print.php','train.php','train_chat.php','train_edit.php','train_print.php','evacuation_plan.php','evacuation_plan_chat.php','fire_plan.php','fire_plan_new.php','fire_plan_schedule.php','fire_plan_chat.php','fire_plan_edit.php','fire_plan_print.php','fire_plan_book.php'];
+  pages.push('print_all.php');
+  if(!pages.includes(name)) return null;
+  const training = name.startsWith('train');
+  const evacuation = name.startsWith('evacuation_plan');
+  const firePlan = name.startsWith('fire_plan');
+  const education = name.startsWith('jawi') || training;
+  const printing = name.endsWith('_print.php') || (evacuation && current.searchParams.get('print') === '1');
+  const title = name==='building_multi_use.php' ? '다중이용업소 현황' : name==='building_facilities.php' ? '소방시설 현황' : name==='print_all.php' ? '전체 인쇄 · PDF' : firePlan ? '소방계획서' : evacuation ? '피난계획' : training ? '소방훈련·교육' : education ? '자위소방대 교육·훈련' : '월별 업무기록';
+  dialog.querySelector('#buildingInfoDialogTitle').textContent = title;
+  frame.title = title;
+  // 서버 리다이렉트가 쿼리를 생략해도 다음 POST와 링크는 팝업 상태를 유지합니다.
+  current.searchParams.set('modal','1');current.searchParams.set('embed','1');
+  win.history.replaceState(win.history.state,'',current.href);
+  const style = doc.createElement('style');
+  style.media = 'screen';
+  style.textContent = '.nav,.appnav,.appbar{display:none!important}.prog{top:0!important}body{padding-top:0!important}';
+  doc.head.appendChild(style);
+  function snapshot(){
+    return JSON.stringify(Array.from(doc.querySelectorAll('input,textarea,select')).filter(el=>!['hidden','submit','button'].includes(el.type)).map(el=>[el.name,el.value,el.checked]));
+  }
+  let baseline = snapshot(), submitting = false, edited = false;
+  doc.addEventListener('input',function(){edited=true;});
+  doc.addEventListener('change',function(){edited=true;});
+  doc.addEventListener('record-saved',function(){baseline=snapshot();edited=false;});
+  function canLeave(){
+    if(name==='fire_plan_book.php')return true;
+    if(typeof win.fpModalState === 'function'){
+      const state=win.fpModalState();
+      if(state.busy){win.alert('저장이 끝날 때까지 잠시 기다려 주세요.');return false;}
+      if(!state.dirty) return true;
+      if(!win.confirm('아직 저장하지 않은 답변이 있습니다.\n저장하려면 취소 후 현재 답변을 저장해 주세요.\n저장하지 않고 이동할까요?')) return false;
+      win.fpModalDiscard();return true;
+    }
+    if(submitting || win.recordModalPending){win.alert('저장이 끝날 때까지 잠시 기다려 주세요.');return false;}
+    if(!win.recordModalDirty && (!edited || snapshot() === baseline)) return true;
+    return win.confirm('아직 저장하지 않은 내용이 있습니다.\n저장하려면 취소 후 화면의 저장 또는 다음 버튼을 눌러 주세요.\n저장하지 않고 이동할까요?');
+  }
+  function contextual(url){
+    const next = new URL(url,current.href);
+    next.searchParams.set('modal','1');next.searchParams.set('embed','1');
+    // Keep the selected annual folder through record editing, saving and the list button.
+    if (/\/(?:train|jawi|work_log)(?:_chat|_edit|_form|_print)?\.php$/.test(next.pathname) && !next.searchParams.has('year')) {
+      const annualYear=current.searchParams.get('year') || new URL(location.href).searchParams.get('plan_year');
+      if (/^\d{4}$/.test(annualYear||'')) next.searchParams.set('year',annualYear);
+    }
+    if(current.searchParams.has('uid') && !next.searchParams.has('uid')) next.searchParams.set('uid',current.searchParams.get('uid'));
+    return next.href;
+  }
+  function navigate(url){
+    if(!canLeave()) return;
+    baseline=snapshot();win.recordModalDirty=false;
+    win.location.href=contextual(url);
+  }
+  win.buildingInfoRequestClose=function(){
+    if(canLeave()) {baseline=snapshot();win.recordModalDirty=false;dialog.close();}
+  };
+  doc.addEventListener('click',function(event){
+    const link=event.target.closest('a[href]');
+    if(!link || event.button!==0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const next=new URL(link.href,current.href);
+    if(next.origin!==current.origin) return;
+    if(next.pathname.endsWith('/FireDesk.php')){
+      event.preventDefault();event.stopImmediatePropagation();win.buildingInfoRequestClose();return;
+    }
+    if(!pages.concat(['building_setup.php','building_setup_chat.php','fire_plan_jawi.php','building_facilities.php']).includes(next.pathname.split('/').pop()) || (next.pathname===current.pathname && next.search===current.search && next.hash)) return;
+    event.preventDefault();event.stopImmediatePropagation();navigate(next.href);
+  },true);
+  doc.addEventListener('submit',function(event){
+    if(event.defaultPrevented) return;
+    const form=event.target;
+    // name="action" 입력칸이 form.action 속성을 가릴 수 있으므로 HTML 속성을 직접 읽습니다.
+    const action=new URL(form.getAttribute('action') || current.href,current.href);
+    if(action.origin!==current.origin) return;
+    form.setAttribute('action',contextual(action.href));
+    submitting=true;
+  });
+  doc.addEventListener('keydown',function(event){if(event.key==='Escape'&&!doc.querySelector('dialog[open]')){event.preventDefault();win.buildingInfoRequestClose();}});
+  const back = dialog.querySelector('[data-list]');
+  back.hidden = name === 'building_facilities.php' || name === 'jawi.php' || name === 'work_log.php' || name === 'train.php' || name === 'evacuation_plan.php' || name === 'fire_plan.php' || name === 'fire_plan_book.php';
+  back.textContent = firePlan && current.searchParams.get('workflow')==='1' ? '최종 확인' : evacuation ? '피난계획 보기' : '목록';
+  if(firePlan && back.textContent==='목록') back.hidden=true;
+  back.onclick = function(){
+    if(firePlan && current.searchParams.get('workflow')==='1'){
+      navigate('/fire_plan.php?'+new URLSearchParams({id:current.searchParams.get('id')||'',year:current.searchParams.get('year')||'',workspace:'review'}));return;
+    }
+    navigate(firePlan ? '/fire_plan.php'+(name==='fire_plan_schedule.php'?'?id='+encodeURIComponent(current.searchParams.get('id')||''):'') : evacuation ? '/evacuation_plan.php' : training ? '/train.php' : education ? '/jawi.php?stay=1' : '/work_log.php');};
+  if(fromPrintAll){
+    back.hidden=name==='print_all.php';back.textContent='전체 인쇄 목록';
+    back.onclick=function(){navigate('/print_all.php');};
+  }
+  dialog.querySelector('[data-print]').hidden=firePlan||!!current.searchParams.get('workspace');
+  if(name==='fire_plan_book.php')return false;
+  if(name==='print_all.php'){back.hidden=true;return false;}
+  if(name==='building_facilities.php') return function(){win.focus();if(typeof win.buildingInfoPrint==='function')win.buildingInfoPrint();else win.print();};
+  if(printing || name === 'work_log_form.php') return function(){win.focus();if(firePlan&&typeof win.fpPrintDocument==='function')win.fpPrintDocument();else win.print();};
+  let printUrl = null;
+  if(firePlan && current.searchParams.get('id')) printUrl='/fire_plan_print.php?id='+encodeURIComponent(current.searchParams.get('id'));
+  if(evacuation && typeof win.eplPrintUrl === 'function'){
+    return function(){const href=win.eplPrintUrl();if(href)navigate(href);else win.alert('작성 중인 계획은 확인·저장을 마친 뒤 목록에서 인쇄해 주세요.');};
+  }
+  if(evacuation){
+    const link=Array.from(doc.querySelectorAll('a[href]')).find(el=>{const u=new URL(el.href,current.href);return /\/evacuation_plan(?:_chat)?\.php$/.test(u.pathname) && u.searchParams.get('print')==='1';});
+    if(link) printUrl=link.href;
+    else if(name==='evacuation_plan_chat.php') {const u=new URL(current.href);u.searchParams.set('print','1');u.searchParams.delete('plan_token');printUrl=u.href;}
+  }
+  if(education && current.searchParams.get('id')) printUrl=(training ? '/train_print.php?id=' : '/jawi_print.php?id=')+encodeURIComponent(current.searchParams.get('id'));
+  if(!education && !evacuation && !firePlan){
+    const link=Array.from(doc.querySelectorAll('a[href]')).find(el=>new URL(el.href,current.href).pathname.endsWith('/work_log_print.php'));
+    if(link) printUrl=link.href;
+  }
+  return printUrl ? function(){navigate(printUrl);} : false;
+}
+
+const buildingDashboardRevision = <?=json_encode(bm_record_revision(__DIR__.'/data', $viewUid))?>;
+let buildingRevisionCheck = 0;
+async function refreshBuildingDashboardIfChanged(){
+  const check = ++buildingRevisionCheck;
+  const controller = new AbortController();
+  const timeout = setTimeout(()=>controller.abort(),8000);
+  try {
+    const url = new URL(location.href);
+    url.hash='';url.searchParams.set('dashboard_revision','1');
+    const response = await fetch(url.href,{credentials:'same-origin',cache:'no-store',signal:controller.signal});
+    if(!response.ok)throw new Error('Status unavailable');
+    const data = await response.json();
+    if(!buildingDashboardRevision || typeof data.revision!=='string' || !/^[a-f0-9]{64}$/.test(data.revision))throw new Error('Invalid status');
+    if(check!==buildingRevisionCheck)return;
+    document.getElementById('buildingRefreshNotice')?.remove();
+    // A second card may have opened while checking. Let its close perform the next check.
+    if(data.revision!==buildingDashboardRevision && !document.getElementById('buildingInfoDialog'))window.location.reload();
+  } catch(error) {
+    if(check!==buildingRevisionCheck || document.getElementById('buildingRefreshNotice'))return;
+    const notice=document.createElement('div');
+    notice.id='buildingRefreshNotice';notice.setAttribute('role','status');
+    notice.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:10001;box-sizing:border-box;max-width:calc(100vw - 32px);padding:12px 16px;border:1px solid #dce2e8;border-radius:12px;background:white;box-shadow:0 6px 24px #172b4d20;font-size:13px;display:flex;align-items:center;gap:12px';
+    const text=document.createElement('span');text.textContent='최신 저장 내용을 확인하지 못했습니다.';
+    const retry=document.createElement('button');retry.type='button';retry.textContent='다시 확인';
+    retry.style.cssText='flex-shrink:0;border:0;border-radius:6px;background:#eff6ff;color:#2563eb;padding:8px 10px;font:inherit;cursor:pointer';
+    retry.onclick=function(){notice.remove();refreshBuildingDashboardIfChanged();};
+    notice.append(text,retry);document.body.appendChild(notice);
+  } finally {clearTimeout(timeout);}
+}
+
+function openBuildingInfoPopup(url){
+  const target = new URL(url, location.origin);
+  if(target.origin !== location.origin) return;
+  const popupTitle = target.searchParams.get('setup_locations')==='1'?'안전 위치 설정':target.searchParams.get('asset_view')==='route'?'저장된 소방차 진입로':target.searchParams.get('asset_view')==='assembly'?'저장된 비상 집결지':target.pathname.endsWith('/building_facilities.php') ? '소방시설 현황' : target.pathname.endsWith('/fire_plan_jawi.php') ? '자위소방대 편성'
+    : target.pathname.endsWith('/print_all.php') ? '전체 인쇄 · PDF'
+    : /\/fire_plan(?:_new|_chat|_edit|_book|_schedule)?\.php$/.test(target.pathname) ? '소방계획서'
+    : /\/evacuation_plan(?:_chat)?\.php$/.test(target.pathname) ? '피난계획'
+    : /\/train(?:_chat|_edit)?\.php$/.test(target.pathname) ? '소방훈련·교육'
+    : /\/jawi(?:_chat|_edit)?\.php$/.test(target.pathname) ? '자위소방대 교육·훈련'
+    : target.pathname.endsWith('/work_log.php') ? '월별 업무기록' : '건물 기본정보';
+  if(document.getElementById('buildingInfoDialog')) return;
+  document.dispatchEvent(new Event('building-info-opening'));
+  target.searchParams.set('embed','1');
+  target.searchParams.set('modal','1');
+  target.searchParams.delete('after_save');
+  target.searchParams.delete('print');
+  const style = document.createElement('style');
+  style.textContent = '#buildingInfoDialog{position:fixed!important;inset:50% auto auto 50%!important;transform:translate(-50%,-50%)!important;margin:0!important;padding:0;box-sizing:border-box;width:min(960px,calc(100vw - 32px));height:calc(100dvh - 48px);max-height:960px;max-width:none;border:1px solid #dce2e8;border-radius:16px;background:#fff;overflow:hidden;box-shadow:0 20px 70px #0002}#buildingInfoDialog[open]{display:flex;flex-direction:column}#buildingInfoDialog::backdrop{background:rgba(20,30,45,.4)}#buildingInfoDialog .bi-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid #e5e7eb;flex-shrink:0}#buildingInfoDialog .bi-modal-actions{display:flex;gap:8px}#buildingInfoDialog button{font:inherit;font-size:13px;padding:8px 12px;background:white;color:#334155;border:1px solid #dce2e8;border-radius:8px;cursor:pointer}#buildingInfoDialog button:disabled{opacity:.45;cursor:wait}#buildingInfoDialog iframe{border:0;width:100%;flex:1;min-height:0;background:#f5f7fb}';
+  document.head.appendChild(style);
+  const dialog = document.createElement('dialog');
+  dialog.id = 'buildingInfoDialog';
+  dialog.setAttribute('aria-labelledby','buildingInfoDialogTitle');
+  dialog.innerHTML = '<div class="bi-modal-head"><strong id="buildingInfoDialogTitle">건물 기본정보</strong><div class="bi-modal-actions"><button type="button" data-print disabled>인쇄 / PDF</button><button type="button" data-close>닫기</button></div></div><iframe title="건물 기본정보 입력"></iframe>';
+  const frame = dialog.querySelector('iframe');
+  const listButton = document.createElement('button');
+  listButton.type='button';listButton.dataset.list='';listButton.textContent='목록';listButton.hidden=true;
+  dialog.querySelector('.bi-modal-actions').prepend(listButton);
+  dialog.querySelector('#buildingInfoDialogTitle').textContent = popupTitle;
+  frame.title = popupTitle;
+  const printButton = dialog.querySelector('[data-print]');
+  let loaded = false;
+  let recordPrinter = null;
+  const previousFocus = document.activeElement;
+  const previousOverflow = document.documentElement.style.overflow;
+  function closePopup(){ dialog.close(); }
+  function requestClose(){
+    try {
+      if(typeof frame.contentWindow.buildingInfoRequestClose === 'function'){
+        frame.contentWindow.buildingInfoRequestClose(); return;
+      }
+    } catch(ignore) {}
+    if(window.confirm(popupTitle + ' 창을 닫을까요? 저장하지 않은 내용은 사라질 수 있습니다.')) closePopup();
+  }
+  function receive(event){
+    if(event.origin === location.origin && event.source === frame.contentWindow && event.data?.type === 'building-info-close') closePopup();
+  }
+  window.addEventListener('message',receive);
+  dialog.querySelector('[data-close]').onclick = requestClose;
+  dialog.addEventListener('cancel',function(event){event.preventDefault();requestClose();});
+  frame.addEventListener('load',function(){
+    try {
+      if(frame.contentWindow.location.href==='about:blank')return;
+      const currentPath = frame.contentWindow.location.pathname;
+      listButton.hidden = true;printButton.hidden=false;
+      recordPrinter = setupRecordPopupFrame(frame,dialog,target.pathname.endsWith('/print_all.php'));
+      const standaloneForm = /\/(building_setup(?:_chat)?|fire_plan_jawi)\.php$/.test(currentPath);
+      loaded = recordPrinter !== null || standaloneForm || currentPath === target.pathname;
+      if(standaloneForm){const pageParams=new URL(frame.contentWindow.location.href).searchParams;const view=pageParams.get('asset_view');dialog.querySelector('#buildingInfoDialogTitle').textContent=pageParams.get('setup_locations')==='1'?'안전 위치 설정':view==='route'?'저장된 소방차 진입로':view==='assembly'?'저장된 비상 집결지':currentPath.endsWith('/fire_plan_jawi.php')?'자위소방대 편성':'건물 기본정보';}
+      printButton.hidden=printButton.hidden || new URL(frame.contentWindow.location.href).searchParams.get('setup_locations')==='1';
+      printButton.disabled = !loaded || recordPrinter === false;
+      printButton.title = recordPrinter === false ? '인쇄할 기록을 먼저 선택해 주세요' : '';
+    } catch(ignore){printButton.disabled = true;}
+  });
+  printButton.onclick = function(){
+    if(!loaded) return;
+    if(typeof recordPrinter === 'function') {recordPrinter();return;}
+    if(typeof frame.contentWindow.buildingInfoPrint === 'function') { frame.contentWindow.buildingInfoPrint(); return; }
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+  };
+  dialog.addEventListener('close',function(){
+    window.removeEventListener('message',receive);
+    document.documentElement.style.overflow = previousOverflow;
+    dialog.remove();style.remove();previousFocus?.focus({preventScroll:true});
+    refreshBuildingDashboardIfChanged();
+  },{once:true});
+  document.body.appendChild(dialog);
+  document.documentElement.style.overflow = 'hidden';
+  frame.src = target.href;
+  dialog.showModal();
+}
+
+// 기본정보와 자위소방대 편성은 어느 카드에서 눌러도 동일한 중앙 팝업으로 엽니다.
+document.addEventListener('click',function(event){
+  const link = event.target.closest('a[href]');
+  if(!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  const target = new URL(link.href,location.origin);
+  if(target.origin !== location.origin || !/\/(building_multi_use|building_facilities|print_all|building_setup(?:_chat)?|fire_plan(?:_jawi|_new|_chat|_edit|_book|_schedule)?|evacuation_plan(?:_chat)?|work_log|(?:jawi|train)(?:_chat|_edit)?)\.php$/.test(target.pathname)) return;
+  event.preventDefault();event.stopPropagation();openBuildingInfoPopup(target.href);
+},true);
+
+function openOneStop(url, title){
+  let target;
+  try { target = new URL(url, window.location.origin); } catch (error) { return; }
+  if (target.origin !== window.location.origin) return;
+  if (/\/(building_multi_use|building_facilities|print_all|building_setup(?:_chat)?|fire_plan(?:_jawi|_new|_chat|_edit|_book|_schedule)?|evacuation_plan(?:_chat)?|work_log|(?:jawi|train)(?:_chat|_edit)?)\.php$/.test(target.pathname)) { openBuildingInfoPopup(target.href); return; }
+  target.searchParams.set('embed', '1');
+  if (target.pathname === '/subscribe_page.php' && window.openProSubscription) { window.openProSubscription(); return; }
+  const shell = document.querySelector('.dashboard-shell');
+  const workspace = document.getElementById('oneStopWorkspace');
+  const frame = document.getElementById('oneStopFrame');
+  const loading = document.getElementById('oneStopLoading');
+  document.getElementById('oneStopTitle').textContent = title || '업무 작성';
+  document.getElementById('oneStopState').textContent = target.pathname === '/subscribe_page.php'
+    ? '구독 화면을 불러오는 중입니다' : '작성 화면을 불러오는 중입니다';
+  document.getElementById('oneStopExternal').href = target.href;
+  loading.classList.remove('is-hidden');
+  shell.classList.add('workspace-open');
+  workspace.classList.add('on');
+  frame.src = target.href;
+  window.requestAnimationFrame(function(){
+    const headerGap = 76;
+    const targetTop = workspace.getBoundingClientRect().top + window.scrollY - headerGap;
+    window.scrollTo({top:Math.max(0, targetTop), behavior:'smooth'});
+  });
+}
+
+function closeOneStop(){
+  const frame = document.getElementById('oneStopFrame');
+  if (frame && frame.src !== 'about:blank') {
+    frame.src = 'about:blank';
+    window.location.reload();
+    return;
+  }
+  document.querySelector('.dashboard-shell')?.classList.remove('workspace-open');
+  document.getElementById('oneStopWorkspace')?.classList.remove('on');
+}
+
+document.getElementById('oneStopFrame')?.addEventListener('load', function(){
+  const frame = this;
+  if (!frame.src || frame.src === 'about:blank') return;
+  document.getElementById('oneStopLoading')?.classList.add('is-hidden');
+  document.getElementById('oneStopState').textContent = '이 화면에서 작성하고 저장하세요';
+  try {
+    const doc = frame.contentDocument;
+    if (doc && frame.contentWindow.location.pathname === '/subscribe_page.php') {
+      document.getElementById('oneStopTitle').textContent = 'PRO 구독 · 관리';
+      document.getElementById('oneStopState').textContent = '요금제와 구독 상태를 확인하세요';
+    }
+    if (doc && frame.contentWindow.location.pathname === '/pro_mode.php') {
+      document.getElementById('oneStopTitle').textContent = 'PRO 업무 모드';
+      document.getElementById('oneStopState').textContent = '확장 기능을 살펴보고 구독을 안내받으세요';
+    }
+    if (!doc || doc.getElementById('oneStopEmbedStyle')) return;
+    const style = doc.createElement('style');
+    style.id = 'oneStopEmbedStyle';
+    style.textContent = '.nav,.appnav,.site-header,.account-nav,.page-head,body>.head,.page>.top{display:none!important}'
+      + 'html{scroll-padding-top:0!important}body{padding-top:0!important;margin-top:0!important}'
+      + '.prog{top:0!important}.wrap,.page{margin-top:0!important;padding-top:16px!important}';
+    doc.head.appendChild(style);
+    frame.contentWindow.scrollTo(0, 0);
+    window.setTimeout(function(){
+      try { frame.contentWindow.scrollTo(0, 0); } catch (ignore) {}
+    }, 180);
+  } catch (error) { /* 동일 출처가 아니면 원래 화면을 그대로 표시합니다. */ }
+});
+
+document.querySelectorAll('a.building-task, .safety-ai__next-link, .one-stop-trigger, a[href="/subscribe_page.php"], a[href^="/subscribe_page.php?"]').forEach(function(link){
+  link.addEventListener('click', function(event){
+    // This card has its own modal; do not also open the inline workspace.
+    if (link.hasAttribute('data-evac-editor')) return;
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    const label = link.dataset.oneStopTitle || (link.classList.contains('building-task')
+      ? (link.querySelector('span:nth-child(2)')?.textContent || '업무 작성')
+      : (safetyAiContext.current_task || '업무 작성'));
+    openOneStop(link.href, label.trim());
+  });
+});
+
+function openSafetyAi(){
+  const overlay = document.getElementById('safetyAiOverlay');
+  if (!overlay) return;
+  overlay.classList.add('on');
+  document.body.style.overflow = 'hidden';
+  window.setTimeout(function(){ document.getElementById('safetyAiInput')?.focus(); }, 40);
+}
+function closeSafetyAi(){
+  const overlay = document.getElementById('safetyAiOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('on');
+  document.body.style.overflow = '';
+  document.querySelector('.safety-ai-launch')?.focus();
+}
+document.addEventListener('keydown', function(event){
+  if (event.key === 'Escape' && document.getElementById('safetyAiOverlay')?.classList.contains('on')) closeSafetyAi();
+});
+
+function addSafetyAiBubble(text, who, extraClass){
+  const chat = document.getElementById('safetyAiChat');
+  const bubble = document.createElement('div');
+  bubble.className = 'safety-ai__bubble' + (who === 'user' ? ' safety-ai__bubble--user' : '')
+    + (extraClass ? ' ' + extraClass : '');
+  bubble.textContent = text;
+  chat.appendChild(bubble);
+  scrollSafetyAiToEnd();
+  return bubble;
+}
+
+function scrollSafetyAiToEnd(){
+  const chat = document.getElementById('safetyAiChat');
+  if (!chat) return;
+  window.requestAnimationFrame(function(){
+    chat.scrollTo({top:chat.scrollHeight, behavior:'smooth'});
+  });
+}
+
+async function askSafetyAi(message){
+  const question = String(message || '').trim();
+  if (!question) return;
+  const input = document.getElementById('safetyAiInput');
+  const send = document.getElementById('safetyAiSend');
+  addSafetyAiBubble(question, 'user');
+  input.value = '';
+  send.disabled = true;
+  const loading = addSafetyAiBubble('현재 업무 상태를 확인하고 있습니다…', 'ai', 'safety-ai__bubble--loading');
+  try {
+    const response = await fetch('/safety_ai_api.php', {
+      method:'POST',
+      credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({csrf:safetyAiCsrf, message:question, context:safetyAiContext})
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.message || '답변을 가져오지 못했습니다.');
+    loading.textContent = data.message;
+    loading.classList.remove('safety-ai__bubble--loading');
+    document.getElementById('safetyAiMode').textContent = data.mode === 'ai' ? 'AI 답변' : '기본 안내 모드';
+    scrollSafetyAiToEnd();
+  } catch (error) {
+    loading.textContent = error && error.message ? error.message : '잠시 후 다시 질문해 주세요.';
+    loading.classList.remove('safety-ai__bubble--loading');
+    scrollSafetyAiToEnd();
+  } finally {
+    send.disabled = false;
+    input.focus();
+  }
+}
+
+document.getElementById('safetyAiForm')?.addEventListener('submit', function(event){
+  event.preventDefault();
+  askSafetyAi(document.getElementById('safetyAiInput').value);
+});
+document.querySelectorAll('[data-ai-question]').forEach(function(button){
+  button.addEventListener('click', function(){ askSafetyAi(button.dataset.aiQuestion || ''); });
+});
+
+/* 배정 신청 — 기본정보를 채워둔 팝업을 열고, 확인·수정한 값을 보냅니다 */
+function openEvacReq(){
+  showReqErr('');
+  document.getElementById('rqov').classList.add('on');
+  /* 비어 있는 첫 칸에 커서를 둡니다 */
+  var ids = ['rqAddress','rqName','rqPhone','rqBuilding'];
+  for (var i=0;i<ids.length;i++){
+    var el = document.getElementById(ids[i]);
+    if (el && el.value.trim() === ''){ el.focus(); return; }
+  }
+  document.getElementById('rqAddress').focus();
+}
+function closeEvacReq(){
+  document.getElementById('rqov').classList.remove('on');
+}
+function showReqErr(msg){
+  var box = document.getElementById('rqErr');
+  box.textContent = msg || '';
+  box.classList.toggle('on', !!msg);
+}
+function sendEvacReq(){
+  var building = document.getElementById('rqBuilding').value.trim();
+  var address  = document.getElementById('rqAddress').value.trim();
+  var name     = document.getElementById('rqName').value.trim();
+  var phone    = document.getElementById('rqPhone').value.trim();
+
+  if (!address){ showReqErr('건물 주소를 입력해 주세요.'); document.getElementById('rqAddress').focus(); return; }
+  if (!name){ showReqErr('소방안전관리자 이름을 입력해 주세요.'); document.getElementById('rqName').focus(); return; }
+  var digits = phone.replace(/[^0-9]/g,'');
+  if (digits.length < 8 || digits.length > 11){
+    showReqErr('연락 가능한 전화번호를 입력해 주세요. (숫자 8~11자리)');
+    document.getElementById('rqPhone').focus(); return;
+  }
+  showReqErr('');
+
+  var go = document.getElementById('rqGo');
+  go.disabled = true; go.textContent = '보내는 중…';
+
+  var fd = new FormData();
+  fd.append('act','request');
+  fd.append('csrf', <?=json_encode($CSRF)?>);
+  fd.append('building_name', building);
+  fd.append('address', address);
+  fd.append('manager_name', name);
+  fd.append('manager_phone', phone);
+
+  fetch('/evac_assign_api.php', {method:'POST', body:fd, credentials:'same-origin'})
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (j && j.ok){
+        closeEvacReq();
+        var btn = document.getElementById('evacReqBtn');
+        document.getElementById('evacReq').classList.add('evac-req--done');
+        document.getElementById('evacReqT').textContent = '✓ 요청 완료 — 관리자 확인 중입니다';
+        document.getElementById('evacReqD').textContent = '배정이 완료되면 이 자리에 시뮬레이션이 표시됩니다.';
+        if (btn){ btn.disabled = true; btn.textContent = '요청 완료'; }
+      } else {
+        showReqErr((j && j.error) ? j.error : '요청에 실패했습니다.');
+      }
+      go.disabled = false; go.textContent = '신청 보내기';
+    })
+    .catch(function(){
+      showReqErr('요청을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      go.disabled = false; go.textContent = '신청 보내기';
+    });
+}
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape'){
+    closeEvacReq();
+    document.getElementById('qrov').classList.remove('on');
+  }
+});
+function showQr(id, name){
+  var url = location.origin + '/evac_view.php?id=' + id;
+  document.getElementById('qrTitle').textContent = name;
+  document.getElementById('qrUrl').textContent = url;
+  var box = document.getElementById('qrImg');
+  box.innerHTML = '';
+  var render = function(){
+    new QRCode(box, {text:url, width:200, height:200, correctLevel:QRCode.CorrectLevel.M});
+  };
+  if (window.QRCode) render();
+  else {
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    s.onload = render;
+    s.onerror = function(){ box.textContent = 'QR 생성 실패 — 주소를 직접 공유하세요'; };
+    document.head.appendChild(s);
+  }
+  document.getElementById('qrov').classList.add('on');
+}
+</script>
+<script>
+/* 여러 동 건물 보기 — 버튼·점·키보드·모바일 스와이프로 전환합니다. */
+(function(){
+  var root = document.querySelector('[data-building-carousel]');
+  if (!root) return;
+  var slides = Array.prototype.slice.call(root.querySelectorAll('[data-building-slide]'));
+  var dots = Array.prototype.slice.call(root.querySelectorAll('[data-building-index]'));
+  var prev = root.querySelector('[data-building-prev]');
+  var next = root.querySelector('[data-building-next]');
+  var position = root.querySelector('[data-building-position]');
+  var index = 0;
+  var touchX = 0;
+  var touchY = 0;
+  if (!slides.length) return;
+
+  function showBuilding(target){
+    index = (target + slides.length) % slides.length;
+    slides.forEach(function(slide, i){
+      var active = i === index;
+      slide.hidden = !active;
+      slide.classList.toggle('is-active', active);
+      slide.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
+    dots.forEach(function(dot, i){
+      var active = i === index;
+      dot.classList.toggle('is-active', active);
+      dot.setAttribute('aria-current', active ? 'true' : 'false');
+      // Only move the dot strip. scrollIntoView also scrolls the whole page on first load.
+      if (active && dot.parentElement){
+        var strip = dot.parentElement;
+        var itemRect = dot.getBoundingClientRect(), stripRect = strip.getBoundingClientRect();
+        strip.scrollLeft += itemRect.left - stripRect.left - (strip.clientWidth - itemRect.width) / 2;
+      }
+    });
+    var name = slides[index].getAttribute('data-dong-name') || '건물';
+    if (position) position.textContent = (index + 1) + ' / ' + slides.length + ' · ' + name;
+    if (prev) prev.disabled = slides.length <= 1;
+    if (next) next.disabled = slides.length <= 1;
+  }
+
+  if (prev) prev.addEventListener('click', function(){ showBuilding(index - 1); });
+  if (next) next.addEventListener('click', function(){ showBuilding(index + 1); });
+  dots.forEach(function(dot){
+    dot.addEventListener('click', function(){ showBuilding(parseInt(dot.getAttribute('data-building-index') || '0', 10)); });
+  });
+  root.addEventListener('keydown', function(event){
+    if (event.key === 'ArrowLeft'){ event.preventDefault(); showBuilding(index - 1); }
+    if (event.key === 'ArrowRight'){ event.preventDefault(); showBuilding(index + 1); }
+  });
+  var viewport = root.querySelector('.building-carousel__viewport');
+  if (viewport){
+    viewport.addEventListener('touchstart', function(event){
+      var touch = event.changedTouches[0]; touchX = touch.clientX; touchY = touch.clientY;
+    }, {passive:true});
+    viewport.addEventListener('touchend', function(event){
+      var touch = event.changedTouches[0];
+      var diffX = touch.clientX - touchX;
+      var diffY = touch.clientY - touchY;
+      if (Math.abs(diffX) >= 45 && Math.abs(diffX) > Math.abs(diffY)) showBuilding(index + (diffX < 0 ? 1 : -1));
+    }, {passive:true});
+  }
+  showBuilding(0);
+})();
+</script>
+<?php if (!$proManagerConnected && !$localRegistrationAllowed && empty($_SESSION['_mge_actor']) && !defined('MANAGER_FULL_DASHBOARD') && !defined('MANAGER_VIEW_UID')): ?>
+<style>
+#building-connect-guide{position:fixed;inset:0;margin:auto;width:min(580px,calc(100vw - 28px));max-height:calc(100dvh - 32px);padding:24px;border:1px solid #dce7ef;border-radius:20px;background:#fff;color:#233d50;box-shadow:0 24px 80px #17324740;overflow:auto}#building-connect-guide::backdrop{background:#172e4866;backdrop-filter:blur(3px)}#building-connect-guide .bc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}#building-connect-guide h2{font-size:22px;line-height:1.5;margin:8px 0}#building-connect-guide .bc-kicker{font-size:12px;color:#238779;font-weight:700}#building-connect-guide .bc-description{font-size:14px;line-height:1.8;color:#60758a;margin:10px 0 20px}#building-connect-guide [data-connect-close]{border:0;border-radius:9px;background:#edf3f7;color:#4e6577;width:34px;height:34px;font-size:24px;cursor:pointer;flex-shrink:0}#building-connect-guide button:focus-visible{outline:3px solid #439adc;outline-offset:3px}#building-connect-guide #manager-connect{margin:0;width:100%}#building-connect-guide .mc-mini__summary{display:none}#building-connect-guide .mc-mini__body{padding:16px}#building-connect-guide .bc-note{font-size:12px;color:#718395;line-height:1.7;margin:16px 0 0}@media(max-width:480px){#building-connect-guide{padding:18px}#building-connect-guide h2{font-size:20px}#building-connect-guide .mc-code-row{flex-wrap:wrap}#building-connect-guide .mc-code-row .mc-input-wrap{min-width:0;flex:1 1 100%}}
+
+#building-connect-guide .bc-methods{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 0 16px}
+#building-connect-guide .bc-methods button{padding:14px 12px;border:1px solid #dde5ef;border-radius:12px;background:#f8fafc;text-align:left;color:#63758d;cursor:pointer;font:inherit;transition:background .15s,border-color .15s}
+#building-connect-guide .bc-methods strong{display:block;font-size:14px;line-height:1.5;color:#3c526c}
+#building-connect-guide .bc-methods span{display:block;margin-top:4px;font-size:11px;line-height:1.6;color:#7b8ca0;word-break:keep-all}
+#building-connect-guide .bc-methods [aria-selected="true"]{border-color:#4783c7;background:#eef5ff;box-shadow:inset 0 0 0 1px #4783c7}
+#building-connect-guide .bc-methods [aria-selected="true"] strong{color:#285f9f}
+#building-connect-guide [role="tabpanel"][hidden]{display:none!important}
+#building-connect-guide #manager-connect .bc-local-panel-content{margin:0;padding:0;border:0}
+#building-connect-guide #manager-connect .bc-local-panel-content>summary{display:none}
+#building-connect-guide #manager-connect .bc-local-panel-content>.mc-local{margin:0;border:0;padding:0;background:none}
+#building-connect-guide .bc-description{font-size:13px;margin-bottom:17px}
+#building-connect-guide .mc-mini__body{padding:17px}
+#building-connect-guide .mc-code-row{margin-top:9px}
+@media(max-width:480px){#building-connect-guide .bc-methods button{padding:12px 10px}#building-connect-guide .bc-methods strong{font-size:13px}#building-connect-guide .bc-methods span{font-size:10px}#building-connect-guide .mc-mini__body{padding:14px}}
+
+#building-connect-guide .bc-methods[hidden],#building-connect-guide .bc-back[hidden],#building-connect-guide [data-connect-body][hidden],#building-connect-guide .bc-note[hidden]{display:none!important}
+#building-connect-guide .bc-methods{margin-bottom:0}
+#building-connect-guide .bc-methods button{min-height:92px;background:#f7faff;border-color:#d6e3f3}
+#building-connect-guide .bc-methods button:hover{background:#edf5ff;border-color:#6f9bd1}
+#building-connect-guide .bc-methods button strong{color:#2b537f}
+#building-connect-guide .bc-back{margin:0 0 12px;padding:0;border:0;background:none;color:#617a98;font:600 12px/1.6 system-ui;cursor:pointer}
+#building-connect-guide .bc-promo{margin:12px 0;color:#738499;font-size:11px}
+#building-connect-guide .bc-promo>summary{cursor:pointer;font-weight:650;color:#5b7594;padding:5px 0}
+#building-connect-guide .bc-promo p{margin:7px 0 0;font-size:11px;line-height:1.7}
+</style>
+<dialog id="building-connect-guide" aria-labelledby="building-connect-guide-title" aria-describedby="building-connect-guide-description">
+ <div class="bc-head"><div><span class="bc-kicker">서비스 이용을 위한 첫 단계</span><h2 id="building-connect-guide-title">연결 방법을 선택해 주세요</h2></div><button type="button" data-connect-close aria-label="연결 안내 닫기">×</button></div>
+ <p class="bc-description" id="building-connect-guide-description" data-connect-description>이용 중인 업체가 있다면 업체를 연결하고,<br>업체가 없다면 로컬 파트너 연결을 이용해 주세요.</p>
+ <div data-connect-body></div><p class="bc-note">연결 요청 후 파트너가 수락하면 연결이 완료됩니다. 연결 완료 후에는 이 안내가 표시되지 않습니다.</p>
+</dialog>
+<script src="/building_connect_popup.js?v=20261026-local-auto-1" defer></script>
+<?php endif; ?>
+
+<?php if (!defined('MANAGER_FULL_DASHBOARD')) require __DIR__ . '/memo_widget.php'; ?>
+<script src="/pro_collaboration.js?v=20261015-partner-1-connected-1-inquiry-1" data-pro="<?=$isPro?'1':'0'?>" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
+<link rel="stylesheet" href="/pro_subscription_popup.css?v=20261026-mobile-tabs-2"><script src="/pro_subscription_popup.js?v=20261026-notification-example-1" defer></script>
+<script src="/building_service_access.js?v=20261026-multi-use-1" data-prepare="<?=$localRegistrationAllowed?'1':'0'?>" data-connected="<?=$proManagerConnected?'1':'0'?>" data-paid="<?=pc_active($__subKey)?'1':'0'?>" defer></script>
+<?php if ($isPro): ?>
+<link rel="stylesheet" href="/building_evac_popup.css?v=1"><script src="/building_evac_popup.js?v=2" defer></script>
+<link rel="stylesheet" href="/building_education.css?v=6-facility-linked">
+<script src="/building_education.js?v=20261015-partner-1-connected-1-inquiry-1" data-building-uid="<?=h($viewUid)?>" defer></script>
+<?php endif; ?>
+<link rel="stylesheet" href="/false_alarm.css?v=20261001-print-popup">
+<script src="/false_alarm.js?v=20261001-print-popup" data-uid="<?=h($viewUid)?>" defer></script>
+<link rel="stylesheet" href="/fire_plan_book.css?v=20261016-year-swipe-1"><script src="/fire_plan_book_card.js?v=20261026-auto-sync-1" defer></script>
+<link rel="stylesheet" href="/building_manager_compact.css?v=20261021-plan-popup-1"><script src="/building_manager_compact.js?v=20261021-plan-popup-1" defer></script>
+<link id="building-mobile-touch-style" rel="stylesheet" href="/building_mobile_touch.css?v=20261013-1">
+<script src="/building_mobile_touch.js?v=20261013-1" data-style-url="/building_mobile_touch.css?v=20261013-1" defer></script>
+<?php require __DIR__ . '/fire_manager_board.php'; ?>
+<?php require __DIR__ . '/flame_retardant_guide.php'; ?>
+<?php require __DIR__.'/building_email_notice.php'; ?>
+<?php if (empty($_SESSION['_mge_actor']) && !defined('MANAGER_FULL_DASHBOARD') && !defined('MANAGER_VIEW_UID') && !defined('PARTNER_DEMO_RUNTIME')): ?>
+<link rel="stylesheet" href="/building_notifications.css?v=20261026-inline-pro-1">
+<?php if($isPro): ?><link rel="stylesheet" href="/visit_push.css?v=20261023-date-map-1"><script src="/visit_push.js?v=20261026-building-1" data-building="1" defer></script><script src="/building_notifications.js?v=1" defer></script><?php endif; ?>
+<link rel="stylesheet" href="/kakao_install_guide.css?v=20261028-1"><script src="/kakao_install_guide.js?v=20261028-1" defer></script>
+<link rel="stylesheet" href="/firedesk_install_guide.css?v=20261026-1"><script src="/firedesk_install_guide.js?v=20261028-kakao-1" defer></script>
+<?php endif; ?>
+<?php require __DIR__ . '/_footer.php'; ?>

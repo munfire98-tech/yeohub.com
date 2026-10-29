@@ -13,13 +13,16 @@
      · 훈련·교육      : train_print.php?id=...
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 function is_admin(): bool {
   return (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'])
@@ -28,7 +31,7 @@ function is_admin(): bool {
 function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']); }
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && $role !== 'building') { header('Location: /partner_center.php'); exit; }
 
 require_once __DIR__ . '/user_key.php';
 $uidKey = app_user_key();
@@ -98,6 +101,14 @@ foreach ($evacGroups as $group) {
 $hasEvacPlan = !empty($evacFloors)
   || trim((string)($evacPlan['alarm_method'] ?? '')) !== ''
   || trim((string)($evacPlan['assembly_confirmed'] ?? '')) !== '';
+
+require_once __DIR__.'/evacuation_plan_list_common.php';
+$evacActivePlans=[];
+try{
+  $evacCollection=epl_collection($evacPlan,$buildingInfo);
+  $evacActivePlans=array_filter($evacCollection['_epl_plans'],static fn($r)=>!empty($r['published'])&&empty($r['archived'])&&empty($r['deleted_at']));
+}catch(Throwable $e){error_log('Evacuation print list: '.$e->getMessage());}
+$hasEvacPlan=!empty($evacActivePlans);
 
 // 2) 업무수행 기록표 — 연도별로 몇 건 작성했는지
 $safeKey  = preg_replace('/[^A-Za-z0-9_-]/', '_', $uidKey);
@@ -172,7 +183,7 @@ $paSort = function(array &$rows): void {
 };
 $paSort($plans); $paSort($formations); $paSort($jawis); $paSort($trains);
 
-$totalDocs = ($hasBuildingInfo ? 1 : 0) + ($hasEvacPlan ? 1 : 0) + array_sum($wlYears) + count($plans) + count($formations) + count($jawis) + count($trains);
+$totalDocs = ($hasBuildingInfo ? 1 : 0) + count($evacActivePlans) + array_sum($wlYears) + count($plans) + count($formations) + count($jawis) + count($trains);
 
 $PAGE_TITLE = '전체 인쇄';
 $NAV_MODE = 'account';
@@ -263,15 +274,15 @@ require __DIR__ . '/_header.php';
     <div class="pa-sec__head">
       <span class="pa-chip chip-ev">피난</span>
       <span class="pa-sec__t">피난 대피계획</span>
-      <span class="pa-sec__d">동일 피난구간별 대피방법·담당자·집결지</span>
+      <span class="pa-sec__d">동별 사용 계획 · 대피방법·담당자·집결지</span>
     </div>
     <?php if (!$hasEvacPlan): ?>
-      <div class="pa-empty">아직 저장된 피난 대피계획이 없습니다. <a href="<?=h($url('/evacuation_plan_chat.php'))?>">피난계획 작성하러 가기 →</a></div>
+      <div class="pa-empty">아직 저장된 피난 대피계획이 없습니다. <a href="<?=h($url('/evacuation_plan.php'))?>">피난계획 작성하러 가기 →</a></div>
     <?php else: ?>
-      <div class="pa-list"><div class="pa-item"><div>
-        <div class="pa-item__t"><?=h((string)($buildingInfo['name'] ?? '건물'))?> 피난 대피계획</div>
-        <div class="pa-item__d">설정 층 <?=count($evacFloors)?>개 · 최종 수정 <?=h((string)($evacPlan['updated'] ?? '-'))?></div>
-      </div><a class="pa-item__btn" target="_top" href="<?=h($url('/evacuation_plan_chat.php?print=1'))?>">🖨 피난계획 인쇄</a></div></div>
+      <div class="pa-list"><?php foreach($evacActivePlans as $evacRow):?><div class="pa-item"><div>
+        <div class="pa-item__t"><?=h($evacRow['published_title'] ?? $evacRow['title'])?></div>
+        <div class="pa-item__d"><?=h($evacRow['scope']['name'])?> · 설정 층 <?=count($evacRow['published']['floors']??[])?>개 · 저장 <?=h($evacRow['published_at']?:'기존 자료')?></div>
+      </div><a class="pa-item__btn" target="_top" href="<?=h($url('/evacuation_plan.php?print=1&id='.rawurlencode($evacRow['id'])))?>">🖨 피난계획 인쇄</a></div><?php endforeach;?></div>
     <?php endif; ?>
   </section>
 

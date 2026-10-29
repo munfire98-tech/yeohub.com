@@ -63,10 +63,12 @@ function jw_list(): array {
   return $idx;
 }
 
-function jw_create(): string {
+function jw_create(?int $recordYear = null): string {
+  $currentYear=(int)(new DateTimeImmutable('now',new DateTimeZone('Asia/Seoul')))->format('Y');
+  if($recordYear!==null&&($recordYear<1900||$recordYear>$currentYear))throw new InvalidArgumentException('실시기록의 연도를 확인해 주세요.');
   $id  = date('YmdHis') . substr((string)microtime(), 2, 4);
   $now = date('Y-m-d H:i:s');
-  jw_write_json(jw_file($id), ['id'=>$id, 'created_at'=>$now, 'updated_at'=>$now, 'data'=>[]]);
+  jw_write_json(jw_file($id), ['id'=>$id, 'record_year'=>$recordYear ?? $currentYear, 'created_at'=>$now, 'updated_at'=>$now, 'data'=>[]]);
   $idx   = jw_read_json(jw_index_file());
   $idx[] = ['id'=>$id, 'title'=>'(작성 중)', 'edu_date'=>'', 'created_at'=>$now, 'updated_at'=>$now];
   jw_write_json(jw_index_file(), $idx);
@@ -84,6 +86,9 @@ function jw_save(string $id, array $data): bool {
   $f = jw_file($id);
   if ($f === '') return false;
   $rec = jw_load($id) ?? ['id'=>$id, 'created_at'=>date('Y-m-d H:i:s')];
+  // A table edit or restart must retain the link to its planned event.
+  if (is_array($rec['data']['_planned_schedule'] ?? null)) $data['_planned_schedule'] = $rec['data']['_planned_schedule'];
+  else unset($data['_planned_schedule']);
   $rec['data']       = $data;
   $rec['updated_at'] = date('Y-m-d H:i:s');
   if (!jw_write_json($f, $rec)) return false;
@@ -108,6 +113,16 @@ function jw_save(string $id, array $data): bool {
 }
 
 function jw_delete(string $id): void {
+  require_once __DIR__.'/manager_jawi_help.php';
+  if(!mjh_file(jw_user_key(),$id))return;
+  mg_tx(__DIR__.'/data/manager_help_requests.php',function(array &$rows)use($id){
+    jw_delete_record($id);
+    if(is_file(jw_file($id)))return;
+    foreach($rows as $key=>$row){$q=mjh_parse((string)($row['field']??''));
+      if($q && $q['id']===$id && ($row['uid']??'')===jw_user_key())unset($rows[$key]);}
+  },true);
+}
+function jw_delete_record(string $id): void {
   $f = jw_file($id);
   if ($f !== '' && is_file($f)) @unlink($f);
   $idx  = jw_read_json(jw_index_file());

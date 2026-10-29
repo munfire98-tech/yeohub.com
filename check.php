@@ -11,11 +11,14 @@
      저장·삭제를 일으키는 요청은 하지 않습니다.
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 @set_time_limit(120);
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
@@ -57,17 +60,17 @@ const FEATURES = [
 
   /* ── 건물 소방안전관리 메인 ── */
   '진행 현황 패널' => [
-    'building_manager.php' => ['진행 현황'],
+    'FireDesk.php' => ['진행 현황'],
   ],
   '기본정보 채움 정도 표시' => [
     'building_info.php'    => ['bi_progress'],
-    'building_manager.php' => ['biProg'],
+    'FireDesk.php' => ['biProg'],
   ],
 
   /* ── 건물 기본정보 ── */
   '기본정보 문답 입력' => [
     'building_setup_chat.php' => ["'save_step'"],
-    'building_manager.php'    => ['building_setup_chat'],
+    'FireDesk.php'    => ['building_setup_chat'],
   ],
   '기본정보 문답 · 모를 때 요청' => [
     'building_setup_chat.php' => ['review'],
@@ -119,17 +122,17 @@ const FEATURES = [
   ],
   '100%까지 남은 항목 안내' => [
     'train_db.php'         => ['tr_missing', 'tr_year_status'],
-    'building_manager.php' => ['cardprog', 'tr_year_status'],   // 카드 안에 표시
+    'FireDesk.php' => ['cardprog', 'tr_year_status'],   // 카드 안에 표시
   ],
   '훈련 문답 · 이어서 쓰기' => [
     'train_chat.php' => ['이어서 쓰시겠어요', "'new'"],
   ],
   '훈련 기록 완료 판정' => [
     'train_db.php'          => ['tr_data_complete', 'tr_done_this_year'],
-    'building_manager.php'  => ['tr_done_this_year'],
+    'FireDesk.php'  => ['tr_done_this_year'],
   ],
   '연간 항목 세부 표시' => [
-    'building_manager.php' => ['psub__i', 'ptag--part'],
+    'FireDesk.php' => ['psub__i', 'ptag--part'],
   ],
   '로그인·가입 처리 (화면은 팝업 하나)' => [
     'auth.php'   => ["mode === 'signup'", "mode === 'login'"],
@@ -184,7 +187,7 @@ const FEATURES = [
     'jawi_chat.php' => ['LEGACY'],
   ],
   '자위소방대 · 카드 분리와 진행률' => [
-    'building_manager.php' => ['jw_year_status', '자위소방대 편성표', "\$jawiStatus"],
+    'FireDesk.php' => ['jw_year_status', '자위소방대 편성표', "\$jawiStatus"],
   ],
 
   /* ── 관리자 ── */
@@ -252,7 +255,7 @@ const ENTRY_PAGES = [
    ?new=1 처럼 뭔가 만들어지는 주소는 절대 넣지 마세요. */
 const PAGES_TO_OPEN = [
   '/index.php'                 => '메인',
-  '/building_manager.php'      => '건물 소방안전관리',
+  '/FireDesk.php'      => '건물 소방안전관리',
   '/work_log.php'              => '업무수행 기록표',
   '/train.php'                 => '훈련·교육 기록부',
   '/building_setup.php'        => '기본정보(표)',

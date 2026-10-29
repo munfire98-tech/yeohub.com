@@ -15,7 +15,7 @@
 declare(strict_types=1);
 
 if (($_SESSION['_imp']['kind'] ?? '') === 'manager_edit') {
-    if (!defined('MG_EDIT_GUARD_READY')) { http_response_code(503); exit('매니저 편집 보호 설정을 확인해 주세요.'); }
+    if (!defined('MG_EDIT_GUARD_READY')) { http_response_code(503); exit('파트너 편집 보호 설정을 확인해 주세요.'); }
     return;
 }
 if (defined('IMP_BAR_READY')) return;

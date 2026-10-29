@@ -1,12 +1,15 @@
 <?php
 // train_edit.php — 소방훈련·교육 실시 결과 기록부 (별지 제28호서식) 작성
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -16,7 +19,7 @@ function is_admin(): bool {
 function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']); }
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && $role !== 'building') { header('Location: /partner_center.php'); exit; }
 
 require_once __DIR__ . '/train_db.php';
 /* 훈련내용 칸에 넣을 예시 문구 — 타자 대신 눌러서 채운다 */
@@ -44,6 +47,7 @@ const EDU_SAMPLES = [
   '자위소방대 편성과 각자의 임무',
 ];
 require_once __DIR__ . '/building_info.php';
+require_once __DIR__ . '/manager_train_help.php';
 $bi = bi_load();
 
 $id = (string)($_GET['id'] ?? '');
@@ -107,7 +111,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
   $data['photos'] = $photos;
 
-  tr_save($id, $data);
+  try{$ok=mth_save(tr_user_key(),$id,$data,static fn()=>tr_save($id,$data));}
+  catch(Throwable $e){error_log('Training table save: '.$e->getMessage());$ok=false;}
+  if(!$ok){http_response_code(503);exit('저장하지 못했습니다. 이전 화면으로 돌아가 다시 시도해 주세요.');}
   header('Location: /train_edit.php?id=' . urlencode($id) . '&saved=1' . ($photoErr !== '' ? '&perr=' . rawurlencode($photoErr) : ''));
   exit;
 }

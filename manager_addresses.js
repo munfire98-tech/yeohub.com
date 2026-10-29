@@ -18,6 +18,7 @@
  }
  function render(){saved.replaceChildren();document.getElementById('ma-count').textContent=rows.length+'개';if(!rows.length)saved.append(node('p','아직 사전 등록한 거래처가 없습니다.','ma-note'));
   const query=(document.getElementById('ma-saved-search').value||'').trim().toLowerCase();const visible=rows.filter(r=>(r.name+' '+r.address).toLowerCase().includes(query));if(rows.length&&!visible.length)saved.append(node('p','검색 결과가 없습니다.','ma-note'));for(const r of visible){const card=node('article',undefined,'ma-address'),copy=node('div');copy.append(node('strong',r.name||r.address||'작성 중인 거래처'));if(r.name)copy.append(node('p',r.address));copy.append(node('small',r.linked?'연결 완료':r.address?'연결 대기':'주소 작성 필요'));const actions=node('div',undefined,'ma-actions');if(!r.linked)actions.append(button('기본정보 확인',()=>{location.href='/manager_draft_view.php?id='+encodeURIComponent(r.id);},'ma-secondary'));else copy.append(node('p','기본정보 수정은 담당 유저 화면에서 진행해 주세요.'));
+   if(r.address&&r.map_uid)actions.append(button('지도로 이동 →',()=>{if(window.parent!==window)window.parent.postMessage({type:'manager-addresses-map',uid:r.map_uid},location.origin);else location.href='/partner_center.php?focus_building='+encodeURIComponent(r.map_uid);},'ma-secondary'));
    if(!r.linked)actions.append(button('삭제',async()=>{if(!confirm('사전 등록 주소를 삭제할까요?'))return;const d=await api('delete',{id:r.id});if(d){rows=rows.filter(x=>x.id!==r.id);render();changed();}},'ma-quiet'));
    card.append(copy,actions);saved.append(card);
   }

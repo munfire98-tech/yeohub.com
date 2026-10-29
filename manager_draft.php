@@ -1,21 +1,24 @@
 <?php
 /* =============================================================
-   manager_draft.php — 매니저 사전 등록용 기본정보 문답
+   manager_draft.php — 파트너 사전 등록용 기본정보 문답
    ─────────────────────────────────────────────────────────────
    질문에 답하면 해당 거래처의 사전 등록 저장소에 저장됩니다.
    한 문항 답할 때마다 바로 저장되므로 중간에 나가도 이어서 할 수 있습니다.
    기존 building_setup.php(표 형식)는 그대로 두고, 나중에 고칠 때 씁니다.
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 
 
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)alp_session_start();
 require_once __DIR__.'/manager_draft_common.php';
 try {
- if(!empty($_SESSION['_imp'])||!empty($_SESSION['_mge_actor']))throw new RuntimeException('매니저 본인 화면에서 사전 등록을 열어 주세요.');
+ if(!empty($_SESSION['_imp'])||!empty($_SESSION['_mge_actor']))throw new RuntimeException('파트너 본인 화면에서 사전 등록을 열어 주세요.');
  define('MD_ACTOR',mg_uid());define('MD_ID',(string)($_GET['id']??''));md_entry(MD_ACTOR,MD_ID);
 } catch(Throwable $e){http_response_code(403);exit(mg_e($e->getMessage()));}
 header('Cache-Control: no-store');header('X-Frame-Options: SAMEORIGIN');
@@ -58,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'save_ste
   $allowed = array_keys(bi_blank());
   foreach ($patch as $k => $v) {
     if (!in_array($k, $allowed, true)) continue;
-    if ($k === 'mgrs' || $k === 'raw_bldg' || $k === 'bd_dong_list') {
+    if ($k === 'mgrs' || $k === 'raw_bldg' || $k === 'bd_dong_list' || $k === 'bd_dong_names' || $k === 'bd_floor_manual') {
       $cur[$k] = is_array($v) ? $v : ($k === 'mgrs' ? [] : $cur[$k]);
     } else {
       $cur[$k] = is_string($v) ? $v : (string)$v;
@@ -78,9 +81,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'save_ste
       }
     }
   }
+  $floorRows=[];if($ok&&array_key_exists('bd_floor_manual',$patch))foreach(bfl_entries($persisted) as $entry)$floorRows[$entry['key']]=bfl_effective($persisted,$entry);
   $p  = md_progress();
   echo json_encode([
     'ok'      => $ok,
+    'floor_rows' => $floorRows,
     'percent' => $p['percent'],
     'filled'  => $p['filled'],
     'total'   => $p['total'],
@@ -97,6 +102,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'search')
   }
   $kw = trim((string)($_POST['keyword'] ?? ''));
   if ($kw === '') { echo json_encode(['ok'=>true,'results'=>[]]); exit; }
+
+  require_once __DIR__.'/partner_walkthrough_data.php';
+  if(pwt_matches($kw)){echo json_encode(['ok'=>true,'results'=>[pwt_result()]],JSON_UNESCAPED_UNICODE);exit;}
+  if(defined('PARTNER_DEMO_RUNTIME')){echo json_encode(['ok'=>true,'results'=>[]]);exit;}
 
   $url = $API['kakao_url'] . '?' . http_build_query(['query'=>$kw, 'size'=>10]);
   $res = bldg_http_get($url, ['Authorization: KakaoAK ' . $API['kakao']]);
@@ -127,6 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
   if (!hash_equals($CSRF, (string)($_POST['csrf'] ?? ''))) {
     echo json_encode(['ok'=>false,'error'=>'세션이 만료되었습니다. 새로고침 후 다시 시도해 주세요.']); exit;
   }
+  if(defined('PARTNER_DEMO_RUNTIME')){require_once __DIR__.'/partner_walkthrough_data.php';echo json_encode(pwt_matches((string)($_POST['place']??''))?pwt_lookup():['ok'=>false,'retryable'=>false,'error'=>'체험에서는 소방계획서.com 빌딩으로 연습해 주세요.'],JSON_UNESCAPED_UNICODE);exit;}
   // Network waits must not hold the login session lock.
   if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
   $road  = trim((string)($_POST['road']  ?? ''));
@@ -329,6 +339,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
       'use'     => trim((string)($t['mainPurpsCdNm'] ?? '')),
     ];
   }
+
+  // Optional floor enrichment must not discard a successful title lookup.
+  require_once __DIR__.'/building_floor_common.php';
+  $dongList=bfl_enrich($dongList,$titles,$API,$code,md_load());
 
   // 사람이 읽는 요약 (기존 유지)
   $dongLines = [];
@@ -623,11 +637,25 @@ button{font:inherit;color:inherit;cursor:pointer}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 
 .pick-map-prompt{position:absolute;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;display:flex;align-items:center;gap:10px;width:max-content;max-width:calc(100% - 32px);padding:13px 16px;border:1px solid rgba(255,255,255,.9);border-radius:14px;background:rgba(255,255,255,.96);color:#176955;box-shadow:0 5px 24px rgba(15,55,48,.2);font:700 13px/1.5 system-ui;text-align:center}.pick-map-prompt svg{flex:0 0 26px}.pick-map-prompt[hidden]{display:none}.pick-next{padding:10px 12px!important;border-radius:10px;background:#eff8f4;color:#186b53!important;font-size:13px!important}.pick-next b{font-weight:800}.map-wrap.pick-awaiting{border:2px solid #43a98d}
+
+/* Use readable, stable input sizing on phones and touch devices; preserve pinch zoom. */
+@media (max-width:768px), (hover:none) and (pointer:coarse){
+ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),textarea,select{font-size:16px!important;box-sizing:border-box;min-width:0;max-width:100%}
+ .inrow input{min-width:0;flex:1 1 160px}
+ .inrow,.ma-searchline,.dv-contact-row,.dv-section dd{min-width:0}
+}
 </style>
 </head>
 <body>
 <?php if (($_GET['modal'] ?? '') === '1'): ?>
-<style>.nav .brand{display:none}.nav__in{justify-content:flex-end}.prog{position:static}</style>
+<style>
+.nav .brand{display:none}.nav__in{justify-content:flex-end}.prog{position:static}
+/* Avoid composited, initially transparent text inside iOS Safari dialog iframes. */
+@supports (-webkit-touch-callout:none){
+  .msg,.save-guide.is-show{animation:none!important;opacity:1;transform:none}
+  html{scroll-behavior:auto}
+}
+</style>
 <?php endif; ?>
 
 <nav class="nav">
@@ -641,7 +669,7 @@ button{font:inherit;color:inherit;cursor:pointer}
         <button class="btn" type="submit">↺ 처음부터 다시</button>
       </form>
 
-      <a class="btn" href="<?=h($url('/building_manager.php'))?>">← 사전 등록 목록</a>
+      <a class="btn" href="<?=h($url('/FireDesk.php'))?>">← 사전 등록 목록</a>
     </div>
   </div>
 </nav>
@@ -657,6 +685,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 </div>
 
 <main class="wrap">
+  <?php if(!defined('PARTNER_DEMO_RUNTIME')): ?><p style="margin:0 0 16px;padding:12px 16px;border:1px solid #dce6f3;border-radius:10px;background:#f4f8ff;font-size:13px"><a href="/manager_client_import.php" style="color:#326ac4;text-decoration:none">여러 거래처를 한 번에 등록하려면 · 목록으로 자동 등록 →</a></p><?php endif; ?>
   <?php if ($noUser): ?>
     <div class="alert alert--bad">
       <div>✕</div>
@@ -666,6 +695,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   <div id="chat"></div>
 </main>
 
+<?php if(defined('PARTNER_DEMO_RUNTIME')): ?><link rel="stylesheet" href="/partner_walkthrough.css?v=20261018-large-map-1"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/partner_walkthrough_map.js?v=20261018-clean-map-1"></script><?php endif; ?>
 <script>window.managerHelp={ready:Promise.resolve(null),refresh:function(){}};if(new URLSearchParams(location.search).get('reset')==='1'&&window.parent!==window)window.parent.postMessage({type:'manager-addresses-changed'},location.origin);</script>
 <script src="/building_registry_retry.js?v=1"></script>
 <script src="/building_address_recovery.js?v=1"></script>
@@ -681,6 +711,7 @@ var KAKAO_JS_KEY = <?=json_encode($API['kakao_js'] ?? '')?>;
 var _kakaoMapState = 'idle';   // idle | loading | ready | failed
 var _kakaoMapQueue = [];
 function loadKakaoMap(onReady, onFail){
+  if(window.partnerTutorialMap){onReady();return;}
   if (!KAKAO_JS_KEY){ if(onFail) onFail(); return; }
   if (_kakaoMapState === 'ready'){ onReady(); return; }
   if (_kakaoMapState === 'failed'){ if(onFail) onFail(); return; }
@@ -723,15 +754,6 @@ var STEPS = [
 
   { field:'address', q:'소재지는 어디인가요?', type:'text', ph:'예: 서울특별시 강남구 테헤란로 123',
     hint:'도로명 주소로 적어주세요. 동·호수까지는 필요 없습니다.' },
-
-  { field:'__assembly', q:'화재 시 모일 집결지는 어디인가요?', type:'assembly', skip:true,
-    hint:'대피한 사람들이 모여서 인원을 확인하는 장소입니다. 건물에서 안전하게 떨어져 있고, 소방차 진입에 방해되지 않는 곳이 좋습니다.' },
-
-  { field:'fire_engine_route', q:'소방차가 건물로 들어오는 길도 표시해 둘까요?', type:'fire_route', skip:true,
-    hint:'도로의 진입 시작점부터 건물 입구 방향으로 차례대로 눌러주세요. 실제 도로를 따라 여러 점을 찍으면 진입선이 저장됩니다.' },
-
-  { field:'fire_engine_route_note', q:'진입로에 특이사항이나 더 추가할 내용이 있을까요?', type:'route_note', skip:true,
-    hint:'현장에 도착한 소방대가 미리 알아야 할 진입 제한이나 장애물이 있다면 남겨주세요.' },
 
   { field:'use', q:'건물을 주로 어떤 용도로 쓰나요?', type:'choice',
     options:['업무시설(사무실)','판매시설(상가·매장)','숙박시설','공장·창고','의료시설','교육연구시설','복합용도','그 밖'],
@@ -977,7 +999,7 @@ function settleChatBottom(){
     if(generation!==scrollGeneration)return;
     var root=document.scrollingElement||document.documentElement;
     var bottom=Math.max(root.scrollHeight,document.body.scrollHeight,document.documentElement.scrollHeight);
-    window.scrollTo({top:bottom,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+    window.scrollTo({top:bottom,behavior:(window.matchMedia('(prefers-reduced-motion: reduce)').matches||(window.self!==window.top&&window.CSS&&CSS.supports('-webkit-touch-callout','none')))?'auto':'smooth'});
   });});},60);
 }
 function down(){followChatUntil=Date.now()+1800;settleChatBottom();}
@@ -1159,7 +1181,8 @@ function ask(s){
     skipBtn.className='btn btn--sm'; skipBtn.type='button';
     skipBtn.textContent='검색 없이 직접 입력할게요';
     skipBtn.onclick=function(){ clearBox(); me('직접 입력할게요'); step++; next(); };
-    srow.appendChild(skipBtn); b.appendChild(srow);
+    var practice=document.createElement('button');practice.type='button';practice.className='btn btn--sm';practice.textContent='소방계획서.com 빌딩으로 연습하기';practice.onclick=function(){inp.value='소방계획서.com 빌딩';doLookupSearch(inp.value,list,inp,s);};
+    srow.appendChild(practice);srow.appendChild(skipBtn); b.appendChild(srow);
     inp.focus();
     return;
   }
@@ -1590,7 +1613,7 @@ function ask(s){
   }
 
   if (s.type === 'mgr'){
-    var r2=document.createElement('div'); r2.className='inrow';
+    var r2=document.createElement('div'); r2.className='inrow pwt-manager-fields';
     var w2=document.createElement('div'); w2.className='pair';
     var f={};
     [['name','성함','홍길동'],['tel','연락처 (선택)','010-1234-5678']].forEach(function(p){
@@ -1721,19 +1744,19 @@ function addMgrQuickFill(s, container, inp){
 }
 
 function helpRequestLabel(mode, managerName){
-  var name=String(managerName||'').trim()||'담당 매니저';
+  var name=String(managerName||'').trim()||'연결 업체';
   if(mode==='accepted')return '잘 모르겠어요 · '+name+'에게 요청하기';
   if(mode==='pending')return '잘 모르겠어요 · '+name+'에게 요청하기 (연결 수락 대기)';
-  return '잘 모르겠어요 · 로컬매니저 연결하고 요청하기';
+  return '잘 모르겠어요 · 로컬 파트너 연결하고 요청하기';
 }
 function addYeohubReview(s, container){ return;
   if (!container || !container.isConnected || container.querySelector('.yeohub-review')) return;
   var row=document.createElement('div');row.className='subrow yeohub-review';
-  var btn=document.createElement('button');btn.className='btn btn--sm';btn.type='button';btn.disabled=true;btn.textContent='담당 매니저 확인 중…';
+  var btn=document.createElement('button');btn.className='btn btn--sm';btn.type='button';btn.disabled=true;btn.textContent='연결 업체 확인 중…';
   row.appendChild(btn);container.appendChild(row);
   window.managerHelp.ready.then(function(j){
     if(j&&j.mode==='manager'){row.remove();return;}
-    btn.disabled=false;btn.textContent=j?helpRequestLabel(j.mode,j.manager_name):'담당 매니저 확인하고 요청하기';
+    btn.disabled=false;btn.textContent=j?helpRequestLabel(j.mode,j.manager_name):'연결 업체 확인하고 요청하기';
   });
   btn.onclick=function(){requestYeohubReview(s,btn);};
 }
@@ -1742,8 +1765,8 @@ async function requestYeohubReview(s,btn){
   try{
     var j=await window.managerHelp.request(s.field||'general',(s.reviewGroup||'건물 기본정보')+': '+(s.label?s.label+' - ':'')+s.q);
     if(!j){btn.disabled=false;btn.textContent=label;return;}
-    btn.textContent='요청 접수 완료 ✓';clearBox();me('매니저에게 작성 도움 요청');
-    bot(md(j.mode==='pending'?'**연결 요청과 질문이 접수되었습니다.**\n매니저가 연결을 수락하면 질문을 확인할 수 있습니다.':'**담당 매니저에게 요청했습니다.**\n요청함에서 처리 상태와 답변을 확인할 수 있습니다.'));
+    btn.textContent='요청 접수 완료 ✓';clearBox();me('파트너에게 작성 문의');
+    bot(md(j.mode==='pending'?'**연결 요청과 질문이 접수되었습니다.**\n파트너가 연결을 수락하면 질문을 확인할 수 있습니다.':'**연결 업체에게 요청했습니다.**\n요청함에서 처리 상태와 답변을 확인할 수 있습니다.'));
     step++;setTimeout(next,520);
   }catch(e){btn.disabled=false;btn.textContent=label;alert(e.message||'요청하지 못했습니다. 다시 시도해 주세요.');}
 }
@@ -1820,8 +1843,9 @@ function doLookupSearch(kw, list, inp, s){
         list.innerHTML='<div style="padding:10px 13px;color:var(--mut)">검색 결과가 없습니다.</div>';
         appendDirectAddrOption(list, kw, s); return; }
       rs.forEach(function(a){
-        var d=document.createElement('div');
-        d.style.cssText='padding:10px 13px;cursor:pointer;border-bottom:1px solid #f0f2f6';
+        var d=document.createElement(a.demo?'button':'div');
+        if(a.demo){d.type='button';d.dataset.tourResult='1';}
+        d.style.cssText='display:block;width:100%;text-align:left;font:inherit;background:white;border:0;padding:12px 13px;cursor:pointer;border-bottom:1px solid #f0f2f6';
         var addr=a.road||a.jibun||'';
         var cat=a.category?' <span style="font-size:11px;color:var(--brand2)">·'+esc(a.category)+'</span>':'';
         d.innerHTML='<div style="font-weight:700">'+esc(a.place)+cat+'</div>'+
@@ -1832,7 +1856,7 @@ function doLookupSearch(kw, list, inp, s){
         list.appendChild(d);
       });
       /* 이름으로 찾아도 안 나올 수 있으니, 후보가 있어도 직접 입력 선택지를 항상 열어둔다 */
-      appendDirectAddrOption(list, kw, s);
+      if(!rs.some(function(result){return result.demo;}))appendDirectAddrOption(list, kw, s);
       list.style.display='block';
     })
     .catch(function(){ list.style.display='block';
@@ -1859,6 +1883,11 @@ function appendDirectAddrOption(list, kw, s){
 
 /* ── 후보 클릭 → juso+건축HUB 조회 → 기본정보 한번에 저장 ── */
 function doLookupPick(a, s, roadRetry){
+  if(a.demo&&!window.partnerTutorialMap){
+    if(window.parent!==window){window.parent.postMessage({type:'partner-walkthrough-request'},location.origin);}
+    else location.assign('/partner_demo_app.php/manager_draft.php?pick=1');
+    return;
+  }
   function recover(message){showLookupRecovery(a,s,message,!!roadRetry);}
   clearBox(); me(a.place + (a.road?(' · '+a.road):''));
   typing(function(){
@@ -1928,7 +1957,27 @@ function doLookupPick(a, s, roadRetry){
 
         if(patch.floor_a) lines.push('**층수** 지상 '+patch.floor_a+'층'+((patch.floor_b&&patch.floor_b!=='0')?(' · 지하 '+patch.floor_b+'층'):''));
         if(patch.bd_struct) lines.push('**구조** '+patch.bd_struct);
-        bot(md((j.partial ? (j.lookup_reason==='address_unresolved' ? '주소의 지번을 확인하지 못했습니다.\n' : j.lookup_reason==='registry_empty' ? '조회한 지번의 건축물대장 자료를 찾지 못했습니다.\n' : '일부만 찾았습니다.\n') : '건축물대장에서 찾았습니다. 아래 내용으로 채웠습니다.\n')
+        var floorReady=(j.dongList||[]).filter(function(g){return g.floor_info&&g.floor_info.status==='ready';}).length;
+        lines.push(floorReady?'**층별 면적** '+floorReady+'개 동 조회 · 기본정보에서 확인':'**층별 면적** 자료를 확인하지 못했습니다. 기본정보에서 직접 입력하거나 다시 조회할 수 있습니다.');
+        if(j.demo && window.partnerTutorialMap){
+          for(var key in patch){if(patch[key]!==''&&patch[key]!==null)SAVED[key]=patch[key];}
+          bot('<strong>건축물대장에서 찾았습니다.</strong><br>이 정보는 기본정보에 자동으로 채워져요.','자동 조회 과정을 보여주는 체험용 예시 자료입니다.');
+          var resultBox=box(),result=document.createElement('section');result.className='pwt-registry-result';
+          var title=document.createElement('strong');title.textContent=patch.name;result.appendChild(title);
+          var grid=document.createElement('dl');
+          [['소재지',patch.address],['용도',patch.use],['층수','지상 '+patch.floor_a+'층 · 지하 '+patch.floor_b+'층'],['연면적',Number(patch.area_t).toLocaleString()+'㎡'],['건축면적',Number(patch.bd_area_arch).toLocaleString()+'㎡'],['구조',patch.bd_struct],['사용승인일','2018.05.15'],['동 현황','1개 동 · 본관']].forEach(function(row){var item=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=row[0];dd.textContent=row[1];item.append(dt,dd);grid.appendChild(item);});
+          result.appendChild(grid);
+          var floors=document.createElement('div');floors.className='pwt-floor-table';floors.dataset.tourFloorTable='1';
+          var floorTitle=document.createElement('strong');floorTitle.textContent='층별 현황';floors.appendChild(floorTitle);
+          var floorRows=(patch.bd_dong_list&&patch.bd_dong_list[0].floor_info.rows)||[];
+          floorRows.forEach(function(row){var line=document.createElement('div');var label=document.createElement('span'),area=document.createElement('b');label.textContent=row.label+' · '+(row.use||'용도 미확인');area.textContent=Number(row.area).toLocaleString()+'㎡';line.append(label,area);floors.appendChild(line);});
+          var floorNote=document.createElement('small');floorNote.textContent='본관 · 합계 2,400㎡ · 체험용 예시 자료';floors.appendChild(floorNote);result.appendChild(floors);resultBox.appendChild(result);
+          var resultNext=document.createElement('button');resultNext.type='button';resultNext.className='btn btn--pri';resultNext.dataset.tourRegistryContinue='1';resultNext.textContent='이 정보로 계속하기 →';resultNext.disabled=true;
+          resultNext.onclick=function(){clearBox();step++;next();};resultBox.appendChild(resultNext);
+          save(patch,function(ok){if(ok)resultNext.disabled=false;});
+          return;
+        }
+        bot(md((j.partial ? (j.lookup_reason==='address_unresolved' ? '주소의 지번을 확인하지 못했습니다.\n' : j.lookup_reason==='registry_empty' ? '조회한 지번의 건축물대장 자료를 찾지 못했습니다.\n' : '일부만 찾았습니다.\n') : j.demo ? '체험용 예시 정보를 불러왔습니다.\n' : '건축물대장에서 찾았습니다. 아래 내용으로 채웠습니다.\n')
                + lines.join('\n') + (j.note ? '\n\n'+j.note : '') + (j.partial && j.lookup_reason==='registry_empty' ? '\n\n'+REGISTRY_UNAVAILABLE_NOTICE : '')));
         for(var k in patch){ if(patch[k]!=='' && patch[k]!==null) SAVED[k]=patch[k]; }
         save(patch, function(){ step++; setTimeout(next,500); });
@@ -1969,7 +2018,7 @@ function askDongPick(j, patch){
     var label=document.createElement('label');label.style.cssText='display:flex;gap:9px;align-items:center;cursor:pointer';
     var check=document.createElement('input');check.type='checkbox';check.style.cssText='appearance:auto;position:static;width:17px;height:17px';
     var title=document.createElement('b');title.textContent=g.dong;label.append(check,title);row.append(label);
-    var info=document.createElement('p');info.style.cssText='margin:8px 0;font-size:12px;color:#637b8c';info.textContent=[g.use||'용도 미상','지상 '+g.floor_a+' / 지하 '+g.floor_b+'층',g.area?Number(g.area).toLocaleString()+'㎡':'면적 미상'].join(' · ');row.append(info);
+    var info=document.createElement('p');info.style.cssText='margin:8px 0;font-size:12px;color:#637b8c';info.textContent=[g.use||'용도 미상','지상 '+g.floor_a+' / 지하 '+g.floor_b+'층',g.area?Number(g.area).toLocaleString()+'㎡':'면적 미상',g.floor_info&&g.floor_info.status==='ready'?'층별 면적 조회됨':'층별 자료 없음'].join(' · ');row.append(info);
     var base=document.createElement('div');base.style.cssText='margin-top:8px';
     var badge=document.createElement('span');badge.textContent='✓ 기준동 · 기본정보에 표시';badge.style.cssText='color:#218b80;font-size:12px;font-weight:700';
     var change=document.createElement('button');change.type='button';change.textContent='기준동으로 변경';change.style.cssText='border:1px solid #cbdcd8;border-radius:7px;background:white;color:#36786d;padding:6px 10px;font-size:12px;cursor:pointer';
@@ -2013,8 +2062,8 @@ function finish(){
       ['소방안전관리자', (SAVED.mgrs&&SAVED.mgrs[0]) ? SAVED.mgrs[0].name : ''],
       ['대표자', SAVED.rep], ['전화번호', SAVED.tel]
     ];
-    rows.push(['집결지',mapPointValid(SAVED.assembly_lat,SAVED.assembly_lng)?(SAVED.assembly_kind||'지도 지정')+' · 위치 저장 완료':(SAVED.assembly_kind?SAVED.assembly_kind+' · 이름만 저장':'미지정')]);
-    rows.push(['소방차 진입로',savedRoutePoints().length>=2?'경로 저장 완료 · '+savedRoutePoints().length+'개 지점':'미지정']);
+    rows.push(['집결지 · 유저 설정',mapPointValid(SAVED.assembly_lat,SAVED.assembly_lng)?(SAVED.assembly_kind||'지도 지정')+' · 위치 저장 완료':(SAVED.assembly_kind?SAVED.assembly_kind+' · 이름만 저장':'미지정')]);
+    rows.push(['소방차 진입로 · 유저 설정',savedRoutePoints().length>=2?'경로 저장 완료 · '+savedRoutePoints().length+'개 지점':'미지정']);
     if (SAVED.fire_engine_route_note) rows.push(['진입로 특이사항', SAVED.fire_engine_route_note]);
     var html='<h2>건물 기본정보</h2>';
     rows.forEach(function(r){
@@ -2022,7 +2071,7 @@ function finish(){
       html += '<div class="sum"><span class="sum__k">'+esc(r[0])+'</span>'+
               '<span class="sum__v'+(v?'':' none')+'">'+esc(v||'아직 비어 있음')+'</span></div>';
     });
-    html += '<div class="doneRow"><a class="btn btn--pri" href="/manager_addresses.php">사전 등록 저장 완료 · 목록으로 →</a></div>';
+    html += '<div class="doneRow"><a class="btn btn--pri" href="'+<?=json_encode(defined('PARTNER_DEMO_RUNTIME')?'/partner_walkthrough.php?id='.rawurlencode(MD_ID).(!empty($_GET['autoplay'])?'&autoplay=1':''):'/manager_addresses.php')?>+'">사전 등록 저장 완료 · 목록으로 →</a></div>';
     d.innerHTML=html;
     chat.appendChild(d); down();
   });
@@ -2043,5 +2092,6 @@ if(window.visualViewport)window.visualViewport.addEventListener('resize',functio
 start();
 </script>
 
+<?php if(defined('PARTNER_DEMO_RUNTIME')): ?><script src="/partner_tour_config.js?v=20261018-large-map-1"></script><script src="/partner_walkthrough_player.js?v=20261018-large-map-1"></script><?php endif; ?>
 </body>
 </html>

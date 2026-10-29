@@ -1,0 +1,38 @@
+.fp-training-records{margin:16px 12px!important}
+.fp-training-records>h3{font-size:14px;color:#17345f;margin-bottom:6px;break-after:avoid}
+.fp-training-caption,.fp-training-empty{font-size:11px;color:#667085;margin:8px 0}
+.fp-training-empty{padding:9px 11px;background:#f4f7fb;border:1px solid #d9e2ee;border-radius:7px}
+.fp-training-form{margin:16px 0;border-top:1px solid #cbd5e1;padding-top:12px;color:#111;overflow-x:auto}
+.fp-training-form-label{font-size:10px;color:#667085;margin-bottom:10px}
+.fp-training-form .sheet{padding:8px 0;background:white;min-width:560px}
+.fp-training-form table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px}
+.fp-training-form th,.fp-training-form td{border:1px solid #555;padding:3px 5px;vertical-align:middle;word-break:break-all;line-height:1.5}
+.fp-training-form th,.fp-training-form .lb,.fp-training-form .lb2,.fp-training-form .sub,.fp-training-form .pcap{background:#f2f4f8;font-weight:700;text-align:center}
+.fp-training-form .lb{width:80px}.fp-training-form .c{text-align:center}
+.fp-training-form .law,.fp-training-form .formno{font-size:10px;margin-bottom:5px}
+.fp-training-form .title{text-align:center;font-size:17px;font-weight:800;letter-spacing:1px;margin:5px 0 8px;line-height:1.5}
+.fp-training-form .guide{display:flex;justify-content:space-between;font-size:10px;margin-bottom:5px}
+.fp-training-form .note{text-align:right;font-size:10px;margin-bottom:6px}
+.fp-training-form .form-section-title{font-size:12px;font-weight:800;background:#333;color:#fff;padding:3px 8px;margin-top:12px}
+.fp-training-form .secline{margin-top:9px}.fp-training-form .big{height:45px;vertical-align:top}.fp-training-form .big2{height:70px;vertical-align:top}
+.fp-training-form .tri{height:88px;vertical-align:top}.fp-training-form .big td{height:40px;vertical-align:top}
+.fp-training-form .foot{text-align:center;font-size:9px;margin-top:8px}
+.fp-training-form .e{display:inline-block;min-height:13px}
+.fp-training-form .pcell{height:150px;text-align:center;padding:4px;width:50%}
+.fp-training-form .pcell img{max-width:100%;max-height:145px;object-fit:contain}
+.fp-training-form .pbreak{margin-top:20px}.fp-training-form .form-image-warning{font-size:11px;color:#b45309}
+@media print{
+ .fp-training-records{margin:3mm!important;overflow:visible!important}
+ .fp-training-form{overflow:visible;border:0;padding:0;break-before:page;page-break-before:always}
+ .fp-training-form .sheet{min-width:0;max-width:none;padding:0;margin:0;overflow:visible}
+ .fp-training-form .pbreak{break-before:page;page-break-before:always;margin-top:0}
+ .fp-training-form table{width:calc(100% - 1px);margin-right:1px;font-size:9px}
+ .fp-training-form th,.fp-training-form td{padding:2px 4px;font-size:9px}
+ .fp-training-form tr{break-inside:avoid;page-break-inside:avoid}
+ .fp-training-form .title{font-size:15px}
+ .fp-training-form .form-section-title{margin-top:8px;break-after:avoid;page-break-after:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ .fp-training-form .pcell{height:160px}.fp-training-form .pcell img{max-height:155px}
+ .fp-training-form .fp-training-form-label{margin-bottom:2mm;font-size:8px}
+ .fp-training-form .guide,.fp-training-form .law,.fp-training-form .formno{font-size:9px}
+ .fp-training-form .sheet.pbreak col{width:auto!important}
+}

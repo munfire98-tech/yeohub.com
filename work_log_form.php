@@ -1,16 +1,20 @@
 <?php
 // work_log_form.php — 특정 월의 업무 수행 기록표 작성/수정 + 인쇄(PDF)
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 /* 관리자가 이 회원 화면을 대리로 볼 때 위에 알림 띠를 붙입니다 */
 
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 @include_once __DIR__ . '/_imp.php';
 
-if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
+// 월별 기록과 저장 시각은 서버 기본값과 관계없이 한국 시간을 사용합니다.
+date_default_timezone_set('Asia/Seoul');
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -21,7 +25,7 @@ function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']
 
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && $role !== 'building') { header('Location: /partner_center.php'); exit; }
 
 require_once __DIR__ . '/user_key.php';
 $uidKey = app_user_key();
@@ -37,8 +41,10 @@ function load_json(string $f): array {
 }
 function save_json(string $f, array $arr): bool {
   if (!is_dir(dirname($f))) @mkdir(dirname($f), 0775, true);
-  $tmp=$f.'.tmp'; file_put_contents($tmp, json_encode($arr, JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT));
-  return @rename($tmp,$f);
+  $json=json_encode($arr,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+  if($json===false)return false;
+  $tmp=tempnam(dirname($f),'.worklog-');if($tmp===false)return false;
+  try{return file_put_contents($tmp,$json,LOCK_EX)===strlen($json)&&rename($tmp,$f);}finally{if(is_file($tmp))unlink($tmp);} 
 }
 
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
@@ -68,6 +74,7 @@ $rec   = load_json($REC_FILE);
 $saved = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_rec') {
   if (!hash_equals($CSRF, $_POST['csrf'] ?? '')) { http_response_code(403); exit('CSRF'); }
+  $previousRecord=$rec;
   $items = ['sobang','pinan','hwagi','etc'];
   $rec = [
     'date'      => trim($_POST['date'] ?? ''),
@@ -98,8 +105,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     }
   }
 
-  save_json($REC_FILE, $rec);
+  require_once __DIR__.'/manager_common.php';
+  $rewardUid=app_user_key();
+  $rec['_reward_submissions']=(array)($previousRecord['_reward_submissions']??[]);
+  if(mg_uid()===$rewardUid&&empty($_SESSION['_mge_actor'])&&!is_admin()){
+    try{$rec['_reward_submissions']=mr_worklog_stamp($rewardUid,$month,$rec,$previousRecord);}
+    catch(Throwable $e){error_log('Worklog reward eligibility check failed');http_response_code(503);exit('기록 저장을 준비하지 못했습니다. 잠시 후 다시 저장해 주세요.');}
+  }
+  if(!save_json($REC_FILE,$rec)){http_response_code(503);exit('기록을 저장하지 못했습니다. 잠시 후 다시 저장해 주세요.');}
   $saved = true;
+  session_write_close();
+  try{mr_reconcile($rewardUid);}catch(Throwable $e){error_log('Worklog saved; reward reconciliation pending');}
 
   /* 저장이 끝나면 목록(work_log.php)으로 보냅니다.
      새로고침으로 같은 내용이 다시 저장되는 것도 함께 막아줍니다.
@@ -579,7 +595,7 @@ textarea.cell{min-height:64px}
 
 <div class="page-actions no-print" role="navigation" aria-label="업무 수행 기록 작업">
   <div class="page-actions__inner">
-    <a class="btn btn--home" href="<?=h($url('/building_manager.php'))?>" target="_top">🏠 메인으로</a>
+    <a class="btn btn--home" href="<?=h($url('/FireDesk.php'))?>" target="_top">🏠 메인으로</a>
     <a class="btn" href="<?=h($url('/work_log.php'))?>">목록으로</a>
     <button class="btn btn--primary js-save-btn" type="button" onclick="document.getElementById('recform').requestSubmit()">저장하기</button>
     <button class="btn btn--print" type="button" onclick="window.print()">🖨 PDF / 인쇄</button>

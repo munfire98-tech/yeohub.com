@@ -1,0 +1,84 @@
+/* The building heading leads to a saved annual document; task 8 remains the editor. */
+.building-board__head.building-board__head--book{display:grid;grid-template-columns:minmax(0,1fr) 202px;gap:26px;align-items:center;padding-bottom:22px}
+.building-board__head--book .building-board__head-copy{min-width:0}
+.building-board__head--book .building-plan-membership{margin-top:12px}
+.building-board__head--book .building-plan-membership .plan-link{width:auto;max-width:100%;min-width:0;min-height:0;padding:5px 10px;border-radius:8px;box-shadow:none}
+.building-plan-membership .plan-link__label{font-size:11px!important;gap:7px;line-height:1.5}
+.building-plan-membership .plan-link__hint{display:none}
+.building-plan-membership .plan-link::before{display:none}
+.building-plan-book{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:0;padding:17px 20px 14px 24px;border:1px solid #b9d1f4;border-radius:5px 18px 18px 5px;background:linear-gradient(115deg,#eff6ff,#fff 82%);box-shadow:0 5px 0 -2px #dbe8fb,0 7px 0 -3px #bfd3ef,0 9px 22px #1d4ed812;color:#193c70;text-decoration:none;transition:transform .18s,box-shadow .18s}
+.building-plan-book::before{position:absolute;inset:0 auto 0 0;width:7px;border-right:1px solid #fff8;border-radius:4px 0 0 4px;background:#2f6ddd;content:""}
+.building-plan-book::after{position:absolute;top:0;right:0;width:25px;height:25px;border-radius:0 17px 0 7px;background:linear-gradient(45deg,#cfdef6 50%,#eaf2ff 50%);content:""}
+.building-plan-book:hover{transform:translateY(-2px);box-shadow:0 5px 0 -2px #dbe8fb,0 7px 0 -3px #bfd3ef,0 12px 26px #1d4ed821}
+.building-plan-book__open:focus-visible,.building-plan-book__years button:focus-visible{outline:3px solid #5595f5;outline-offset:3px}
+.building-plan-book__top{display:flex;align-items:center;gap:6px;padding-right:12px;color:#54729d;font-size:11px;font-weight:650}
+.building-plan-book__title{font-size:20px;font-weight:850;letter-spacing:-.6px;line-height:1.3;white-space:nowrap}
+.building-plan-book__meta{display:flex;flex-wrap:wrap;gap:5px 7px;align-items:center;font-size:11px;color:#557397}
+.building-plan-book__years{display:grid;grid-template-columns:30px minmax(0,1fr) 30px;gap:4px;align-items:center;width:100%;margin-top:3px}
+.building-plan-book__years button{display:grid;place-items:center;width:30px;height:32px;padding:0;border:1px solid #cbdcf4;border-radius:8px;background:#fff;color:#396fb6;cursor:pointer;box-shadow:0 1px 3px #24528d0a}
+.building-plan-book__years button:hover:not(:disabled){background:#e4efff;border-color:#97b8e7}
+.building-plan-book__years button:disabled{opacity:.35;cursor:default;box-shadow:none}
+.building-plan-book__year{font-size:14px;font-weight:800;color:#2f5f9f;text-align:center;white-space:nowrap}
+.building-plan-book__meta{width:100%;justify-content:center;min-height:19px}
+.building-plan-book__announce{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+/* Reserve horizontal gestures for years; vertical scrolling and pinch zoom remain native. */
+.building-plan-book[data-book-card]{touch-action:pan-y pinch-zoom}
+.building-plan-book.is-book-swiping{user-select:none;-webkit-user-select:none}
+@media(hover:hover) and (pointer:fine){
+ .building-plan-book[data-book-card] .planhome-document{cursor:grab}
+ .building-plan-book.is-book-swiping .planhome-document,.building-plan-book.is-book-swiping .planhome-paper{cursor:grabbing}
+}
+.building-plan-book__state{padding:2px 6px;background:#e5edfa;border-radius:5px;font-size:10px;line-height:1.5}
+.building-plan-book__state.is-reviewed{background:#dbeafe;color:#1d4ed8}
+.building-plan-book__open{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:31px;margin-top:1px;padding-top:9px;border-top:1px solid #d7e4f6;color:#225ab2;font-size:11px;font-weight:750;text-decoration:none;border-radius:0 0 5px 5px}
+.building-plan-book__open span{font-size:16px;line-height:1}
+/* Private reader toolbar; scoped so the public shared document stays unchanged. */
+.fp-bookbar,.fp-bookbar *,.fp-book-empty,.fp-book-empty *{box-sizing:border-box}
+.fp-bookbar{position:sticky;top:0;z-index:15;padding:13px 22px;background:#fff;border-bottom:1px solid #dbe5f2;color:#1c3557;font-family:Pretendard,system-ui,sans-serif;line-height:1.5}
+.fp-bookbar__row{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:880px;margin:0 auto}
+.fp-bookbar__row--actions{margin-top:10px;padding-top:10px;border-top:1px solid #edf1f7}
+.fp-book-years{display:flex;align-items:center;gap:5px;min-width:0}
+.fp-book-year-list{display:flex;gap:4px;max-width:430px;min-width:0;overflow-x:auto;scrollbar-width:thin}
+.fp-book-year{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;padding:8px 11px;color:#718199;border-radius:9px;text-decoration:none;font-size:13px;font-weight:650;white-space:nowrap}
+.fp-book-year.is-current{background:#eaf2ff;color:#225fce;font-weight:800}
+.fp-book-year small{font-size:10px;font-weight:650}
+.fp-book-year-arrow{display:grid;place-items:center;flex:0 0 28px;height:34px;border:1px solid #e2e9f2;border-radius:8px;text-decoration:none;font-size:24px;font-weight:400;color:#5678a5;line-height:1}
+span.fp-book-year-arrow{color:#cdd5e0;background:#f9fafc}
+.fp-book-status{flex-shrink:0;padding:4px 8px;border-radius:7px;background:#f1f4f8;color:#65758d;font-size:11px;font-weight:700;white-space:nowrap}
+.fp-book-status.is-reviewed{color:#245dba;background:#eaf2ff}
+.fp-book-saved{margin:0;color:#78879b;font-size:11px}
+.fp-book-actions{display:flex;gap:7px;flex-shrink:0}
+.fp-book-action{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border:1px solid #cedbee;border-radius:9px;background:#fff;color:#315f9c;font:700 12px/1.5 system-ui,sans-serif;text-decoration:none;cursor:pointer;white-space:nowrap}
+.fp-book-action.is-primary{border-color:#2968d9;background:#2968d9;color:white}
+.fp-book-action:hover,.fp-book-year:hover{filter:brightness(.96)}
+.fp-book-action:focus-visible,.fp-book-year:focus-visible,.fp-book-year-arrow:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+.fp-book-empty{margin:0;min-height:100vh;background:#f3f6fb;color:#1e3554;font-family:system-ui,sans-serif}
+.fp-book-empty__body{display:flex;flex-direction:column;align-items:center;justify-content:center;max-width:600px;margin:36px auto;padding:40px 20px;text-align:center}
+.fp-book-empty__icon{display:grid;place-items:center;width:62px;height:76px;margin-bottom:20px;border:1px solid #cbdcf6;border-radius:7px 18px 12px 7px;background:#eaf2ff;color:#5485d4;font-size:32px}
+.fp-book-empty__year{color:#5f80ac;font-size:13px;font-weight:700}
+.fp-book-empty h1{font-size:20px;margin:12px 0;word-break:keep-all}
+.fp-book-empty p{font-size:14px;color:#738299;line-height:1.8;margin:0 0 24px}
+@media(max-width:600px){
+ .building-board__head.building-board__head--book{grid-template-columns:minmax(0,1fr) 142px;gap:14px;align-items:center}
+ .building-plan-book{padding:13px 13px 11px 18px;gap:6px}
+ .building-plan-book__top{font-size:10px;gap:4px}.building-plan-book__top svg{width:14px;height:14px}
+ .building-plan-book__title{font-size:17px}.building-plan-book__meta{font-size:10px;gap:4px}
+ .building-plan-book__years{grid-template-columns:24px minmax(0,1fr) 24px;gap:3px}.building-plan-book__years button{width:24px;height:32px;border-radius:7px}.building-plan-book__year{font-size:12px}
+ .building-plan-book__state{padding:1px 4px;font-size:9px}.building-plan-book__open{font-size:10px;padding-top:8px}
+ .fp-bookbar{padding:10px 12px}.fp-bookbar__row{gap:6px}.fp-book-year{padding:7px 8px;font-size:12px}.fp-book-year small{display:none}
+ .fp-book-year-arrow{flex-basis:24px;height:32px}.fp-book-status{font-size:10px;padding:4px 6px}
+ .fp-bookbar__row--actions{flex-wrap:wrap;gap:7px}.fp-book-saved{width:100%;font-size:10px}.fp-book-actions{width:100%}.fp-book-actions .fp-book-action{flex:1;padding:8px 7px}
+}
+@media(max-width:360px){
+ .building-board__head.building-board__head--book{grid-template-columns:minmax(0,1fr) 126px;gap:10px}
+ .building-plan-book{padding-left:16px;padding-right:10px}.building-plan-book__title{font-size:15px}
+ .building-board__head--book h1{font-size:18px!important}
+ .fp-bookbar{padding:9px 10px}.fp-book-years{gap:3px}.fp-book-year-list{gap:1px}.fp-book-year{padding:7px 5px;font-size:11px}
+ .fp-embedded .fps-content{padding:13px 14px 18px}
+ .fp-embedded .fps-years{gap:3px}.fp-embedded .fps-years button{min-width:58px;padding:7px 4px}.fp-embedded .fps-years strong{font-size:14px}
+ .fp-embedded .fps-preview{flex-direction:column;text-align:center;gap:10px}.fp-embedded .fps-plan{width:100%}
+ .fp-embedded .fps-plan h3{margin:6px 0 3px}.fp-embedded .fps-updated{margin-top:4px}
+ .fp-embedded .fps-actions{flex-direction:column}.fp-embedded .fps-link-row{flex-wrap:wrap}.fp-embedded .fps-link-row input{flex-basis:100%}
+}
+@media(prefers-reduced-motion:reduce){.building-plan-book{transition:none}.building-plan-book:hover{transform:none}}
+@media print{.fp-bookbar,.fps-dialog{display:none!important}}

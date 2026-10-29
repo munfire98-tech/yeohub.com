@@ -8,7 +8,7 @@ $faqs=json_decode(<<<'FAQ_JSON'
   [
     "시작하기",
     "어떤 서비스인가요?",
-    "건물관리자와 매니저가 소방안전 업무 기록을 함께 작성하고 관리하는 서비스입니다. 건물정보를 바탕으로 소방계획서, 편성표, 교육·훈련 및 매월 업무 기록을 작성하고 필요한 서식을 출력할 수 있습니다."
+    "건물관리자와 파트너가 소방안전 업무 기록을 함께 작성하고 관리하는 서비스입니다. 건물정보를 바탕으로 소방계획서, 편성표, 교육·훈련 및 매월 업무 기록을 작성하고 필요한 서식을 출력할 수 있습니다."
   ],
   [
     "시작하기",
@@ -51,39 +51,39 @@ $faqs=json_decode(<<<'FAQ_JSON'
     "인쇄 기능이 제공되는 업무 화면에서 인쇄 또는 PDF 버튼을 이용할 수 있습니다. 브라우저 인쇄창에서 PDF 저장을 선택할 수도 있습니다. 전체 인쇄 등 제공 범위는 현재 이용 중인 상품 안내를 확인해 주세요."
   ],
   [
-    "매니저 연결",
-    "담당 매니저는 어떻게 연결하나요?",
-    "건물관리 화면의 담당 매니저 카드에서 전달받은 매니저 코드를 입력하고 정보 공유에 동의한 뒤 연결을 요청하세요. 매니저가 수락하면 연결이 완료됩니다."
+    "파트너 연결",
+    "연결 업체는 어떻게 연결하나요?",
+    "건물관리 화면의 연결 업체 카드에서 전달받은 파트너 코드를 입력하고 정보 공유에 동의한 뒤 연결을 요청하세요. 파트너가 수락하면 연결이 완료됩니다."
   ],
   [
-    "매니저 연결",
-    "담당 매니저가 없으면 어떻게 하나요?",
-    "담당 매니저 카드 아래의 로컬매니저 연결을 눌러 안내를 확인하고 요청할 수 있습니다. 지정된 로컬매니저가 수락해야 연결되며, 즉시 연결되거나 지역별 매니저가 자동 배정되는 방식은 아닙니다."
+    "파트너 연결",
+    "연결 업체가 없으면 어떻게 하나요?",
+    "연결 업체 카드 아래의 로컬 파트너 연결을 눌러 안내를 확인하고 요청할 수 있습니다. 지정된 로컬 파트너가 수락해야 연결되며, 즉시 연결되거나 지역별 파트너가 자동 배정되는 방식은 아닙니다."
   ],
   [
-    "매니저 연결",
-    "연결된 매니저는 무엇을 할 수 있나요?",
-    "담당 유저의 건물정보와 업무 진행 현황을 확인하고, 제공된 기능 범위에서 유저와 같은 건물관리 화면으로 기록을 작성·수정할 수 있습니다. 연결할 매니저와 공유되는 정보 범위를 확인해 주세요."
+    "파트너 연결",
+    "연결된 업체는 무엇을 할 수 있나요?",
+    "담당 유저의 건물정보와 업무 진행 현황을 확인하고, 제공된 기능 범위에서 유저와 같은 건물관리 화면으로 기록을 작성·수정할 수 있습니다. 연결할 파트너와 공유되는 정보 범위를 확인해 주세요."
   ],
   [
-    "매니저 연결",
-    "매니저 연결을 해제하거나 요청을 취소할 수 있나요?",
-    "담당 매니저 카드에서 요청 취소 또는 연결 해제를 할 수 있습니다. 연결 해제 후 매니저는 해당 건물 화면에 접근할 수 없으며, 해제·취소 사실은 매니저의 연결 알림에 표시됩니다."
+    "파트너 연결",
+    "파트너 연결을 해제하거나 요청을 취소할 수 있나요?",
+    "연결 업체 카드에서 요청 취소 또는 연결 해제를 할 수 있습니다. 연결 해제 후 파트너는 해당 건물 화면에 접근할 수 없으며, 해제·취소 사실은 파트너의 연결 알림에 표시됩니다."
   ],
   [
-    "매니저 연결",
-    "매니저는 연결 요청을 어디에서 확인하나요?",
-    "매니저 화면의 워크스페이스에서 연결 알림을 확인하세요. 수락 대기 요청이 위쪽에 표시되며 수락 또는 거절할 수 있습니다. 연결 해제·요청 취소 알림은 확인 완료를 누르면 목록에서 사라집니다."
+    "파트너 연결",
+    "파트너는 연결 요청을 어디에서 확인하나요?",
+    "파트너 화면의 워크스페이스에서 연결 알림을 확인하세요. 수락 대기 요청이 위쪽에 표시되며 수락 또는 거절할 수 있습니다. 연결 해제·요청 취소 알림은 확인 완료를 누르면 목록에서 사라집니다."
   ],
   [
     "구독",
     "PRO 구독료와 이용기간은 어떻게 되나요?",
-    "PRO 기본 요금은 연 69,000원입니다. 초기 프로모션 기간에 회원가입 후 사전등록 거래처 연결 또는 로컬 매니저 연결 수락을 완료한 프로모션 대상 고객은 구독을 유지하는 동안 매년 59,000원이 적용됩니다. 프로모션 종료 후에도 기존 가격 유지 고객에게 같은 요금을 적용합니다. 프로모션 기간 중에는 대상 고객이 구독 종료 후 다시 구독해도 연 59,000원이 적용됩니다. 프로모션 종료 후에도 구독을 계속 유지하면 할인 가격이 유지되며, 종료 후 구독이 끊긴 상태에서 다시 구독하면 당시 정상가가 적용됩니다. 프로모션 가입·연결 기간은 서비스 안내 페이지에 공지합니다. 결제 전 구독 페이지에서 최종 금액, 제공 기능과 이용기간을 확인해 주세요."
+    "PRO 기본 요금은 연 69,000원입니다. 초기 프로모션 기간에 회원가입 후 사전등록 거래처 연결 또는 로컬 파트너 연결 수락을 완료한 프로모션 대상 고객은 구독을 유지하는 동안 매년 59,000원이 적용됩니다. 프로모션 종료 후에도 기존 가격 유지 고객에게 같은 요금을 적용합니다. 프로모션 기간 중에는 대상 고객이 구독 종료 후 다시 구독해도 연 59,000원이 적용됩니다. 프로모션 종료 후에도 구독을 계속 유지하면 할인 가격이 유지되며, 종료 후 구독이 끊긴 상태에서 다시 구독하면 당시 정상가가 적용됩니다. 프로모션 가입·연결 기간은 서비스 안내 페이지에 공지합니다. 결제 전 구독 페이지에서 최종 금액, 제공 기능과 이용기간을 확인해 주세요."
   ],
   [
-    "매니저 연결",
-    "매니저 리워드는 무엇인가요?",
-    "담당 유저의 업무 기록이 사전에 안내된 작성·관리 기준을 충족하고 완료 요건이 확인되었을 때 매니저에게 지급하는 보상입니다. 기록 작성과 관리를 지원한 활동을 보상하는 제도이며, 현장 점검 완료나 건물의 안전을 인증하는 의미는 아닙니다. 기록 완료 기준에 따른 지급 정책은 적용 시점과 세부 기준을 별도로 안내한 후 시행합니다."
+    "파트너 연결",
+    "파트너 리워드는 무엇인가요?",
+    "담당 유저의 업무 기록이 사전에 안내된 작성·관리 기준을 충족하고 완료 요건이 확인되었을 때 파트너에게 지급하는 보상입니다. 기록 작성과 관리를 지원한 활동을 보상하는 제도이며, 현장 점검 완료나 건물의 안전을 인증하는 의미는 아닙니다. 기록 완료 기준에 따른 지급 정책은 적용 시점과 세부 기준을 별도로 안내한 후 시행합니다."
   ],
   [
     "구독",
@@ -114,8 +114,8 @@ $faqGroups=array_values(array_unique(array_column($faqs,0)));
 .faq-page{max-width:1000px;margin:0 auto;padding:38px 24px 20px}.faq-head{margin-bottom:26px}.faq-kicker{font-size:11px;color:var(--accent,#1687aa);letter-spacing:.1em;font-weight:750}.faq-head h1{font-size:32px;letter-spacing:-1px;margin:8px 0 10px;line-height:1.4}.faq-head p{font-size:14px;color:#7a879a;margin:0;line-height:1.8}.faq-search{display:block;width:100%;max-width:540px;border:1px solid #dce5ef;border-radius:12px;padding:14px 16px;margin:22px 0 18px;background:#fff;color:#263b54;font:inherit;font-size:14px;box-sizing:border-box}.faq-filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px}.faq-filter{border:1px solid #e1e8f1;padding:8px 14px;border-radius:30px;background:white;color:#728198;font:inherit;font-size:12px;cursor:pointer}.faq-filter[aria-pressed="true"]{background:#263e5b;border-color:#263e5b;color:#fff}.faq-page :focus-visible{outline:3px solid #97c1db;outline-offset:3px}.faq-group{margin-bottom:26px}.faq-group h2{font-size:14px;font-weight:750;color:#61748d;margin:0 0 10px}.faq-item{border:1px solid #e4eaf2;border-radius:12px;background:#fff;margin-bottom:8px;overflow:hidden}.faq-item summary{display:flex;align-items:center;gap:12px;list-style:none;cursor:pointer;padding:17px 19px;font-size:14px;font-weight:650;color:#2e415b;line-height:1.65}.faq-item summary::-webkit-details-marker{display:none}.faq-item summary::marker{content:''}.faq-item summary::before{content:'Q';color:#6987a7;font-size:13px;flex-shrink:0}.faq-item summary::after{content:'+';margin-left:auto;font-size:20px;font-weight:400;color:#8a9bb0}.faq-item[open]{border-color:#b9cee0}.faq-item[open] summary{background:#f7fafd}.faq-item[open] summary::after{content:'−'}.faq-answer{padding:0 19px 19px 42px;margin:0;color:#6c7e95;font-size:13px;line-height:1.95;word-break:keep-all;overflow-wrap:anywhere}.faq-item[open] .faq-answer{padding-top:14px}.faq-contact{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 24px;margin-top:32px;border-radius:14px;background:#edf3f9}.faq-contact strong{font-size:14px;color:#314b69}.faq-contact p{font-size:12px;color:#8091a7;line-height:1.7;margin:6px 0 0}.faq-contact a{white-space:nowrap;background:#fff;border:1px solid #d4e0ed;border-radius:9px;padding:10px 14px;color:#3e6087;text-decoration:none;font-size:13px;font-weight:650}.faq-links{display:flex;gap:16px;flex-wrap:wrap;margin:18px 0;color:#8291a5;font-size:12px}.faq-links a{color:inherit;text-decoration:none}.faq-empty{text-align:center;padding:35px 10px;color:#7e8c9f}.faq-page [hidden]{display:none!important}@media(max-width:600px){.faq-page{padding:28px 18px 12px}.faq-head h1{font-size:27px}.faq-item summary{padding:15px;font-size:13px}.faq-answer{padding-left:36px;padding-right:15px}.faq-contact{align-items:flex-start;flex-direction:column;padding:20px}.faq-filters{gap:6px}.faq-filter{padding:7px 11px}}@media print{.faq-controls,.faq-contact{display:none}.faq-item .faq-answer{display:block!important}.faq-item{break-inside:avoid}}
 </style>
 <main class="faq-page">
-<header class="faq-head"><span class="faq-kicker">HELP CENTER</span><h1>자주 묻는 질문</h1><p>기록 작성부터 매니저 연결까지,<br>소방계획서.com 이용에 필요한 내용을 확인하세요.</p></header>
-<div class="faq-controls" hidden><input class="faq-search" type="search" id="faq-search" placeholder="궁금한 내용을 검색하세요. 예: 매니저, 시설, 구독" aria-label="자주 묻는 질문 검색"><div class="faq-filters" role="group" aria-label="질문 분류"><button class="faq-filter" type="button" data-category="" aria-pressed="true">전체</button><?php foreach($faqGroups as $group): ?><button class="faq-filter" type="button" data-category="<?=$faqEscape($group)?>" aria-pressed="false"><?=$faqEscape($group)?></button><?php endforeach; ?></div></div>
+<header class="faq-head"><span class="faq-kicker">HELP CENTER</span><h1>자주 묻는 질문</h1><p>기록 작성부터 파트너 연결까지,<br>소방계획서.com 이용에 필요한 내용을 확인하세요.</p></header>
+<div class="faq-controls" hidden><input class="faq-search" type="search" id="faq-search" placeholder="궁금한 내용을 검색하세요. 예: 파트너, 시설, 구독" aria-label="자주 묻는 질문 검색"><div class="faq-filters" role="group" aria-label="질문 분류"><button class="faq-filter" type="button" data-category="" aria-pressed="true">전체</button><?php foreach($faqGroups as $group): ?><button class="faq-filter" type="button" data-category="<?=$faqEscape($group)?>" aria-pressed="false"><?=$faqEscape($group)?></button><?php endforeach; ?></div></div>
 <?php foreach($faqGroups as $group): ?><section class="faq-group"><h2><?=$faqEscape($group)?></h2><?php foreach($faqs as [$category,$question,$answer]):if($category!==$group)continue; ?><details class="faq-item" data-category="<?=$faqEscape($category)?>"><summary><?=$faqEscape($question)?></summary><p class="faq-answer"><?=$faqEscape($answer)?></p></details><?php endforeach; ?></section><?php endforeach; ?>
 <p id="faq-empty" class="faq-empty" role="status" hidden>검색 결과가 없습니다. 다른 단어로 검색하거나 고객센터에 문의해 주세요.</p>
 <aside class="faq-contact"><div><strong>찾으시는 답변이 없나요?</strong><p>계정 아이디와 문의 내용을 준비해 주세요.<br>비밀번호나 API 키는 알려주지 마세요.</p></div><a href="tel:01057790918">고객센터 010-5779-0918</a></aside>

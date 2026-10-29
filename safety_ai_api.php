@@ -1,12 +1,15 @@
 <?php
 // safety_ai_api.php — 소방안전관리 AI 도우미 (조회·안내 전용)
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 
 if(session_status()!==PHP_SESSION_ACTIVE){
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) session_set_cookie_params(['httponly'=>true, 'samesite'=>'Lax']);
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)alp_session_start();
 }
 
 header('Content-Type: application/json; charset=utf-8');

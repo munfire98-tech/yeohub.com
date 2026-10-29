@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
+if(session_status()!==PHP_SESSION_ACTIVE)alp_session_start();
 require_once __DIR__.'/manager_common.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');
 $uid=mg_uid();$editing=!empty($_SESSION['_mge_actor']);session_write_close();

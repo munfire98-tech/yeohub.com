@@ -1,0 +1,41 @@
+/* Focused dialogs reuse the overview's protected import and final-review forms. */
+.fp-workspace{background:#f6f8fc;color:#23354f}
+.fp-workspace .fp-home{max-width:820px;padding:22px 24px 30px;margin:0 auto}
+.fp-workspace .fp-top,.fp-workspace .fp-year-switch,.fp-workspace .fp-year-guidance,
+.fp-workspace .fp-hero,.fp-workspace .fp-metrics,
+.fp-workspace #contents,.fp-workspace .fp-library,.fp-workspace .fp-danger,.fp-workspace .fp-footer{display:none}
+.fp-workspace[data-workspace="sources"] #review,.fp-workspace[data-workspace="review"] #sources{display:none}
+.fp-workspace-head>p{font-size:12px;color:#4e79b5;font-weight:650;margin:0 0 5px}
+.fp-workspace-head h1{margin:0;color:#223754;font-size:22px;line-height:1.5;letter-spacing:-.5px;overflow-wrap:anywhere}
+.fp-workspace-head nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:18px 0 24px}
+.fp-workspace-head nav a{display:flex;justify-content:center;align-items:center;gap:7px;min-width:0;padding:10px 8px;border:1px solid #e0e7f0;border-radius:9px;background:#fff;color:#7a8ca5;font-size:12px;font-weight:650;text-decoration:none}
+.fp-workspace-head nav a>span{display:grid;place-items:center;flex:none;width:20px;height:20px;border-radius:6px;background:#edf2f8;font-size:11px}
+.fp-workspace-head nav a.is-active{background:#edf4ff;border-color:#bbd1f4;color:#285da8}
+.fp-workspace-head nav a.is-active>span{background:#3775d8;color:#fff}
+.fp-workspace-head nav a:focus-visible{outline:2px solid #2563eb;outline-offset:3px}
+.fp-workspace .fp-panel,.fp-workspace .fp-finish,.fp-workspace-start{margin:0;padding:24px;border:1px solid #dce5f0;border-radius:13px;background:#fff;box-shadow:0 6px 22px #29456805}
+.fp-workspace .fp-section-head h2,.fp-workspace .fp-finish h2,.fp-workspace-start h2{font-size:20px;line-height:1.5;letter-spacing:-.4px}
+.fp-workspace .fp-section-head p,.fp-workspace .fp-finish p,.fp-workspace-start p{font-size:12px;line-height:1.7;word-break:keep-all}
+.fp-workspace .fp-source-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.fp-workspace .fp-source{padding:13px;min-height:98px}.fp-workspace .fp-source strong{font-size:13px}.fp-workspace .fp-source small{font-size:11px}
+.fp-workspace .fp-source-foot{gap:15px}.fp-workspace .fp-source-foot>p{font-size:11px}
+.fp-workspace .fp-detail{font-size:12px}.fp-workspace .fp-detail p{font-size:11px}
+.fp-workspace .fp-finish{display:block}.fp-workspace .fp-finish-icon{display:none}
+.fp-workspace .fp-finish .fp-eyebrow{margin-top:0}
+.fp-workspace .fp-finish .fp-actions{margin-top:18px}.fp-workspace-continue{margin-top:18px}
+.fp-workspace-start p{color:#778aa3;margin:10px 0 20px}
+.fp-workspace .fp-button{font-size:12px;min-height:44px;white-space:normal;text-align:center;word-break:keep-all}
+.fp-workspace .fp-confirm{margin-top:20px}.fp-workspace .fp-confirm label{font-size:13px;line-height:1.6}
+@media(max-width:540px){
+ .fp-workspace .fp-home{padding:16px 12px 24px}.fp-workspace-head h1{font-size:19px}
+ .fp-workspace-head nav{gap:5px;margin:15px 0 18px}.fp-workspace-head nav a{font-size:11px;padding:9px 4px;gap:4px}
+ .fp-workspace-head nav a>span{width:17px;height:19px;font-size:10px}
+ .fp-workspace .fp-panel,.fp-workspace .fp-finish,.fp-workspace-start{padding:17px 14px}
+ .fp-workspace .fp-source-grid{gap:7px}.fp-workspace .fp-source{padding:11px 8px;min-height:105px;gap:7px}
+ .fp-workspace .fp-section-head h2,.fp-workspace .fp-finish h2,.fp-workspace-start h2{font-size:18px}
+ .fp-workspace .fp-source-foot{align-items:stretch;flex-direction:column}.fp-workspace .fp-source-foot .fp-button{width:100%}
+ .fp-workspace .fp-finish .fp-actions{gap:8px}.fp-workspace .fp-confirm{align-items:stretch;flex-direction:column}
+}
+
+.fp-workspace .fp-overview-schedule{display:none!important}
+.fp-workspace-year-note{font-size:12px;color:#6d7f97;line-height:1.7;margin:0 0 16px;padding:12px 14px;border:1px solid #dde6f1;border-radius:9px;background:#eef3fa;word-break:keep-all}

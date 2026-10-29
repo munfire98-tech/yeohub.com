@@ -1,165 +1,171 @@
 <?php
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
-
 date_default_timezone_set('Asia/Seoul');
-if(session_status()!==PHP_SESSION_ACTIVE){
-ini_set('session.cookie_httponly','1');
-if(PHP_VERSION_ID>=70300)session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']);
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
-}
-
-function h(string $s):string{return htmlspecialchars($s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
+if(session_status()!==PHP_SESSION_ACTIVE)alp_session_start();
+function h($s):string{return htmlspecialchars((string)$s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
 function is_admin():bool{return !empty($_SESSION['is_admin'])||(!empty($_SESSION['ID_OK'])&&$_SESSION['ID_OK']==1);}
 if(!is_admin()&&empty($_SESSION['is_user'])){header('Location: /index.php');exit;}
-if(!is_admin()&&($_SESSION['role']??'')!=='building'){header('Location: /clients_mini.php');exit;}
-require_once __DIR__.'/fire_plan_db.php';
-if(fp_user_key()===''){http_response_code(403);exit('다시 로그인해 주세요.');}
-$context=[];
-if(($_GET['embed']??'')==='1')$context['embed']='1';
-if(is_admin()&&isset($_GET['uid'])&&is_string($_GET['uid']))$context['uid']=$_GET['uid'];
-$link=function(string $path,array $args=[])use($context):string{$q=array_merge($context,$args);return $path.($q?'?'.http_build_query($q):'');};
-$deleteError='';
-if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'&&($_POST['act']??'')==='delete'){
-  fp_csrf_check();
-  try{fp_delete_plan((string)($_POST['id']??''));header('Location: '.$link('/fire_plan.php',['deleted'=>'1']));exit;}
-  catch(RuntimeException $e){$deleteError=$e->getMessage();}
-}
+if(!is_admin()&&($_SESSION['role']??'')!=='building'){header('Location: /partner_center.php');exit;}
+require_once __DIR__.'/fire_plan_overview_common.php';
 require_once __DIR__.'/manager_fire_plan_help.php';
-$isHelpManager=!empty($_SESSION['_mge_actor']);
-$thisYear=(int)date('Y');
-$focusYear=filter_var($_GET['year']??$thisYear,FILTER_VALIDATE_INT,['options'=>['min_range'=>1901,'max_range'=>2199]]);
-if($focusYear===false)$focusYear=$thisYear;
-$plans=[];$byYear=[];
-foreach(fp_list_plans() as $row){
-  $full=fp_load_plan((string)($row['id']??''));if(!$full)continue;
-  $full['plan_year']=fp_plan_year($full);$plans[]=$full;$byYear[$full['plan_year']][]=$full;
+require_once __DIR__.'/fire_plan_schedule_common.php';
+if(fp_user_key()===''){http_response_code(403);exit('다시 로그인해 주세요.');}
+header('Cache-Control: private, no-store');
+$context=[];foreach(['embed','modal'] as $k)if(($_GET[$k]??'')==='1')$context[$k]='1';
+if(is_admin()&&is_string($_GET['uid']??null))$context['uid']=$_GET['uid'];
+$returnToBook=($_POST['return_book']??'')==='1';
+$workspace=is_string($_GET['workspace']??null)&&in_array($_GET['workspace'],['sources','review'],true)?$_GET['workspace']:'';
+$link=static function(string $path,array $args=[])use($context,$workspace):string{
+ if($workspace!==''&&$path==='/fire_plan.php'&&!array_key_exists('workspace',$args))$args['workspace']=$workspace;
+ if($workspace!==''&&$path==='/fire_plan_chat.php')$args['workflow']='1';
+ $q=array_merge($context,$args);return $path.($q?'?'.http_build_query($q):'');
+};
+$currentYear=(int)(new DateTimeImmutable('now',new DateTimeZone('Asia/Seoul')))->format('Y');
+$previousYear=$currentYear-1;
+$nextYear=$currentYear+1;
+$year=filter_var($_GET['year']??$currentYear,FILTER_VALIDATE_INT,['options'=>['min_range'=>1900,'max_range'=>2200]]);
+if($year===false)$year=$currentYear;
+$error='';$plans=[];
+foreach(fp_list_plans() as $row){$p=fp_load_plan((string)($row['id']??''));if($p)$plans[]=$p;}
+$id=is_string($_GET['id']??null)?$_GET['id']:'';
+$plan=$id!==''?fp_load_plan($id):null;
+if($id!==''&&!$plan){http_response_code(404);exit('계획서를 찾을 수 없습니다. 목록에서 다시 열어 주세요.');}
+if(!$plan)foreach($plans as $p)if(fp_plan_year($p)===$year){$plan=$p;$id=(string)$p['id'];break;}
+if($plan)$year=fp_plan_year($plan);
+if($plan&&empty($_GET['id'])&&($_SERVER['REQUEST_METHOD']??'GET')==='GET'){
+ $args=['id'=>$id,'year'=>$year];if(in_array($_GET['schedule_kind']??'',['fire','jawi'],true))$args['schedule_kind']=$_GET['schedule_kind'];if(isset($_GET['deleted']))$args['deleted']='1';
+ header('Location: '.$link('/fire_plan.php',$args));exit;
 }
+if($plan&&in_array($_GET['schedule_kind']??'',['fire','jawi'],true)&&($_SERVER['REQUEST_METHOD']??'GET')==='GET'){header('Location: '.$link('/fire_plan_schedule.php',['id'=>$id,'year'=>$year,'kind'=>$_GET['schedule_kind']]));exit;}
+$bi=bi_load();$evac=epc_load();$sources=[];
+try{$sources=fpo_sources($bi,$evac,$year);}catch(Throwable $e){$error='기존 자료를 읽지 못했습니다. 잠시 후 새로고침해 주세요. 저장된 계획서는 그대로 유지됩니다.';error_log('Fire plan sources: '.$e->getMessage());}
+if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
+ fp_csrf_check();
+ try{
+  $act=$_POST['act']??'';
+  if($act==='create'){
+   foreach($plans as $p)if(fp_plan_year($p)===$year){header('Location: '.($returnToBook?$link('/fire_plan_book.php',['year'=>$year]):$link('/fire_plan.php',['id'=>$p['id']])));exit;}
+   $id=fp_create_plan('business',$year);if(!fp_load_plan($id))throw new RuntimeException('계획서를 만들지 못했습니다. 다시 시도해 주세요.');
+   // Starting a plan includes the saved source records; later refreshes remain explicit.
+   if($sources){
+    $selected=array_keys(array_filter($sources['groups'],static fn($g)=>!empty($g['available'])));
+    if($selected){$created=fp_load_plan($id);fpo_save_import($id,fpo_sources($bi,$evac,$year,$selected),$selected,fpo_hash($created));}
+   }
+   if($returnToBook){header('Location: '.$link('/fire_plan_book.php',['year'=>$year]));exit;}
+   header('Location: '.($year>$currentYear&&$workspace===''?$link('/fire_plan_schedule.php',['id'=>$id,'year'=>$year,'kind'=>in_array($_GET['schedule_kind']??'',['fire','jawi'],true)?$_GET['schedule_kind']:'fire']):$link('/fire_plan.php',['id'=>$id,'created'=>'1']+($workspace!==''?['workspace'=>'sources']:[])).'#sources'));exit;
+  }
+  if(!$plan||!hash_equals(fpo_hash($plan),(string)($_POST['revision']??'')))throw new RuntimeException('계획서가 변경되었습니다. 새로고침 후 다시 확인해 주세요.');
+  if($act==='import'){
+   if(!$sources)throw new RuntimeException('자료를 읽지 못해 반영하지 않았습니다. 새로고침해 주세요.');
+   if(!hash_equals($sources['fingerprint'],(string)($_POST['source_revision']??'')))throw new RuntimeException('기존 자료가 변경되었습니다. 새로고침 후 반영할 내용을 다시 확인해 주세요.');
+   $selected=$_POST['sources']??[];if(!is_array($selected))throw new RuntimeException('반영할 자료를 선택해 주세요.');
+   foreach($selected as $key)if(!is_string($key)||!isset($sources['groups'][$key])||!$sources['groups'][$key]['available'])throw new RuntimeException('반영할 자료를 다시 확인해 주세요.');
+   $selected=array_values(array_unique($selected));
+   $chosen=fpo_sources($bi,$evac,$year,$selected);
+   fpo_save_import($id,$chosen,$selected,(string)$_POST['revision']);
+   if($returnToBook){header('Location: '.$link('/fire_plan_book.php',['year'=>$year,'saved'=>'1']));exit;}
+   if($workspace==='sources'){$afterImport=fpo_status(fp_load_plan($id)??[]);header('Location: '.$link('/fire_plan_chat.php',['id'=>$id,'year'=>$year,'section'=>(string)($afterImport['next']['code']??'1')]));exit;}
+   header('Location: '.$link('/fire_plan.php',['id'=>$id,'saved'=>'1']));exit;
+  }
+  if($act==='review'){
+   if(empty($_POST['confirmed'])||!fpo_status($plan)['complete'])throw new RuntimeException('남은 항목을 작성하고 내용 확인에 체크해 주세요.');
+   $expected=(string)$_POST['revision'];
+   $ok=mfp_save(fp_user_key(),$id,'0',[],static function()use($id,$expected):bool {
+    $current=fp_load_plan($id);
+    if(!$current||!hash_equals(fpo_hash($current),$expected))throw new RuntimeException('계획서가 변경되었습니다. 새로고침 후 다시 확인해 주세요.');
+    if(!fpo_status($current)['complete'])throw new RuntimeException('남은 항목을 먼저 확인해 주세요.');
+    $current['final_review']=['hash'=>fpo_content_hash($current),'at'=>date('Y-m-d H:i:s')];$current['status']='done';$current['updated_at']=date('Y-m-d H:i:s');
+    if(!fp_write_json(fp_plan_file($id),$current))return false;fp_touch_index($id,$current);return true;
+   });
+   if(!$ok)throw new RuntimeException('확인 상태를 저장하지 못했습니다. 다시 시도해 주세요.');
+   header('Location: '.($returnToBook?$link('/fire_plan_book.php',['year'=>$year,'reviewed'=>'1']):$link('/fire_plan.php',['id'=>$id,'reviewed'=>'1'])));exit;
+  }
+  if($act==='delete'){fp_delete_plan($id);header('Location: '.$link('/fire_plan.php',['year'=>$year,'deleted'=>'1']));exit;}
+  throw new RuntimeException('지원하지 않는 요청입니다.');
+ }catch(RuntimeException $e){$error=$e->getMessage();if($returnToBook){$_SESSION['fp_book_error'][fp_user_key().':'.$year]=$error;header('Location: '.$link('/fire_plan_book.php',['year'=>$year]));exit;}}
+}
+$yearPlans=[];
+foreach($plans as $savedPlan){$savedYear=fp_plan_year($savedPlan);if(!isset($yearPlans[$savedYear]))$yearPlans[$savedYear]=$savedPlan;}
+if($plan)$yearPlans[$year]=$plan;
+$yearStatus=static function(int $target)use($yearPlans,$currentYear):string {
+ if(!isset($yearPlans[$target]))return $target<$currentYear?'보관본 없음':'작성 전';
+ $progress=fpo_status($yearPlans[$target]);
+ return $progress['reviewed']?'최종 확인 완료':($progress['complete']?'내용 확인 필요':$progress['percent'].'% 작성');
+};
+$yearLabel=$year===$currentYear?'올해 계획':($year===$nextYear?'차기년도 준비':($plan?'보관된 계획':'지난 연도 계획'));
+$workingYears=[$previousYear=>'지난해 보관',$currentYear=>'올해 계획',$nextYear=>'차기 계획'];
+$navigationYears=array_unique(array_merge(array_keys($yearPlans),array_keys($workingYears)));sort($navigationYears,SORT_NUMERIC);
+$previousTarget=null;$nextTarget=null;
+foreach($navigationYears as $target){if($target<$year)$previousTarget=$target;elseif($target>$year&&$nextTarget===null)$nextTarget=$target;}
+$yearLinkLabel=static fn(int $target):string=>$target.'년 '.($target===$currentYear?'올해 계획':($target===$nextYear?'차기년도 계획':'지난 계획')).' 보기';
+$state=fpo_status($plan??[]);$name=(string)($plan['sections']['1']['data']['name']??$bi['name']??'내 건물');
+if(trim($name)==='')$name='내 건물';
+$address=(string)($plan['sections']['1']['data']['addr']??$bi['address']??'');
+$groups=$sources['groups']??[];$savedGroups=(array)($plan['source_bundle']['groups']??[]);
+$selection=!empty($plan['source_selection_set'])?(array)($plan['source_selection']??[]):array_keys(array_filter($groups,static fn($g)=>$g['available']));
+$changed=[];foreach($savedGroups as $key=>$g)if(isset($groups[$key])&&($g['fingerprint']??'')!==$groups[$key]['fingerprint'])$changed[]=$g['title'];
+$helpRequests=$plan&&!empty($_SESSION['_mge_actor'])?mfp_pending(fp_user_key(),$id):[];
+$short=['1'=>'건물 기본현황','2'=>'소방시설 현황','3'=>'자체점검 계획','4'=>'점검·정비 계획','5'=>'피난계획','6'=>'방화구획·방염 관리','7'=>'권원별 안전관리','8'=>'공동관리 협의','9'=>'자위소방대 조직·임무','10'=>'화기작업 안전관리','11'=>'소방훈련·교육 계획','12'=>'위험물 관리','13'=>'업무수행 기록 관리','14'=>'화재 초기대응','15'=>'추가 요청사항'];
+$schema=fp_chat_schema();
+$chatArgs=['id'=>$id,'year'=>$year];if($state['next'])$chatArgs['section']=$state['next']['code'];
+$hidden=static function()use($plan,$id){echo '<input type="hidden" name="csrf" value="'.h(fp_csrf()).'"><input type="hidden" name="revision" value="'.h(fpo_hash($plan??[])).'">';};
 ?>
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>연도별 소방계획서</title>
-<style>
-*{box-sizing:border-box}body{margin:0;background:#f7f8fa;color:#2d3848;font:14px/1.6 system-ui,-apple-system,"Apple SD Gothic Neo",sans-serif}a{color:inherit;text-decoration:none}button,input{font:inherit}.plan-page{max-width:1000px;margin:auto;padding:30px 24px 50px}.plan-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:28px}h1{font-size:23px;margin:0 0 6px;letter-spacing:-.04em}.muted{font-size:12px;color:#7b8593}.year-picker{display:flex;align-items:center;gap:6px}.year-picker input{width:84px;padding:7px;border:1px solid #e0e5ec;border-radius:7px;background:#fff}.btn{display:inline-flex;align-items:center;justify-content:center;padding:7px 11px;border:1px solid #e0e5ec;border-radius:7px;background:#fff;font-size:12px;color:#596578;cursor:pointer}.years{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.year-card{display:flex;flex-direction:column;gap:20px;min-height:175px;padding:22px;border:1px solid #e1e6ed;border-radius:12px;background:#fff}.year-card:hover{border-color:#9daec8;background:#fcfdff}.year-card.current{border-color:#b9c7dc}.year-label{font-size:11px;color:#8a94a2}.year-title{font-size:24px;font-weight:650;letter-spacing:-.04em}.year-title small{font-size:12px;font-weight:400;margin-left:6px;color:#7a8596}.year-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:#5e718f}.intro-note{margin:16px 2px 30px;color:#7b8593;font-size:12px}.records{background:#fff;border:1px solid #e1e6ed;border-radius:12px;padding:20px}.records h2{font-size:15px;margin:0 0 8px}.record{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 0;border-top:1px solid #edf0f4}.record-main{min-width:0}.record-main b{font-size:13px}.record-actions{display:flex;gap:6px;flex-wrap:wrap}.record-actions form{margin:0}.empty{padding:25px 0;color:#7b8593;font-size:13px}.status{font-size:10px;margin-left:6px;padding:3px 6px;border-radius:4px;background:#f2f5f9;color:#6b7b93}.help{margin-top:22px;font-size:12px;color:#758192}.help summary{cursor:pointer}.help p{line-height:1.8}a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid #7e96ba;outline-offset:3px}@media(max-width:640px){.plan-page{padding:22px 16px}.plan-head{align-items:flex-start;flex-direction:column}.years{grid-template-columns:1fr}.year-card{min-height:0;gap:12px;padding:18px}.record{align-items:flex-start;flex-direction:column}.record-actions{width:100%}}
-.request-open{background:#fff4df;border-color:#edbc68;color:#975c10;font-weight:750}</style></head><body><main class="plan-page">
-<?php if($deleteError!==''): ?><p role="alert" style="padding:12px;border-radius:10px;background:#fff0eb;color:#963c29"><?=h($deleteError)?></p><?php endif;?>
-<header class="plan-head"><div><h1>어느 해의 소방계획서를 작성할까요?</h1><div class="muted">연도를 선택하고, 기존 자료를 골라 대화로 작성하세요.</div></div>
-<form class="year-picker" method="get">
-<?php foreach($context as $k=>$v):?><input type="hidden" name="<?=h($k)?>" value="<?=h($v)?>"><?php endforeach;?>
-<input aria-label="계획연도" type="number" name="year" min="1901" max="2199" value="<?=$focusYear?>"><button class="btn">연도 찾기</button></form></header>
-<?php require_once __DIR__.'/building_facilities_common.php';bf_render_reference(); ?>
-<section class="years" aria-label="작성할 계획연도">
-<?php foreach([$focusYear-1,$focusYear,$focusYear+1] as $year):
-  $items=$byYear[$year]??[];$latest=$items[0]??null;
-?>
-<a class="year-card <?=$year===$thisYear?'current':''?>" href="<?=h($link('/fire_plan_chat.php',['year'=>$year]))?>">
-<div><div class="year-label"><?=$year===$thisYear?'올해 계획':($year<$thisYear?'지난해 계획':'다가올 계획')?></div><div class="year-title"><?=$year?>년<small>소방계획서</small></div></div>
-<div class="year-foot"><span><?=$latest?(($latest['status']??'')==='done'?'작성 완료 · 확인하기':'작성 중 · 이어쓰기'):'새로 작성하기'?></span><span aria-hidden="true">→</span></div>
-</a>
-<?php endforeach;?>
-</section>
-<p class="intro-note">기존 계획서가 있으면 이어서 열립니다. 선택한 연도와 실제 작성일은 별도로 보관합니다.</p>
-<section class="records"><h2>작성한 계획서</h2>
-<?php if(!$plans):?><div class="empty">아직 작성한 계획서가 없어요. 위에서 연도를 선택해 시작해 보세요.</div>
-<?php else:foreach($plans as $p): $requests=$isHelpManager?mfp_pending(fp_user_key(),(string)$p['id']):[]; ?>
-<div class="record"><div class="record-main"><b><?= (int)$p['plan_year'] ?>년 소방계획서</b><span class="status"><?=($p['status']??'')==='done'?'작성 완료':'작성 중'?></span><div class="muted"><?=h((string)($p['building_name']?:'건물정보 입력 전'))?> · 수정 <?=h(substr((string)($p['updated_at']??''),0,16))?></div></div>
-<div class="record-actions">
-<?php if($requests && preg_match('/^__fp_[0-9]+_([0-9]+)_([A-Za-z0-9_]+)$/',$requests[0]['field'],$requestMatch)): ?>
-<a class="btn request-open" href="<?=h($link('/fire_plan_chat.php',['id'=>$p['id'],'help_code'=>$requestMatch[1],'help_key'=>$requestMatch[2]]))?>">요청 <?=count($requests)?>건 확인 →</a>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?=h($name)?> · 소방계획서</title><link rel="stylesheet" href="/fire_plan_overview.css?v=20261010-years-archive-3"><link rel="stylesheet" href="/fire_plan_share.css?v=20261010-1"><script src="/fire_plan_share.js?v=20261015-partner-1" defer></script><?php if($workspace!==''):?><link rel="stylesheet" href="/fire_plan_workspace.css?v=20261013-1"><?php endif;?></head>
+<body class="<?=$workspace!==''?'fp-workspace':''?>" data-workspace="<?=h($workspace)?>"><main class="fp-home">
+<?php if($workspace!==''):?>
+<header class="fp-workspace-head"><p><?=$year?>년 · 소방계획서 완성</p><h1><?=h($name)?></h1><nav aria-label="계획서 완성 단계">
+<a class="<?=$workspace==='sources'?'is-active':''?>" href="<?=h($link('/fire_plan.php',['year'=>$year]+($plan?['id'=>$id]:[])+['workspace'=>'sources']))?>" <?=$workspace==='sources'?'aria-current="step"':''?>><span>1</span>자료 불러오기</a>
+<a href="<?=h($plan&&!empty($plan['source_selection_set'])?$link('/fire_plan_chat.php',$chatArgs):$link('/fire_plan.php',['year'=>$year]+($plan?['id'=>$id]:[])+['workspace'=>'sources']))?>"><span>2</span>내용 작성</a>
+<a class="<?=$workspace==='review'?'is-active':''?>" href="<?=h($link('/fire_plan.php',['year'=>$year]+($plan?['id'=>$id]:[])+['workspace'=>$plan?'review':'sources']))?>" <?=$workspace==='review'?'aria-current="step"':''?>><span>3</span>최종 확인</a>
+</nav></header>
+<?php if($workspace==='sources'&&$year<$currentYear):?><p class="fp-workspace-year-note">현재 저장된 건물 현황을 가져옵니다. <?=$year?>년 당시의 내용과 같은지 확인해 주세요.</p><?php endif;?>
+<?php if(!$plan):?><section class="fp-workspace-start"><h2><?=$year?>년 계획서를 시작해요</h2><p>계획서를 만든 뒤 불러올 자료를 선택해 주세요. 직접 작성한 업무 기록은 그대로 유지됩니다.</p><form method="post"><?php $hidden();?><input type="hidden" name="act" value="create"><button class="fp-button primary">계획서 만들고 자료 선택 <span>→</span></button></form></section><?php endif;?>
 <?php endif;?>
-<a class="btn" href="<?=h($link('/fire_plan_chat.php',['id'=>$p['id'],'year'=>$p['plan_year']]))?>">대화로 작성</a>
-<a class="btn" href="<?=h($link('/fire_plan_edit.php',['id'=>$p['id']]))?>">서식 확인</a>
-<a class="btn" target="_blank" rel="noopener" href="<?=h($link('/fire_plan_print.php',['id'=>$p['id']]))?>">인쇄</a>
-<form method="post" onsubmit="return confirm('이 계획서와 연결된 작성 도움 요청·완료 내역을 함께 삭제할까요? 되돌릴 수 없습니다.')"><input type="hidden" name="act" value="delete"><input type="hidden" name="id" value="<?=h((string)$p['id'])?>"><input type="hidden" name="csrf" value="<?=h(fp_csrf())?>"><button class="btn">삭제</button></form>
-</div></div>
-<?php endforeach;endif;?></section>
-<details class="help"><summary>어떤 자료를 활용할 수 있나요?</summary><p>기본정보 · 자위소방대 편성 · 매월 기록 · 자위소방대 교육 · 소방훈련·교육 · 피난계획 중 필요한 자료를 고를 수 있습니다. 자료를 불러오지 않고 직접 답변해도 됩니다.</p></details>
-</main>
-<script>
-/* 문답만 최상위 문서의 모달로 엽니다. 기존 인페이지 작업 공간은 그대로 둡니다. */
-document.addEventListener('click',function(event){
-  // 공통 업무 팝업 안에서는 별도 문답 팝업을 중첩해서 만들지 않습니다.
-  if(window.parent!==window && new URLSearchParams(location.search).get('modal')==='1') return;
-  const link=event.target.closest('a[href]');
-  if(!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button!==0)return;
-  const url=new URL(link.href,location.href);
-  if(url.origin!==location.origin || url.pathname!=='/fire_plan_chat.php')return;
-  let host;
-  try{host=window.top;if(host.location.origin!==location.origin)return;}catch(e){return;}
-  event.preventDefault();
-  if(host.document.getElementById('firePlanQuestionDialog'))return;
-  const doc=host.document, dialog=doc.createElement('dialog'), frame=doc.createElement('iframe');
-  const previous=doc.activeElement, oldOverflow=doc.documentElement.style.overflow;
-  const style=doc.createElement('style');
-  style.textContent='#firePlanQuestionDialog{padding:0;border:1px solid #e1e6ed;border-radius:16px;width:min(760px,calc(100vw - 32px));max-width:none;height:min(820px,calc(100dvh - 48px));max-height:none;background:#fff;box-shadow:0 24px 80px #17243b30;overflow:hidden}#firePlanQuestionDialog::backdrop{background:rgba(24,34,50,.38)}#firePlanQuestionDialog .fp-modal-head{display:flex;align-items:center;justify-content:space-between;padding:15px 20px;border-bottom:1px solid #edf0f4;font:600 14px system-ui;color:#344054}#firePlanQuestionDialog button{border:1px solid #e0e5ec;border-radius:7px;background:white;padding:6px 10px;font:12px system-ui;color:#64748b;cursor:pointer}#firePlanQuestionDialog button:focus-visible{outline:2px solid #667da5;outline-offset:2px}#firePlanQuestionDialog iframe{display:block;width:100%;height:calc(100% - 64px);border:0;background:#fff}@media(max-width:540px){#firePlanQuestionDialog{width:calc(100vw - 16px);height:calc(100dvh - 24px);border-radius:12px}}';
-  dialog.id='firePlanQuestionDialog';dialog.setAttribute('aria-label','소방계획서 문답 작성');
-  // 상위 페이지의 dialog·전역 margin 초기화와 관계없이 뷰포트 중앙에 배치합니다.
-  style.textContent += '#firePlanQuestionDialog{position:fixed!important;inset:50% auto auto 50%!important;margin:0!important;transform:translate(-50%,-50%)!important;box-sizing:border-box}';
-  const header=doc.createElement('div');header.className='fp-modal-head';
-  const title=doc.createElement('span');title.textContent=url.searchParams.has('year')?url.searchParams.get('year')+'년 소방계획서 작성':'소방계획서 작성';
-  const close=doc.createElement('button');close.type='button';close.textContent='닫기 ×';close.setAttribute('aria-label','문답 팝업 닫기');
-  header.append(title,close);frame.title='소방계획서 질문과 답변';
-  const notice=doc.createElement('div');notice.hidden=true;notice.className='fp-close-notice';notice.setAttribute('role','status');
-  style.textContent+='#firePlanQuestionDialog[open]{display:flex;flex-direction:column}#firePlanQuestionDialog .fp-modal-head{flex-shrink:0}#firePlanQuestionDialog iframe{flex:1;min-height:0;height:auto}#firePlanQuestionDialog .fp-close-notice{padding:14px 20px;border-bottom:1px solid #e5e9f0;background:#f8fafc;color:#475569;font:13px/1.6 system-ui}#firePlanQuestionDialog .fp-close-notice[hidden]{display:none}#firePlanQuestionDialog .fp-close-options{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}#firePlanQuestionDialog .fp-close-options .fp-save-close{background:#405c86;color:white;border-color:#405c86}';
-  const context=new URLSearchParams(location.search);
-  if(context.has('uid')&&!url.searchParams.has('uid'))url.searchParams.set('uid',context.get('uid'));
-  url.searchParams.set('embed','1');url.searchParams.set('modal','1');frame.src=url.href;
-  let loaded=false;
-  const finish=()=>{dialog.close();};
-  let closing=false;
-  const showCloseChoice=(child,canSave)=>{
-    notice.replaceChildren();notice.hidden=false;
-    const message=doc.createElement('div');message.textContent='아직 저장하지 않은 답변이 있어요. 어떻게 할까요?';notice.append(message);
-    const options=doc.createElement('div');options.className='fp-close-options';notice.append(options);
-    const add=(label,action)=>{const b=doc.createElement('button');b.type='button';b.textContent=label;b.onclick=action;options.append(b);return b;};
-    if(canSave){
-      const save=add('저장하고 닫기',async()=>{
-        if(closing)return;closing=true;options.querySelectorAll('button').forEach(b=>b.disabled=true);
-        try{if(await child.fpModalSave()){finish();return;}message.textContent='저장하지 못했어요. 답변이나 오류 안내를 확인해 주세요.';}
-        catch(e){message.textContent='저장 상태를 확인하지 못했어요. 계속 작성으로 돌아가 확인해 주세요.';}
-        finally{closing=false;options.querySelectorAll('button').forEach(b=>b.disabled=false);}
-      });save.className='fp-save-close';
-    }
-    add('계속 작성',()=>{notice.hidden=true;frame.focus();});
-    add('저장 없이 닫기',()=>{if(child && typeof child.fpModalDiscard==='function')child.fpModalDiscard();finish();});
-    options.querySelector('button').focus();
-  };
-  const requestClose=()=>{
-    if(closing)return;
-    if(!loaded){finish();return;}
-    try{
-      const child=frame.contentWindow;
-      if(child.location.origin===location.origin && typeof child.fpModalState==='function'){
-        const state=child.fpModalState();
-        if(state.busy){notice.hidden=false;notice.textContent='저장 중이에요. 잠시 후 다시 닫아주세요.';return;}
-        if(!state.dirty){finish();return;}
-        showCloseChoice(child,typeof child.fpModalSave==='function');return;
-      }
-    }catch(e){}
-    // 구버전·오류 화면도 무응답으로 갇히지 않게, 명시적인 닫기 선택을 제공합니다.
-    showCloseChoice(null,false);
-  };
-  const receive=event=>{
-    if(event.origin!==location.origin || event.source!==frame.contentWindow)return;
-    if(event.data && event.data.type==='fp-modal-year' && Number.isInteger(event.data.year) && event.data.year>=1900 && event.data.year<=2200){title.textContent=event.data.year+'년 소방계획서 작성';return;}
-    if(event.data && event.data.type==='fp-modal-request-close'){requestClose();return;}
-    if(event.data && event.data.type==='fp-modal-close-ready')finish();
-  };
-  host.addEventListener('message',receive);
-  frame.addEventListener('load',()=>{loaded=true;});
-  close.addEventListener('click',requestClose);
-  dialog.addEventListener('cancel',e=>{e.preventDefault();requestClose();});
-  dialog.addEventListener('close',()=>{
-    host.removeEventListener('message',receive);dialog.remove();style.remove();doc.documentElement.style.overflow=oldOverflow;
-    if(previous && previous.isConnected)previous.focus();
-    window.location.reload();
-  },{once:true});
-  dialog.append(header,notice,frame);doc.head.append(style);doc.body.append(dialog);
-  doc.documentElement.style.overflow='hidden';dialog.showModal();close.focus();
-});
-</script>
+<header class="fp-top"><a href="<?=h($link('/fire_plan.php',['year'=>$currentYear]))?>" class="fp-brand"><span class="fp-logo" aria-hidden="true">▤</span> 우리 건물 소방계획서</a><span class="fp-cycle-label">지난 계획 보관부터 차기 계획 준비까지</span></header>
+<nav class="fp-year-switch" aria-label="소방계획서 연도 선택">
+ <?php if($previousTarget!==null):?><a class="fp-year-arrow" href="<?=h($link('/fire_plan.php',['year'=>$previousTarget]))?>" aria-label="<?=h($yearLinkLabel($previousTarget))?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg></a><?php else:?><span class="fp-year-arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></svg></span><?php endif;?>
+ <div class="fp-year-tabs"><?php foreach($workingYears as $targetYear=>$caption):?><a class="fp-year-tab <?=$year===$targetYear?'is-selected':''?>" href="<?=h($link('/fire_plan.php',['year'=>$targetYear]))?>" <?=$year===$targetYear?'aria-current="page"':''?>><span class="fp-year-caption"><?=h($caption)?></span><strong><?=$targetYear?><span>년</span></strong><small><?=h($yearStatus($targetYear))?></small></a><?php endforeach;?></div>
+ <?php if($nextTarget!==null):?><a class="fp-year-arrow" href="<?=h($link('/fire_plan.php',['year'=>$nextTarget]))?>" aria-label="<?=h($yearLinkLabel($nextTarget))?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></a><?php else:?><span class="fp-year-arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m10 6 6 6-6 6"/></svg></span><?php endif;?>
+</nav>
+<div class="fp-year-guidance"><?php if($year===$nextYear):?><p><strong><?=$nextYear?>년 계획을 미리 준비하고 있어요.</strong> 올해 <?=$currentYear?>년 12월 31일까지 작성·검토해 주세요.</p><?php elseif($year===$currentYear):?><p>올해 계획을 관리하고, <strong><?=$nextYear?>년 계획도 올해 12월 31일까지</strong> 준비해 주세요.</p><?php elseif($plan):?><p><strong><?=$year?>년 보관된 계획서</strong>를 보고 있어요. 연도가 바뀌어도 저장한 내용은 유지됩니다.</p><?php else:?><p><strong><?=$year?>년 저장된 계획서가 없습니다.</strong> 지난 계획을 추가할 때는 해당 연도의 실제 자료를 확인해 작성해 주세요.</p><?php endif;?>
+ <details><summary>작성 기준</summary><p>공개 소방계획서 작성서식은 차기년도 계획을 매년 12월 31일까지 작성·검토하고 대표자·소유자의 최종 승인을 받도록 안내합니다. 화면의 ‘최종 확인 완료’는 작성 내용의 확인 상태이며, 관계인의 승인을 대신하지 않습니다.</p><p><a href="https://gfsa.gwd.go.kr/egf/bp/board/article/download?fileSeq=1212208" target="_blank" rel="noopener noreferrer">소방계획서 공개 서식 · 문서작성 및 기록관리 ↗</a></p></details>
+</div>
 
-
-<?php if(is_file(__DIR__.'/admin_quickmemo_widget.php')) require_once __DIR__.'/admin_quickmemo_widget.php'; ?>
-<?php if(($_GET['deleted']??'')==='1'): ?><script>
-try{if('BroadcastChannel' in window){const channel=new BroadcastChannel('manager-plan-changes');channel.postMessage('plan-deleted');channel.close();}window.managerHelp?.refresh();if(window.parent!==window)window.parent.managerHelp?.refresh();if(window.top!==window.parent)window.top.managerHelp?.refresh();}catch(e){}
-</script><?php endif;?>
-</body></html>
+<?php if($error):?><p class="fp-alert" role="alert"><?=h($error)?></p><?php endif;?>
+<?php if(isset($_GET['saved'])):?><p class="fp-notice" role="status">✓ 선택한 자료가 반영되었습니다. 직접 수정한 답변은 유지했습니다.</p><?php elseif(isset($_GET['reviewed'])):?><p class="fp-notice" role="status">✓ 최종 확인을 저장했습니다. 완성본을 미리 보고 인쇄해 보세요.</p><?php elseif(isset($_GET['deleted'])):?><p class="fp-notice" role="status">선택한 계획서가 삭제되었습니다.</p><?php endif;?>
+<?php if($plan):$scheduled=fpsc_events($plan);?>
+<section class="fp-overview-schedule" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;padding:20px 24px;margin:18px 0;border:1px solid #cbdcf5;border-radius:16px;background:#edf4ff">
+<div><strong style="display:block;color:#285fbb;font-size:17px"><?=$year?>년 교육·훈련 예정 일정</strong><p style="margin:5px 0 0;color:#627c9f;font-size:14px"><?=$scheduled?'✓ '.count($scheduled).'개 일정 반영됨 · 계획서와 인쇄본에서 확인할 수 있어요.':'소방훈련·소방교육·자위소방대 교육, 예정 월부터 간편하게 정해 보세요.'?></p></div>
+<a class="fp-button primary" href="<?=h($link('/fire_plan_schedule.php',['id'=>$id,'year'=>$year,'kind'=>in_array($_GET['schedule_kind']??'',['fire','jawi'],true)?$_GET['schedule_kind']:'fire']))?>"><?=$scheduled?'예정 일정 확인·수정':'예정 일정 정하기'?> →</a></section>
+<?php endif;?>
+<section class="fp-hero">
+ <div class="fp-hero-copy"><p class="fp-eyebrow"><?=$year?>년 · <?=h($yearLabel)?></p><span class="fp-status <?=$state['reviewed']?'is-ready':''?>"><?=$state['reviewed']?'✓ 최종 확인 완료':($plan?'작성 중 · 자동 저장':'기존 자료로 간편하게 시작')?></span><h1><?=h($name)?><br><span>소방계획서</span></h1><p class="fp-address"><?=h($address)?></p>
+ <p class="fp-lead"><?=$state['reviewed']?'차곡차곡 작성한 우리 건물의 안전관리 계획이 한 권에 담겼어요.':($plan?'이미 작성한 자료를 모으고, 남은 내용만 확인하면 돼요.':'기본정보부터 피난계획까지, 작성해 둔 자료를 한 권으로 모아보세요.')?></p>
+ <div class="fp-actions"><?php if(!$plan):?><form method="post"><?php $hidden();?><input type="hidden" name="act" value="create"><button class="fp-button primary"><?=$year?>년 계획서 만들기 <span>→</span></button></form><?php else:?><a class="fp-button primary" href="<?=h($link($state['reviewed']?'/fire_plan_print.php':'/fire_plan_chat.php',$state['reviewed']?['id'=>$id]:$chatArgs))?>"><?=$state['reviewed']?'완성본 미리보기':($state['complete']?'작성한 답변 확인':'남은 질문 이어서 작성')?> <span>→</span></a><a class="fp-button" href="<?=h($link($state['reviewed']?'/fire_plan_chat.php':'/fire_plan_print.php',['id'=>$id]))?>"><?=$state['reviewed']?'내용 다시 확인':'문서 미리보기'?></a><?php endif;?></div>
+ </div>
+ <div class="fp-document" aria-label="작성 현황"><div class="fp-paper"><div class="fp-paper-top"><span>소방계획서.com</span><span><?=$year?></span></div><p>FIRE SAFETY PLAN</p><h2><span class="fp-paper-year"><?=$year?>년 </span>소방계획서</h2><strong><?=h($name)?></strong><div class="fp-paper-lines"><i></i><i></i><i></i></div><div class="fp-progress"><span><?=$state['reviewed']?'최종 확인 완료':'항목 채움 현황'?></span><b><?=$state['percent']?>%</b></div><div class="fp-track" role="progressbar" aria-label="항목 채움 현황" aria-valuenow="<?=$state['percent']?>" aria-valuemin="0" aria-valuemax="100"><i style="width:<?=$state['percent']?>%"></i></div><small><?=$state['filled']?> / <?=$state['total']?>개 질문 · 해당 없는 항목 제외</small></div></div>
+</section>
+<div class="fp-metrics"><div><span>반영한 자료</span><b><?=count($savedGroups)?><small>종</small></b></div><div><span>내용이 채워진 항목</span><b><?=$state['done']?><small> / <?=15-$state['skipped']?>개</small></b></div><div><span>추가로 확인할 질문</span><b><?=$state['total']-$state['filled']?><small>개</small></b></div></div>
+<?php if($plan):?>
+<section class="fp-panel" id="sources"><div class="fp-section-head"><div><p class="fp-eyebrow">01 · 자료 모으기</p><h2>작성해 둔 자료를 반영해요</h2><p>선택한 자료는 계획서와 동별 상세표에 함께 저장됩니다.</p></div><?php if(!empty($plan['source_bundle']['imported_at'])):?><small>최근 반영 <?=h($plan['source_bundle']['imported_at'])?></small><?php endif;?></div>
+<?php if($changed):?><p class="fp-alert">새로운 내용이 있어요 · <?=h(implode(', ',$changed))?><br><small>아래에서 자료를 다시 반영하면 불러온 값이 갱신됩니다. 직접 수정한 답변은 유지됩니다.</small></p><?php endif;?>
+<form method="post" class="fp-source-form"><?php $hidden();?><input type="hidden" name="act" value="import"><input type="hidden" name="source_revision" value="<?=h($sources['fingerprint']??'')?>"><div class="fp-source-grid">
+<?php foreach($groups as $key=>$g):$included=isset($savedGroups[$key]);$different=$included&&$savedGroups[$key]['fingerprint']!==$g['fingerprint'];?><label class="fp-source <?=$g['available']?'':'is-empty'?>"><input type="checkbox" name="sources[]" value="<?=h($key)?>" <?=in_array($key,$selection,true)&&$g['available']?'checked':''?> <?=$g['available']?'':'disabled'?>><span class="fp-source-content"><strong><?=h($g['title'])?></strong><small><?=h($g['detail'])?></small><em class="<?=$different?'needs-update':''?>"><?=$different?'새 내용 있음':($included?'✓ 반영됨':($g['available']?'반영 가능':'저장된 자료 없음'))?></em></span></label><?php endforeach;?></div>
+<div class="fp-source-foot"><p>현재 저장된 기본정보·시설·편성·피난계획과<br><strong><?=$year?>년</strong> 교육·훈련·월별 기록을 가져옵니다.</p><button class="fp-button primary" <?=$sources?'':'disabled'?>><?= $workspace==='sources'?'반영하고 내용 작성':'선택한 자료 반영하기' ?> <span><?=$workspace==='sources'?'→':'↻'?></span></button></div></form>
+<details class="fp-detail"><summary>어떤 내용이 반영되나요?</summary><p>건물·관리자 정보, 동별 현황, 시설 종류와 수신기 위치, 대원별 임무, 사용 중인 동별 피난경로, 교육·훈련 실시기록, 월별 기록 현황을 가져옵니다. 비화재보 기록이 있으면 같은 연도의 발생·조치 내역도 선택해 첨부할 수 있습니다. 점검 시기와 앞으로의 훈련계획 등 결정이 필요한 내용은 문답에서 확인합니다.</p><p>예전 연도의 계획서를 작성할 때는 현재 건물 현황이 그 당시와 같은지 확인해 주세요. 선택을 해제하고 다시 반영하면 해당 자료에서 자동으로 가져온 값은 제외됩니다. 직접 수정한 답변은 유지됩니다. 자료 반영만으로 전체 계획서가 완료되지는 않습니다.</p></details></section>
+<?php if($helpRequests && preg_match('/^__fp_[0-9]+_([0-9]+)_([A-Za-z0-9_]+)$/',$helpRequests[0]['field'],$helpMatch)):?><a class="fp-alert fp-help-link" href="<?=h($link('/fire_plan_chat.php',['id'=>$id,'help_code'=>$helpMatch[1],'help_key'=>$helpMatch[2]]))?>">작성 문의 <?=count($helpRequests)?>건 · 요청한 질문에 답변하기 →</a><?php endif;?>
+<section class="fp-panel" id="contents"><div class="fp-section-head"><div><p class="fp-eyebrow">02 · 내용 확인하기</p><h2>우리 건물의 계획이 채워지고 있어요</h2><p>항목을 누르면 남은 질문부터 이어서 작성할 수 있어요.</p></div><span class="fp-count"><?=$state['done']?> / <?=15-$state['skipped']?>개 항목</span></div>
+<div class="fp-section-grid"><?php foreach($state['sections'] as $code=>$st):?><a class="fp-section <?=$st['skip']?'is-skip':($st['done']?'is-done':'')?>" href="<?=h($link('/fire_plan_chat.php',['id'=>$id,'section'=>$code]))?>"><span class="fp-section-number"><?=$st['done']?'✓':str_pad((string)$code,2,'0',STR_PAD_LEFT)?></span><span><strong><?=h($short[$code])?></strong><small><?=$st['skip']?'해당 없음':($st['done']?'내용이 모두 채워졌어요':'남은 질문 '.count($st['missing']).'개')?><?=$st['source']?' · 자료 반영':''?></small></span><span class="fp-section-arrow">→</span></a><?php endforeach;?></div>
+</section>
+<section class="fp-finish <?=$state['reviewed']?'is-ready':''?>" id="review"><span class="fp-finish-icon" aria-hidden="true"><?=$state['reviewed']?'✓':'▤'?></span><div><p class="fp-eyebrow">03 · 한 권으로 완성하기</p><h2><?=$state['reviewed']?'우리 건물의 소방계획서를 확인했어요':($state['complete']?'마지막으로 완성본을 확인해 주세요':'미리 보면서 마무리해 보세요')?></h2><p><?=$state['complete']?'실제 건물의 시설·담당자·대응방법과 맞는지 확인한 뒤 최종 확인을 저장하세요.':'작성한 내용은 지금도 문서로 확인할 수 있어요. 남은 질문을 채우면 최종 확인이 열립니다.'?></p><div class="fp-actions"><a class="fp-button" href="<?=h($link('/fire_plan_print.php',['id'=>$id]))?>">완성본 미리보기 · 인쇄</a><button type="button" class="fp-button fps-open-button" data-fps-open data-fps-year="<?=$year?>" data-fps-endpoint="<?=h($link('/fire_plan_share_api.php'))?>" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h3v3h-3zM21 14v7h-6M3 12h6M12 3v6M12 12h3M12 18v3"/></svg> 계획 공유 · QR</button><a class="fp-text-link" href="<?=h($link('/fire_plan_edit.php',['id'=>$id]))?>">표로 직접 수정 →</a></div>
+<?php if($workspace==='review'&&!$state['complete']):?><a class="fp-button primary fp-workspace-continue" href="<?=h(!empty($plan['source_selection_set'])?$link('/fire_plan_chat.php',$chatArgs):$link('/fire_plan.php',['id'=>$id,'workspace'=>'sources']))?>"><?=!empty($plan['source_selection_set'])?'남은 '.($state['total']-$state['filled']).'개 질문 이어서 작성':'기존 자료부터 불러오기'?> →</a><?php endif;?>
+<?php if($state['complete']&&!$state['reviewed']):?><form method="post" class="fp-confirm"><?php $hidden();?><input type="hidden" name="act" value="review"><label><input type="checkbox" name="confirmed" value="1" required> 건물 현황과 계획서 내용을 확인했습니다.</label><button class="fp-button primary">최종 확인 저장</button></form><?php elseif($state['reviewed']):?><p class="fp-reviewed-at">최종 확인 <?=h($plan['final_review']['at']??'')?></p><?php endif;?></div></section>
+<?php endif;?>
+<section class="fp-library"><div class="fp-section-head"><div><h2>보관 중인 계획서</h2><p>지난 연도 계획서는 자동으로 삭제되지 않습니다. 더 오래된 계획도 여기에서 확인할 수 있어요.</p></div></div><?php if(!$plans):?><p class="fp-library-empty">첫 계획서를 만들면 여기에 차곡차곡 보관돼요.</p><?php endif;?><div class="fp-library-list"><?php foreach($plans as $p):$s=fpo_status($p);?><a href="<?=h($link('/fire_plan.php',['id'=>$p['id']]))?>" class="<?=($p['id']===$id)?'is-current':''?>"><span>▤</span><strong><?=fp_plan_year($p)?>년 소방계획서<small><?=h($p['building_name']?:'건물정보 입력 전')?></small></strong><em><?=$s['reviewed']?'최종 확인 완료':$s['percent'].'% 작성'?></em><span>→</span></a><?php endforeach;?></div></section>
+<?php if($plan):?><details class="fp-danger"><summary>계획서 관리</summary><form method="post" onsubmit="return confirm('이 계획서와 연결된 작성 문의·완료 내역을 삭제할까요? 되돌릴 수 없습니다.')"><?php $hidden();?><input type="hidden" name="act" value="delete"><p>기본정보와 원본 교육·훈련 기록은 유지됩니다.</p><button class="fp-button">이 계획서 삭제</button></form></details><?php endif;?>
+<footer class="fp-footer">소방계획서.com <span>우리 건물의 안전관리를 한 권에</span></footer>
+</main><script src="/fire_plan_overview.js?v=20261008-1"></script><?php if(is_file(__DIR__.'/admin_quickmemo_widget.php'))require_once __DIR__.'/admin_quickmemo_widget.php'; ?></body></html>

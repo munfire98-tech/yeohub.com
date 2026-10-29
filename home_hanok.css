@@ -1,0 +1,207 @@
+/* Contemporary hanok: paper, timber, a quiet courtyard. Homepage only. */
+body.hanok-home{--bg:#f7f5ef;--bg2:#eeebe3;--card:#fffefa;--card2:#f5f1e8;--bd:#e1ddd2;--bd2:#d0c9ba;--fg:#2b302a;--mut:#817f72;--mut2:#666b5f;--brand:#354d40;--brand2:#273e31;--accent:#9b6749;background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased}
+.hanok-home .nav{background:#f7f5eff5;backdrop-filter:blur(12px);border-color:#dedacf}
+.hanok-home .nav__inner{max-width:1320px;height:78px;padding:0 40px;gap:24px}
+.hanok-home .nav__brand{gap:10px;font-size:22px;letter-spacing:-1px;font-weight:750;white-space:nowrap}
+.hanok-brand-mark{width:30px;height:32px;flex-shrink:0;color:#886345}
+.hanok-home .nav__links{gap:32px;margin-left:auto;margin-right:28px}
+.hanok-home .nav__links a{font-size:13px;font-weight:500;color:#5c6256}
+.hanok-home .btn{border-radius:4px;box-shadow:none;font-weight:600;transition:background .18s,color .18s,border-color .18s}
+.hanok-home .btn--primary{background:#354d40;border-color:#354d40;color:#fffefa}
+.hanok-home .btn--primary:hover{background:#263e30;border-color:#263e30;color:#fff}
+.hanok-home .nav__actions>.btn{padding:9px 22px;min-height:39px;font-size:12px}
+.hanok-home .nw-avatar{background:#435442}
+.hanok-home .nw-pop{border-color:var(--bd);background:var(--card)}
+.hanok-home .hero-wrap{background:#f7f5ef;border-bottom:1px solid var(--bd);overflow:hidden}
+.hanok-home .hero-wrap::before{display:none}
+.hanok-home .hero{max-width:1440px;padding:42px 40px 54px}
+.hanok-home .hero__grid{display:grid;grid-template-columns:minmax(0,.88fr) minmax(0,1.12fr);gap:48px;align-items:center}
+.hanok-home .hero__col{padding:20px 0 22px clamp(0px,2.2vw,30px)}
+.hanok-home .hero__label{border:0;border-radius:0;background:none;padding:0;gap:10px;margin-bottom:27px;color:#8c6a4e;font-size:11px;font-weight:600;letter-spacing:.14em}
+.hanok-home .hero__label span{width:5px;height:5px;border-radius:0;background:#9b6749;transform:rotate(45deg)}
+.hanok-home .hero__title-row{display:block}
+.hanok-home .hero h1{font-family:'Noto Serif KR','Nanum Myeongjo','AppleMyungjo','Batang',serif;font-weight:500;font-size:clamp(35px,3.5vw,52px);line-height:1.55;letter-spacing:-.075em;margin:0 0 25px;color:#303a2e;word-break:keep-all;white-space:nowrap}
+.hanok-home .hero h1 em{color:#303a2e;font-style:normal}
+.hanok-home .hero__sub{color:#77796e;font-size:13px;font-weight:400;line-height:1.95;word-break:keep-all;max-width:none;letter-spacing:-.025em}
+.hanok-hero-actions{display:flex;align-items:center;gap:26px;flex-wrap:wrap;margin-top:32px}
+.hanok-hero-actions>.btn{justify-content:space-between;gap:34px;padding:14px 21px;min-height:50px;font-size:13px}
+.hanok-hero-actions>.btn span{font-size:18px;font-weight:400}
+.hanok-text-link{display:inline-flex;align-items:center;gap:20px;color:#5c6557;font-size:12px;font-weight:500;padding:8px 0;text-decoration:none;border-bottom:1px solid #b8b8a8;white-space:nowrap}
+.hanok-text-link:hover{color:#2c4432;border-bottom-color:#2c4432}
+.hanok-home .hero__note--collaboration{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:0;padding:0;margin:42px 0 0;color:#8c8b7e;font-size:10px;line-height:1.6}
+.hanok-home .hero__note--collaboration i{width:1px;height:9px;background:#cdc7b8}
+.hanok-scene{position:relative;align-self:stretch;margin:0;min-height:540px;overflow:hidden;background:#d8cfbb}
+.hanok-scene>img{display:block;width:100%;height:100%;position:absolute;inset:0;object-fit:cover;object-position:58% center}
+.hanok-scene::after{content:'';position:absolute;inset:50% 0 0;background:linear-gradient(transparent,#14211980);pointer-events:none}
+.hanok-scene figcaption{position:absolute;bottom:35px;left:32px;z-index:1;color:#fffdf5}
+.hanok-scene figcaption>span{display:block;font-size:10px;letter-spacing:.13em;color:#fffdf5c9;margin-bottom:8px}
+.hanok-scene figcaption>b{display:block;font-family:'Noto Serif KR','AppleMyungjo','Batang',serif;font-size:20px;font-weight:400;letter-spacing:-.04em}
+.hanok-image-index{position:absolute;top:23px;right:23px;z-index:1;color:#fff8ecda;writing-mode:vertical-rl;letter-spacing:.15em;font-size:9px;text-shadow:0 1px 5px #151e1790}
+.hanok-home .hero .cta-box--work{margin-top:25px;padding:17px 18px;grid-template-columns:1fr;gap:13px;border:1px solid #d8d4c7;border-radius:5px;background:#fdfbf5;animation:none;box-shadow:none;max-width:400px}
+.hanok-home .cta-box--work .cta-box__eyebrow{color:#8c7357;font-size:10px}
+.hanok-home .cta-box--work .cta-box__eyebrow::before{background:#66836c;box-shadow:none}
+.hanok-home .cta-box--work .cta-box__title{color:#344436;font-size:15px;font-weight:650}
+.hanok-home .cta-box--work .cta-box__msg{color:#858575;font-size:11px}
+.hanok-home .cta-box--work>.btn--primary{justify-content:center;background:#354d40;color:#fff;border-color:#354d40;border-radius:3px;box-shadow:none;min-height:42px;width:100%;font-size:12px;padding:10px 14px}
+.hanok-home #home-screen-add{margin:0 0 16px;color:#6c735e;border-color:#d7d4c7;background:#fffdf5}
+.hanok-preview{max-width:1240px;padding:72px 40px 68px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:90px;border-bottom:1px solid #e1ddd2}
+.hanok-eyebrow{display:block;color:#93785a;font-size:10px;letter-spacing:.14em;font-weight:600;margin-bottom:20px}
+.hanok-preview h2{font-family:'Noto Serif KR','AppleMyungjo','Batang',serif;font-size:clamp(25px,2.5vw,34px);font-weight:500;line-height:1.65;letter-spacing:-.06em;color:#3b4537}
+.hanok-preview-copy>p{font-size:12px;line-height:1.95;color:#858576;margin:20px 0 24px;word-break:keep-all}
+.hanok-preview-meta{display:flex;flex-wrap:wrap;gap:17px;margin-top:35px;color:#9a9688;font-size:9px}
+.hanok-home .promo{max-width:480px;margin:0 auto;width:100%;padding:16px;background:#eeebe2;border:1px solid #ded8ca;border-radius:6px}
+.hanok-home .promo__track{border-radius:3px;box-shadow:none;border-color:#d8d5ca;background:#fff}
+.hanok-home .promo__slide{background:#fffefa;padding:12px}
+.hanok-home .promo__tag{font-size:11px;color:#505d4c}
+.hanok-home .promo__meta{font-size:9px;color:#989588}
+.hanok-home .promo__stage{border-color:#e1dfd5;border-radius:3px;aspect-ratio:640/420}
+.hanok-home .promo__cap{color:#7a7e70;font-size:11px;line-height:1.6}
+.hanok-home .promo__sample-note{color:#9a978b;font-size:9px;line-height:1.5;text-align:center;margin:10px 0 0}
+.hanok-home .promo__dot{background:#c9c5b7}.hanok-home .promo__dot.is-on{background:#6e7d61}
+.hanok-home .promo__arw{background:#fffefa;border-color:#d8d1c1;color:#56664d;opacity:1;border-radius:3px;box-shadow:0 2px 8px #2f3b2210}
+.hanok-home .main{max-width:1240px;padding:0 40px 68px}
+.hanok-home .main>.cta-box{margin-top:30px;padding:22px;border:1px solid #ded8ca;background:#fffdf6;border-radius:4px}
+.hanok-home .service-guide{margin-top:0;padding:64px 0 0;border:0;border-radius:0;background:none;box-shadow:none;overflow:visible}
+.hanok-home .service-guide::before,.hanok-home .service-guide__eyebrow::before{display:none}
+.hanok-home .service-guide__head{max-width:670px;margin-bottom:34px}
+.hanok-home .service-guide__eyebrow{color:#93785a;font-size:10px;font-weight:600;letter-spacing:.14em;margin-bottom:17px}
+.hanok-home .service-guide h2{font-family:'Noto Serif KR','AppleMyungjo','Batang',serif;font-size:32px;font-weight:500;line-height:1.55;color:#3b4537;letter-spacing:-.055em}
+.hanok-home .service-guide__lead{font-size:12px;color:#858576;line-height:1.95}
+.hanok-home .service-flow{gap:22px;padding:22px 0 36px;border-bottom:1px solid #e1ddd2}
+.hanok-home .service-flow::before{background:#d7d3c6;top:40px}
+.hanok-home .service-step{padding:0}
+.hanok-home .service-step__num{width:35px;height:35px;border:5px solid #f7f5ef;border-radius:0;background:#f7f5ef;color:#977452;box-shadow:none;font-size:11px;margin-bottom:16px}
+.hanok-home .service-step h3{font-size:13px;font-weight:650;color:#4e5c47;letter-spacing:-.025em}
+.hanok-home .service-step p{color:#8a887b;font-size:11px}
+.hanok-home .home-tools{gap:13px;margin-top:30px}
+.hanok-home .home-tool{border:1px solid #e1ddd2;border-radius:3px;background:#fbf9f2;padding:21px;box-shadow:none}
+.hanok-home .home-tool::before{display:none}
+.hanok-home .home-tool h3{font-size:13px;color:#4e5c47}
+.hanok-home .home-tool p{color:#8a887b;font-size:11px;line-height:1.8}
+.hanok-home .home-tool__badge,.hanok-home .home-tool__badge--pro{background:#e9ebdf;color:#73805f;border-color:#dce1cc;border-radius:2px;font-size:9px;font-weight:600}
+.hanok-home .home-tools__note{color:#969184;font-size:10px;line-height:1.9}
+.hanok-home .home-tools__note a{color:#6a785c}
+.hanok-home .service-guide__result{margin-top:25px;padding:22px 24px;border-radius:3px;border:1px solid #d8dece;background:#edf0e5;box-shadow:none;color:#4c6043}
+.hanok-home .service-guide__result b{font-size:13px;color:#4c6043}.hanok-home .service-guide__result span{font-size:11px;color:#7e8a70}
+.hanok-home .site-footer{--ft-bg:#eeece3;--ft-line:#dcd8cb;--ft-fg:#414b39;--ft-mut:#7f826f;--ft-dim:#979585;--ft-brand:#5d7451;margin-top:0}
+.hanok-home .footer-inner{max-width:1240px;padding-left:40px;padding-right:40px}
+.hanok-home .footer-logo{font-weight:650;letter-spacing:-.04em}
+.hanok-home :is(button,a,input):focus-visible{outline:3px solid #7b9470;outline-offset:4px}
+@media(min-width:1500px){.hanok-home .hero{padding-top:52px;padding-bottom:62px}.hanok-scene{min-height:610px}}
+@media(max-width:1100px) and (min-width:801px){.hanok-home .hero{padding-left:28px;padding-right:28px}.hanok-home .hero__grid{gap:24px;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)}.hanok-home .hero h1{font-size:36px}.hanok-home .hero__col{padding-left:0}.hanok-scene{min-height:510px}.hanok-preview{gap:45px}}
+@media(max-width:800px){
+ .hanok-home .nav__inner{height:66px;padding:0 20px;gap:10px}.hanok-home .nav__brand{font-size:19px;gap:7px}.hanok-brand-mark{width:25px;height:28px}.hanok-home .nav__links{margin-right:0}.hanok-home .nav__actions>.btn{padding:7px 15px;min-height:35px;font-size:11px}
+ .hanok-home .hero{padding:32px 22px 27px}.hanok-home .hero__grid{grid-template-columns:1fr;gap:28px}.hanok-home .hero__col{padding:0 2px}.hanok-home .hero__label{font-size:10px;margin-bottom:18px;letter-spacing:.1em}.hanok-home .hero h1{font-size:clamp(31px,5.7vw,44px);line-height:1.52;letter-spacing:-.075em;margin-bottom:17px}.hanok-home .hero__sub{font-size:12px;line-height:1.85}
+ .hanok-hero-actions{margin-top:23px;gap:22px}.hanok-hero-actions>.btn{min-height:45px;padding:11px 17px;gap:29px;font-size:12px}.hanok-text-link{font-size:11px;gap:12px}.hanok-home .hero__note--collaboration{margin-top:24px;gap:10px;font-size:9px}.hanok-scene{min-height:0;height:auto;aspect-ratio:1.45}.hanok-scene>img{object-position:57% 55%}.hanok-scene figcaption{left:20px;bottom:20px}.hanok-scene figcaption>span{font-size:8px;margin-bottom:6px}.hanok-scene figcaption>b{font-size:17px}.hanok-image-index{right:15px;top:16px;font-size:8px}
+ .hanok-home .hero .cta-box--work{max-width:none;grid-template-columns:1fr auto;padding:13px 14px;gap:12px;margin-top:19px}.hanok-home .cta-box--work .cta-box__title{font-size:13px}.hanok-home .cta-box--work .cta-box__msg{display:none}.hanok-home .cta-box--work>.btn--primary{width:auto;min-width:0;font-size:11px;padding:9px 11px}
+ .hanok-preview{grid-template-columns:1fr;padding:42px 24px;gap:27px}.hanok-eyebrow{font-size:9px;margin-bottom:14px}.hanok-preview h2{font-size:26px;line-height:1.55}.hanok-preview-copy>p{font-size:11px;margin:15px 0 14px}.hanok-preview-meta{display:none}.hanok-home .promo{max-width:530px;padding:12px}.hanok-home .promo__arw{display:block;width:27px;height:29px}.hanok-home .promo__arw--l{left:-7px}.hanok-home .promo__arw--r{right:-7px}
+ .hanok-home .main{padding:0 24px 42px}.hanok-home .service-guide{padding-top:40px}.hanok-home .service-guide h2{font-size:26px}.hanok-home .service-guide__lead{font-size:11px}.hanok-home .service-flow{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 20px;padding-top:8px}.hanok-home .service-flow::before{display:none}.hanok-home .service-step__num{margin-bottom:10px;width:25px;height:25px;border:0}.hanok-home .service-step h3{font-size:12px}.hanok-home .home-tools{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.hanok-home .home-tool{padding:15px 12px}.hanok-home .home-tool h3{font-size:12px}.hanok-home .home-tool p{font-size:10px}.hanok-home .service-guide__result{padding:18px;gap:16px}.hanok-home .footer-inner{padding-left:24px;padding-right:24px}
+}
+@media(max-width:380px){.hanok-home .nav__brand{font-size:17px}.hanok-home .nav__inner{padding:0 15px}.hanok-home .hero{padding-left:18px;padding-right:18px}.hanok-home .hero h1{font-size:30px}.hanok-hero-actions{gap:18px}.hanok-home .home-tools{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.hanok-home *, .hanok-home *::before,.hanok-home *::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* The optional install action stays beside the quiet service facts on phones. */
+.hanok-home .hero__sub{font-size:14px}
+@media(max-width:800px){.hanok-home .hero__sub{font-size:13px}.hanok-home #home-screen-add{flex-direction:row;flex:0 0 auto;gap:4px;min-height:27px;margin:0 0 0 auto;padding:3px 0;border:0;border-radius:0;background:none;color:#7f846f;font-size:9px}.hanok-home #home-screen-add svg{width:13px;height:13px}.hanok-home .hero__note--collaboration{gap:9px}.hanok-home .hero__note--collaboration #home-screen-add span{display:inline}}
+@media(max-width:1100px) and (min-width:801px){.hanok-home .hero h1{font-size:clamp(30px,3.3vw,36px)}}
+
+/* Architecture becomes an atmospheric backdrop, not a separate content card. */
+.hanok-home .hero-wrap{isolation:isolate;background:#f7f5ef}
+.hanok-home .hero-wrap>.hanok-scene{position:absolute;inset:0;z-index:-1;width:100%;height:100%;min-height:0;aspect-ratio:auto;pointer-events:none;background:#f7f5ef}
+.hanok-home .hero-wrap>.hanok-scene img{width:100%;height:100%;object-fit:cover;object-position:center 52%;opacity:.62}
+.hanok-home .hero-wrap>.hanok-scene::after{inset:0;background:linear-gradient(90deg,#f7f5ef 0%,#f7f5eff5 28%,#f7f5efb3 49%,#f7f5ef22 82%),linear-gradient(0deg,#f7f5ef88,transparent 32%)}
+.hanok-home .hero{min-height:570px;display:flex;align-items:center;padding-top:60px;padding-bottom:64px}
+.hanok-home .hero__grid{display:block;width:100%}
+.hanok-home .hero__col{max-width:660px;padding-top:15px;padding-bottom:15px}
+.hanok-home .hero__sub{color:#666e5f}
+.hanok-home .hero__note--collaboration{color:#7d8373}
+@media(min-width:1500px){.hanok-home .hero{min-height:630px}}
+@media(max-width:800px){
+ .hanok-home .hero{min-height:440px;padding:38px 24px 43px}
+ .hanok-home .hero__col{max-width:520px;padding:0}
+ .hanok-home .hero-wrap>.hanok-scene img{object-position:63% center;opacity:.38}
+ .hanok-home .hero-wrap>.hanok-scene::after{background:linear-gradient(90deg,#f7f5eff5 0%,#f7f5efd9 40%,#f7f5ef77 100%),linear-gradient(0deg,#f7f5efb3,transparent 60%)}
+ .hanok-home .hero__note--collaboration{margin-top:30px}
+ .hanok-home #home-screen-add{background:transparent}
+}
+@media(max-width:380px){.hanok-home .hero{padding-left:20px;padding-right:20px}}
+
+/* Product identity leads; hanok architecture remains a quiet material backdrop. */
+.hanok-home{--brand:#35463a;--brand2:#293c2f;--accent:#965b49}
+.hanok-home .nav__brand{font-size:21px;font-weight:750;letter-spacing:-.06em}
+.hanok-home .hanok-brand-mark{width:27px;height:30px;color:#53604e}
+.hanok-home .hero-wrap>.hanok-scene img{opacity:.35}
+.hanok-home .hero-wrap>.hanok-scene::after{background:linear-gradient(90deg,#f7f5ef 0%,#f7f5eff5 34%,#f7f5efa6 67%,#f7f5ef59 100%),linear-gradient(0deg,#f7f5efbb,transparent 55%)}
+.hanok-home .hero{min-height:520px}
+.hanok-home .hero__label{color:#8d7162;font-size:10px;letter-spacing:.08em;margin-bottom:22px}
+.hanok-home .hero__label span{transform:none;width:15px;height:1px;background:#9c5141}
+.hanok-home .hero h1{font-size:clamp(34px,3.1vw,46px);line-height:1.6;letter-spacing:-.065em;color:#30392e}
+.hanok-home .hero h1 .home-purpose{display:block;font-family:system-ui,-apple-system,'Apple SD Gothic Neo',sans-serif;font-size:.91em;font-weight:650;letter-spacing:-.065em}
+.hanok-home .hero h1 em{display:block;font-weight:400}
+.hanok-home .hero__sub{font-size:13px;color:#7c8072;line-height:1.9}
+.hanok-home .hanok-hero-actions{margin-top:29px;gap:27px}
+.hanok-home .hanok-hero-actions>.btn{min-width:150px;min-height:46px;padding:12px 19px;gap:42px;border-radius:3px}
+.hanok-home .hero__note--collaboration{font-size:10px;color:#8e9082;margin-top:35px;gap:13px}
+.hanok-home .hanok-preview{padding-top:58px;padding-bottom:58px}
+.hanok-home .hanok-preview h2{font-size:30px}
+@media(min-width:1500px){.hanok-home .hero{min-height:570px}}
+@media(max-width:1100px) and (min-width:801px){.hanok-home .hero h1{font-size:34px}}
+@media(max-width:800px){
+ .hanok-home .nav__brand{font-size:19px}
+ .hanok-home .hero{min-height:405px;padding-top:38px;padding-bottom:38px}
+ .hanok-home .hero__label{font-size:9px;margin-bottom:18px}
+ .hanok-home .hero h1{font-size:clamp(27px,4.8vw,36px);line-height:1.65;margin-bottom:19px;letter-spacing:-.07em}
+ .hanok-home .hero h1 .home-purpose{font-size:1em}
+ .hanok-home .hero__sub{font-size:11.5px;line-height:1.9;word-break:keep-all}
+ .hanok-home .hero-wrap>.hanok-scene img{opacity:.26}
+ .hanok-home .hero-wrap>.hanok-scene::after{background:linear-gradient(90deg,#f7f5eff5 0%,#f7f5efcf 70%,#f7f5ef9e 100%)}
+ .hanok-home .hanok-hero-actions{margin-top:24px;gap:23px}
+ .hanok-home .hanok-hero-actions>.btn{min-width:140px;min-height:43px;padding:10px 16px}
+ .hanok-home .hero__note--collaboration{font-size:9px;margin-top:29px;gap:9px}
+ .hanok-home #home-screen-add{margin-left:0}
+ .hanok-home .hanok-preview{padding-top:36px;padding-bottom:36px}
+ .hanok-home .hanok-preview h2{font-size:25px}
+}
+@media(max-width:380px){.hanok-home .nav__brand{font-size:17px}.hanok-home .hero h1{font-size:26px}}
+
+/* The quiet character of a Korean record: paper, ink, a restrained red spine. */
+body.hanok-home{--bg:#f8f6f0;--bg2:#eeece5;--fg:#30352f;--mut2:#666b60;--brand:#333f35;--brand2:#263129;--accent:#8e5546;background:#f8f6f0}
+.hanok-home .nav{background:#f8f6f0f7;border-color:#e3dfd4}
+.hanok-home .nav__brand{font-family:'Noto Serif KR','AppleMyungjo','Batang',serif;font-weight:600;font-size:21px;letter-spacing:-.055em;color:#343a31}
+.hanok-home .hero-wrap{background:#f8f6f0}
+.hanok-home .hero-wrap>.hanok-scene img{opacity:.21;object-position:center 52%}
+.hanok-home .hero-wrap>.hanok-scene::after{background:linear-gradient(90deg,#f8f6f0 0%,#f8f6f0fa 40%,#f8f6f0a6 75%,#f8f6f059 100%),linear-gradient(0deg,#f8f6f0cc,transparent 70%)}
+.hanok-home .hero__label{display:flex;align-items:center;gap:11px;color:#897160;letter-spacing:.06em;font-size:10px;margin-bottom:24px}
+.hanok-home .hero__label>span{width:9px;height:17px;border:1px solid #a16c59;background:transparent;position:relative}
+.hanok-home .hero__label>span::after{content:'';position:absolute;left:3px;top:3px;bottom:3px;border-left:1px solid #a16c59}
+.hanok-home .hero h1{white-space:normal;line-height:1.4;letter-spacing:-.055em;margin-bottom:26px}
+.hanok-home .hero h1 .home-purpose{font-family:'Noto Serif KR','AppleMyungjo','Batang',serif;font-weight:500;font-size:clamp(43px,4.3vw,61px);letter-spacing:-.06em;line-height:1.35;color:#30372d}
+.hanok-home .hero h1 em{margin-top:13px;font-family:system-ui,-apple-system,'Apple SD Gothic Neo',sans-serif;font-size:clamp(20px,2.1vw,28px);font-style:normal;font-weight:400;letter-spacing:-.065em;line-height:1.6;color:#4d5747}
+.hanok-home .hero__sub{color:#73786c;font-size:14px;line-height:1.95;letter-spacing:-.025em;word-break:keep-all}
+.hanok-home .hanok-hero-actions{margin-top:29px}
+.hanok-home .hanok-hero-actions>.btn{background:#354137;border-color:#354137;color:#fffefa;min-width:174px;border-radius:2px;font-size:12px}
+.hanok-home .hanok-hero-actions>.btn:hover{background:#26342a;border-color:#26342a}
+.hanok-home .hero__note--collaboration{font-size:10px;line-height:1.8;color:#7b8171;gap:13px;margin-top:34px}
+.hanok-home .hanok-text-link{color:#64705c;border-bottom-color:#c3c6b7}
+.hanok-home .hanok-preview-copy>p,.hanok-home .service-guide__lead{font-size:13px;line-height:1.95;color:#767d6d}
+.hanok-home .service-step p{color:#7f8575;font-size:12px;line-height:1.8}
+.hanok-home .home-tool p{color:#7f8575;font-size:12px}
+.hanok-home .service-flow::before{background:#dedacf}
+.hanok-home .service-step__num{border-color:#f8f6f0;background:#f8f6f0}
+@media(max-width:800px){
+ .hanok-home .nav__brand{font-size:19px}
+ .hanok-home .hero{min-height:425px;padding-top:36px;padding-bottom:36px}
+ .hanok-home .hero__label{font-size:9px;margin-bottom:19px}
+ .hanok-home .hero h1{margin-bottom:19px}
+ .hanok-home .hero h1 .home-purpose{font-size:43px;line-height:1.4}
+ .hanok-home .hero h1 em{margin-top:7px;font-size:20px;line-height:1.55}
+ .hanok-home .hero__sub{font-size:12px;line-height:1.9}
+ .hanok-home .hero-wrap>.hanok-scene img{opacity:.18}
+ .hanok-home .hero-wrap>.hanok-scene::after{background:linear-gradient(90deg,#f8f6f0f5,#f8f6f0c9 80%,#f8f6f0a6)}
+ .hanok-home .hanok-hero-actions{margin-top:23px}
+ .hanok-home .hanok-hero-actions>.btn{min-width:157px;font-size:11px}
+ .hanok-home .hero__note--collaboration{font-size:9px;margin-top:28px;gap:9px}
+ .hanok-home .hanok-preview-copy>p,.hanok-home .service-guide__lead{font-size:12px;line-height:1.9}
+ .hanok-home .service-step p,.hanok-home .home-tool p{font-size:11px}
+}
+@media(max-width:380px){.hanok-home .nav__brand{font-size:17px}.hanok-home .hero h1 .home-purpose{font-size:40px}.hanok-home .hero h1 em{font-size:19px}}

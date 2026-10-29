@@ -1,12 +1,15 @@
 <?php
 // fire_plan_new.php — 새 계획서: 용도 선택
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -17,7 +20,7 @@ function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']
 
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && $role !== 'building') { header('Location: /partner_center.php'); exit; }
 
 require_once __DIR__ . '/fire_plan_db.php';
 $nick   = $_SESSION['nickname'] ?? '사용자';
@@ -77,7 +80,7 @@ p.sub{color:var(--mut2);font-size:14.5px;margin-bottom:26px}
 </nav>
 
 <main class="wrap">
-  <div class="crumb"><a href="/building_manager.php">건물 소방안전관리</a> › <a href="/fire_plan.php">소방계획서</a> › 새 계획서</div>
+  <div class="crumb"><a href="/FireDesk.php">건물 소방안전관리</a> › <a href="/fire_plan.php">소방계획서</a> › 새 계획서</div>
   <h1>어떤 용도의 건축물인가요?</h1>
   <p class="sub">용도를 선택하면 해당 서식으로 작성이 시작됩니다. 공통 항목은 한 번만 입력하면 전체 서식에 자동 반영됩니다.</p>
 

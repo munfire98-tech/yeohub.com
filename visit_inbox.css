@@ -1,0 +1,49 @@
+.mvc-header .mvc-inbox-open,.mvc-mobile-tabs .mvc-inbox-mobile{display:flex;align-items:center;justify-content:center;gap:5px;border:1px solid #cfdcef;border-radius:9px;background:#f1f6fe;color:#2e5e99;padding:7px 9px;font:650 12px/1.4 system-ui;white-space:nowrap;flex-shrink:0}.vin-badge{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#d84e48;color:#fff;font:750 10px/1 system-ui}.vin-badge[hidden]{display:none!important}
+.vin-dialog{position:fixed;inset:0;margin:auto;box-sizing:border-box;width:min(510px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:0;border:1px solid #e0e7f0;border-radius:18px;background:#fff;color:#293d56;box-shadow:0 20px 80px #11243c44;font:13px/1.5 system-ui}.vin-dialog::backdrop{background:#172b4470}.vin-dialog [hidden]{display:none!important}.vin-dialog header{position:sticky;top:0;background:white;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid #e8edf5}.vin-dialog header small{font-size:10px;color:#7b8ea6}.vin-dialog h2{margin:2px 0;font-size:20px}.vin-unread{font-size:11px;font-weight:600;color:#3770b2;margin-left:6px}.vin-close{width:32px;height:32px;border:0;background:#eff4fa;color:#6b819c;border-radius:8px;font-size:22px}.vin-actions{display:flex;gap:7px;padding:12px 18px 0}.vin-actions button,.vin-more{border:1px solid #d4e0ef;border-radius:8px;background:#f7faff;color:#4873a7;padding:7px 10px;font:600 11px/1.5 system-ui;cursor:pointer}.vin-actions .vin-settings{margin-left:auto}.vin-info{font-size:10px;color:#8392a5;padding:0 18px;margin:10px 0}.vin-loading,.vin-error{font-size:12px;color:#788ca7;padding:0 18px}.vin-error{color:#aa5b37}.vin-list{padding:0 12px 12px}.vin-empty{padding:30px 10px;text-align:center;color:#8d9bae}.vin-item{display:flex;flex-direction:column;align-items:stretch;gap:5px;box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border:1px solid #e2e9f3;border-radius:10px;background:#fff;color:#2c435e;text-align:left;font:inherit;cursor:pointer}.vin-item.is-unread{border-color:#c4d8f2;background:#f1f6ff}.vin-item.is-read{background:#fafbfd}.vin-item-top{display:flex;align-items:center;gap:10px}.vin-item-top strong{flex:1;min-width:0;overflow-wrap:anywhere;font-size:13px}.vin-read-label{flex-shrink:0;font-size:10px;color:#3570bd;font-weight:700}.is-read .vin-read-label{color:#98a5b6}.vin-item-label{font-size:12px;font-weight:600}.vin-date{font-size:11px;color:#657e9d}.vin-item-bottom{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:10px;color:#95a2b3;margin-top:3px}.vin-state{padding:2px 5px;border-radius:5px;background:#edf0f5;color:#8290a3}.vin-state.changed,.vin-state.review{background:#fff0d8;color:#a7752e}.vin-state.completed{background:#e6f5ed;color:#3c8462}.vin-delivery{color:#b17a48}.vin-more{display:block;margin:0 auto 16px}.vin-dialog button:disabled{opacity:.5;cursor:default}.vin-dialog button:focus-visible,[data-visit-inbox-button]:focus-visible{outline:3px solid #8ebaf3;outline-offset:2px}
+@media(max-width:900px),(pointer:coarse) and (max-height:500px){.mvc-planner>.mvc-header .mvc-inbox-open{display:none}.mvc-planner .mvc-mobile-tabs .mvc-inbox-mobile{flex:0 0 auto;min-width:67px;min-height:40px;padding:7px 8px;font-size:12px}.mvc-planner .mvc-mobile-tabs .mvc-push-mobile{min-width:80px;padding:7px 8px;font-size:11px}.vin-dialog header{padding:14px 16px}}
+
+/* One shared yellow bell and count across the workspace and planner. */
+[data-visit-inbox-button]{display:inline-flex;align-items:center;justify-content:center;gap:5px;cursor:pointer}
+#manager-sidebar [data-visit-inbox-button] .mvc-header .mvc-inbox-open,.mvc-planner .mvc-mobile-tabs .mvc-inbox-mobile{min-width:44px;background:#fffbeb;border-color:#efdcaa;padding:6px 8px}
+.mvc-planner .mvc-mobile-tabs .mvc-inbox-mobile{min-width:48px}
+.vin-row{position:relative;margin:7px 0}
+.vin-row .vin-item{margin:0;padding-right:55px;min-height:105px}
+.vin-delete{position:absolute;right:9px;bottom:11px;border:0;border-radius:6px;background:transparent;color:#8c98a9;padding:5px 4px;font:11px/1.4 system-ui;cursor:pointer}
+.vin-delete:hover{background:#feecec;color:#af4d46}
+.vin-delete:focus-visible{outline:2px solid #8ebaf3}
+
+.vin-groups{display:flex;gap:4px;margin:12px 16px 0;padding:4px;border-radius:10px;background:#f0f3f8}
+.vin-groups button{flex:1;min-width:0;display:flex;justify-content:center;align-items:center;gap:5px;border:0;border-radius:7px;background:transparent;padding:9px 5px;font:650 12px/1.3 system-ui;white-space:nowrap;color:#78899e;cursor:pointer}
+.vin-groups button[aria-pressed=true]{background:#fff;color:#2d609e;box-shadow:0 1px 4px #263e5b12}
+.vin-groups b{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 3px;border-radius:8px;background:#dce8f9;color:#3269aa;font:700 10px/1 system-ui}
+.vin-groups button:focus-visible{outline:2px solid #8ebaf3;outline-offset:1px}
+@media(max-width:400px){.vin-groups{margin-left:12px;margin-right:12px}.vin-groups button{font-size:11px;padding:9px 3px;gap:3px}}
+
+[data-visit-inbox-button] .vin-label{font:650 12px/1.4 system-ui;white-space:nowrap}#manager-sidebar [data-visit-inbox-button] .vin-label{font-size:11px}
+
+/* Keep the modal frame stable while tabs and network states change. */
+.vin-dialog{height:min(680px,calc(100svh - 24px));overflow:hidden}
+.vin-dialog[open]{display:flex;flex-direction:column}
+.vin-dialog>header,.vin-dialog>.vin-groups,.vin-dialog>.vin-actions,.vin-dialog>.vin-info,.vin-dialog>.vin-status,.vin-dialog>.vin-more{flex-shrink:0}
+.vin-dialog>.vin-list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;overflow-wrap:anywhere}
+.vin-dialog>.vin-status{min-height:24px;padding:0 18px;box-sizing:border-box}
+.vin-status .vin-loading,.vin-status .vin-error{margin:0;padding:0;line-height:18px}
+.vin-status .vin-error:empty{display:none}
+.vin-dialog>.vin-info{min-height:15px}
+
+/* Phones use an inbox screen above the persistent bottom menu. */
+dialog.vin-dialog.vin-inline{position:fixed;inset:auto 0 auto 0;top:var(--vin-screen-top,0px);width:100%;max-width:none;height:var(--vin-screen-height,calc(100dvh - 90px));max-height:none;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;z-index:1100;background:#fff}
+dialog.vin-dialog.vin-inline>header{padding:14px 16px;border-bottom:1px solid #e8edf5}
+dialog.vin-dialog.vin-inline .vin-close{font-size:30px;line-height:1}
+dialog.vin-dialog.vin-inline>.vin-list{padding-bottom:16px}
+
+.vin-dialog .vin-actions .vin-settings{background:#2e68bf;border-color:#2e68bf;color:#fff;font-weight:650}
+.vin-dialog .vin-actions .vin-settings:not(:disabled):active{background:#2154a1;border-color:#2154a1}
+@media(hover:hover){.vin-dialog .vin-actions .vin-settings:not(:disabled):hover{background:#285fb0;border-color:#285fb0}}
+
+.vin-detail-back{border:0;border-radius:8px;background:#eff5ff;color:#2e68bf;padding:10px 12px;margin:8px 0;font:650 13px system-ui;cursor:pointer}
+.vin-detail{padding:22px 16px;border:1px solid #e1e9f4;border-radius:14px;background:#f8faff;color:#2c435e}
+.vin-detail small,.vin-detail time{display:block;font-size:12px;color:#7c8da4}
+.vin-detail h3{margin:12px 0 9px;font-size:21px;overflow-wrap:anywhere}
+.vin-detail strong{display:block;font-size:15px;color:#2e68bf}
+.vin-detail p{margin:16px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.8}

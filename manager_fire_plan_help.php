@@ -17,7 +17,7 @@ function mfp_save(string $uid,string $plan,string $code,array $patch,callable $s
        ||($row['user_created']??null)!==($members[$uid]['created']??null)||($row['link_key']??'')!==mg_link_key($uid,$members[$uid]))continue;
      if($actor!==''&&(($row['manager']??'')!==$actor||($row['manager_created']??null)!==($members[$actor]['created']??null)))continue;
      $row['status']='resolved';$row['resolved_at']=date('c');$row['resolved_by']=$actor?:$uid;$row['resolved_kind']=$actor!==''?'manager':'user';
-     $row['reply']=($actor!==''?'담당 매니저가':'유저가').' 요청한 소방계획서 답변을 저장했습니다.';
+     $row['reply']=($actor!==''?'연결 업체가':'유저가').' 요청한 소방계획서 답변을 저장했습니다.';
     }unset($row);return true;
    },true);
   });

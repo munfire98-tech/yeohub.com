@@ -24,7 +24,7 @@ function md_save(array $data,string $registrationArea=''):bool {
   $area=trim($registrationArea!==''?$registrationArea:(string)($row['registration_area']??''));
   if(mb_strlen($area)>50)throw new RuntimeException('구분명은 50자 이내로 입력해 주세요.');
   // This check shares the state write lock, including simultaneous new drafts.
-  if(!$exists||mdd_key($oldAddress)!==mdd_key((string)($out['address']??''))){
+  if(!defined('PARTNER_DEMO_RUNTIME')&&(!$exists||mdd_key($oldAddress)!==mdd_key((string)($out['address']??'')))){
     $duplicates=mdd_matches($s,$members,MD_ACTOR,MD_ID,$out);
     if($duplicates){
       $used=$area==='';foreach($duplicates as $d)if(mdd_key($d['area'])===mdd_key($area))$used=true;
@@ -37,7 +37,7 @@ function md_save(array $data,string $registrationArea=''):bool {
    foreach($out as $field=>$value)if($field!=='updated'&&$nonempty($value)){$hasContent=true;break;}
    if(!$hasContent)return true;
    $count=0;foreach($s['address_book']??[] as $entry)if(ma_owned($entry,MD_ACTOR,$members))$count++;
-   if($count>=200)throw new RuntimeException('사전 등록은 최대 200개까지 가능합니다.');
+   if($count>=600)throw new RuntimeException('사전 등록은 최대 600개까지 가능합니다.');
    unset($row['expires']);$s['address_book'][MD_ID]=$row;
   }
   $s['address_book'][MD_ID]['registration_area']=$area;
@@ -60,6 +60,9 @@ function md_normalize(array $d):array {
     if ($k === 'mgrs') continue;
     $out[$k] = is_string($v) ? trim((string)($d[$k] ?? '')) : ($d[$k] ?? $v);
   }
+  $out['bd_dong_names']=bdn_clean_names($out);
+  require_once __DIR__.'/building_floor_common.php';
+  $out['bd_floor_manual']=bfl_clean_manual($out);
   // 등급 검증
   if (!in_array($out['grade'], ['특급','1급','2급','3급'], true)) $out['grade'] = '';
 

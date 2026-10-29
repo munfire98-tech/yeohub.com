@@ -16,8 +16,11 @@
    저장 위치 : data/memo/{회원키}/quick_memo.json
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+
+if (session_status() !== PHP_SESSION_ACTIVE) alp_session_start();
 require_once __DIR__ . '/user_key.php';
 
 /* ── 누가 쓸 수 있는가 ────────────────────────────────────

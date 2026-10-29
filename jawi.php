@@ -1,13 +1,16 @@
 <?php
 // train.php — 자위소방대 및 초기대응체계 교육·훈련 실시 결과 기록부 목록
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 
 
 if(session_status()!==PHP_SESSION_ACTIVE){
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)alp_session_start();
 }
 
 
@@ -19,7 +22,7 @@ function is_admin(): bool {
 function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']); }
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && $role !== 'building') { header('Location: /partner_center.php'); exit; }
 
 require_once __DIR__ . '/jawi_db.php';
 $nick = $_SESSION['nickname'] ?? '사용자';
@@ -41,19 +44,23 @@ if (is_file(__DIR__ . '/user_key.php')) {
   }
 }
 
+require_once __DIR__.'/building_work_year_common.php';
+$recordYear=bwy_year($_GET['year']??null);
+if(($_GET['new']??'')==='1'&&$recordYear!==null&&$recordYear>(int)substr(fpsc_today(),0,4)){header('Location: /fire_plan.php?year='.$recordYear.'&schedule_kind=jawi');exit;}
 /* 새 기록 */
 if (($_GET['new'] ?? '') === '1') {
-  $id = jw_create();
-  header('Location: /jawi_edit.php?id=' . urlencode($id)); exit;
+  $id = jw_create($recordYear);
+  header('Location: /jawi_edit.php?id=' . urlencode($id).($recordYear?'&year='.$recordYear:'')); exit;
 }
 /* 삭제 */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'delete') {
   jw_csrf_check();
   jw_delete((string)($_POST['id'] ?? ''));
-  header('Location: /jawi.php'); exit;
+  header('Location: /jawi.php'.($recordYear?'?year='.$recordYear:'')); exit;
 }
 
 $list = jw_list();
+if($recordYear!==null)$list=array_values(array_filter($list,static fn($row)=>bwy_record_year(jw_load((string)($row['id']??''))??[],'jawi',$recordYear)));
 /* 기록 수와 관계없이 목록을 먼저 보여줍니다.
    기존에는 기록이 하나면 jawi_chat.php로 자동 이동해 첫 화면이 달라졌습니다. */
 ?>
@@ -143,7 +150,7 @@ a{text-decoration:none}
     <a class="brand" href="/index.php">소방계획서.com</a>
     <div class="nav__r">
       <div class="nw-icons">
-        <a class="nw-icobtn" href="/building_manager.php" title="건물 관리">
+        <a class="nw-icobtn" href="/FireDesk.php" title="건물 관리">
           <svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h1M11 8h1M7 12h1M11 12h1M7 16h1M11 16h1M17 14h1M17 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         </a>
         <a class="nw-icobtn" href="/subscribe_page.php" title="결제·구독">
@@ -164,7 +171,7 @@ a{text-decoration:none}
               <div class="nw-pop__sub"><?= is_admin() ? '관리자' : '건물 소방안전관리자' ?></div>
             </div>
             <div class="nw-pop__list">
-              <a class="nw-pop__item" href="/building_manager.php">
+              <a class="nw-pop__item" href="/FireDesk.php">
                 <svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                 건물 관리
               </a>
@@ -205,7 +212,7 @@ a{text-decoration:none}
 
 <header class="head">
   <div class="head__in">
-    <div class="crumb"><a href="/building_manager.php">건물 소방안전관리</a> › 자위소방대 교육·훈련 기록부</div>
+    <div class="crumb"><a href="/FireDesk.php">건물 소방안전관리</a> › 자위소방대 교육·훈련 기록부</div>
     <div class="badge"><span></span> 별지 제13호서식</div>
     <h1>자위소방대 및 초기대응체계 교육·훈련 실시 결과 기록부</h1>
     <p>실시한 소방훈련·교육의 결과를 법정서식으로 기록하고 보관합니다.</p>
@@ -214,6 +221,7 @@ a{text-decoration:none}
 <?php require_once __DIR__.'/building_facilities_common.php';bf_render_reference(); ?>
 
 <main class="wrap">
+<?php $fpscFolder='jawi'; require __DIR__.'/fire_plan_schedule_list.php'; ?>
   <div class="info">
     <div>ℹ️</div>
     <div>
@@ -225,9 +233,10 @@ a{text-decoration:none}
 
   <div class="card">
     <div class="toolbar">
-      <h2>기록부 목록</h2>
-      <a class="btn btn--primary" href="/jawi_chat.php">💬 문답으로 작성하기</a>
-      <a class="btn" href="/jawi.php?new=1">+ 표로 작성</a>
+      <h2><?=$recordYear? h($recordYear).'년 ':''?>기록부 목록</h2>
+      <?php if($recordYear!==null&&$recordYear>(int)substr(fpsc_today(),0,4)): ?><a class="btn btn--primary" href="/fire_plan.php?year=<?=$recordYear?>&amp;schedule_kind=jawi">예정 일정 정하기 →</a><?php else: ?>
+      <a class="btn btn--primary" href="/jawi_chat.php<?=$recordYear?'?year='.$recordYear:''?>">💬 문답으로 작성하기</a>
+      <a class="btn" href="/jawi.php?new=1<?=$recordYear?'&amp;year='.$recordYear:''?>">+ 표로 작성</a><?php endif; ?>
     </div>
 
     <?php if (!$list): ?>
@@ -239,14 +248,14 @@ a{text-decoration:none}
       <div class="rec">
         <div class="rec__main">
           <div class="rec__name">
-            <a href="/jawi_edit.php?id=<?=h($r['id'])?>"><?=h($r['title'] ?: '(대상명 미입력)')?></a>
+            <a href="/jawi_edit.php?id=<?=h($r['id'])?><?=$recordYear?'&amp;year='.$recordYear:''?>"><?=h($r['title'] ?: '(대상명 미입력)')?></a>
             <?php if (!empty($r['edu_date'])): ?><span class="tag"><?=h($r['edu_date'])?></span><?php endif; ?>
           </div>
           <div class="rec__meta">최근 수정 <?=h(substr((string)($r['updated_at'] ?? ''),0,16))?></div>
         </div>
-        <a class="btn" href="/jawi_chat.php?id=<?=h($r['id'])?>">💬 문답</a>
-        <a class="btn" href="/jawi_edit.php?id=<?=h($r['id'])?>">표로 수정</a>
-        <a class="btn" href="/jawi_print.php?id=<?=h($r['id'])?>">🖨️ 출력</a>
+        <a class="btn" href="/jawi_chat.php?id=<?=h($r['id'])?><?=$recordYear?'&amp;year='.$recordYear:''?>">💬 문답</a>
+        <a class="btn" href="/jawi_edit.php?id=<?=h($r['id'])?><?=$recordYear?'&amp;year='.$recordYear:''?>">표로 수정</a>
+        <a class="btn" href="/jawi_print.php?id=<?=h($r['id'])?><?=$recordYear?'&amp;year='.$recordYear:''?>">🖨️ 출력</a>
         <form method="post" onsubmit="return confirm('이 기록을 삭제할까요? 되돌릴 수 없습니다.')">
           <input type="hidden" name="act" value="delete">
           <input type="hidden" name="id" value="<?=h($r['id'])?>">

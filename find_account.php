@@ -1,13 +1,21 @@
 <?php
 // find_account.php — 아이디 찾기 / 비밀번호 재설정
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
+
+require_once __DIR__.'/manager_common.php';
+function qr_recovery_allowed(array $m,array $r):bool {
+ return ($m['joined_via']??'')!=='manager_qr'||(!empty($m['email_ok'])&&empty($m['email_verification_required'])&&($r['email']??null)===($m['email']??'')&&($r['account_created']??null)===($m['created']??''));
+}
 
 $MEMBERS_FILE = __DIR__ . '/data/members.json';
 $RESET_FILE   = __DIR__ . '/data/pw_resets.json';   // 재설정 토큰 저장
@@ -41,7 +49,7 @@ $resetValid = false; $resetUid = '';
 if ($mode === 'reset' && $resetToken !== '') {
   $resets = load_json($RESET_FILE);
   foreach ($resets as $uid => $r) {
-    if (hash_equals($r['token'] ?? '', $resetToken) && ($r['expires'] ?? 0) > time()) {
+    if (qr_recovery_allowed($members[$uid]??[],$r) && hash_equals($r['token'] ?? '', $resetToken) && ($r['expires'] ?? 0) > time()) {
       $resetValid = true; $resetUid = $uid; break;
     }
   }
@@ -57,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $found = [];
     foreach ($members as $uid => $m) {
+      if (($m['joined_via']??'')==='manager_qr' && (empty($m['email_ok'])||!empty($m['email_verification_required']))) continue;
       if (strcasecmp($m['email'] ?? '', $email) === 0) $found[] = $uid;
     }
     // 이메일 존재 여부를 화면에서 구분해주지 않음 (계정 캐기 방지)
@@ -76,10 +85,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $uid   = trim($_POST['userid'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $m = $members[$uid] ?? null;
-    if ($m && strcasecmp($m['email'] ?? '', $email) === 0 && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    if ($m && (($m['joined_via']??'')!=='manager_qr'||(!empty($m['email_ok'])&&empty($m['email_verification_required']))) && strcasecmp($m['email'] ?? '', $email) === 0 && filter_var($email, FILTER_VALIDATE_EMAIL)) {
       $token = bin2hex(random_bytes(24));
       $resets = load_json($RESET_FILE);
-      $resets[$uid] = ['token' => $token, 'expires' => time() + 1800];  // 30분 유효
+      $resets[$uid] = ['token' => $token, 'expires' => time() + 1800,'email'=>(string)$m['email'],'account_created'=>(string)($m['created']??'')];  // 30분 유효
       save_json($RESET_FILE, $resets);
       $link = 'https://xn--989ay50awvdzmk18f.com/find_account.php?mode=reset&token=' . $token;
       $body = "안녕하세요, 소방계획서.com입니다.\n\n비밀번호 재설정 링크입니다. (30분간 유효)\n\n"
@@ -99,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $resets = load_json($RESET_FILE);
     $uid = '';
     foreach ($resets as $u => $r) {
-      if (hash_equals($r['token'] ?? '', $token) && ($r['expires'] ?? 0) > time()) { $uid = $u; break; }
+      if (qr_recovery_allowed($members[$u]??[],$r) && hash_equals($r['token'] ?? '', $token) && ($r['expires'] ?? 0) > time()) { $uid = $u; break; }
     }
     if ($uid === '') {
       $msg = '링크가 만료되었거나 올바르지 않습니다. 다시 요청해 주세요.'; $msgType='err'; $mode='pw';
@@ -108,10 +117,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($pw !== $pw2) {
       $msg = '비밀번호 확인이 일치하지 않습니다.'; $msgType='err'; $mode='reset'; $resetValid=true; $resetToken=$token;
     } else {
-      $members[$uid]['pw_hash'] = password_hash($pw, PASSWORD_DEFAULT);
-      save_json($MEMBERS_FILE, $members);
-      unset($resets[$uid]); save_json($RESET_FILE, $resets);   // 토큰 폐기
-      $msg = '비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.'; $msgType='ok'; $mode='done';
+      $resetSaved=mg_member_tx(function(array &$current)use($uid,$pw,$resets){
+        if(!isset($current[$uid])||!qr_recovery_allowed($current[$uid],$resets[$uid]??[]))return false;
+        $current[$uid]['pw_hash']=password_hash($pw,PASSWORD_DEFAULT);$current[$uid]['password_changed_at']=date('c');return true;
+      });
+      if(!$resetSaved){$msg='이메일 인증 상태가 변경되었습니다. 재설정 링크를 다시 요청해 주세요.';$msgType='err';$mode='pw';}
+      else{
+        unset($resets[$uid]); save_json($RESET_FILE, $resets);
+        $msg='비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.';$msgType='ok';$mode='done';
+      }
     }
   }
 }

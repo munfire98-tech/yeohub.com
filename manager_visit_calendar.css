@@ -35,7 +35,7 @@ dialog.mvc-planner{height:calc(100dvh - 24px);max-height:calc(100dvh - 24px);ove
 .mvc-planner .mvc-map-panel{height:100%;min-height:0;align-self:stretch}.mvc-planner .mvc-map-title{display:flex;flex-direction:row;justify-content:space-between;align-items:center;gap:8px;height:46px;min-height:46px;flex:0 0 46px;padding:7px 10px}.mvc-planner .mvc-map-title>div:first-child{height:auto;min-width:0}.mvc-planner .mvc-map-title small{display:none}.mvc-planner .mvc-map-title h3{height:auto;min-height:0;margin:0;padding:0;font-size:12px;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mvc-planner .mvc-map-actions{height:30px;gap:5px;flex-shrink:0}.mvc-planner .mvc-map-actions button{height:30px;font-size:10px;padding:5px 7px}.mvc-planner .mvc-drag-handle{min-width:115px}.mvc-planner .mvc-plan-map{height:auto;min-height:0;flex:1}.mvc-planner .mvc-map-legend{flex:0 0 auto;padding:7px 10px;font-size:9px;gap:5px 8px}
 .mvc-planner .mvc-calendar-panel{height:100%;min-height:0;overflow:hidden}.mvc-planner .mvc-calendar-panel>section{height:100%;min-height:0;display:flex;flex-direction:column}.mvc-planner .mvc-week{flex:0 0 32px;padding:7px 0}.mvc-planner .mvc-grid{flex:1;min-height:0;height:auto;grid-auto-rows:minmax(0,1fr)}.mvc-planner .mvc-cell,.mvc-planner .mvc-empty,.mvc-planner .mvc-calendar-panel .mvc-cell,.mvc-planner .mvc-calendar-panel .mvc-empty{height:auto;min-height:0;padding:5px;overflow:hidden}.mvc-planner>.mvc-toast{position:absolute;bottom:14px;margin:0;left:50%;transform:translateX(-50%);max-width:calc(100% - 30px)}
 @media(max-width:900px){dialog.mvc-planner{width:calc(100vw - 12px);height:calc(100dvh - 12px);max-height:calc(100dvh - 12px)}.mvc-planner>.mvc-header{padding:8px 12px;min-height:46px}.mvc-planner>.mvc-header h2{font-size:17px}.mvc-planner>.mvc-toolbar{padding:3px 12px;flex-basis:38px}.mvc-planner>.mvc-notice,.mvc-planner>.mvc-notice:empty{margin:0 12px;flex-basis:16px;height:16px;line-height:16px}.mvc-planner>.mvc-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1.2fr);gap:8px;padding:0 10px 10px}.mvc-planner .mvc-map-title{height:40px;min-height:40px;flex-basis:40px;padding:5px 7px}.mvc-planner .mvc-map-title h3{font-size:11px}.mvc-planner .mvc-map-legend{display:none}.mvc-planner .mvc-week{flex-basis:23px;padding:3px 0}.mvc-planner .mvc-cell,.mvc-planner .mvc-empty{padding:2px;gap:2px}.mvc-planner .mvc-cell>b{font-size:10px;line-height:16px;width:18px}.mvc-planner .mvc-calendar-panel .mvc-chip{font-size:9px;padding:1px 3px}.mvc-planner .mvc-cell small{font-size:8px}}
-@media(max-height:650px){.mvc-planner .mvc-cell .mvc-chip:nth-of-type(n+2){display:none}.mvc-planner .mvc-week{flex-basis:22px;padding:3px 0}.mvc-planner .mvc-cell>b{line-height:17px;font-size:10px}.mvc-planner .mvc-cell{gap:2px}}
+@media(max-height:650px){.mvc-planner .mvc-cell .mvc-chip ~ .mvc-chip{display:none}.mvc-planner .mvc-week{flex-basis:22px;padding:3px 0}.mvc-planner .mvc-cell>b{line-height:17px;font-size:10px}.mvc-planner .mvc-cell{gap:2px}}
 
 .mvc-drag-demo{margin:13px 0 10px;padding:15px 12px 11px;border:1px solid #dce7f6;border-radius:12px;background:#f7faff}.mvc-demo-row{display:flex;align-items:center;justify-content:space-between;gap:12px}.mvc-demo-marker{display:flex;align-items:center;gap:8px;border-radius:10px;background:#3974c4;color:#fff;padding:7px 6px 7px 9px;font:600 12px system-ui;min-width:0}.mvc-demo-marker>div{white-space:nowrap}.mvc-demo-marker i{font-style:normal;font-size:12px}.mvc-demo-grip{display:flex;align-items:center;justify-content:center;font-style:normal;font-size:24px;line-height:1;width:29px;height:30px;border:2px solid #fff;border-radius:7px;background:#ffffff30;outline:2px solid #a7c9f7;outline-offset:2px;margin-left:3px}.mvc-demo-arrow{font-size:24px;color:#8eacce;flex-shrink:0}.mvc-demo-day{flex:0 0 49px;text-align:center;padding:5px 6px;border:1px solid #a9c5ed;border-radius:9px;background:#eaf2ff;color:#3f70ad}.mvc-demo-day small{display:block;font-size:9px}.mvc-demo-day b{display:block;font-size:20px}.mvc-drag-demo figcaption{margin-top:12px;color:#8092a8;font-size:10px;text-align:center;line-height:1.7}.mvc-drag-demo figcaption b{color:#3f70ad;margin-right:4px}@media(max-width:420px){.mvc-guide-content{padding:20px}.mvc-guide-content li{gap:9px}.mvc-drag-demo{padding:12px 8px}.mvc-demo-row{gap:7px}.mvc-demo-marker{gap:5px;font-size:11px;padding-left:6px}.mvc-demo-day{flex-basis:40px}.mvc-demo-arrow{font-size:19px}}
 
@@ -67,3 +67,333 @@ dialog.mvc-planner{height:calc(100dvh - 24px);max-height:calc(100dvh - 24px);ove
 .mvc-pin.mvc-approval-glow.mvc-half-year{border-color:#0d9488;box-shadow:0 0 0 3px #ffffffed,0 0 0 5px #5eead499,0 0 22px #14b8a680,0 5px 12px #134e4a35}
 .mvc-pin.mvc-half-year .mvc-pin-approval{background:#0f887e}
 .mvc-record.mvc-half-year .mvc-approval-label{color:#0f887e}
+/* Demonstrate the actual dotted grip: open hand -> grasp -> drag -> release. */
+.mvc-drag-demo{position:relative;overflow:hidden;margin-left:0;margin-right:0;padding-bottom:12px}
+.mvc-drag-demo .mvc-demo-row{padding-bottom:45px}
+.mvc-demo-motion{position:absolute;inset:0;pointer-events:none}
+.mvc-demo-traveler{position:absolute;left:var(--hand-x,100px);top:var(--hand-y,30px);width:52px;height:60px;filter:drop-shadow(0 3px 3px #23395a30)}
+.mvc-demo-traveler svg{position:absolute;inset:0;width:52px;height:60px;fill:#ffe0bd;stroke:#80563b;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.mvc-demo-carried{position:absolute;right:24px;top:-8px;white-space:nowrap;background:#3974c4;border:1px solid #fff;border-radius:7px;padding:5px 8px;color:white;font:600 10px system-ui;opacity:0}
+.mvc-hand-closed{opacity:0}
+.mvc-guide-dialog[open] .mvc-demo-traveler{animation:mvc-hand-travel 4.8s ease-in-out infinite}
+.mvc-guide-dialog[open] .mvc-hand-open{animation:mvc-hand-open 4.8s linear infinite}
+.mvc-guide-dialog[open] .mvc-hand-closed{animation:mvc-hand-grasp 4.8s linear infinite}
+.mvc-guide-dialog[open] .mvc-demo-carried{animation:mvc-hand-carry 4.8s linear infinite}
+.mvc-guide-dialog[open] .mvc-demo-grip{animation:mvc-grip-target 4.8s ease-in-out infinite}
+.mvc-demo-steps{position:relative;height:19px;margin-top:4px}
+.mvc-guide-content .mvc-demo-steps span{position:absolute;inset:0;margin:0;font-size:11px;color:#6c87a8;opacity:0}
+.mvc-guide-dialog[open] .mvc-demo-steps span:nth-child(1){animation:mvc-step-one 4.8s linear infinite}
+.mvc-guide-dialog[open] .mvc-demo-steps span:nth-child(2){animation:mvc-step-two 4.8s linear infinite}
+.mvc-guide-dialog[open] .mvc-demo-steps span:nth-child(3){animation:mvc-step-three 4.8s linear infinite}
+@keyframes mvc-hand-travel{0%,10%{transform:translate(0,8px);opacity:0}16%,30%{transform:translate(0,0);opacity:1}65%,88%{transform:translate(var(--hand-dx,100px),var(--hand-dy,0px));opacity:1}96%,100%{transform:translate(var(--hand-dx,100px),calc(var(--hand-dy,0px) + 8px));opacity:0}}
+@keyframes mvc-hand-open{0%,23%{opacity:1}24%,72%{opacity:0}73%,100%{opacity:1}}
+@keyframes mvc-hand-grasp{0%,23%{opacity:0}24%,72%{opacity:1}73%,100%{opacity:0}}
+@keyframes mvc-hand-carry{0%,28%{opacity:0}30%,72%{opacity:1}76%,100%{opacity:0}}
+@keyframes mvc-grip-target{0%,28%{box-shadow:0 0 0 5px #aacdf775}35%,100%{box-shadow:0 0 0 0 #aacdf700}}
+@keyframes mvc-step-one{0%,29%{opacity:1}30%,100%{opacity:0}}
+@keyframes mvc-step-two{0%,29%{opacity:0}30%,72%{opacity:1}73%,100%{opacity:0}}
+@keyframes mvc-step-three{0%,72%{opacity:0}73%,100%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.mvc-guide-dialog[open] .mvc-drag-demo *{animation:none!important}.mvc-demo-traveler{transform:none;opacity:1}.mvc-hand-open{opacity:1}.mvc-hand-closed,.mvc-demo-carried{opacity:0}.mvc-demo-steps{display:none}}
+/* Visible drag affordance, shared with the entry demonstration. */
+.mvc-pin .mvc-pin-grip,.mvc-demo-grip{display:inline-flex;align-items:center;justify-content:center;gap:4px;flex:0 0 auto;width:auto;min-width:66px;height:31px;box-sizing:border-box;padding:4px 7px;border:1px solid #d4e3f9;border-radius:8px;background:#fff;color:#285b9d;font:700 11px/1 system-ui;box-shadow:0 2px 4px #123b7625;cursor:grab;touch-action:manipulation;user-select:none}
+.mvc-pin-grip>*{pointer-events:none}
+.mvc-pin-grip svg,.mvc-demo-grip svg{flex:none;width:19px;height:22px;fill:#ffdfb9;stroke:#795334;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.mvc-pin .mvc-pin-grip span,.mvc-guide-content .mvc-demo-grip span{display:inline;overflow:visible;margin:0;color:inherit;font:inherit}
+.mvc-pin-grip .mvc-grip-arrow,.mvc-demo-grip .mvc-grip-arrow{font-size:14px!important;color:#7292bb!important}
+.mvc-pin .mvc-pin-grip:hover{background:#edf5ff;border-color:#89b0e2;box-shadow:0 0 0 3px #d3e6ff75}
+.mvc-pin .mvc-pin-grip:focus-visible{outline:3px solid #ffd48b;outline-offset:3px}
+.mvc-pin .mvc-pin-grip:active,.mvc-pin .mvc-pin-grip.mvc-grip-held{cursor:grabbing;background:#d9eaff;box-shadow:inset 0 2px 4px #17457c25}
+.mvc-pin .mvc-pin-grip:disabled{opacity:.55;cursor:wait}
+.mvc-demo-grip{margin-left:2px;outline:2px solid #9fc5f4;outline-offset:2px}
+.mvc-demo-marker{gap:5px}
+@media(pointer:coarse){.mvc-pin .mvc-pin-grip{display:none}}
+.mvc-demo-marker>div{min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* A translucent card demonstrates the route without changing any visit data. */
+.mvc-route-ghost{position:absolute;z-index:2100000;display:flex;align-items:center;gap:9px;max-width:190px;padding:10px 13px;border:1px solid #8bb8ef;border-radius:12px;background:#eff6ffe8;color:#345c8a;box-shadow:0 8px 24px #284f7926;pointer-events:none!important;user-select:none;box-sizing:border-box;will-change:transform,opacity}
+.mvc-route-ghost div{min-width:0}.mvc-route-ghost strong{display:block;max-width:125px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:650 12px/1.5 system-ui}.mvc-route-ghost small{display:block;margin-top:2px;color:#718ba9;font:10px/1.5 system-ui}
+.mvc-route-ghost.mvc-actual-ghost{opacity:.78}
+.mvc-pin-grip .mvc-mouse-icon,.mvc-demo-grip .mvc-mouse-icon,.mvc-route-ghost .mvc-mouse-icon,.mvc-demo-traveler .mvc-mouse-icon{width:21px;height:29px;flex:none;fill:#fff;stroke:#547baa;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.mvc-mouse-icon .mvc-mouse-left{fill:#a7cdf7;stroke:none}.mvc-mouse-icon .mvc-mouse-seam{fill:none}.mvc-mouse-icon .mvc-mouse-wheel{stroke:#386ba6;stroke-width:2.8}
+.mvc-demo-traveler .mvc-mouse-icon{position:absolute;left:14px;top:0;width:28px;height:38px}
+.mvc-demo-carried{background:#edf6ffe6;color:#315e90;border:1px solid #93bdec;box-shadow:0 4px 14px #325a8324;right:24px;top:-9px;padding:7px 10px;border-radius:9px}
+.mvc-guide-dialog[open] .mvc-demo-traveler .mvc-mouse-left{animation:mvc-mouse-press 4.8s linear infinite}
+@keyframes mvc-mouse-press{0%,23%,74%,100%{fill:#dceafa}24%,73%{fill:#4785d0}}
+@media(prefers-reduced-motion:reduce){.mvc-route-ghost:not(.mvc-actual-ghost){display:none}.mvc-guide-dialog[open] .mvc-demo-traveler .mvc-mouse-left{animation:none}}
+
+/* Date-level holidays and notes: compact, separate from visit records. */
+.mvc-day-title-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.mvc-holiday-toggle{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid #eadde0;border-radius:9px;background:#fff8f9;color:#9d5765;font:600 11px system-ui;cursor:pointer;white-space:nowrap}
+.mvc-holiday-toggle input{appearance:auto;width:14px;height:14px;margin:0;accent-color:#bd637b}
+.mvc-day-notes{padding:12px 14px;background:#f7f9fc;border:1px solid #e5ebf3;border-radius:12px;margin:0 0 14px}
+.mvc-day-notes>label{display:flex;align-items:center;gap:9px;color:#425b77;font:600 12px system-ui;margin-bottom:8px}
+.mvc-day-notes>label small{font-weight:400;font-size:10px;color:#8795a7}
+.mvc-day-notes textarea{box-sizing:border-box;display:block;width:100%;min-height:62px;max-height:180px;resize:vertical;border:1px solid #dce4ef;border-radius:8px;padding:9px 10px;background:#fff;color:#344e69;font:12px/1.6 system-ui}
+.mvc-day-notes textarea:focus-visible{outline:2px solid #8eadd7;outline-offset:2px}
+.mvc-day-note-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:9px}
+.mvc-day-note-status{font:11px/1.5 system-ui;color:#627e9b;overflow-wrap:anywhere}
+.mvc-day-note-save{flex-shrink:0;border:1px solid #d5e2f2;border-radius:8px;padding:7px 10px;background:#eaf1fc;color:#3869ab;font:600 11px system-ui;cursor:pointer}
+.mvc-cell{position:relative}.mvc-cell.is-holiday{background:#fff2f4}.mvc-cell.is-holiday>b{color:#b9526c}.mvc-cell.is-holiday.is-selected{background:#ffe9ef;box-shadow:inset 0 0 0 2px #c58ba0}
+.mvc-cell .mvc-day-flags{position:absolute;right:5px;top:7px;display:flex;align-items:center;gap:3px;pointer-events:none}
+.mvc-day-off-mark{font:600 9px/16px system-ui;color:#b6556c;background:#ffe0e8;border-radius:4px;padding:0 3px}
+.mvc-day-memo-mark{display:flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:4px;background:#e8eef9;color:#5f7fb4}.mvc-day-memo-mark svg{width:14px;height:14px}
+@media(max-width:900px){.mvc-cell .mvc-day-flags{right:2px;top:3px;gap:1px}.mvc-day-off-mark{font-size:8px;padding:0 2px;line-height:13px}.mvc-day-memo-mark{width:13px;height:13px}.mvc-day-memo-mark svg{width:12px;height:12px}}
+
+/* Readable memo badges; only newly saved notes glow, at most three cycles. */
+.mvc-cell .mvc-date-line{display:flex;align-items:center;flex-wrap:wrap;gap:3px;width:100%;min-height:23px;flex-shrink:0}
+.mvc-date-line>b{flex-shrink:0;width:23px;line-height:23px;font-size:12px;font-weight:500;text-align:center;border-radius:50%}
+.mvc-cell.is-today .mvc-date-line>b{background:#e7effb;color:#326ac1}
+.mvc-cell.is-holiday .mvc-date-line>b{color:#b9526c}
+.mvc-cell .mvc-day-flags{position:static;display:flex;align-items:center;gap:3px;margin-left:auto}
+.mvc-day-memo-mark{width:auto;height:21px;display:inline-flex;gap:3px;padding:0 5px;box-sizing:border-box;border:1px solid #ecd389;border-radius:6px;background:#fff5cd;color:#8c6517;font:600 10px/1 system-ui;white-space:nowrap}
+.mvc-day-memo-mark svg{width:13px;height:13px;flex-shrink:0}
+.mvc-day-memo-mark.is-just-saved{animation:mvc-memo-glow 1.4s ease-in-out 3}
+@keyframes mvc-memo-glow{0%,100%{box-shadow:0 0 0 0 #edbe4900;background:#fff5cd}50%{box-shadow:0 0 0 2px #edbe4933,0 0 9px #eabd4566;background:#ffe8a0}}
+@media(max-width:900px){.mvc-cell .mvc-date-line{min-height:17px;gap:2px}.mvc-date-line>b{width:17px;line-height:17px;font-size:10px}.mvc-cell .mvc-day-flags{gap:2px}.mvc-day-memo-mark{height:17px;padding:0 3px;font-size:9px;gap:2px}.mvc-day-memo-mark svg{width:11px;height:11px}}
+@media(max-width:600px){.mvc-cell .mvc-date-line{gap:1px}.mvc-date-line>b{width:14px}.mvc-day-memo-mark{padding:0 2px}.mvc-day-memo-mark svg{display:none}.mvc-day-flags:has(.mvc-day-memo-mark) .mvc-day-off-mark{display:none}}
+@media(prefers-reduced-motion:reduce){.mvc-day-memo-mark.is-just-saved{animation:none}}
+
+/* Quick phrases stay secondary to the memo and save action. */
+.mvc-memo-shortcuts{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:7px 0 10px}
+.mvc-memo-shortcuts>button{border:1px solid #dce5ef;border-radius:7px;background:#fff;color:#58718f;padding:6px 9px;font:500 11px/1.3 system-ui;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s}
+.mvc-memo-shortcuts>button:hover{background:#edf4ff;border-color:#b9cee9;color:#3565a3}
+.mvc-memo-shortcuts>button:active{background:#e1edfc}
+.mvc-memo-shortcut-hint{font:11px/1.4 system-ui;color:#a25059}
+.mvc-memo-shortcut-hint:empty{display:none}
+.mvc-form label:has(textarea[name="memo"]){margin-bottom:0}
+
+/* Mobile-only single-panel planner; desktop map/calendar layout is unchanged. */
+.mvc-mobile-tabs,.mvc-mobile-footer,.mvc-mobile-guide{display:none}
+.mvc-guide-dialog.is-mobile-guide .mvc-guide-content>ol,.mvc-guide-dialog.is-mobile-guide .mvc-guide-note{display:none}
+.mvc-guide-dialog.is-mobile-guide .mvc-mobile-guide{display:block}
+@media (max-width:900px), (pointer:coarse) and (max-height:500px){
+ dialog.mvc-planner{width:100%;max-width:100%;height:100dvh;max-height:100dvh;margin:0;border:0;border-radius:0;inset:0}
+ .mvc-planner>.mvc-header{padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;flex:0 0 auto}
+ .mvc-planner .mvc-close{width:40px;height:40px}
+ .mvc-mobile-tabs{display:flex;flex:0 0 auto;gap:4px;margin:0 14px 8px;padding:4px;border-radius:13px;background:#eef2f7}
+ .mvc-mobile-tabs button{flex:1;min-height:40px;border:0;border-radius:10px;background:transparent;color:#738298;font-size:14px;font-weight:700}
+ .mvc-mobile-tabs button[aria-pressed=true]{background:white;color:#285ec0;box-shadow:0 2px 7px #23395412}
+ .mvc-planner>.mvc-toolbar{flex:0 0 auto;min-height:40px;gap:6px;padding:0 14px 6px;flex-wrap:wrap}
+ .mvc-planner>.mvc-toolbar>div{gap:8px}.mvc-planner>.mvc-toolbar button{min-height:34px}
+ .mvc-planner>.mvc-layout{display:block;flex:1 1 0;min-height:0;padding:0 10px 8px;overflow:hidden}
+ .mvc-planner[data-mobile-view=map] .mvc-calendar-panel,.mvc-planner[data-mobile-view=calendar] .mvc-map-panel{display:none}
+ .mvc-planner .mvc-map-panel,.mvc-planner .mvc-calendar-panel{height:100%;min-height:0}
+ .mvc-planner .mvc-plan-map{min-height:0;flex:1 1 0;height:auto}
+ .mvc-planner .mvc-map-title{flex-basis:44px;height:44px;padding:5px 9px}
+ .mvc-planner .mvc-map-actions button{min-height:34px;height:34px;font-size:11px}
+ .mvc-planner .mvc-drag-handle,.mvc-planner .mvc-pin-grip,.mvc-planner .mvc-drag-ghost{display:none!important}
+ .mvc-planner .mvc-map-legend{display:flex;flex:0 0 auto;padding:5px 8px;font-size:9px}
+ .mvc-planner .mvc-calendar-panel .mvc-chip{font-size:10px;padding:3px}
+ .mvc-planner .mvc-cell,.mvc-planner .mvc-empty{padding:4px;gap:3px}
+ .mvc-planner .mvc-cell>b{font-size:12px;line-height:23px;width:23px}
+ .mvc-mobile-footer{display:flex;flex-direction:column;flex:0 0 auto;gap:6px;padding:9px 14px calc(10px + env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid #e4eaf2}
+ .mvc-mobile-footer p{margin:0;color:#62768c;font-size:12px;line-height:18px;text-align:center}
+ .mvc-mobile-footer button{min-height:44px;border:0;border-radius:12px;background:#2c64c8;color:#fff;font-size:14px;font-weight:750}
+ .mvc-mobile-footer button:disabled{background:#e9eef5;color:#8797ab;opacity:1}
+ .mvc-planner>.mvc-toast{bottom:calc(98px + env(safe-area-inset-bottom,0px));z-index:1100;font-size:12px}
+ .mvc-day-dialog input,.mvc-day-dialog select,.mvc-day-dialog textarea{font-size:16px!important;max-width:100%;min-width:0}
+ .mvc-day-dialog .mvc-batch-save{min-height:44px}.mvc-day-dialog .mvc-day-close{width:40px;height:40px}
+}
+
+/* Keep dense days readable without stacking tiny, clipped text on phones. */
+.mvc-day-count{display:none}
+.mvc-planner .mvc-day-more{display:block;flex:0 0 auto;min-width:0;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:16px}
+.mvc-planner .mvc-chip{flex-shrink:0}
+@media (max-width:900px), (pointer:coarse) and (max-height:500px){
+ .mvc-planner .mvc-cell .mvc-chip,.mvc-planner .mvc-day-more{display:none!important}
+ .mvc-planner .mvc-day-count{display:block;flex:0 0 auto;max-width:100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:5px;padding:3px 2px;background:#eaf1fd;color:#3464a5;font:650 10px/15px system-ui;text-align:center}
+ .mvc-planner .mvc-day-count.all-completed{background:#e7f4ee;color:#2f8064}
+ .mvc-planner .mvc-day-count.has-approval{box-shadow:inset 0 0 0 1px #e9b65d}
+ .mvc-planner .mvc-date-line{flex:0 0 auto;min-width:0;min-height:20px;gap:1px}
+ .mvc-planner .mvc-day-memo-mark{width:15px;height:16px;padding:1px;border:0;background:#fff0ba;gap:0}
+ .mvc-planner .mvc-day-memo-mark svg{display:block;width:12px;height:12px}
+ .mvc-planner .mvc-day-memo-mark>span{display:none}
+}
+
+.mvc-demo-banner{flex:0 0 auto;margin:0;padding:10px 20px;border-bottom:1px solid #d8e7f6;background:#edf6ff;color:#376285;font:12px/1.6 system-ui}.mvc-demo-banner[hidden]{display:none!important}.mvc-demo-banner strong{display:block;font-size:13px}.mvc-demo-banner span{display:block;color:#617f99}@media(max-width:600px){.mvc-demo-banner{padding:8px 14px;font-size:11px}.mvc-demo-banner strong{font-size:12px}}
+
+/* Match the main map's Aa control without taking space from the drag toolbar. */
+.mvc-view-toggle{display:flex;align-items:center;justify-content:center;width:38px;height:38px;padding:0;border:1px solid #dce4ee;border-radius:10px;background:#fff;color:#63758a;box-shadow:0 2px 8px #213c531a;font:600 15px/1 system-ui;letter-spacing:-.5px;cursor:pointer;touch-action:manipulation}
+.mvc-view-toggle:hover{border-color:#bdcbdc;background:#f5f7fa;color:#344d6a}
+.mvc-view-toggle[aria-pressed=true]{color:#245cba;border-color:#b9d0f2;background:#eaf2ff}
+.mvc-view-toggle:focus-visible{outline:2px solid #5485d5;outline-offset:3px}
+.mvc-pin>b{flex-shrink:0}.mvc-pin .mvc-pin-icon{display:none}
+.mvc-icons .mvc-pin:not(.chosen){gap:0;padding:6px;min-width:38px;min-height:38px;box-sizing:border-box;justify-content:center}
+.mvc-icons .mvc-pin:not(.chosen)>.mvc-pin-name,.mvc-icons .mvc-pin:not(.chosen)>b,.mvc-icons .mvc-pin:not(.chosen)>.mvc-pin-status{display:none}
+.mvc-icons .mvc-pin:not(.chosen)>.mvc-pin-approval:not([hidden]){left:50%;transform:translateX(-50%)}
+.mvc-icons .mvc-pin:not(.chosen)>.mvc-pin-icon{display:flex;align-items:center;justify-content:center;flex:0 0 26px;width:26px;height:26px;border-radius:7px;background:#70859d;color:#fff;font:800 14px/1 system-ui}
+.mvc-icons .mvc-pin .mvc-pin-icon[data-kind=C]{background:#3978cf}.mvc-icons .mvc-pin .mvc-pin-icon[data-kind=S]{background:#e94049}
+
+.mvc-pin.visit-completed{position:relative}
+.mvc-plan-map .mvc-name-tooltip{display:none}
+.mvc-plan-map.mvc-icons .mvc-name-tooltip{display:block;width:max-content;max-width:min(340px,calc(100vw - 60px));box-sizing:border-box;padding:9px 13px;border:1px solid #dce5ef;border-radius:11px;background:#fff;color:#233b55;box-shadow:0 4px 16px #19365126;font:650 12px/1.5 system-ui;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (pointer:coarse){.mvc-view-toggle{width:42px;height:42px}.mvc-icons .mvc-pin:not(.chosen){min-width:44px;min-height:44px}}
+
+/* Linked report reception is separate from building visits. */
+.mvc-report-key{color:#7851b5;font-size:12px;white-space:nowrap}
+.mvc-chip.mvc-report-chip{background:#f2eaff;color:#694399;border-left:3px solid #9262c6}
+.mvc-chip.mvc-report-chip.completed{background:#e9f6ed;color:#26724c;border-left-color:#269a67}
+.mvc-chip.mvc-report-chip.needs-reschedule{background:#fff0e8;color:#a34420;border-left-color:#db713d}
+.mvc-report-dialog{width:min(510px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:0;border:1px solid #dbe3ef;border-radius:20px;color:#22364c;box-shadow:0 24px 80px #162a4655;overflow:auto}
+.mvc-report-dialog .mvc-header{padding:20px 22px 16px;gap:12px;position:sticky;top:0;background:#fff;z-index:2}
+.mvc-report-dialog .mvc-header h2{font-size:20px;line-height:1.4}
+.mvc-report-dialog .mvc-header small{color:#8662b0;font-size:10px;letter-spacing:1px}
+.mvc-report-close{flex:none;width:36px;height:36px;border:1px solid #dbe3ef;border-radius:12px;background:#f7f9fc;color:#6d7d90;font-size:22px}
+.mvc-report-form{padding:0 22px 22px;display:grid;gap:12px}
+.mvc-report-form label{display:grid;gap:7px;font-size:14px;font-weight:700}
+.mvc-report-form input,.mvc-report-form select,.mvc-report-form textarea{box-sizing:border-box;min-width:0;width:100%;font:inherit;font-size:16px;color:#263b52;padding:10px 12px;background:white;border:1px solid #d9e2ed;border-radius:10px}
+.mvc-report-form button,.mvc-report-record button,.mvc-report-changes button{font:inherit;cursor:pointer}
+.mvc-report-intro{margin:0;font-size:14px;line-height:1.7;color:#596d83;overflow-wrap:anywhere}
+.mvc-report-dates{display:grid;grid-template-columns:1fr 1fr;border:1px solid #e3daf2;border-radius:13px;background:#faf8fe}
+.mvc-report-dates>div{padding:13px;display:grid;gap:6px;min-width:0}
+.mvc-report-dates>div+div{border-left:1px solid #e3daf2}
+.mvc-report-dates span{font-size:12px;color:#738298}
+.mvc-report-dates strong{font-size:17px;color:#694399;overflow-wrap:anywhere}
+.mvc-report-auto-row{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#6d7f92;font-size:12px}
+.mvc-report-auto{border:0;background:transparent;color:#386db1;font-size:12px;text-decoration:underline;padding:6px 0;white-space:nowrap}
+.mvc-report-rule{border-top:1px solid #e7edf4;padding-top:12px;font-size:12px;color:#748398;line-height:1.7}
+.mvc-report-rule summary{cursor:pointer}.mvc-report-rule p{margin:6px 0}
+.mvc-report-rule a{color:#386db1}
+.mvc-report-actions{display:flex;justify-content:flex-end;gap:8px}
+.mvc-report-actions button{padding:11px 16px;border:1px solid #d7e1ed;border-radius:10px;background:white;font-weight:700;color:#516b86}
+.mvc-report-actions .mvc-report-submit{background:#6e48a6;color:white;border-color:#6e48a6}
+.mvc-report-late,.mvc-report-error{color:#af4e2b;font-size:12px;line-height:1.6;margin:0}
+.mvc-report-data-warning{color:#967226;background:#fffae9;font-size:12px;line-height:1.6;padding:8px;border-radius:8px;margin:0}
+.mvc-report-data-warning:empty,.mvc-report-late:empty,.mvc-report-error:empty{display:none}
+.mvc-record.mvc-report-record{border-color:#d9caeb;background:#fdfbff}
+.mvc-report-record>small:first-child{font-weight:800;color:#76539d}
+.mvc-report-record>span{display:block;font-size:13px}
+.mvc-report-record>button{border:1px solid #ddcfed;background:#fff;border-radius:8px;color:#6e48a6;padding:8px 12px;font-size:12px;font-weight:700;justify-self:start}
+.mvc-report-health{margin:0;padding:0 20px;color:#9a6c30;font-size:11px;flex:none}
+.mvc-report-health:empty{display:none}
+.mvc-report-changes{margin:0 20px 8px;padding:9px 12px;background:#fff8e8;border:1px solid #ead9aa;border-radius:10px;color:#835d21;font-size:12px;flex:none;max-height:130px;overflow:auto}
+.mvc-report-changes summary{cursor:pointer;font-weight:700}.mvc-report-changes p{margin:6px 0}
+.mvc-report-changes button{padding:5px 10px;border-radius:7px;border:1px solid #dbc9a7;background:white;color:#805b2a}
+.mvc-report-dialog [hidden]{display:none!important}
+@media(max-width:600px){.mvc-report-dialog .mvc-header{padding:15px 16px 12px}.mvc-report-dialog .mvc-header h2{font-size:18px}.mvc-report-form{padding:0 16px 16px;gap:10px}.mvc-report-dates strong{font-size:16px}.mvc-report-intro{font-size:13px}.mvc-report-changes{margin:0 12px 6px;max-height:95px}.mvc-report-health{padding:0 12px}}
+
+.mvc-planner .mvc-day-count.has-report{background:#f1eafb;color:#754aab;border:1px solid #dac6f0}
+
+/* Assigned visit dates stay attached to markers; reception/repair deadlines never count as visits. */
+.mvc-planner .mvc-map-title{height:56px;min-height:56px;flex-basis:56px}
+.mvc-planner .mvc-map-title>div:first-child{display:flex;flex-direction:column;gap:1px;min-width:0}
+.mvc-registration-summary{display:block;color:#6b8096;font:600 10px/15px system-ui;white-space:nowrap;letter-spacing:-.2px}
+.mvc-pin .mvc-pin-dates{display:block;font-size:10px;font-weight:750;color:#2f68b7;line-height:1.4;max-width:170px;white-space:normal;overflow-wrap:anywhere}
+.mvc-pin.chosen .mvc-pin-dates{color:#fff}.mvc-icons .mvc-pin .mvc-pin-dates{display:none!important}
+.mvc-name-tooltip{white-space:normal;max-width:340px;overflow-wrap:anywhere}
+.mvc-work-period{margin:0;padding:0;border:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.mvc-work-period legend{font-size:13px;font-weight:750;margin-bottom:8px}
+.mvc-report-form .mvc-work-period label{display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid #dbe3ef;border-radius:10px;padding:10px 5px;font-size:14px;cursor:pointer}
+.mvc-work-period label:has(input:checked){border-color:#617fca;background:#eff4ff;color:#315caf}
+.mvc-report-form .mvc-work-period input,.mvc-report-form .mvc-work-options input{width:16px;height:16px;flex:none;margin:0;padding:0;accent-color:#4168bc}
+.mvc-work-options{display:grid;gap:8px;padding:10px 12px;background:#f7f9fc;border-radius:10px}
+.mvc-report-form .mvc-work-options label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600}
+.mvc-followup-dialog{width:min(560px,calc(100vw - 24px))}
+.mvc-follow-dates{display:grid;grid-template-columns:1fr 1fr;border:1px solid #dbe3ee;border-radius:13px;overflow:hidden;background:#f8faff}
+.mvc-follow-dates>div{display:flex;flex-direction:column;gap:6px;padding:12px;min-width:0}
+.mvc-follow-dates>div:nth-child(even){border-left:1px solid #dbe3ee}.mvc-follow-dates>div:nth-child(n+3){border-top:1px solid #dbe3ee}
+.mvc-follow-dates span{font-size:11px;color:#617690}.mvc-follow-dates strong{font-size:17px;color:#2a4a7a;overflow-wrap:anywhere}.mvc-follow-dates small{font-size:10px;color:#8190a3;line-height:1.5}
+.mvc-follow-dates>div:last-child{background:#f0f6fc}.mvc-follow-dates>div:last-child strong{color:#116d84}
+.mvc-follow-health,.mvc-follow-note{font-size:11px;line-height:1.7;color:#79899a;margin:0}.mvc-follow-health:empty{display:none}
+.mvc-follow-error{color:#af4e2b;font-size:12px;margin:0;line-height:1.7}.mvc-follow-edit-only{display:grid;gap:12px}.mvc-follow-form label small{font-size:11px;font-weight:400;color:#7d8c9d}
+.mvc-chip.mvc-follow-chip.work{background:#fff4df;color:#9a651d;border-left:3px solid #d9a550}.mvc-chip.mvc-follow-chip.filing{background:#e7f4f8;color:#1e7187;border-left:3px solid #3d98b0}
+.mvc-record.mvc-follow-record{background:#fcfdff;border-color:#d8e3f0}.mvc-follow-record.work{border-left:3px solid #d9a550}.mvc-follow-record.filing{border-left:3px solid #3d98b0}
+.mvc-follow-record>span{display:block;font-size:12px}.mvc-follow-record>button{justify-self:start;border:1px solid #d6e2ee;border-radius:8px;background:white;color:#42688d;padding:8px 11px;font-size:12px}
+.mvc-follow-refresh{background:transparent;border:0;color:#3267af;padding:0;text-decoration:underline;font-size:12px;justify-self:start}
+@media(max-width:600px){.mvc-registration-summary{font-size:10px}.mvc-followup-dialog .mvc-header h2{font-size:16px}.mvc-follow-dates strong{font-size:16px}.mvc-follow-dates>div{padding:10px}.mvc-work-period{gap:6px}.mvc-report-form .mvc-work-period label{font-size:13px}}
+
+dialog.mvc-followup-dialog{width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 24px)}
+.mvc-follow-close{flex:none;width:34px;height:34px;border:1px solid #dbe3ef;border-radius:10px;background:#f7f9fc;color:#6d7d90;font-size:22px}
+.mvc-follow-rule{font-size:11px;color:#718297;line-height:1.7}.mvc-follow-rule summary{cursor:pointer}.mvc-follow-rule p{margin:6px 0}
+.mvc-followup-dialog .mvc-report-actions{position:sticky;bottom:-16px;background:#fff;padding:10px 0 4px;z-index:2}
+
+dialog.mvc-followup-dialog[open]{display:flex;flex-direction:column;overflow:hidden}
+.mvc-followup-dialog>.mvc-header{flex:0 0 auto}
+.mvc-followup-dialog>.mvc-follow-form{flex:1 1 auto;min-height:0;overflow-y:auto;padding-bottom:14px}
+.mvc-followup-dialog>.mvc-report-actions{flex:0 0 auto;position:static;padding:10px 16px;margin:0;border-top:1px solid #e7edf4;background:#fff;box-shadow:0 -5px 12px #fff}
+
+.mvc-work-key{color:#aa7629;font-size:12px;white-space:nowrap}.mvc-filing-key{color:#287c95;font-size:12px;white-space:nowrap}
+
+.mvc-report-form .mvc-received-help{font-size:11px;line-height:1.6;font-weight:400;color:#718398}
+
+/* Monthly work summary stays outside the map/calendar canvas. */
+.mvc-planner>.mvc-header .mvc-summary-open{margin-left:auto;flex:0 0 auto;padding:8px 13px;border:1px solid #cdddf3;border-radius:10px;background:#edf4ff;color:#285ea6;font-size:13px;font-weight:700}
+.mvc-summary-dialog{width:min(720px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:0;border:1px solid #dce4ef;border-radius:18px;background:#fff;color:#25364b;overflow:auto;box-sizing:border-box}
+.mvc-summary-dialog::backdrop{background:#14243875}.mvc-summary-dialog>.mvc-header{position:sticky;top:0;background:#fff;z-index:1;border-bottom:1px solid #e5eaf2;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:10px}.mvc-summary-close{border:0;background:#f0f4f9;border-radius:10px;width:36px;height:36px;font-size:24px;color:#61748e;cursor:pointer}
+.mvc-summary-body{padding:0 20px 20px}.mvc-summary-scope{color:#73839a;font-size:12px;line-height:1.7}.mvc-summary-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:16px 0 22px}.mvc-summary-counts>div{display:flex;flex-direction:column;gap:6px;padding:14px 10px;background:#f1f6fc;border:1px solid #e0e9f5;border-radius:12px}.mvc-summary-counts strong{font-size:25px;color:#2d62a5}.mvc-summary-counts span{font-size:11px;color:#6a7b90}.mvc-summary-body section{margin:20px 0}.mvc-summary-body h3{font-size:15px;margin:0 0 10px}.mvc-summary-body h3 small{font-weight:400;color:#7d8ca0;font-size:11px}.mvc-summary-item{display:flex;flex-direction:column;align-items:flex-start;gap:6px;width:100%;box-sizing:border-box;text-align:left;border:1px solid #e0e7f0;border-radius:11px;background:#fff;padding:12px 14px;margin:8px 0;color:inherit;font:inherit;cursor:pointer;overflow-wrap:anywhere}.mvc-summary-item:hover{background:#f5f8ff;border-color:#9dbce6}.mvc-summary-item small,.mvc-summary-item span{font-size:12px;color:#74849a}.mvc-summary-item strong{font-size:14px}.mvc-summary-item p,.mvc-summary-personal{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;font-size:13px;margin:0}.mvc-summary-item.is-urgent{border-color:#edc99b;background:#fffaf1}.mvc-summary-item b{font-size:11px;color:#a4681e}.mvc-summary-empty{font-size:13px;color:#8a97a8;padding:15px 0}.mvc-summary-personal{background:#fffbed;border:1px solid #eee4bc;border-radius:12px;padding:14px!important}.mvc-summary-changes{font-size:12px;color:#728198;border-top:1px solid #e4eaf2;padding:15px 0}.mvc-summary-changes button{padding:8px;border:1px solid #dce4ef;background:#f5f8fc;border-radius:8px;cursor:pointer}.mvc-summary-changes[hidden]{display:none}
+@media(max-width:500px){.mvc-summary-body{padding:0 14px 14px}.mvc-summary-dialog>.mvc-header{padding:14px}.mvc-summary-dialog h2{font-size:18px}.mvc-planner>.mvc-header .mvc-summary-open{padding:6px 10px;font-size:12px}.mvc-summary-counts span{font-size:10px}}
+
+.mvc-summary-brief .mvc-summary-scope{padding:12px 0 0;font-weight:600;color:#526880}.mvc-summary-brief .mvc-summary-counts{margin:12px 0 20px}.mvc-summary-brief .mvc-summary-item{border:0;border-bottom:1px solid #e7edf5;border-radius:0;padding:11px 4px;margin:0;gap:5px}.mvc-summary-brief .mvc-summary-item.is-urgent{border-radius:8px;padding:11px 10px}.mvc-summary-brief .mvc-summary-empty{padding:5px 0;font-size:12px}.mvc-summary-brief h3{display:flex;align-items:center;gap:8px}.mvc-summary-brief h3 small{color:#3872b7;font-size:11px}.mvc-summary-brief section{margin:20px 0}.mvc-summary-brief .mvc-summary-item span{line-height:1.6}
+
+/* Compact summary: one row per client, dates aligned with their meaning. */
+.mvc-summary-dialog{width:min(640px,calc(100vw - 24px));border:0;border-radius:20px;box-shadow:0 22px 80px #172d4c35}
+.mvc-summary-dialog>.mvc-header{padding:17px 20px;background:#fff;border-color:#e8edf4}.mvc-summary-dialog>.mvc-header small{font-size:10px;color:#78899e;letter-spacing:.04em}.mvc-summary-dialog>.mvc-header h2{margin:3px 0 0;font-size:21px;letter-spacing:-.6px}.mvc-summary-close{width:32px;height:32px;flex-shrink:0;font-size:22px}
+.mvc-summary-brief{padding:0 20px 14px}.mvc-summary-brief .mvc-summary-scope{display:flex;align-items:center;gap:7px;font-size:12px;margin:0;padding:14px 0 0;line-height:1.5;font-weight:400}.mvc-summary-scope strong{color:#293f5d;font-size:14px}.mvc-summary-scope small{margin-left:auto;color:#93a0b1;font-size:11px}
+.mvc-summary-brief .mvc-summary-counts{gap:0;margin:13px 0 18px;border:1px solid #e2e9f2;border-radius:12px;background:#f7f9fc;overflow:hidden}.mvc-summary-brief .mvc-summary-stat{border:0;border-right:1px solid #e2e9f2;border-radius:0;background:none;flex-direction:row;align-items:center;justify-content:space-between;padding:13px 14px;gap:6px}.mvc-summary-brief .mvc-summary-stat:last-child{border-right:0}.mvc-summary-stat span{font-weight:600;font-size:12px}.mvc-summary-brief .mvc-summary-stat strong{font-size:22px;font-variant-numeric:tabular-nums;line-height:1}.mvc-summary-stat.pending strong{color:#b57621}.mvc-summary-stat.fulfillment strong{color:#2c66aa}.mvc-summary-stat.received strong{color:#2b8874}
+.mvc-summary-brief section{margin:18px 0 0}.mvc-summary-brief h3{font-size:13px;letter-spacing:-.2px;margin:0 0 5px;gap:7px}.mvc-summary-brief h3 small{font-size:10px;background:#eef3f9;color:#6a809d;padding:2px 6px;border-radius:5px;font-weight:600}
+.mvc-summary-brief .mvc-summary-row{padding:11px 0;margin:0;border-radius:0;border:0;border-bottom:1px solid #edf1f6;background:#fff;gap:7px}.mvc-summary-brief .mvc-summary-row:hover{background:#f8faff}.mvc-summary-brief .mvc-summary-row:last-child{border-bottom:0}.mvc-summary-brief .mvc-summary-row.is-urgent{padding:10px;border:1px solid #f0ddbd;border-radius:9px;background:#fffbf4;margin:5px 0}
+.mvc-summary-row-head{display:flex;align-items:center;gap:8px;width:100%;min-width:0}.mvc-summary-row-head strong{min-width:0;flex:1;line-height:1.5;font-size:13px;overflow-wrap:anywhere;font-weight:650}.mvc-summary-row-head .mvc-summary-status{font-size:10px;font-weight:600;line-height:1.4;white-space:nowrap;border-radius:5px;padding:3px 6px;background:#eef4fc;color:#4874aa;flex-shrink:0}.mvc-summary-row-head .mvc-summary-status.alert{color:#ac6322;background:#faecd4}.mvc-summary-row-head .mvc-summary-status.soon{background:#fff2d9;color:#a77923}.mvc-summary-row-head .mvc-summary-status.done{background:#edf7f2;color:#3e8471}.mvc-summary-row-head .mvc-summary-chevron{color:#a8b4c4;font-size:18px}
+.mvc-summary-row-dates{display:flex;align-items:center;flex-wrap:wrap;gap:5px 18px;width:100%}.mvc-summary-row-dates>span{display:inline-flex;align-items:center;gap:6px}.mvc-summary-row-dates small{font-size:11px;color:#8a98ab}.mvc-summary-row-dates b{font-size:12px;color:#425b79;font-weight:600;font-variant-numeric:tabular-nums}.mvc-summary-row-warning{font-size:11px;color:#a26d31;line-height:1.5}.mvc-summary-brief .mvc-summary-empty{margin:0;padding:8px 0;color:#97a4b5;font-size:12px}.mvc-summary-brief .mvc-summary-done-section{padding-top:13px;border-top:1px solid #e8edf4;margin-top:16px}
+@media(max-width:500px){.mvc-summary-dialog>.mvc-header{padding:14px 16px}.mvc-summary-dialog>.mvc-header h2{font-size:19px}.mvc-summary-brief{padding:0 16px 12px}.mvc-summary-brief .mvc-summary-stat{padding:11px 9px}.mvc-summary-brief .mvc-summary-stat span{font-size:10px}.mvc-summary-brief .mvc-summary-stat strong{font-size:20px}.mvc-summary-row-dates{gap:5px 13px}.mvc-summary-row-head strong{font-size:13px}}
+
+dialog.mvc-dialog.mvc-summary-dialog{width:min(600px,calc(100vw - 24px));height:fit-content;max-height:calc(100dvh - 24px)}
+
+/* Click a category to focus on its list; urgent deadlines stay at the top. */
+.mvc-summary-brief .mvc-summary-counts{overflow:visible;border:0;background:transparent;gap:7px}
+.mvc-summary-brief button.mvc-summary-stat{display:flex;flex-direction:column;align-items:flex-start;gap:8px;border:1px solid #e0e7f0;border-radius:11px;background:#f8fafc;padding:12px;min-height:78px;color:#637891;text-align:left;transition:background .15s,border-color .15s;cursor:pointer}
+.mvc-summary-brief button.mvc-summary-stat[aria-pressed=true]{border-color:#4483d6;background:#edf4ff;box-shadow:inset 0 0 0 1px #4483d6;color:#285c9d}.mvc-summary-brief button.mvc-summary-stat:hover{border-color:#8fafd7}.mvc-summary-brief button.mvc-summary-stat:focus-visible,.mvc-summary-row:focus-visible{outline:3px solid #8cbbfb;outline-offset:3px}
+.mvc-summary-brief .mvc-summary-stat strong{font-size:24px}.mvc-summary-brief .mvc-summary-stat span{line-height:1.4;white-space:normal;font-size:12px}.mvc-summary-brief .mvc-summary-done-section{border:0;padding-top:0;margin-top:18px}
+.mvc-summary-brief .mvc-summary-row.urgency-overdue,.mvc-summary-brief .mvc-summary-row.urgency-today{border-color:#edb7b5;border-left:3px solid #dc5e56;background:#fff5f4}.mvc-summary-row-head .mvc-summary-status.overdue,.mvc-summary-row-head .mvc-summary-status.today{color:#b63730;background:#fce1de;font-weight:750}.mvc-summary-brief .mvc-summary-row.urgency-soon{border-color:#ebcf97;border-left:3px solid #dea438;background:#fffaf0}.mvc-summary-row-head .mvc-summary-status.soon{color:#985b0e;background:#fceac4;font-weight:750}.mvc-summary-brief .mvc-summary-row.urgency-overdue .mvc-summary-row-warning,.mvc-summary-brief .mvc-summary-row.urgency-today .mvc-summary-row-warning{color:#b34840}
+@media(max-width:500px){.mvc-summary-brief button.mvc-summary-stat{padding:10px 9px;min-height:74px}.mvc-summary-brief .mvc-summary-stat span{font-size:11px}.mvc-summary-brief .mvc-summary-stat strong{font-size:23px}}
+
+.mvc-summary-stat em{font-size:10px;font-style:normal;font-weight:700;color:#b94639;background:#fce8e3;border-radius:5px;padding:2px 5px}.mvc-summary-brief button.mvc-summary-stat.has-urgent{border-color:#e2a698}.mvc-summary-brief button.mvc-summary-stat.has-urgent[aria-pressed=true]{border-color:#c7614f;box-shadow:inset 0 0 0 1px #c7614f;background:#fff5f1}
+
+.mvc-registration-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;flex:0 0 auto;border-top:1px solid #edf1f6;background:#f9fbfe;min-width:0}.mvc-registration-bar .mvc-registration-summary{font-size:11px;line-height:1.5;min-width:0}.mvc-registration-bar .mvc-unregistered-filter{flex-shrink:0;border:1px solid #cfdced;background:#fff;color:#476a98;border-radius:7px;padding:5px 8px;font-size:11px;font-weight:650;line-height:1.4;cursor:pointer}.mvc-registration-bar .mvc-unregistered-filter[aria-pressed=true]{background:#eaf2ff;color:#235da9;border-color:#83ace1}.mvc-unregistered-filter:focus-visible{outline:3px solid #9ec6fa;outline-offset:2px}.mvc-unregistered-filter:disabled{opacity:.55;cursor:wait}@media(max-width:500px){.mvc-registration-bar{padding:5px 7px;gap:5px}.mvc-registration-bar .mvc-registration-summary{font-size:10px}.mvc-registration-bar .mvc-unregistered-filter{font-size:10px;padding:6px}}
+
+
+.mvc-icons .mvc-pin.visit-completed:not(.chosen)::before{content:'✓';position:absolute;right:-5px;bottom:-5px;z-index:3;width:16px;height:16px;border:2px solid #fff;border-radius:50%;background:#398465;color:#fff;text-align:center;font:700 11px/16px system-ui}
+
+/* Remember the guide choice per account in this browser. */
+.mvc-guide-dialog .mvc-guide-never{display:flex;align-items:center;gap:9px;margin:16px 0 0;padding:10px 0;color:#6f829a;font:12px/1.5 system-ui;cursor:pointer}
+.mvc-guide-dialog .mvc-guide-never input[type=checkbox]{all:revert;appearance:auto;-webkit-appearance:checkbox;box-sizing:border-box;flex:0 0 18px;width:18px;height:18px;margin:0;accent-color:#356cc1;cursor:pointer}
+.mvc-guide-dialog .mvc-guide-never input:focus-visible{outline:3px solid #9bc4f3;outline-offset:2px}
+.mvc-planner>.mvc-header .mvc-guide-help{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;margin-left:7px;padding:0;border:1px solid #dce5ef;border-radius:50%;background:#fff;color:#70839d;font:700 15px system-ui}
+
+/* Mobile month cells retain the visit count and expose the approval cycle. */
+.mvc-day-cycles{display:none}
+@media(max-width:900px),(pointer:coarse) and (max-height:500px){
+ .mvc-planner .mvc-day-count.has-approval{box-shadow:none}
+ .mvc-planner .mvc-day-cycles{display:flex;flex:0 0 auto;flex-direction:column;gap:2px;max-width:100%;min-width:0;width:100%}
+ .mvc-planner .mvc-day-cycle{display:block;box-sizing:border-box;max-width:100%;padding:1px 2px;border-radius:4px;font:650 9px/13px system-ui;white-space:nowrap;text-align:center;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+ .mvc-planner .mvc-day-cycle.approval{background:#f0e8ff;color:#7041ae;border-left:2px solid #9362ce}
+ .mvc-planner .mvc-day-cycle.half-year{background:#e2f5f1;color:#08796d;border-left:2px solid #19a897}
+}
+
+/* Loading feedback must never insert a new row into the compact header. */
+.mvc-planner .mvc-load-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.mvc-planner>.mvc-header{position:relative}
+.mvc-planner .mvc-load-indicator{display:none;position:absolute;top:0;left:0;right:0;height:2px;pointer-events:none;background:linear-gradient(90deg,#dbeafe,#4684db,#dbeafe);background-size:200% 100%}
+.mvc-planner.mvc-is-loading .mvc-load-indicator{display:block;animation:mvc-load-slide 1.4s linear infinite}
+@keyframes mvc-load-slide{to{background-position:200% 0}}
+@media(prefers-reduced-motion:reduce){.mvc-planner.mvc-is-loading .mvc-load-indicator{animation:none}}
+
+.mvc-record.mvc-visit-confirmed{background:#f0faf5;border-color:#b9decc}.mvc-record.mvc-visit-confirmed>small.completed{color:#218160;font-weight:700}.mvc-record.mvc-visit-check>small.planned{color:#a77732;font-weight:650}
+.mvc-record-actions .mvc-complete-button,.mvc-completion-tools .mvc-complete-button{background:#238568;color:#fff;border-color:#238568;font-weight:650}
+.mvc-record-actions .mvc-complete-undo{background:#fff;color:#70877e}.mvc-completion-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px;border:1px solid #dce9e2;border-radius:10px;background:#f5faf7;margin-bottom:10px;font:12px system-ui}.mvc-completion-tools label,.mvc-visit-select{display:flex;align-items:center;gap:6px;font-size:11px;color:#718477;cursor:pointer}.mvc-completion-tools input[type=date]{min-width:0;max-width:150px;padding:6px;border:1px solid #d7e4dd;border-radius:7px;font:12px system-ui;background:white}.mvc-completion-tools button{padding:8px 10px;border:1px solid #238568;border-radius:8px;font:12px system-ui}.mvc-visit-select{margin-bottom:6px}.mvc-visit-select input,.mvc-completion-tools input[type=checkbox]{accent-color:#238568;width:16px;height:16px}
+@media(max-width:600px){.mvc-completion-tools input[type=date]{font-size:16px;max-width:165px}.mvc-record-actions{gap:6px}.mvc-record-actions .mvc-complete-button{min-height:38px}}
+
+.mvc-visit-review{position:fixed;inset:0;box-sizing:border-box;margin:auto;width:min(410px,calc(100vw - 28px));max-height:calc(100dvh - 32px);overflow:auto;padding:0;border:1px solid #dce5ee;border-radius:18px;background:white;color:#2c435d;font:14px/1.6 system-ui;box-shadow:0 20px 70px #18334a33}.mvc-visit-review::backdrop{background:#172d4566}.mvc-visit-review *{box-sizing:border-box}.mvc-visit-review [hidden]{display:none!important}.mvc-visit-review header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:16px 20px;border-bottom:1px solid #e8edf4}.mvc-visit-review h2{margin:5px 0 0;font-size:18px;letter-spacing:-.4px}.mvr-progress{font-size:11px;color:#7a91a8}.mvr-close{width:32px;height:32px;border:0;border-radius:8px;background:#f0f4f8;color:#7c8da2;font-size:22px;cursor:pointer}.mvr-body{padding:20px}.mvr-name{display:block;font-size:22px;overflow-wrap:anywhere}.mvr-date{margin:5px 0 18px;color:#74899e;font-size:13px}.mvr-body label{display:block;font-size:12px;font-weight:600}.mvr-actual{display:block;width:100%;max-width:100%;min-width:0;margin-top:6px;border:1px solid #d8e3ee;border-radius:9px;padding:10px;font:16px system-ui;background:#fff;color:#344d67}.mvr-hint{display:block;margin-top:6px;font-size:11px;color:#8092a5}.mvr-error{min-height:18px;font-size:12px;color:#a85b40}.mvr-actions{display:grid;grid-template-columns:1fr 1.3fr;gap:9px}.mvr-actions button{padding:13px 8px;border:1px solid #d8e2ec;border-radius:10px;background:#f6f8fb;color:#657e96;font:650 14px system-ui;cursor:pointer}.mvr-actions .mvr-done{background:#238568;border-color:#238568;color:white}.mvr-later,.mvr-reload{display:block;margin:12px auto 0;padding:7px;border:0;background:transparent;color:#8393a5;font:12px system-ui;cursor:pointer}.mvc-visit-review button:disabled{opacity:.5}.mvc-visit-review :focus-visible{outline:2px solid #7eace0;outline-offset:2px}.mvc-record>small.missed{color:#9b7470;font-weight:650}.mvc-chip.missed{background:#f5eeec;color:#9b7470}
+
+.mvc-pin.visit-missed{background:#f5f1ef;border-color:#d5c8c2;color:#927d74}.mvc-pin.visit-missed b{background:#eae2de;color:#927d74}
+
+.mvc-date-map-filters{display:flex;flex:0 0 auto;align-items:center;gap:5px;padding:6px 10px;background:#fff;border-bottom:1px solid #e8eef6}
+.mvc-date-map-filters>button{flex:1;min-width:0;min-height:31px;padding:5px 7px;border:1px solid #dce5f1;border-radius:8px;background:#f8faff;color:#637b99;font:650 11px system-ui;cursor:pointer;white-space:nowrap}
+.mvc-date-map-filters>button[aria-pressed=true]{border-color:#9cbde9;background:#eaf2ff;color:#245fb4}
+.mvc-date-map-filters>button:focus-visible,.mvc-day-map-open:focus-visible{outline:3px solid #8ebaf3;outline-offset:2px}
+.mvc-date-map-filters>button:disabled{opacity:.5;cursor:default}
+.mvc-date-map-status{flex:0 0 auto;padding:5px 10px;margin:0;background:#f6f9ff;color:#53739e;font:600 11px/1.5 system-ui}
+.mvc-date-map-status[hidden]{display:none}
+.mvc-day-map-open{width:100%;margin:0 0 10px;min-height:38px;padding:8px 12px;border:1px solid #cbdcf3;border-radius:9px;background:#eef5ff;color:#2e65ae;font:650 12px system-ui;cursor:pointer}
+@media(max-width:900px){.mvc-date-map-filters{padding:5px 7px;gap:4px}.mvc-date-map-filters>button{min-height:29px;font-size:10px}}
+
+/* Receipt confirmation: a read-only list before the existing actual-receipt form. */
+dialog.mvc-dialog.mvc-receipt-review{width:min(600px,calc(100vw - 28px));max-height:calc(100dvh - 36px);padding:0;border:1px solid #dce5ef;border-radius:18px;color:#243a53;background:#fff;box-shadow:0 24px 90px #142a4c33}.mvc-receipt-review::backdrop{background:#172b465c}.mvc-receipt-review .mvc-header{padding:20px}.mrr-body{padding:0 20px 20px;overflow-y:auto;max-height:calc(100dvh - 150px)}.mrr-body>p{color:#718299;font-size:13px;line-height:1.6}.mrr-list{display:grid;gap:12px}.mrr-item{display:grid;gap:5px;border:1px solid #e0e7f0;border-radius:12px;padding:16px;background:#f9fbfe}.mrr-item>strong{font-size:15px}.mrr-item>small{font-size:12px;color:#6d7f94}.mrr-actions{display:flex;gap:8px;margin-top:9px}.mrr-actions button,.mrr-later{min-height:42px;padding:10px 15px;border-radius:9px;border:1px solid #d7e1ed;font:600 13px system-ui;cursor:pointer}.mrr-yes,.mvc-report-complete{background:#3268c8;color:#fff;border:0;border-radius:9px;padding:11px 15px;cursor:pointer}.mrr-no,.mrr-later{background:#fff;color:#687b93}.mrr-later{display:block;margin:16px 0 0 auto}.mrr-close{border:0;background:#f0f4f8;color:#64748b;border-radius:9px;width:36px;height:36px;font-size:23px;cursor:pointer}.mrr-error{color:#b54f42}@media(max-width:600px){.mvc-receipt-review .mvc-header{padding:17px}.mrr-body{padding:0 16px 16px}.mrr-actions button{flex:1;padding:10px 8px}}

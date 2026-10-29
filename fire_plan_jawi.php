@@ -3,13 +3,16 @@
 //   fire_plan.php 목록에서 링크로 진입. 이름 붙여넣기 → 자동 배치 → 저장/인쇄.
 //   2026-08 개편: 교육훈련 사진 섹션 제거, 좌측 목록 + 우측 단계형 작업영역 UI로 재구성.
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 
 
 if(session_status()!==PHP_SESSION_ACTIVE){
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)alp_session_start();
 }
 
 
@@ -20,7 +23,7 @@ function is_admin(): bool {
 function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']); }
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && $role !== 'building') { header('Location: /partner_center.php'); exit; }
 
 /* 건물 기본정보를 불러와 대상물명·근무형태를 미리 채웁니다.
    같은 내용을 두 번 적지 않도록 하기 위한 것입니다. */
@@ -47,8 +50,8 @@ if (is_file(__DIR__ . '/building_info.php')) {
   }
 }
 /* 어디서 들어왔는지에 따라 '돌아가기' 목적지를 정합니다 */
-$JW_BACK = (strpos((string)($_SERVER['HTTP_REFERER'] ?? ''), 'building_manager.php') !== false)
-  ? ['/building_manager.php', '← 건물 관리 홈']
+$JW_BACK = (strpos((string)($_SERVER['HTTP_REFERER'] ?? ''), 'FireDesk.php') !== false)
+  ? ['/FireDesk.php', '← 건물 관리 홈']
   : ['/fire_plan.php', '← 소방계획서 목록'];
 
 /* 사용자별 편성표 저장 폴더 (fire_plan과 같은 규칙) */
@@ -272,7 +275,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
   /* 사이드바 */
   .side{position:sticky;top:66px}
 
-  /* ── 진행 현황 패널 (building_manager.php 와 같은 구성) ── */
+  /* ── 진행 현황 패널 (FireDesk.php 와 같은 구성) ── */
   .prog{background:#fff;border:1px solid var(--brd);border-radius:var(--radius);
     padding:14px 16px;margin-bottom:12px;box-shadow:var(--shadow)}
   .prog__t{font-size:12px;font-weight:800;color:var(--mut);letter-spacing:.03em;margin-bottom:10px}
@@ -491,6 +494,24 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
   .guide-foot--single .btn{min-width:220px;justify-content:center}
   @media (max-width:480px){ .guide-foot{flex-direction:column-reverse;align-items:stretch}
     .guide-foot .btn{width:100%;justify-content:center} }
+
+  /* Keep the guide's next action visible even inside a short dashboard popup. */
+  #guideIntro{display:flex;flex-direction:column;padding:0;overflow:hidden;
+    max-height:88vh;max-height:min(88vh,calc(100dvh - 36px))}
+  #guideIntro>.guide-hd{flex:none;margin:0;padding:26px 42px 16px}
+  #guideIntro>.guide-hd h3 span{display:inline-block;word-break:keep-all}
+  #guideIntro .guide-intro-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+    padding:0 24px 4px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+  #guideIntro>.guide-foot{flex:none;margin:0;padding:14px 24px 18px;background:#fff;
+    border-top:1px solid #e6ebf2;box-shadow:0 -5px 16px rgba(16,24,40,.04)}
+  #guideIntro>.guide-foot .btn{width:100%;min-width:0;min-height:46px;justify-content:center;font-size:14px}
+  #guideIntro .guide-demo,#guideIntro .guide-rule{margin-bottom:14px}
+  #guideIntro .guide-example{font-family:inherit;word-break:keep-all;overflow-wrap:anywhere}
+  @media(max-height:540px){
+    #guideIntro>.guide-hd{padding-top:18px;padding-bottom:12px}
+    #guideIntro .guide-emoji{display:none}
+    #guideIntro>.guide-foot{padding-top:10px;padding-bottom:12px}
+  }
 
   /* 가이드 다음 화면: 다른 요소 없이 명단 입력에만 집중 */
   .guide-roster{display:none}
@@ -769,7 +790,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
     <span class="status" id="statusChip">🆕 새 편성표</span>
     <span class="sp"></span>
     <nav class="appnav" aria-label="바로가기">
-      <a class="appnav__ic js-main-link" href="/building_manager.php" target="_top" title="건물 관리">
+      <a class="appnav__ic js-main-link" href="/FireDesk.php" target="_top" title="건물 관리">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h1M11 8h1M7 12h1M11 12h1M7 16h1M11 16h1M17 14h1M17 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </a>
       <a class="appnav__ic" href="/notifications.php" title="알림">
@@ -856,7 +877,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
         <b>편성표를 저장했습니다</b>
         <small>건물 관리 페이지에서 남은 항목을 이어서 진행하실 수 있습니다.</small>
       </div>
-      <a class="savedone__btn js-main-link" href="/building_manager.php" target="_top">메인으로 →</a>
+      <a class="savedone__btn js-main-link" href="/FireDesk.php" target="_top">메인으로 →</a>
     </div>
 
     <!-- ① 대상물 -->
@@ -991,7 +1012,7 @@ if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s,
   <span class="meta" id="editingHint" aria-live="polite"></span>
   <button class="btn btn-ghost" id="guideOpenBtn" type="button" onclick="openGuide()">수정</button>
   <button class="btn btn-navy" id="savePlanBtn" type="button" onclick="saveplan()">💾 저장</button>
-  <a class="btn btn-success savebar__next js-main-link" id="buildingManagerBtn" href="/building_manager.php" target="_top" hidden>🏠 메인으로</a>
+  <a class="btn btn-success savebar__next js-main-link" id="buildingManagerBtn" href="/FireDesk.php" target="_top" hidden>🏠 메인으로</a>
   <button class="btn btn-primary" type="button" onclick="window.print()">🖨️ 인쇄 / PDF</button>
 </div>
 <div class="toast no-print" id="toast"></div>
@@ -1246,7 +1267,8 @@ function showGuideIntro(animate){
   roster.style.display = 'none';
   save.style.display = 'none';
   assign.style.display = 'none';
-  intro.style.display = 'block';
+  intro.style.display = 'flex';
+  intro.querySelector('.guide-intro-body').scrollTop = 0;
   intro.classList.remove('is-leaving','is-entering');
   if (animate) { void intro.offsetWidth; intro.classList.add('is-entering'); }
 }
@@ -2191,7 +2213,7 @@ document.addEventListener('keydown', function(e){
 (function(){
   const mask = document.getElementById('leaveMask');
   const saveBtn = document.getElementById('saveAndLeaveBtn');
-  let destination = '/building_manager.php';
+  let destination = '/FireDesk.php';
   const modal = new URLSearchParams(location.search).get('modal') === '1' && window.parent !== window;
   function finishClose(){
     pageDirty = false;
@@ -2261,19 +2283,20 @@ document.addEventListener('keydown', function(e){
     <div class="guide-stage" id="guideIntro">
     <div class="guide-hd">
       <span class="guide-emoji">📋</span>
-      <h3>자위소방대 편성표, 이렇게 만들어요</h3>
-      <p>3단계면 끝납니다. 명단만 적으면 나머지는 자동으로 채워져요.</p>
+      <h3><span>자위소방대 편성표,</span> <span>이렇게 만들어요</span></h3>
+      <p>명단 입력 → 자동 편성 → 저장<br>아래 버튼을 누르면 바로 시작할 수 있어요.</p>
     </div>
 
+    <div class="guide-intro-body">
     <div class="guide-demo">
-      <div class="guide-demo__label">② 명단 칸에 이렇게 적어보세요</div>
+      <div class="guide-demo__label">이름·전화번호·소속을 각각 입력해 주세요</div>
       <div class="guide-line">
         <span class="guide-tag guide-tag--name">이름</span>
         <span class="guide-tag guide-tag--tel">전화번호</span>
         <span class="guide-tag guide-tag--dept">직급/소속</span>
       </div>
       <div class="guide-example">홍길동&nbsp;&nbsp;010-1234-5678&nbsp;&nbsp;시설팀 / 지점장</div>
-      <div class="guide-arrow-down">↓ 한 줄에 한 명씩, 줄바꿈만 하면 됩니다</div>
+      <div class="guide-arrow-down">한 줄에 한 명씩 입력하세요. 이름만 적어도 됩니다.</div>
       <div class="guide-example guide-example--dim">김철수&nbsp;&nbsp;010-2222-3333&nbsp;&nbsp;관리팀 / 차장</div>
       <div class="guide-example guide-example--dim">이영희 <span class="guide-note">← 전화번호·직급/소속은 없어도 OK</span></div>
     </div>
@@ -2298,9 +2321,10 @@ document.addEventListener('keydown', function(e){
       </div>
     </div>
 
+    </div>
     <div class="guide-foot guide-foot--single">
       <button class="btn btn-primary" type="button" onclick="openGuideRoster()">
-        명단 적으러 가기
+        명단 작성하기 <span aria-hidden="true">→</span>
       </button>
     </div>
     </div>

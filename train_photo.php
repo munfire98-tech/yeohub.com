@@ -9,12 +9,15 @@
    · 관리자    → 회원 서류 열람용으로 ?uid= 를 붙여 다른 회원 사진도
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 function tp_is_admin(): bool {
   return (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'])

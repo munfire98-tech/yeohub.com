@@ -12,7 +12,7 @@ function ma_available(string $actor,array $members,array $state):array {
 }
 /** An unopened/blank form is a session ticket, not a saved address-book entry. */
 function ma_begin(string $actor,array $members):string {
- if(!mg_active($members[$actor]??[],'agency'))throw new RuntimeException('매니저 계정으로 로그인해 주세요.');
+ if(!mg_active($members[$actor]??[],'agency'))throw new RuntimeException('파트너 계정으로 로그인해 주세요.');
  foreach($_SESSION['manager_draft_tickets']??[] as $id=>$ticket)if(($ticket['expires']??0)<time())unset($_SESSION['manager_draft_tickets'][$id]);
  if(count($_SESSION['manager_draft_tickets']??[])>=100)array_shift($_SESSION['manager_draft_tickets']);
  $id=bin2hex(random_bytes(12));
@@ -25,10 +25,10 @@ function ma_ticket(string $actor,string $id,array $members):array {
 }
 function ma_save(string $actor,array $address):string {
  return mg_member_tx(function(array &$members)use($actor,$address){
-  if(!mg_active($members[$actor]??[],'agency'))throw new RuntimeException('매니저 계정으로 로그인해 주세요.');
+  if(!mg_active($members[$actor]??[],'agency'))throw new RuntimeException('파트너 계정으로 로그인해 주세요.');
   return mg_state_tx(function(array &$s)use($actor,$address,$members){
    $count=0;foreach($s['address_book']??[] as $id=>$r){if(!ma_owned($r,$actor,$members))continue;$count++;if(($r['address_key']??'')===$address['address_key'])return (string)$id;}
-   if($count>=200)throw new RuntimeException('사전 등록은 최대 200개까지 가능합니다.');
+   if($count>=600)throw new RuntimeException('사전 등록은 최대 600개까지 가능합니다.');
    $id=bin2hex(random_bytes(12));$s['address_book'][$id]=$address+['id'=>$id,'manager'=>$actor,'manager_created'=>(string)($members[$actor]['created']??''),'created_at'=>date('c')];return $id;
   });
  });

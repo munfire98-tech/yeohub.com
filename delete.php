@@ -3,6 +3,9 @@
  * delete.php — 관리자 전용 + CSRF 검증
  */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 /* ── 30일 로그인 유지 ── */
 $SESSION_TTL = 60 * 60 * 24 * 30;
 ini_set('session.cookie_httponly', '1');
@@ -16,7 +19,7 @@ if (PHP_VERSION_ID >= 70300) {
     'samesite' => 'Lax',
   ]);
 }
-session_start();
+alp_session_start();
 
 // 0) 관리자 권한 확인
 if (empty($_SESSION['is_admin'])) {

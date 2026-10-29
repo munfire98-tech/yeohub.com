@@ -7,12 +7,15 @@
    기존 building_setup.php(표 형식)는 그대로 두고, 나중에 고칠 때 씁니다.
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -22,7 +25,7 @@ function is_admin(): bool {
 function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']); }
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && $role !== 'building') { header('Location: /partner_center.php'); exit; }
 
 require_once __DIR__ . '/building_info.php';
 require_once __DIR__ . '/user_key.php';
@@ -52,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'save_ste
   $allowed = array_keys(bi_blank());
   foreach ($patch as $k => $v) {
     if (!in_array($k, $allowed, true)) continue;
-    if ($k === 'mgrs' || $k === 'raw_bldg' || $k === 'bd_dong_list') {
+    if ($k === 'mgrs' || $k === 'raw_bldg' || $k === 'bd_dong_list' || $k === 'bd_dong_names' || $k === 'bd_floor_manual') {
       $cur[$k] = is_array($v) ? $v : ($k === 'mgrs' ? [] : $cur[$k]);
     } else {
       $cur[$k] = is_string($v) ? $v : (string)$v;
@@ -68,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'save_ste
     if($requestId!==''){
       require_once __DIR__.'/manager_help_complete.php';
       $editActor=(string)($_SESSION['_mge_actor']??'');
-      if($editActor==='')throw new RuntimeException('매니저 편집 화면에서 요청을 처리해 주세요.');
+      if($editActor==='')throw new RuntimeException('파트너 편집 화면에서 요청을 처리해 주세요.');
       $ok=mh_save_requested_answer($editActor,app_user_key(),$requestId,$patch,static function()use($cur,$patch):bool{
         if(!bi_save($cur))return false;
         $savedMap=bi_read_saved();
@@ -340,6 +343,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'lookup')
     ];
   }
 
+  // Optional floor enrichment must not discard a successful title lookup.
+  require_once __DIR__.'/building_floor_common.php';
+  $dongList=bfl_enrich($dongList,$titles,$API,$code,bi_load());
+
   // 사람이 읽는 요약 (기존 유지)
   $dongLines = [];
   if (count($dongList) > 1) {
@@ -495,7 +502,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'reset') 
   } catch (Throwable $e) {
     error_log('Building help reset: '.$e->getMessage());
     http_response_code(503);
-    exit('초기화를 완료하지 못했습니다. 기본정보와 요청 목록을 확인한 뒤 다시 시도해 주세요.');
+    exit('초기화를 완료하지 못했습니다. 건물 업무자료를 확인한 뒤 다시 시도해 주세요.');
   }
   header('Location: /building_setup_chat.php?reset=1');
   exit;
@@ -659,13 +666,13 @@ button{font:inherit;color:inherit;cursor:pointer}
     <a class="brand" href="/index.php">소방계획서.B_S_CHAT</a>
     <div style="display:flex;gap:8px">
       <form method="post" style="display:inline"
-            onsubmit="return confirm('건물 기본정보와 소방시설 현황을 함께 초기화합니다. 관련 작성 도움 요청과 완료 기록도 삭제하고 처음부터 다시 시작합니다.\n계속할까요?')">
+            onsubmit="return confirm('이 건물의 전체 연도 소방계획서와 기본정보·시설·피난계획·편성표·업무수행·교육훈련·비화재보 기록·첨부사진·작성 문의를 모두 초기화합니다. 회원 계정·업체 연결·PRO 구독·결제 내역은 유지됩니다. 필요한 문서는 먼저 인쇄·PDF 저장해 주세요.\n계속할까요?')">
         <input type="hidden" name="act" value="reset">
         <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
-        <button class="btn" type="submit">↺ 처음부터 다시</button>
+        <button class="btn" type="submit">↺ 건물자료 전체 초기화</button>
       </form>
       <a class="btn" href="<?=h($url('/building_setup.php'))?>">표로 입력</a>
-      <a class="btn" href="<?=h($url('/building_manager.php'))?>">← 메인</a>
+      <a class="btn" href="<?=h($url('/FireDesk.php'))?>">← 메인</a>
     </div>
   </div>
 </nav>
@@ -690,7 +697,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   <div id="chat"></div>
 </main>
 
-<script src="/manager_help.js?v=10" data-uid="<?=h($viewUid)?>" data-reviewchat="1" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
+<script src="/manager_help.js?v=20261015-partner-1-inquiry-1" data-uid="<?=h($viewUid)?>" data-reviewchat="1" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
 <script src="/building_registry_retry.js?v=1"></script>
 <script src="/building_address_recovery.js?v=1"></script>
 <script src="/building_address_coordinates.js?v=1"></script>
@@ -1094,14 +1101,15 @@ async function start(){
     bot(md('요청 목록을 불러오지 못했습니다. 새로고침 후 다시 확인해 주세요.'));return;
   }
   if(help&&help.mode==='manager'){
-    var pending=help.rows.filter(function(r){return r.status==='pending'&&r.connection_active&&r.field!=='__facilities'&&!(r.field||'').startsWith('__fp_');});
+    var requestedId=<?=json_encode((string)($_SESSION['_mge_help_review']['id']??''))?>;
+    var pending=help.rows.filter(function(r){return (!requestedId||r.id===requestedId)&&r.status==='pending'&&r.connection_active&&r.field!=='__facilities'&&!/^__(fp|jw|tr)_/.test(r.field||'');});
     if(!pending.length&&new URLSearchParams(location.search).has('help_field')){
       bot(md('**현재 남아 있는 작성 요청이 없습니다.**\n이미 완료되었거나 초기화된 요청입니다.'));return;
     }
     if(pending.length){
       var originalSteps=STEPS;
       STEPS=pending.map(function(r){var s=originalSteps.find(function(x){return x.field===r.field;});return s?Object.assign({},s,{helpRequest:r}):null;}).filter(Boolean);
-      if(STEPS.length){REVIEW_MODE=true;step=0;bot(md('**확인 요청한 항목만 차례로 보여드립니다.**\n답변을 저장하면 해당 요청이 완료됩니다.'));next();return;}
+      if(STEPS.length){REVIEW_MODE=true;step=0;if(!requestedId)bot(md('**확인 요청한 항목만 차례로 보여드립니다.**\n답변을 저장하면 해당 요청이 완료됩니다.'));next();return;}
     }
   }
   var anyFilled = STEPS.some(filled);
@@ -1729,19 +1737,19 @@ function addMgrQuickFill(s, container, inp){
 }
 
 function helpRequestLabel(mode, managerName){
-  var name=String(managerName||'').trim()||'담당 매니저';
+  var name=String(managerName||'').trim()||'연결 업체';
   if(mode==='accepted')return '잘 모르겠어요 · '+name+'에게 요청하기';
   if(mode==='pending')return '잘 모르겠어요 · '+name+'에게 요청하기 (연결 수락 대기)';
-  return '잘 모르겠어요 · 로컬매니저 연결하고 요청하기';
+  return '잘 모르겠어요 · 로컬 파트너 연결하고 요청하기';
 }
 function addYeohubReview(s, container){
   if (!container || !container.isConnected || container.querySelector('.yeohub-review')) return;
   var row=document.createElement('div');row.className='subrow yeohub-review';
-  var btn=document.createElement('button');btn.className='btn btn--sm';btn.type='button';btn.disabled=true;btn.textContent='담당 매니저 확인 중…';
+  var btn=document.createElement('button');btn.className='btn btn--sm';btn.type='button';btn.disabled=true;btn.textContent='연결 업체 확인 중…';
   row.appendChild(btn);container.appendChild(row);
   window.managerHelp.ready.then(function(j){
     if(j&&j.mode==='manager'){row.remove();return;}
-    btn.disabled=false;btn.textContent=j?helpRequestLabel(j.mode,j.manager_name):'담당 매니저 확인하고 요청하기';
+    btn.disabled=false;btn.textContent=j?helpRequestLabel(j.mode,j.manager_name):'연결 업체 확인하고 요청하기';
   });
   btn.onclick=function(){requestYeohubReview(s,btn);};
 }
@@ -1750,8 +1758,8 @@ async function requestYeohubReview(s,btn){
   try{
     var j=await window.managerHelp.request(s.field||'general',(s.reviewGroup||'건물 기본정보')+': '+(s.label?s.label+' - ':'')+s.q);
     if(!j){btn.disabled=false;btn.textContent=label;return;}
-    btn.textContent='요청 접수 완료 ✓';clearBox();me('매니저에게 작성 도움 요청');
-    bot(md(j.mode==='pending'?'**연결 요청과 질문이 접수되었습니다.**\n매니저가 연결을 수락하면 질문을 확인할 수 있습니다.':'**담당 매니저에게 요청했습니다.**\n요청함에서 처리 상태와 답변을 확인할 수 있습니다.'));
+    btn.textContent='요청 접수 완료 ✓';clearBox();me('파트너에게 작성 문의');
+    bot(md(j.mode==='pending'?'**연결 요청과 질문이 접수되었습니다.**\n파트너가 연결을 수락하면 질문을 확인할 수 있습니다.':'**연결 업체에게 요청했습니다.**\n요청함에서 처리 상태와 답변을 확인할 수 있습니다.'));
     step++;setTimeout(next,520);
   }catch(e){btn.disabled=false;btn.textContent=label;alert(e.message||'요청하지 못했습니다. 다시 시도해 주세요.');}
 }
@@ -1759,12 +1767,12 @@ async function requestYeohubReview(s,btn){
 function mkGo(b, fn){
   var row=document.createElement('div'); row.className='subrow';
   var go=document.createElement('button'); go.className='btn btn--pri'; go.type='button';
-  go.textContent='다음'; go.onclick=fn;
+  go.textContent=window.managerHelpQuestion?'답변 저장':'다음'; go.onclick=fn;
   row.appendChild(go); b.appendChild(row);
   return go;
 }
 function addSkip(s, b){
-  if(!s.skip) return;
+  if(window.managerHelpQuestion||!s.skip) return;
   var row=b.querySelector('.subrow');
   if(!row){ row=document.createElement('div'); row.className='subrow'; b.appendChild(row); }
   var sk=document.createElement('button'); sk.className='btn btn--sm'; sk.type='button';
@@ -1933,6 +1941,8 @@ function doLookupPick(a, s, roadRetry){
 
         if(patch.floor_a) lines.push('**층수** 지상 '+patch.floor_a+'층'+((patch.floor_b&&patch.floor_b!=='0')?(' · 지하 '+patch.floor_b+'층'):''));
         if(patch.bd_struct) lines.push('**구조** '+patch.bd_struct);
+        var floorReady=(j.dongList||[]).filter(function(g){return g.floor_info&&g.floor_info.status==='ready';}).length;
+        lines.push(floorReady?'**층별 면적** '+floorReady+'개 동 조회 · 기본정보에서 확인':'**층별 면적** 자료를 확인하지 못했습니다. 기본정보에서 직접 입력하거나 다시 조회할 수 있습니다.');
         bot(md((j.partial ? '일부만 찾았습니다.\n' : '건축물대장에서 찾았습니다. 아래 내용으로 채웠습니다.\n')
                + lines.join('\n') + (j.note ? '\n\n'+j.note : '')));
         for(var k in patch){ if(patch[k]!=='' && patch[k]!==null) SAVED[k]=patch[k]; }
@@ -1972,7 +1982,7 @@ function askDongPick(j, patch){
     var label=document.createElement('label');label.style.cssText='display:flex;gap:9px;align-items:center;cursor:pointer';
     var check=document.createElement('input');check.type='checkbox';check.style.cssText='appearance:auto;position:static;width:17px;height:17px';
     var title=document.createElement('b');title.textContent=g.dong;label.append(check,title);row.append(label);
-    var info=document.createElement('p');info.style.cssText='margin:8px 0;font-size:12px;color:#637b8c';info.textContent=[g.use||'용도 미상','지상 '+g.floor_a+' / 지하 '+g.floor_b+'층',g.area?Number(g.area).toLocaleString()+'㎡':'면적 미상'].join(' · ');row.append(info);
+    var info=document.createElement('p');info.style.cssText='margin:8px 0;font-size:12px;color:#637b8c';info.textContent=[g.use||'용도 미상','지상 '+g.floor_a+' / 지하 '+g.floor_b+'층',g.area?Number(g.area).toLocaleString()+'㎡':'면적 미상',g.floor_info&&g.floor_info.status==='ready'?'층별 면적 조회됨':'층별 자료 없음'].join(' · ');row.append(info);
     var base=document.createElement('div');base.style.cssText='margin-top:8px';
     var badge=document.createElement('span');badge.textContent='✓ 기준동 · 기본정보에 표시';badge.style.cssText='color:#218b80;font-size:12px;font-weight:700';
     var change=document.createElement('button');change.type='button';change.textContent='기준동으로 변경';change.style.cssText='border:1px solid #cbdcd8;border-radius:7px;background:white;color:#36786d;padding:6px 10px;font-size:12px;cursor:pointer';
@@ -2025,7 +2035,7 @@ function finish(){
               '<span class="sum__v'+(v?'':' none')+'">'+esc(v||'아직 비어 있음')+'</span></div>';
     });
     html += '<div class="doneRow">' +
-    '<a class="btn btn--pri" target="_top" href="<?=h($url('/building_manager.php'))?>">메인으로 →</a>' +
+    '<a class="btn btn--pri" target="_top" href="<?=h($url('/FireDesk.php'))?>">메인으로 →</a>' +
       '<a class="btn" href="<?=h($url('/building_setup.php'))?>">표에서 자세히 고치기</a>' +
       '<a class="btn" href="<?=h($url('/work_log.php'))?>">이번 달 기록표 쓰러 가기</a></div>';
     d.innerHTML=html;
@@ -2060,7 +2070,7 @@ function finish(){
     if(!link || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
     var target = new URL(link.href,location.origin);
     if(target.origin !== location.origin) return;
-    if(target.pathname.endsWith('/building_manager.php')){
+    if(target.pathname.endsWith('/FireDesk.php')){
       e.preventDefault(); window.buildingInfoRequestClose();
     } else if(target.pathname.endsWith('/building_setup.php')){
       e.preventDefault(); if(canLeave()){chatUnsaved=false;location.href=setupUrl(false);}

@@ -1,8 +1,11 @@
 <?php
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 ini_set('session.cookie_httponly', '1');
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+if (session_status() !== PHP_SESSION_ACTIVE) alp_session_start();
 
 function h($v): string {
   return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -236,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'resolve'
       'id'    => bin2hex(random_bytes(8)),
       'title' => '요청하신 내용을 확인했습니다',
       'body'  => $body,
-      'link'  => '/building_manager.php',
+      'link'  => '/FireDesk.php',
       'read'  => false,
       'at'    => date('Y-m-d H:i:s'),
     ]);

@@ -1,0 +1,51 @@
+/* One document layout for the evacuation card and fire-plan section 5. */
+.epl-output{color:#1e3047;line-height:1.6;overflow-wrap:anywhere}
+.epl-output .epl-document{max-width:184mm;background:#fff;margin:20px auto;padding:12mm;box-shadow:0 4px 25px #16283b14}
+.epl-output .epl-doc-head{border-bottom:2px solid #1e3047;padding-bottom:16px;margin-bottom:24px}
+.epl-output .epl-doc-head h1{font-size:25px;line-height:1.35;letter-spacing:-1px;margin:4px 0 10px}
+.epl-output .epl-doc-head p{font-size:12px;color:#63758c;margin:0}
+.epl-output .epl-document h2{font-size:18px;line-height:1.4;margin:20px 0 12px;color:#1e3047}
+.epl-output .epl-document h3{font-size:15px;margin:0;color:#1e3047}
+.epl-output .epl-review-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px;margin:15px 0}
+.epl-output .epl-review-grid dt{font-size:10px;color:#708198;margin-bottom:4px}
+.epl-output .epl-review-grid dd{margin:0;white-space:pre-line;font-size:12px;overflow-wrap:anywhere}
+.epl-output .epl-review-grid .wide{grid-column:1/-1}
+.epl-output .epl-print-floor{margin-bottom:18px;padding:15px;border:1px solid #e1e8f1;border-radius:8px;break-inside:avoid}
+.fp-evacuation-print .epl-output .epl-document{max-width:none;margin:0;padding:8px 0;box-shadow:none}
+@media(max-width:600px){
+ .epl-output .epl-document{margin:12px;padding:20px}
+ .epl-output .epl-doc-head h1{font-size:23px}
+ .epl-output .epl-review-grid{gap:12px}
+ .epl-output .epl-print-floor{padding:12px}
+}
+@media print{
+ .epl-output .epl-document{max-width:none;width:auto;margin:0;padding:0;box-shadow:none;break-after:page;page-break-after:always}
+ .epl-output .epl-document:last-child{break-after:auto;page-break-after:auto}
+ .epl-output .epl-document+.epl-document{break-before:page;page-break-before:always}
+ .epl-output .epl-document h1{font-size:23px}
+ .epl-output .epl-document h2{font-size:16px;break-after:avoid;page-break-after:avoid}
+ .epl-output .epl-document h3{break-after:avoid;page-break-after:avoid}
+ .epl-output .epl-print-floor{border-radius:0;break-inside:avoid;page-break-inside:avoid}
+ .epl-output .epl-review-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .epl-output .epl-review-grid>div{break-inside:avoid;page-break-inside:avoid}
+ .fp-evacuation-print .epl-output .epl-document{padding:0}
+}
+
+.epl-location-reference{margin:16px 0 22px;padding:14px;border:1px solid #d8e2ed;border-radius:10px;background:#f8fbff;color:#1e3047}
+.epl-location-reference>h2{margin:0 0 10px!important;font-size:15px!important}
+.epl-location-reference .epl-review-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px;margin:10px 0}
+.epl-location-reference .epl-review-grid .wide{grid-column:1/-1}
+.epl-location-reference dt{font-size:11px;color:#708198;margin-bottom:4px}
+.epl-location-reference dd{margin:0;font-size:12px;white-space:pre-line;overflow-wrap:anywhere}
+.epl-location-map{width:100%;overflow:hidden;border:1px solid #d9e2ee;border-radius:7px;background:#edf2f7}
+.epl-location-map svg{display:block;width:100%;height:auto}
+.epl-location-legend,.epl-location-note{margin:8px 0 0!important;font-size:10px!important;color:#667085;line-height:1.6}
+@media print{.epl-location-reference{border-radius:0;background:#fff;break-inside:avoid;page-break-inside:avoid}.epl-location-map{border-radius:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.epl-location-reference h2{break-after:avoid;page-break-after:avoid}}
+
+.epl-location-value{margin:4px 0 10px!important;font-weight:700;font-size:13px!important}
+.epl-kakao-map{height:300px;position:relative}
+.epl-map-status{padding:20px;font-size:12px;color:#64748b}
+@media(max-width:600px){.epl-kakao-map{height:260px}}
+@media print{.epl-kakao-map{height:70mm!important}.epl-location-reference{break-inside:avoid;page-break-inside:avoid}}
+
+.epl-kakao-map .epl-map-status{position:absolute;left:0;right:0;bottom:0;background:#fff;z-index:2;margin:0}

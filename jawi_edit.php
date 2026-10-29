@@ -5,13 +5,16 @@
    문답으로 채운 뒤 여기서 다듬는 용도입니다.
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 /* mbstring 이 없는 서버를 위한 대체 (공유 호스팅에 빠져 있는 경우가 있습니다) */
 if (!function_exists('mb_substr')) {
@@ -33,10 +36,11 @@ function is_admin(): bool {
 function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']); }
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && $role !== 'building') { header('Location: /partner_center.php'); exit; }
 
 require_once __DIR__ . '/jawi_db.php';
 require_once __DIR__ . '/building_info.php';
+require_once __DIR__ . '/manager_jawi_help.php';
 
 $id  = (string)($_GET['id'] ?? '');
 $rec = $id !== '' ? jw_load($id) : null;
@@ -92,7 +96,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'save') {
     if (count($d['attend']) >= 50) break;
   }
 
-  jw_save($id, $d);
+  try { $ok=mjh_save(jw_user_key(),$id,$d,static fn()=>jw_save($id,$d)); }
+  catch(Throwable $e){error_log('Jawi table save: '.$e->getMessage());$ok=false;}
+  if(!$ok){http_response_code(503);exit('저장하지 못했습니다. 이전 화면으로 돌아가 다시 시도해 주세요.');}
   header('Location: /jawi_edit.php?id=' . urlencode($id) . '&saved=1');
   exit;
 }

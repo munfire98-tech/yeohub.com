@@ -1,12 +1,15 @@
 <?php
 // fire_plan_edit.php — 소방계획서 작성 위저드
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -17,7 +20,7 @@ function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']
 
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && $role !== 'building') { header('Location: /partner_center.php'); exit; }
 
 require_once __DIR__ . '/fire_plan_db.php';
 require_once __DIR__ . '/evacuation_plan_common.php';
@@ -190,7 +193,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     fp_save_section($planId, '5', $data, $any);
 
   } elseif ($cur === '11') {
-    $data = ['memo' => trim((string)($_POST['memo'] ?? ''))];
+    $data = fp_get_section($planId, '11');
+    $data['memo'] = trim((string)($_POST['memo'] ?? ''));
     $any = $data['memo'] !== '';
     foreach ([1,2,3] as $i) {
       foreach (['when','who','how'] as $f) {
@@ -248,7 +252,7 @@ $commonUpdateAvailable = $commonEvacStatus['has_content']
 $curData = ($cur === '1') ? $s1 : ($cur === '5' ? $section5Stored : fp_get_section($planId, $cur));
 $linkedSources = fp_chat_sources(bi_load(), $commonEvac, fp_plan_year($plan), $selectedSources);
 $suggested = $linkedSources['data'][$cur] ?? [];
-if ($cur === '3') $suggested = array_merge($suggested,fp_inspection_defaults($s1,$curData));
+if ($cur === '3') $suggested = array_merge($suggested,fp_inspection_defaults($s1,$curData,fp_inspection_partner_company()));
 foreach ($suggested as $key=>$value) {
   if ((!array_key_exists($key,$curData) || $curData[$key] === '' || $curData[$key] === [])
       && !in_array($key,(array)($curData['_chat_answers'] ?? []),true)) $curData[$key] = $value;
@@ -647,6 +651,9 @@ table.ft{width:100%;margin-top:7px;border:1px solid #cfd7e3;border-radius:11px;b
         </table>
 
       <?php elseif ($cur === '6'): ?>
+        <?php require_once __DIR__.'/flame_retardant_plan_common.php'; $flameChecks=frgp_checks($curData); if($flameChecks): ?>
+        <details style="padding:12px;margin-bottom:14px;border:1px solid #d5e3f7;border-radius:10px;background:#f5f9ff"><summary style="cursor:pointer;color:#315f9d;font-weight:700">방염 확인에서 반영한 내용 · <?=count($flameChecks)?>개 동</summary><div style="white-space:pre-wrap;font-size:13px;margin-top:10px"><?php foreach($flameChecks as $flameCheck):?><p><?=h(frgp_text($flameCheck))?></p><?php endforeach;?></div><small>설치 물품·필증·유지관리 계획은 아래에서 확인하세요.</small></details>
+        <?php endif; ?>
         <?php $B1=$curData['bkchk']??[]; $B2=$curData['bkdoor']??[]; $B3=$curData['smoke']??[]; $B4=$curData['flame']??[]; ?>
         <p class="desc">소방청 <b>서식 1.5 피난·방화시설 및 제연·방염 현황</b>입니다.</p>
 
@@ -704,8 +711,8 @@ table.ft{width:100%;margin-top:7px;border:1px solid #cfd7e3;border-radius:11px;b
         <p class="desc">소방청 <b>서식 1.10 자체점검 및 업무수행</b> 기준입니다. 점검 주기와 담당자를 정합니다.</p>
         <?php if ($isSelf): ?>
           <div class="placeholder-note">
-            3급 정기 작동점검은 사용승인 월을 기본으로 제안합니다. 외관점검 매월 1일은 자체 관리 일정입니다.
-            최초점검·설비·용도에 따른 종합점검 대상 여부는 별도 확인하세요.
+            사용승인월을 기준으로 점검 일정을 제안합니다. 종합·작동점검을 함께 계획하면 종합점검은 사용승인월, 작동점검은 6개월 뒤로 제안합니다.
+            적용 전 점검업체와 대상 여부·이전 점검일을 확인해 주세요. 외관점검 매월 1일은 자체 관리 일정입니다.
             <label style="display:block;margin-top:8px">종합점검
               <select name="comprehensive" id="comprehensiveChoice">
                 <option value="제외" <?=!fp_comprehensive($s1,$curData)?'selected':''?>>제외</option>
@@ -800,7 +807,8 @@ table.ft{width:100%;margin-top:7px;border:1px solid #cfd7e3;border-radius:11px;b
             <td><input type="text" name="assembly" value="<?=h($curData['assembly'] ?? '')?>" placeholder="예: 건물 앞 주차장"></td></tr>
         </table>
 
-      <?php elseif ($cur === '11'): ?>
+      <?php elseif ($cur === '11'): $hasSchedule=!empty($curData['_training_schedule']['events']); ?>
+        <p><a class="btn" href="<?=h('/fire_plan_schedule.php?'.http_build_query(array_merge(array_intersect_key($_GET,array_flip(['uid','embed','modal'])),['id'=>$planId])))?>">교육·훈련 예정 일정 <?=$hasSchedule?'확인·수정':'정하기'?> →</a></p>
         <p class="desc">소방청 <b>서식 1.11 소방훈련 및 교육</b>입니다. 연간 실시 계획을 적습니다.</p>
         <table class="ft">
           <tr>
@@ -808,15 +816,15 @@ table.ft{width:100%;margin-top:7px;border:1px solid #cfd7e3;border-radius:11px;b
           </tr>
           <tr>
             <th class="lb2">소방훈련</th>
-            <td><input type="text" name="t1_when" value="<?=h($curData['t1_when'] ?? '')?>" placeholder="예: 매년 4월·10월"></td>
-            <td><input type="text" name="t1_who" value="<?=h($curData['t1_who'] ?? '')?>" placeholder="전 직원"></td>
-            <td><input type="text" name="t1_how" value="<?=h($curData['t1_how'] ?? '')?>" placeholder="합동훈련"></td>
+            <td><input type="text" name="t1_when" <?=$hasSchedule?'readonly aria-readonly="true"':''?> value="<?=h($curData['t1_when'] ?? '')?>" placeholder="예: 매년 4월·10월"></td>
+            <td><input type="text" name="t1_who" <?=$hasSchedule?'readonly aria-readonly="true"':''?> value="<?=h($curData['t1_who'] ?? '')?>" placeholder="전 직원"></td>
+            <td><input type="text" name="t1_how" <?=$hasSchedule?'readonly aria-readonly="true"':''?> value="<?=h($curData['t1_how'] ?? '')?>" placeholder="합동훈련"></td>
           </tr>
           <tr>
             <th class="lb2">소방교육</th>
-            <td><input type="text" name="t2_when" value="<?=h($curData['t2_when'] ?? '')?>" placeholder="예: 매년 4월"></td>
-            <td><input type="text" name="t2_who" value="<?=h($curData['t2_who'] ?? '')?>" placeholder="전 직원"></td>
-            <td><input type="text" name="t2_how" value="<?=h($curData['t2_how'] ?? '')?>" placeholder="집합교육"></td>
+            <td><input type="text" name="t2_when" <?=$hasSchedule?'readonly aria-readonly="true"':''?> value="<?=h($curData['t2_when'] ?? '')?>" placeholder="예: 매년 4월"></td>
+            <td><input type="text" name="t2_who" <?=$hasSchedule?'readonly aria-readonly="true"':''?> value="<?=h($curData['t2_who'] ?? '')?>" placeholder="전 직원"></td>
+            <td><input type="text" name="t2_how" <?=$hasSchedule?'readonly aria-readonly="true"':''?> value="<?=h($curData['t2_how'] ?? '')?>" placeholder="집합교육"></td>
           </tr>
           <tr>
             <th class="lb2">신규자<br>교육</th>

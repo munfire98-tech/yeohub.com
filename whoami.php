@@ -8,10 +8,13 @@
    확인이 끝나면 이 파일은 서버에서 지우세요.
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 require_once __DIR__ . '/user_key.php';
 
@@ -218,7 +221,7 @@ code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;
   </div>
 
   <p class="lead" style="margin-top:22px">
-    <a href="/building_manager.php" style="color:var(--brand2);font-weight:600">← 건물 소방안전관리로 돌아가기</a>
+    <a href="/FireDesk.php" style="color:var(--brand2);font-weight:600">← 건물 소방안전관리로 돌아가기</a>
   </p>
 </div>
 <?php require_once __DIR__ . '/admin_quickmemo_widget.php'; ?>

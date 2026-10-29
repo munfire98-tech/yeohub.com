@@ -9,7 +9,10 @@
    저장 위치: data/blog/posts.json (전체 공용 — 회원별 폴더가 아닙니다)
    ============================================================= */
 declare(strict_types=1);
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
+if (session_status() !== PHP_SESSION_ACTIVE) alp_session_start();
 
 /* ── 회원 식별 (있으면 user_key.php 를 그대로 활용) ── */
 if (is_file(__DIR__ . '/user_key.php')) require_once __DIR__ . '/user_key.php';

@@ -23,7 +23,35 @@ function epc_load(): array {
   $decoded = json_decode((string)@file_get_contents($file), true);
   $plan = is_array($decoded) ? array_merge(epc_blank(), $decoded) : epc_blank();
   $plan['floors'] = is_array($plan['floors'] ?? null) ? $plan['floors'] : [];
-  return $plan;
+  return epc_published_list_projection($plan);
+}
+
+/** Collect only published dong plans for the existing fire-plan import. Never import drafts. */
+function epc_published_list_projection(array $plan): array {
+  if (($plan['_epl_version'] ?? 0) !== 2) return $plan;
+  $active = array_filter((array)($plan['_epl_plans'] ?? []), static fn($row) => is_array($row) && !empty($row['published']) && empty($row['archived']) && empty($row['deleted_at']));
+  $out = epc_blank();
+  $out['_print_plans']=[];
+  $parts = [];
+  foreach ($active as $id => $row) {
+    $content = $row['published'];
+    // Only published content is exported; drafts and edit history stay private.
+    $out['_print_plans'][$id]=array_intersect_key($row,array_flip(['id','title','published_title','scope','published','published_at','archived']));
+    $name = (string)($row['scope']['name'] ?? $row['title'] ?? '건물');
+    foreach (['alarm_method','reporter','controller','assembly_confirmed','headcount_method','special_notes'] as $field) {
+      $text = trim((string)($content[$field] ?? ''));
+      if ($text !== '') $parts[$field][] = count($active) > 1 ? $name . ': ' . $text : $text;
+    }
+    foreach ((array)($content['floors'] ?? []) as $key => $floor) {
+      if (!is_array($floor)) continue;
+      $floor['label'] = $name . ' · ' . (string)($floor['label'] ?? $key);
+      $floor['_epl_floor_key'] = (string)$key;
+      $out['floors'][$id . ':' . $key] = $floor;
+    }
+    if (strcmp((string)($row['published_at'] ?? ''), $out['updated']) > 0) $out['updated'] = (string)$row['published_at'];
+  }
+  foreach ($parts as $field => $texts) $out[$field] = implode("\n", $texts);
+  return $out;
 }
 
 function epc_has_content(array $plan): bool {
@@ -65,22 +93,30 @@ function epc_to_fire_section(array $plan): array {
   $weakLocations = [];
   $weakPlans = [];
   $hasFirstFloor = false;
+  $floorCount = 0;
+  $noSupportCount = 0;
 
   foreach ((array)($plan['floors'] ?? []) as $key => $floor) {
     if (!is_array($floor)) continue;
+    $floorCount++;
     $label = trim((string)($floor['label'] ?? $key));
-    if ((string)$key === '1F') $hasFirstFloor = true;
+    if ((string)($floor['_epl_floor_key'] ?? $key) === '1F') $hasFirstFloor = true;
 
     $routeParts = [];
     $primary = trim((string)($floor['primary_route'] ?? ''));
     $alternate = trim((string)($floor['alternate_route'] ?? ''));
     if ($primary !== '') $routeParts[] = '주 경로 ' . $primary;
     if ($alternate !== '') $routeParts[] = '대체 경로 ' . $alternate;
+    foreach (['guide'=>'피난유도','checker'=>'잔류자 확인'] as $field=>$title) {
+      $person = trim((string)($floor[$field] ?? ''));
+      if ($person !== '') $routeParts[] = $title . ' ' . $person;
+    }
     if ($routeParts) $routes[] = $label . ': ' . implode(' / ', $routeParts);
 
     $vulnerable = trim((string)($floor['vulnerable'] ?? ''));
-    $hasVulnerable = $vulnerable !== ''
-      && !in_array($vulnerable, ['없음','해당없음','특이사항 없음'], true);
+    $noSupport = in_array(preg_replace('/\s+/u', '', $vulnerable), ['없음','해당없음','특이사항없음'], true);
+    if ($noSupport) $noSupportCount++;
+    $hasVulnerable = $vulnerable !== '' && !$noSupport;
     if ($hasVulnerable) {
       $weakLocations[] = $label;
       $parts = [$label . ': ' . $vulnerable];
@@ -104,14 +140,18 @@ function epc_to_fire_section(array $plan): array {
   if ($headcount !== '') $operations[] = '인원 확인: ' . $headcount;
   if ($notes !== '') $operations[] = '특별 주의사항: ' . $notes;
 
-  return [
+  // Zero is an answer only when every saved floor explicitly says no support is needed.
+  $noSupport = $floorCount > 0 && $noSupportCount === $floorCount;
+  $section = [
     'floor_exit'=>$hasFirstFloor ? '지상 1층' : '',
     'route'=>implode("\n", array_merge($routes, $operations)),
-    'weak_loc'=>implode(', ', $weakLocations),
-    'weak_plan'=>implode("\n", $weakPlans),
+    'weak_loc'=>$noSupport ? '해당없음' : implode(', ', $weakLocations),
+    'weak_plan'=>$noSupport ? '해당없음' : implode("\n", $weakPlans),
     'assembly'=>trim((string)($plan['assembly_confirmed'] ?? '')),
     'common_updated'=>trim((string)($plan['updated'] ?? '')),
   ];
+  if ($noSupport) $section['weak_cnt'] = '0';
+  return $section;
 }
 
 function epc_value_empty($value): bool {

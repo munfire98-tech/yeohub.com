@@ -12,6 +12,9 @@
    관리자에게만 보입니다.
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 if (defined('MEMO_BAR_READY')) return;
 define('MEMO_BAR_READY', 1);
@@ -62,7 +65,7 @@ function memo_csrf(): string {
    화면이 그려지기 전에 처리하고 끝냅니다.
    ══════════════════════════════════════════════════════════ */
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['__memo_act'])) {
-  if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+  if (session_status() !== PHP_SESSION_ACTIVE) alp_session_start();
   header('Content-Type: application/json; charset=utf-8');
   header('X-Content-Type-Options: nosniff');
 

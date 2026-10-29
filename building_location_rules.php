@@ -19,3 +19,21 @@ function bl_location_error(array $data,array $changed): string {
  }
  return '';
 }
+
+/** First-run location setup shares the same fields used by plans and prints. */
+function bl_setup_status(array $data): array {
+ $route=$data['fire_engine_route']??'';
+ $points=is_array($route)?$route:json_decode((string)$route,true);
+ $routeOk=is_array($points)&&count($points)>=2;
+ if($routeOk)foreach($points as $p)if(!is_array($p)||!bl_point_valid($p['lat']??null,$p['lng']??null)){$routeOk=false;break;}
+ return ['route'=>$routeOk,'assembly'=>bl_point_valid($data['assembly_lat']??null,$data['assembly_lng']??null)&&trim((string)($data['assembly_kind']??''))!==''];
+}
+function bl_setup_patch(array $input):array {
+ return array_intersect_key($input,array_flip(['assembly_lat','assembly_lng','assembly_kind','fire_engine_route','fire_engine_route_note']));
+}
+function bl_setup_error(array $data):string {
+ $s=bl_setup_status($data);
+ if(!$s['route'])return '큰도로에서 건물 입구까지 소방차 진입로를 두 지점 이상 표시해 주세요.';
+ if(!$s['assembly'])return '화재 시 집결지 위치와 이름을 지정해 주세요.';
+ return '';
+}

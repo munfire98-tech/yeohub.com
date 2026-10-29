@@ -1,0 +1,1035 @@
+/* Compact building dashboard. Scoped to this page; readers and form dialogs keep their own layout. */
+.dashboard-shell.dashboard-compact{display:grid;grid-template-columns:190px minmax(0,1fr) 238px;grid-template-rows:auto auto;gap:16px;align-items:start;width:100%;max-width:1120px;margin:0 auto;padding:20px 24px 26px;box-sizing:border-box}
+.dashboard-compact *{box-sizing:border-box}
+.dashboard-compact>.page-head,.dashboard-compact>.page-head>.page-head__inner,.dashboard-compact>.wrap,.dashboard-compact .building-workspace,.dashboard-compact .building-board{display:contents}
+.dashboard-compact .ph-left{display:none}
+.dashboard-compact .building-board__head.building-board__head--book{grid-column:1/-1;grid-row:1;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 16px;margin:0;border:1px solid #dce7f6;border-radius:14px;background:linear-gradient(105deg,#edf4ff 0%,#f7faff 68%,#fbfdff 100%);min-width:0}
+.dashboard-compact .building-board__head-copy{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:14px;row-gap:3px;align-items:center;min-width:0;width:100%}
+.dashboard-compact .building-board__head-label{grid-column:1;font-size:11px;margin:0;color:#2563eb}
+.dashboard-compact .building-board__head h1{grid-column:1;font-size:25px!important;line-height:1.35;word-break:keep-all;overflow-wrap:anywhere}
+.dashboard-compact .building-plan-membership{grid-column:2;grid-row:1/span 2;margin:0!important}
+.dashboard-compact .building-plan-membership .plan-link{min-height:32px!important;padding:7px 11px!important;max-width:100%;white-space:normal}
+.dashboard-compact .building-dong-strip{grid-column:1/-1;gap:5px;margin-top:4px}
+.dashboard-compact .building-dong-strip span{font-size:10px;min-height:21px;padding:2px 7px}
+.dashboard-compact .building-dong-strip .is-others{max-width:min(540px,65vw)}
+.dashboard-compact .rightcol{grid-column:1;grid-row:2;width:auto;min-width:0;max-width:100%;min-height:0;margin:0;padding:0;background:transparent;border:0}
+.dashboard-compact .rightcol .prog{display:none}
+.dashboard-compact #compactWorkPanel{grid-column:2;grid-row:2;min-width:0;padding:17px;background:#fff;border:1px solid #dfe7f0;border-radius:14px}
+.dashboard-compact .building-tasknav__head{display:flex;align-items:center;justify-content:space-between;flex-direction:row;flex-wrap:wrap;gap:5px 10px;margin:0 0 9px}
+.dashboard-compact .building-tasknav__head b{font-size:15px;line-height:1.4;letter-spacing:-.4px}
+.dashboard-compact .building-tasknav__head .compact-progress-count{display:inline-flex;align-items:baseline;gap:4px;flex-shrink:0;white-space:nowrap;border-radius:6px;padding:3px 7px;background:#eef4ff;color:#335a93;font-size:11px;line-height:1.5;font-variant-numeric:tabular-nums}
+.dashboard-compact .compact-progress-count strong{font-size:15px;font-weight:750;color:#2563d9}
+.dashboard-compact .compact-progress-count>span{color:#7187a6}
+.dashboard-compact .compact-progress{margin-bottom:13px}
+.dashboard-compact .compact-progress__track{height:5px;overflow:hidden;border-radius:5px;background:#e8eef6}
+.dashboard-compact .compact-progress__track>span{display:block;height:100%;border-radius:inherit;background:#3977e8}
+.dashboard-compact .compact-progress__note{margin:6px 0 0;color:#6c7e96;font-size:10px;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere}
+.dashboard-compact .building-tasknav__grid,.dashboard-compact .building-retention__grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.dashboard-compact .building-task{position:relative;width:100%;min-width:0;min-height:49px;padding:9px 10px;gap:8px;border-color:#dce5ef;border-radius:9px;background:#fff;font-family:inherit;text-align:left;cursor:pointer}
+.dashboard-compact .building-task>span:nth-child(2){flex:1;min-width:0;font-size:13px;line-height:1.4;font-weight:700;white-space:normal;word-break:keep-all;overflow-wrap:anywhere;overflow:visible;text-overflow:clip;letter-spacing:-.3px}
+.dashboard-compact .building-task__no{width:26px;height:28px;font-size:12px;background:#e8f0ff;color:#2865dc;border-radius:7px}
+.dashboard-compact .building-task small{font-size:10px;line-height:1.4;color:#8091a8}
+.dashboard-compact .building-task.is-done{background:#f0faf4;border-color:#bce3c9;color:#168154}
+.dashboard-compact .building-task.is-done .building-task__no{background:#e3eeff;color:#2765dd}
+.dashboard-compact .task-done{width:21px;height:21px;border:0;border-radius:6px;background:#17865f;color:#fff}
+.dashboard-compact .task-done svg{width:14px;height:14px}
+.dashboard-compact .building-task.is-now{background:#eff5ff;border-color:#7ba4fa;color:#235fde;box-shadow:0 0 0 2px #2563eb0b}
+.dashboard-compact .building-task.is-now .building-task__no{background:#2865df;color:#fff}
+.dashboard-compact .building-task--locked{cursor:default;background:#f8fafc;color:#738094}
+.dashboard-compact .building-task--locked:hover{transform:none}
+.dashboard-compact .building-retention{grid-column:1/-1;margin:5px 0 0;padding:12px 0 0;border-top:1px solid #e5ebf3}
+.dashboard-compact .building-retention__title{display:flex;align-items:center;gap:7px;margin:0 0 9px;font-size:12px;color:#708096;line-height:1.4}
+.dashboard-compact .building-retention__title span{padding:2px 6px;font-size:11px;line-height:1.3;border-radius:5px;background:#eaf1ff;color:#2865df}
+.dashboard-compact .building-field-records,.dashboard-compact .building-field-records__grid,.dashboard-compact .building-support,.dashboard-compact .building-support__grid{display:contents}
+.dashboard-compact #buildingFieldRecordsTitle{grid-column:1/-1;margin:5px 0 0;padding:12px 0 1px;border-top:1px solid #e5ebf3;color:#708096;font-size:12px;line-height:1.4}
+.dashboard-compact .building-support .building-task>span:nth-child(2),.dashboard-compact .building-field-records .building-task>span:nth-child(2){font-size:12px}
+.dashboard-compact .pro-mode-status{display:none}
+.dashboard-compact .pro-mode-link{margin-top:4px;font-size:11px}
+.dashboard-compact .compact-overview{grid-column:3;grid-row:2;display:flex;flex-direction:column;gap:14px;min-width:0}
+/* Saved annual summary: the seven work cards feed one plan, using its real saved progress. */
+.dashboard-compact .building-retention__grid .building-task--monthly{grid-column:1/-1}
+.dashboard-compact .building-plan-book{gap:0;width:100%;padding:12px;align-items:stretch;border:1px solid #d4e0ef;border-radius:12px;color:#263a52;background:linear-gradient(155deg,#f5f9ff,#fff 65%);box-shadow:0 3px 12px #243e5e09;overflow:visible}
+.dashboard-compact .building-plan-book:before,.dashboard-compact .building-plan-book:after{display:none}
+.dashboard-compact .building-plan-book:hover{transform:none;box-shadow:0 3px 12px #243e5e09}
+.dashboard-compact .building-plan-book__heading{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
+.dashboard-compact .building-plan-book__title{font-size:15px;line-height:1.5;color:#243950;font-weight:750;letter-spacing:-.35px;text-shadow:none}
+.dashboard-compact .building-plan-book__retention{font-size:9px;line-height:16px;padding:1px 5px;border:1px solid #dce7f5;border-radius:4px;color:#53749c;background:#f0f5fc;white-space:nowrap}
+.dashboard-compact .building-plan-book__intro{display:flex;align-items:center;justify-content:space-between;gap:5px;min-height:20px;margin:2px 0 6px;color:#6d809a;font-size:10px;line-height:1.5}
+.dashboard-compact .building-plan-book__years{grid-template-columns:26px minmax(0,1fr) 26px;margin:0 0 7px;gap:4px;padding:0;border:0;border-radius:0;background:transparent}
+.dashboard-compact .building-plan-book__selection{display:flex;align-items:center;flex-direction:column;justify-content:center;gap:0;min-width:0}
+.dashboard-compact [data-book-label]{color:#4676b8;font-size:10px;font-weight:650;line-height:1.5}
+.dashboard-compact .building-plan-book__year{font-size:24px;line-height:32px;color:#233d60;letter-spacing:-.7px;font-weight:750;font-variant-numeric:tabular-nums}
+.dashboard-compact .building-plan-book__years button{height:32px;width:26px;border:1px solid #e0e7f2;border-radius:6px;background:#fff;color:#647b99;box-shadow:none}
+.dashboard-compact .building-plan-book__years button:hover:not(:disabled){background:#edf3fc;border-color:#b6c7de;color:#345f97}
+.dashboard-compact .building-plan-book__years button:disabled{background:transparent;border-color:transparent;color:#b2bdcd;opacity:.7}
+.dashboard-compact .building-plan-book__paper{padding:8px 9px;border:1px solid #dce7f6;border-radius:8px;background:#fff;box-shadow:0 2px 3px #2c507d05}
+.dashboard-compact .building-plan-book__progress-heading{display:flex;align-items:center;justify-content:space-between;gap:5px}
+.dashboard-compact .building-plan-book__state{background:transparent;border:0;color:#667c98;font-size:10px;line-height:17px;border-radius:0;padding:0}
+.dashboard-compact .building-plan-book__state.is-reviewed{color:#2b63ad;background:transparent}
+.dashboard-compact [data-book-percent]{font-size:23px;font-weight:750;line-height:1.2;color:#2864be;letter-spacing:-.6px;font-variant-numeric:tabular-nums}
+.dashboard-compact .building-plan-book__track{height:4px;margin:8px 0 6px;background:#e9eff8;border-radius:3px;overflow:hidden}
+.dashboard-compact .building-plan-book__track>span{display:block;height:100%;background:#4b80d1;border-radius:inherit;transition:width .2s ease}
+.dashboard-compact .building-plan-book__numbers{display:flex;align-items:center;justify-content:space-between;gap:4px;flex-wrap:wrap;font-size:9px;line-height:1.5;color:#647b98}
+.dashboard-compact .building-plan-book__sources{margin:5px 0}
+.dashboard-compact .building-plan-book__sources>summary{display:flex;align-items:center;justify-content:space-between;gap:5px;list-style:none;cursor:pointer;min-height:25px;font-size:10px;color:#607791}
+.dashboard-compact .building-plan-book__sources>summary::-webkit-details-marker{display:none}
+.dashboard-compact .building-plan-book__sources>summary b{font-weight:750;color:#39689f}
+.dashboard-compact .building-plan-book__sources i{display:inline-block;margin-left:3px;font-style:normal;transition:transform .15s}
+.dashboard-compact .building-plan-book__sources[open] i{transform:rotate(180deg)}
+.dashboard-compact .building-plan-book__sources ul{display:flex;flex-wrap:wrap;gap:4px;padding:0;margin:7px 0 5px;list-style:none}
+.dashboard-compact .building-plan-book__sources li{max-width:100%;padding:3px 5px;border:1px solid #deebf5;border-radius:4px;background:#f3f8fc;color:#4e7192;font-size:9px;line-height:1.5;overflow-wrap:anywhere}
+.dashboard-compact .building-plan-book__sources li:before{content:'✓';margin-right:4px;color:#568b83}
+.dashboard-compact .building-plan-book__sources p{margin:6px 0;font-size:9px;line-height:1.6;color:#6c7f97;word-break:keep-all;overflow-wrap:anywhere}
+.dashboard-compact .building-plan-book__actions{display:flex;gap:6px}
+.dashboard-compact .building-plan-book__edit,.dashboard-compact .building-plan-book__open{display:flex;align-items:center;justify-content:center;flex:1;min-width:0;width:auto;min-height:33px;margin:0;padding:7px 4px;border:1px solid #dbe5f3;border-radius:6px;background:#fff;color:#416b9d;font-size:11px;font-weight:650;line-height:17px;text-decoration:none;white-space:nowrap}
+.dashboard-compact .building-plan-book__edit{background:#3569b4;border-color:#3569b4;color:#fff}
+.dashboard-compact .building-plan-book__edit:hover{background:#2b5a9d;color:#fff}
+.dashboard-compact .building-plan-book__open:hover{background:#f0f5fd;border-color:#b9cde7;color:#264d83}
+.dashboard-compact .building-plan-book__help{display:inline-flex;align-items:center;flex-shrink:0;margin:0;padding:2px 5px;background:#fff8eb;border:1px solid #f0ddb9;border-radius:5px;color:#86632e;font-size:10px;line-height:1.5;text-decoration:none}
+.dashboard-compact .building-plan-book [hidden]{display:none!important}
+.dashboard-compact .building-plan-book a:focus-visible,.dashboard-compact .building-plan-book__years button:focus-visible{outline:3px solid #7fa6dc;outline-offset:2px}
+.dashboard-compact .compact-building-panel{min-width:0;padding:13px 12px 0;border:1px solid #dfe7f0;border-radius:13px;background:#fff}
+.dashboard-compact .compact-building-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.dashboard-compact .compact-building-heading h2{margin:0;font-size:13px;line-height:1.5}
+.dashboard-compact .compact-building-heading>span{font-size:11px;color:#8190a5}
+.dashboard-compact .building-scene{height:auto;min-height:0;max-height:none;padding:0;overflow:visible;display:block}
+.dashboard-compact .building-carousel{height:auto;gap:5px}
+.dashboard-compact .building-carousel__viewport{height:auto;min-height:0;overflow:visible}
+.dashboard-compact .building-slide{height:auto}
+.dashboard-compact .building-slide[hidden]{display:none}
+.dashboard-compact .building-slide__figure{flex:0 0 128px;height:128px;min-height:128px;padding:0}
+.dashboard-compact .building-slide__figure .building-skyline{position:absolute;bottom:2px;width:165px;transform:scale(.62);transform-origin:bottom center}
+.dashboard-compact .building-slide__figure .building-skyline.is-high-rise{width:138px}
+.dashboard-compact .building-basement-label{right:0;bottom:5px;transform:scale(.8);transform-origin:bottom right}
+.dashboard-compact .building-slide__info{gap:4px 6px;flex-wrap:wrap;min-height:40px;width:100%;max-width:100%;margin:2px 0 0;padding:5px 3px;border:0;border-radius:0;background:transparent}
+.dashboard-compact .building-slide__name{max-width:100%;font-size:12px;white-space:normal;overflow-wrap:anywhere;text-align:center}
+.dashboard-compact .building-slide__meta{flex-basis:100%;font-size:10px;white-space:normal;overflow-wrap:anywhere;text-align:center;line-height:1.4}
+.dashboard-compact .building-carousel__controls{grid-template-columns:46px minmax(0,1fr) 46px;gap:5px;min-height:38px;margin-bottom:4px}
+.dashboard-compact .building-carousel__single .building-carousel__controls{grid-template-columns:1fr}
+.dashboard-compact .building-carousel__nav{min-width:0;min-height:31px;padding:6px 3px;font-size:10px;border-radius:7px}
+.dashboard-compact .building-carousel__status{font-size:10px;font-weight:600;overflow-wrap:anywhere;text-align:center;gap:5px}
+.dashboard-compact .building-carousel__dots{max-width:100%;gap:6px;padding:4px 0}
+.dashboard-compact .building-carousel__dot{flex-basis:8px;width:8px;height:8px}
+.dashboard-compact .building-empty{position:relative;inset:auto;min-height:130px;display:flex;justify-content:center;align-items:center;padding:16px 0;font-size:12px}
+.dashboard-compact .building-scene>.building-skyline{display:none}
+.dashboard-compact .compact-assets{border-top:1px solid #e5ebf3}
+.dashboard-compact .compact-assets>summary,.dashboard-compact .compact-help>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;list-style:none;min-height:42px;padding:10px 0;cursor:pointer;font-size:12px;font-weight:650;color:#53667f}
+.dashboard-compact .compact-assets>summary::-webkit-details-marker,.dashboard-compact .compact-help>summary::-webkit-details-marker{display:none}
+.dashboard-compact .compact-assets>summary>span{font-size:10px;font-weight:500;color:#8492a6}
+.dashboard-compact .compact-assets>summary b{margin-left:6px;font-size:15px}
+.dashboard-compact .compact-assets[open]>summary b,.dashboard-compact .compact-help[open]>summary>span{display:inline-block;transform:rotate(180deg)}
+.dashboard-compact .building-board__copy{padding:0 0 10px;min-width:0}
+.dashboard-compact .safety-assets{gap:6px;margin:0}
+.dashboard-compact .safety-assets__label{display:none}
+.dashboard-compact .safety-asset{padding:9px 7px;gap:7px;border-radius:8px}
+.dashboard-compact .safety-asset__icon{width:22px;height:24px;font-size:15px;flex-shrink:0}
+.dashboard-compact .safety-asset__copy b{font-size:11px;white-space:normal;word-break:keep-all}
+.dashboard-compact .safety-asset__copy small{font-size:10px;line-height:1.4}
+.dashboard-compact .safety-asset__ok{display:none}
+.dashboard-compact .protection-state{font-size:10px;gap:5px;margin-top:3px}
+.dashboard-compact .safety-ai--rail{position:static;top:auto;width:100%;max-height:none;overflow:visible;padding:15px;border-radius:13px;box-shadow:none;border:1px solid #dfe7f0}
+.dashboard-compact .safety-ai__head{position:absolute!important;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);padding:0!important;margin:0!important;border:0!important}
+.dashboard-compact .safety-ai__next{margin:0;padding:0 0 14px;border-top:0;gap:11px;align-items:stretch}
+.dashboard-compact .safety-ai__next-copy{font-size:11px;color:#75869c}
+.dashboard-compact .safety-ai__next-copy b{font-size:16px;line-height:1.5;letter-spacing:-.4px;margin-top:6px;color:#22334a}
+.dashboard-compact .safety-ai__next-link{min-height:38px;padding:9px 8px;font-size:12px;background:#2865df;border-color:#2865df;color:#fff;border-radius:8px}
+.dashboard-compact .safety-ai__next-link:hover{background:#1c53c6;color:#fff}
+.dashboard-compact .compact-help{border-top:1px solid #e5ebf3}
+.dashboard-compact .compact-help>summary{padding:11px 0 0;min-height:32px;font-size:11px;font-weight:600}
+.dashboard-compact .compact-help[open]>summary{margin-bottom:12px}
+.dashboard-compact .safety-ai__chat{min-height:0;max-height:250px;padding:0;margin-bottom:10px;gap:7px}
+.dashboard-compact .safety-ai__bubble{max-width:100%;padding:8px;font-size:11px;line-height:1.65}
+.dashboard-compact .safety-ai__quick{gap:5px}
+.dashboard-compact .safety-ai__quick button{padding:6px;font-size:10px;min-height:32px}
+.dashboard-compact .safety-ai__input{font-size:16px;line-height:1.4;padding:9px;width:100%}
+.dashboard-compact .safety-ai__input::placeholder{font-size:11px}
+.dashboard-compact .safety-ai__send{font-size:12px;min-height:36px;padding:7px}
+.dashboard-compact .safety-ai__setup{padding:9px}
+.dashboard-compact .safety-ai__setup-link{font-size:11px;min-height:38px}
+/* Preserve connection management inside the compact manager rail. */
+.dashboard-compact #manager-connect.mc-mini{margin:0 0 12px;border-color:#dfe7f0;border-radius:13px;overflow:visible}
+.dashboard-compact #manager-connect .mc-mini__summary{display:grid;grid-template-columns:30px minmax(0,1fr);gap:8px;padding:15px;min-height:0}
+.dashboard-compact #manager-connect .mc-mini__icon{width:30px;height:32px;background:#eef4ff;color:#3f6fbc;border-color:#e3ecfa;border-radius:9px}
+.dashboard-compact #manager-connect .mc-mini__copy{min-width:0;gap:3px}
+.dashboard-compact #manager-connect .mc-mini__title{font-size:11px;color:#7a889a}
+.dashboard-compact #manager-connect .mc-mini__subtitle{font-size:13px;font-weight:700;line-height:1.5;color:#273b54;white-space:normal;word-break:keep-all;overflow-wrap:anywhere}
+.dashboard-compact #manager-connect .mc-status{grid-column:1/-1;justify-self:start;font-size:10px;padding:3px 6px;max-width:100%;white-space:normal}
+.dashboard-compact #manager-connect .mc-mini__toggle{grid-column:1/-1;justify-content:space-between;font-size:11px;background:#f7f9fc;border-color:#dfe7f0;color:#60748e;padding:7px 9px}
+.dashboard-compact #manager-connect .mc-mini__body{padding:12px}
+.dashboard-compact #manager-connect .mc-code-row,.dashboard-compact #manager-connect .mc-mini__manage,.dashboard-compact #manager-connect .mc-collab-invite{flex-direction:column;align-items:stretch;gap:9px}
+.dashboard-compact #manager-connect .mc-collab-invite{padding:11px}
+.dashboard-compact #manager-connect .mc-collab-invite h3{font-size:12px}
+.dashboard-compact #manager-connect .mc-collab-invite p,.dashboard-compact #manager-connect .mc-consent,.dashboard-compact #manager-connect .mc-mini__manage p{font-size:11px!important;line-height:1.6;word-break:keep-all}
+.dashboard-compact #manager-connect .mc-collab-invite__link{font-size:11px;padding:8px;gap:5px;white-space:normal}
+.dashboard-compact .compact-mobile-tabs,.dashboard-compact .compact-plan-shortcut{display:none}
+.dashboard-compact>.wrap>.section{grid-column:1/-1;grid-row:3}
+.dashboard-compact.workspace-open .building-workspace{display:none}
+.dashboard-compact.workspace-open .one-stop{grid-column:2/-1;grid-row:2}
+@media(min-width:721px) and (max-width:1100px){
+ .dashboard-shell.dashboard-compact{max-width:1040px;grid-template-columns:164px minmax(0,1fr) 204px;gap:12px;padding:18px 16px 24px}
+ .dashboard-compact #compactWorkPanel{padding:13px}
+ .dashboard-compact .building-task{padding:8px;gap:6px}
+ .dashboard-compact .building-task>span:nth-child(2){font-size:12px}
+ .dashboard-compact .building-task__no{width:23px;height:25px}
+ .dashboard-compact .building-task small{font-size:9px}
+ .dashboard-compact .building-plan-book{padding:12px 11px}
+ .dashboard-compact .building-plan-book__year{font-size:22px}
+ .dashboard-compact .building-plan-book__years{grid-template-columns:24px minmax(0,1fr) 24px;gap:2px}
+ .dashboard-compact .building-plan-book__years button{width:24px}
+ .dashboard-compact #manager-connect .mc-mini__summary{padding:12px;gap:7px}
+ .dashboard-compact .safety-ai--rail{padding:12px}
+}
+@media(min-width:721px) and (max-width:880px){
+ .dashboard-shell.dashboard-compact{grid-template-columns:minmax(0,1fr) 214px}
+ .dashboard-compact #compactWorkPanel{grid-column:1;grid-row:2/span 2}
+ .dashboard-compact .compact-overview{grid-column:2;grid-row:2}
+ .dashboard-compact .rightcol{grid-column:2;grid-row:3}
+ .dashboard-compact>.wrap>.section{grid-row:4}
+}
+@media(max-width:720px){
+ body:has(.dashboard-compact)>.nav .nav__inner{padding:0 12px;gap:8px}
+ body:has(.dashboard-compact)>.nav .nav__brand{font-size:18px;letter-spacing:-.6px;white-space:nowrap;flex-shrink:0}
+ body:has(.dashboard-compact)>.nav .nav__actions,body:has(.dashboard-compact)>.nav .nw-icons{gap:3px;min-width:0}
+ body:has(.dashboard-compact)>.nav .nw-icobtn{width:34px;height:42px;padding:7px}
+ body:has(.dashboard-compact)>.nav .nw-avatar{width:33px;height:33px;font-size:13px}
+ .dashboard-shell.dashboard-compact{display:flex;flex-direction:column;gap:0;max-width:100%;padding:16px 12px 24px}
+ .dashboard-compact .building-board__head.building-board__head--book{order:0;width:100%;gap:10px;margin:0 0 12px;padding:12px;border:1px solid #dce7f6}
+ .dashboard-compact .building-board__head-copy{display:flex;flex-direction:column;align-items:flex-start;gap:4px;flex:1;min-width:0}
+ .dashboard-compact .building-board__head-label{font-size:10px}
+ .dashboard-compact .building-board__head h1{font-size:22px!important;line-height:1.45}
+ .dashboard-compact .building-plan-membership{margin-top:2px!important}
+ .dashboard-compact .building-plan-membership .plan-link{width:auto!important;max-width:100%!important;min-height:28px!important;padding:4px 8px!important;align-items:center}
+ .dashboard-compact .building-dong-strip{gap:4px;margin-top:2px}
+ .dashboard-compact .building-dong-strip span{font-size:10px;padding:2px 6px;min-height:20px}
+ .dashboard-compact .building-dong-strip .is-others{display:none}
+ .dashboard-compact.compact-ready .compact-plan-shortcut{display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;gap:5px;width:67px;min-height:66px;padding:7px 4px;border:1px solid #d1e0ff;border-radius:11px;background:#eef4ff;color:#265fce;font-family:inherit;font-weight:700;font-size:10px;line-height:1.5;cursor:pointer}
+ .dashboard-compact .compact-plan-shortcut>span{font-size:23px;line-height:1}
+ .dashboard-compact.compact-ready .compact-mobile-tabs{order:1;display:flex;align-items:stretch;gap:10px;width:100%;padding:0 3px;margin:0 0 13px;border-bottom:1px solid #dce5f1}
+ .dashboard-compact .compact-mobile-tabs button{flex:1;min-width:0;min-height:44px;padding:8px 0;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:#7a899e;font-family:inherit;font-weight:600;font-size:12px;line-height:1.4;white-space:nowrap;cursor:pointer}
+ .dashboard-compact .compact-mobile-tabs button[aria-pressed="true"]{color:#2865df;border-bottom-color:#2865df}
+ .dashboard-compact #compactWorkPanel{order:2;width:100%;padding:13px 11px}
+ .dashboard-compact .building-tasknav__head{margin-bottom:8px}
+ .dashboard-compact .building-tasknav__head b{font-size:14px}
+ .dashboard-compact .building-tasknav__grid,.dashboard-compact .building-retention__grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .dashboard-compact .building-task{display:grid;grid-template-columns:23px minmax(0,1fr);column-gap:6px;row-gap:2px;min-height:60px;padding:8px 7px;align-content:center}
+ .dashboard-compact .building-task__no{grid-row:1/span 2;grid-column:1;width:23px;height:27px;font-size:11px;align-self:center}
+ .dashboard-compact .building-task>span:nth-child(2){grid-column:2;grid-row:1;font-size:12px;line-height:1.4;white-space:normal;overflow:visible}
+ .dashboard-compact .building-task small{grid-column:2;grid-row:2;margin:0;font-size:10px;line-height:1.2;white-space:normal}
+ .dashboard-compact .building-task.is-done{grid-template-columns:23px minmax(0,1fr) 18px}
+ .dashboard-compact .building-task.is-done>span:nth-child(2){grid-row:1/span 2}
+ .dashboard-compact .building-task.is-done small{grid-row:1/span 2;grid-column:3}
+ .dashboard-compact .task-done{width:18px;height:18px;border-radius:5px}
+ .dashboard-compact .task-done svg{width:12px;height:12px}
+ .dashboard-compact .building-support .building-task>span:nth-child(2),.dashboard-compact .building-field-records .building-task>span:nth-child(2){font-size:11px}
+ .dashboard-compact .building-retention{margin-top:5px;padding-top:11px}
+ .dashboard-compact .building-retention__title,.dashboard-compact #buildingFieldRecordsTitle{font-size:11px}
+ .dashboard-compact .compact-overview{order:3;width:100%;max-width:430px;align-self:center;gap:13px;margin-top:15px}
+ .dashboard-compact .rightcol{order:4;width:100%;max-width:430px;align-self:center;margin-top:15px}
+ .dashboard-compact.compact-ready .compact-overview,.dashboard-compact.compact-ready .rightcol{margin-top:0}
+ .dashboard-compact.compact-ready[data-mobile-view="work"] .compact-overview,.dashboard-compact.compact-ready[data-mobile-view="work"] .rightcol,
+ .dashboard-compact.compact-ready[data-mobile-view="building"] #compactWorkPanel,.dashboard-compact.compact-ready[data-mobile-view="building"] .rightcol,
+ .dashboard-compact.compact-ready[data-mobile-view="manager"] #compactWorkPanel,.dashboard-compact.compact-ready[data-mobile-view="manager"] .compact-overview{display:none}
+ .dashboard-compact .building-plan-book{padding:14px;border-radius:12px;gap:0}
+ .dashboard-compact .building-plan-book__title{font-size:16px}
+ .dashboard-compact .building-plan-book__year{font-size:23px;line-height:32px}
+ .dashboard-compact .building-plan-book__years{grid-template-columns:44px minmax(0,1fr) 44px;gap:4px;padding:0}
+ .dashboard-compact .building-plan-book__years button{width:44px;height:44px}
+ .dashboard-compact .building-plan-book__open,.dashboard-compact .building-plan-book__edit{min-height:44px;font-size:12px;padding:8px 7px}
+ .dashboard-compact .building-plan-book__sources>summary{min-height:36px}
+ .dashboard-compact .building-plan-book__help{min-height:32px;padding:4px 7px}
+ .dashboard-compact .compact-building-panel{padding:15px 15px 0}
+ .dashboard-compact .building-carousel__controls{grid-template-columns:62px minmax(0,1fr) 62px}
+ .dashboard-compact .building-carousel__nav{min-height:42px;font-size:11px}
+ .dashboard-compact .building-carousel__dot{position:relative;margin:5px 3px}
+ .dashboard-compact .building-carousel__dot:after{position:absolute;inset:-7px -3px;content:""}
+ .dashboard-compact .compact-assets>summary{min-height:46px;font-size:12px}
+ .dashboard-compact #manager-connect .mc-mini__summary{grid-template-columns:35px minmax(0,1fr);padding:16px;gap:9px}
+ .dashboard-compact #manager-connect .mc-mini__subtitle{font-size:16px}
+ .dashboard-compact #manager-connect .mc-mini__toggle{min-height:40px;font-size:12px}
+ .dashboard-compact .safety-ai--rail{padding:17px}
+ .dashboard-compact .safety-ai__next-link,.dashboard-compact .safety-ai__send{min-height:44px}
+ .dashboard-compact .compact-help>summary{min-height:42px;font-size:12px}
+ .dashboard-compact .safety-ai__chat{max-height:280px}
+ .dashboard-compact .safety-ai__bubble{font-size:13px}
+ .dashboard-compact .safety-ai__quick button{min-height:40px;font-size:11px}
+ .dashboard-compact .safety-ai__input::placeholder{font-size:13px}
+ .dashboard-compact>.wrap>.section{order:5;width:100%;margin-top:14px}
+ .dashboard-compact .one-stop{order:6;width:100%}
+}
+@media(max-width:360px){
+ body:has(.dashboard-compact)>.nav .nav__inner{padding:0 8px;gap:5px}
+ body:has(.dashboard-compact)>.nav .nav__brand{font-size:16px}
+ body:has(.dashboard-compact)>.nav .nw-icobtn{width:30px;padding:6px}
+ body:has(.dashboard-compact)>.nav .nw-avatar{width:30px;height:30px}
+}
+/* Visual finish: retain compact dimensions and the existing workflow. */
+body:has(.dashboard-compact){background:#f3f6fa}
+.dashboard-compact{--compact-ink:#22344d;--compact-blue:#2864db;--compact-line:#e1e8f1;color:var(--compact-ink)}
+.dashboard-compact .building-board__head.building-board__head--book{position:relative;background:linear-gradient(105deg,#fff 40%,#f0f5ff);border-color:#dfe7f3;box-shadow:0 3px 12px #263c6510;gap:15px}
+.dashboard-compact .compact-building-emblem{display:grid;place-items:center;flex:0 0 46px;width:46px;height:50px;border:1px solid #cadaf6;border-radius:13px;background:linear-gradient(145deg,#f4f8ff,#e4edfc);color:#3568b6;box-shadow:inset 0 1px #fff}
+.dashboard-compact .compact-building-emblem svg{width:32px;height:32px}
+.dashboard-compact .building-board__head h1{color:#1f3049;letter-spacing:-.9px}
+.dashboard-compact .building-board__head-label{color:#5475a4;font-weight:650;letter-spacing:.2px}
+.dashboard-compact .building-dong-strip span{border:1px solid #e4eaf4;background:#f5f8fc;color:#5f7088;border-radius:5px}
+.dashboard-compact .building-dong-strip .is-count{border-color:#dce7fd;background:#edf3ff;color:#3666b7}
+.dashboard-compact .building-dong-strip .is-primary{border-color:#ddebe7;background:#f1f8f5;color:#397568}
+.dashboard-compact .building-dong-strip .is-others{border-color:transparent;background:transparent}
+.dashboard-compact #compactWorkPanel{border-color:var(--compact-line);box-shadow:0 3px 5px #253c5d03,0 10px 28px #253c5d06}
+.dashboard-compact .building-tasknav__head b{color:#213652;letter-spacing:-.45px}
+.dashboard-compact .building-tasknav__head .compact-progress-count{background:#f1f5fc;border:1px solid #e4ebf7;padding:2px 6px;border-radius:7px;color:#5b7396}
+.dashboard-compact .compact-progress__track{background:#eaf0f8}
+.dashboard-compact .compact-progress__track>span{background:linear-gradient(90deg,#285dc7,#648fef);box-shadow:0 0 5px #3b73d526}
+.dashboard-compact .compact-progress__note{color:#718097}
+.dashboard-compact .building-task{border-color:#e1e8f1;border-radius:10px;background:linear-gradient(110deg,#fff,#fcfdff);color:#293c56;box-shadow:0 2px 3px #243f6404;transition:border-color .16s,background-color .16s,box-shadow .16s}
+.dashboard-compact .building-task__no{background:#edf3ff;border:1px solid #e1eafd;color:#3e6dbf;font-weight:750;box-shadow:inset 0 1px #ffffffa6}
+.dashboard-compact .building-task small{color:#76869c}
+.dashboard-compact .building-task.is-done{background:linear-gradient(110deg,#f7fcfa,#f1f9f5);border-color:#d3e8dd;color:#315e4c}
+.dashboard-compact .building-task.is-done .building-task__no{background:#edf3fd;border-color:#e1eafa;color:#3d6bb6}
+.dashboard-compact .task-done{background:#268362;box-shadow:inset 0 1px #ffffff24,0 1px 2px #1b684418}
+.dashboard-compact .building-task.is-now{background:linear-gradient(110deg,#eef4ff,#f7faff);border-color:#87abea;color:#2459ac;animation:compact-next-outline 3s ease-in-out infinite}
+.dashboard-compact .building-task.is-now .building-task__no{background:#326bce;border-color:#326bce;color:#fff;box-shadow:0 2px 4px #2864db20}
+@keyframes compact-next-outline{0%,100%{box-shadow:0 0 0 1px #3976e20a}50%{box-shadow:0 0 0 2px #3976e21c}}
+.dashboard-compact .building-task--locked{background:#f6f8fb;color:#8090a4;box-shadow:none}
+.dashboard-compact .building-task:focus-visible,.dashboard-compact summary:focus-visible,.dashboard-compact button:focus-visible{outline:3px solid #79a7ee;outline-offset:3px}
+.dashboard-compact .building-retention,.dashboard-compact #buildingFieldRecordsTitle{border-top-color:#e8edf4}
+.dashboard-compact .building-retention__title,.dashboard-compact #buildingFieldRecordsTitle{color:#687c97;font-weight:650;letter-spacing:-.15px}
+.dashboard-compact #buildingFieldRecordsTitle{display:flex;align-items:center;gap:7px}
+.dashboard-compact .building-retention__title svg,.dashboard-compact #buildingFieldRecordsTitle svg{flex-shrink:0;color:#7690b4}
+.dashboard-compact .building-retention__title span{background:#eff4fc;color:#496fa6;border:1px solid #e4ebf7;padding:1px 5px}
+.dashboard-compact .building-field-records .building-task__no,.dashboard-compact .building-support .building-task__no{background:#f1f5fa;border-color:#e6ecf4;color:#6886b1}
+.dashboard-compact #manager-connect.mc-mini,.dashboard-compact .safety-ai--rail,.dashboard-compact .compact-building-panel{border-color:var(--compact-line);box-shadow:0 3px 12px #263c6507}
+.dashboard-compact #manager-connect .mc-mini__summary{background:linear-gradient(145deg,#fff,#f9fbfe);border-radius:13px}
+.dashboard-compact #manager-connect .mc-mini__icon{background:linear-gradient(145deg,#eef4ff,#e6eefb);color:#5275ac;border-color:#dfe8f6}
+.dashboard-compact #manager-connect .mc-mini__subtitle{color:#293e5b}
+.dashboard-compact #manager-connect .mc-mini__toggle{background:#fff;border-color:#e0e7f1;color:#627995;box-shadow:0 1px 2px #203a6104}
+.dashboard-compact .safety-ai--rail{position:relative;background:linear-gradient(145deg,#f5f8ff,#fff 65%)}
+.dashboard-compact .safety-ai__next-copy{color:#667e9f}
+.dashboard-compact .safety-ai__next-copy b{color:#283d5c}
+.dashboard-compact .safety-ai__next-link{background:linear-gradient(110deg,#356fd4,#2860c6);border-color:#2f65c7;box-shadow:0 3px 7px #2860c617}
+.dashboard-compact .compact-help{border-color:#e2eaf5}
+.dashboard-compact .compact-building-heading>span{background:#f2f5fa;border:1px solid #e5ebf3;border-radius:5px;padding:1px 5px;font-size:10px}
+.dashboard-compact .building-slide__figure{background:radial-gradient(ellipse at 50% 95%,#e9f1fc 0,transparent 66%);border-radius:10px}
+.dashboard-compact .building-carousel__nav{background:#f8fafd;border-color:#e3eaf3;color:#5b7293}
+.dashboard-compact .building-carousel__dot.is-active{background:#4577cb}
+.dashboard-compact .compact-assets{border-color:#e7edf5}
+@media(hover:hover){
+ .dashboard-compact .building-task:not(.building-task--locked):hover{transform:none;border-color:#91b1e4;box-shadow:0 3px 8px #25549212}
+}
+@media(max-width:720px){
+ .dashboard-compact .compact-building-emblem{display:none}
+ .dashboard-compact .building-board__head.building-board__head--book{gap:10px}
+ .dashboard-compact.compact-ready .compact-plan-shortcut{background:linear-gradient(145deg,#f4f8ff,#e7effc);border-color:#d5e1f5;box-shadow:inset 0 1px #fff;color:#3a67ad}
+ .dashboard-compact .compact-plan-shortcut>span{display:flex}
+ .dashboard-compact.compact-ready .compact-mobile-tabs{gap:3px;padding:3px;background:#e9eff7;border:1px solid #e0e8f3;border-radius:10px}
+ .dashboard-compact .compact-mobile-tabs button{min-height:36px;padding:7px 0;border:1px solid transparent;border-radius:7px;color:#647c9d}
+ .dashboard-compact .compact-mobile-tabs button[aria-pressed="true"]{border-color:#e2e8f1;background:#fff;color:#2e62b5;box-shadow:0 1px 3px #193f7210}
+}
+@media(prefers-reduced-motion:reduce){.dashboard-compact .building-task,.dashboard-compact .building-plan-book__track>span{transition:none}.dashboard-compact .building-task.is-now{animation:none}.dashboard-compact .building-task:hover{transform:none}}
+
+/* Three sections: source tasks and building facts lead to one annual plan. */
+.dashboard-shell.dashboard-compact.dashboard-planhome{max-width:1120px;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);grid-template-rows:auto auto auto auto;gap:14px;padding:16px 24px 26px;align-items:start}
+.dashboard-planhome .building-board__head.building-board__head--book{grid-column:1/-1;grid-row:1;padding:11px 15px;box-shadow:none}
+.dashboard-planhome .building-board__head h1{font-size:23px!important}
+.dashboard-planhome .rightcol{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:10px;margin:0;max-width:none;width:100%}
+.dashboard-planhome #manager-connect.mc-mini{margin:0;border-radius:9px;box-shadow:none}
+.dashboard-planhome #manager-connect .mc-mini__summary{display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:9px;min-height:43px}
+.dashboard-planhome #manager-connect .mc-mini__icon{width:27px;height:27px;border-radius:7px}
+.dashboard-planhome #manager-connect .mc-mini__copy{display:flex;flex-direction:row;align-items:center;flex:1;gap:9px}
+.dashboard-planhome #manager-connect .mc-mini__subtitle{font-size:12px}
+.dashboard-planhome #manager-connect .mc-mini__title{font-size:11px;white-space:nowrap}
+.dashboard-planhome #manager-connect .mc-status{font-size:10px;max-width:150px}
+.dashboard-planhome #manager-connect .mc-mini__toggle{padding:4px 7px;min-height:27px;font-size:10px}
+.dashboard-planhome #manager-connect .mc-mini__body{padding:15px}
+.dashboard-planhome #manager-connect .mc-code-row,.dashboard-planhome #manager-connect .mc-mini__manage{flex-direction:row;flex-wrap:wrap}
+.dashboard-planhome .planhome-assistance{position:relative;align-self:start;z-index:4}
+.dashboard-planhome .planhome-assistance>summary{display:flex;align-items:center;justify-content:center;gap:9px;min-height:43px;padding:10px 14px;border:1px solid #dfe7f0;border-radius:9px;list-style:none;font-size:12px;font-weight:650;background:#fff;color:#59708f;cursor:pointer}
+.dashboard-planhome .planhome-assistance>summary::-webkit-details-marker{display:none}
+.dashboard-planhome .planhome-assistance[open]>summary{background:#f1f6ff;color:#285caa}
+.dashboard-planhome .planhome-assistance[open]>summary>span{transform:rotate(180deg)}
+.dashboard-planhome .planhome-assistance .safety-ai--rail{position:absolute;top:calc(100% + 8px);right:0;width:330px;max-width:calc(100vw - 32px);padding:18px;box-shadow:0 12px 40px #1d365c24;border-radius:12px}
+.dashboard-planhome .planhome-assistance:not([open]) .safety-ai--rail{display:none}
+.dashboard-planhome .safety-ai__next{padding-bottom:15px;margin-bottom:12px;border-bottom:1px solid #e5ebf3}
+.dashboard-planhome #compactWorkPanel{grid-column:1;grid-row:3;padding:15px;margin:0;border-radius:13px}
+.dashboard-planhome .building-tasknav__head b{font-size:16px}
+.dashboard-planhome .building-task{min-height:43px;padding:7px 9px;border-radius:8px}
+.dashboard-planhome .building-task>span:nth-child(2){font-size:12px}
+.dashboard-planhome .building-tasknav__grid,.dashboard-planhome .building-retention__grid{gap:7px}
+.dashboard-planhome .compact-progress{margin-bottom:11px}
+.dashboard-planhome .compact-progress__note{font-size:10px}
+.dashboard-planhome .building-retention{margin-top:3px;padding-top:10px}
+.dashboard-planhome .building-retention__title{margin-bottom:8px}
+.dashboard-planhome #buildingFieldRecordsTitle{display:none}
+.dashboard-planhome .compact-overview{display:contents!important}
+.dashboard-planhome .compact-building-panel{grid-column:1;grid-row:4;min-width:0;width:100%;padding:12px 15px 0;border-radius:13px;box-shadow:0 3px 12px #263c6507}
+.dashboard-planhome .compact-building-heading h2{font-size:15px;color:#233b58}
+.dashboard-planhome .building-slide{flex-direction:row;gap:12px;align-items:center;justify-content:center;min-height:84px}
+.dashboard-planhome .building-slide__figure{flex:0 0 98px;width:98px;height:84px;min-height:84px}
+.dashboard-planhome .building-slide__figure .building-skyline{transform:scale(.39);width:165px;bottom:0}
+.dashboard-planhome .building-slide__figure .building-skyline.is-high-rise{width:138px}
+.dashboard-planhome .building-basement-label{font-size:10px;bottom:2px;right:-7px;transform:scale(.75)}
+.dashboard-planhome .building-slide__info{flex:1;justify-content:flex-start;align-content:center;gap:4px 6px;width:auto;margin:0;padding:0;min-height:0}
+.dashboard-planhome .building-slide__name{text-align:left;font-size:13px}
+.dashboard-planhome .building-slide__meta{text-align:left;font-size:11px;line-height:1.6;word-break:keep-all}
+.dashboard-planhome .building-carousel__controls{grid-template-columns:60px minmax(0,1fr) 60px;margin:0 0 5px;min-height:29px}
+.dashboard-planhome .building-carousel__nav{min-height:28px;padding:4px;font-size:10px}
+.dashboard-planhome .building-carousel__status{font-size:10px;gap:2px}
+.dashboard-planhome .building-carousel__dots{padding:2px 0}
+.dashboard-planhome .compact-assets>summary{min-height:32px;padding:6px 0;font-size:11px}
+.dashboard-planhome .building-empty{min-height:90px}
+.dashboard-planhome .building-plan-book{grid-column:2;grid-row:3/5;align-self:stretch;display:flex;flex-direction:column;width:100%;max-width:none;gap:0;padding:18px 22px 17px;border:1px solid #d4e2f7;border-radius:15px;background:linear-gradient(150deg,#edf4ff 10%,#f8fbff);box-shadow:0 4px 18px #294c7b0b}
+.dashboard-planhome .building-plan-book__title{font-size:17px;color:#233957}
+.dashboard-planhome .building-plan-book__retention{font-size:10px;line-height:18px;background:#fff9}
+.dashboard-planhome .building-plan-book__intro{font-size:11px;margin:3px 0 8px;min-height:24px}
+.dashboard-planhome .building-plan-book__help{font-size:11px;min-height:25px;padding:3px 6px}
+.dashboard-planhome .building-plan-book__years{grid-template-columns:32px minmax(0,1fr) 32px;padding:0;margin:0 0 12px;gap:8px}
+.dashboard-planhome .building-plan-book__selection{flex-direction:row;gap:9px}
+.dashboard-planhome [data-book-label]{font-size:12px;font-weight:600;color:#52719a}
+.dashboard-planhome .building-plan-book__year{font-size:20px;line-height:31px}
+.dashboard-planhome .building-plan-book__years button{width:32px;height:32px;background:#fff}
+.dashboard-planhome .planhome-document{flex:1;display:flex;align-items:stretch;min-height:335px;padding:4px 9px 11px 1px}
+.dashboard-planhome .planhome-paper{position:relative;isolation:isolate;display:flex;flex-direction:column;flex:1;min-width:0;padding:21px 24px 21px;background:#fff;border-left:7px solid #3978d9;border-radius:3px 12px 12px 3px;box-shadow:0 14px 32px #1f314b13;transform:rotate(1.5deg)}
+.dashboard-planhome .planhome-paper:after{content:"";position:absolute;inset:6px -6px -5px 5px;border:1px solid #ced5df;border-radius:5px;z-index:-1;pointer-events:none}
+.dashboard-planhome .planhome-paper__top{display:flex;justify-content:space-between;gap:10px;color:#7e8c9e;font-size:10px;margin-bottom:28px}
+.dashboard-planhome .planhome-paper__eyebrow{margin:0 0 8px;font-size:10px;letter-spacing:2.2px;color:#8491a5}
+.dashboard-planhome .planhome-paper h2{margin:0 0 12px;font-size:clamp(22px,2.25vw,30px);line-height:1.4;letter-spacing:-1px;font-weight:750;color:#26364f;word-break:keep-all;overflow-wrap:anywhere}
+.dashboard-planhome .planhome-paper__building{display:block;max-width:100%;font-size:13px;line-height:1.6;color:#647083;word-break:keep-all;overflow-wrap:anywhere}
+.dashboard-planhome .planhome-paper__lines{padding:21px 0 24px}
+.dashboard-planhome .planhome-paper__lines i{display:block;height:3px;background:#eceef1;width:90%;margin:7px 0;border-radius:2px}
+.dashboard-planhome .planhome-paper__lines i:nth-child(2){width:70%}
+.dashboard-planhome .planhome-paper__lines i:nth-child(3){width:50%}
+.dashboard-planhome .planhome-paper__progress{margin-top:auto}
+.dashboard-planhome .building-plan-book__progress-heading{font-size:11px;color:#7a879a;gap:8px}
+.dashboard-planhome [data-book-percent]{font-size:30px;color:#285dbe;line-height:1.25;font-weight:750}
+.dashboard-planhome .building-plan-book__track{height:6px;margin:9px 0 12px;background:#eaedf1}
+.dashboard-planhome .building-plan-book__track>span{background:#3b82f6}
+.dashboard-planhome .planhome-paper__count{font-size:10px;color:#8490a3;line-height:1.7;word-break:keep-all;overflow-wrap:anywhere}
+.dashboard-planhome .planhome-plan-status{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:11px;font-size:11px;color:#7890ac}
+.dashboard-planhome .building-plan-book__state{font-size:11px;color:#5d789a}
+.dashboard-planhome .building-plan-book__sources{margin:7px 0 8px;padding-top:3px;border-top:1px solid #dfe8f5}
+.dashboard-planhome .building-plan-book__sources>summary{font-size:11px;min-height:29px;color:#627d9e}
+.dashboard-planhome .building-plan-book__sources li{font-size:10px;background:#fff}
+.dashboard-planhome .building-plan-book__sources p{font-size:10px}
+.dashboard-planhome .building-plan-book__actions{gap:8px}
+.dashboard-planhome .building-plan-book__edit,.dashboard-planhome .building-plan-book__open{min-height:40px;padding:9px 10px;font-size:12px;border-radius:8px}
+.dashboard-planhome .building-plan-book__edit{background:#326ac8;border-color:#326ac8;box-shadow:0 3px 8px #285ec71a}
+.dashboard-planhome>.wrap>.section{grid-row:5}
+.dashboard-planhome.workspace-open .one-stop{grid-column:1/-1;grid-row:3}
+@media(min-width:721px) and (max-width:1000px){
+ .dashboard-shell.dashboard-compact.dashboard-planhome{padding:14px;gap:12px;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}
+ .dashboard-planhome #compactWorkPanel{padding:12px}
+ .dashboard-planhome .building-task{padding:7px;gap:5px;min-height:47px}
+ .dashboard-planhome .building-task>span:nth-child(2){font-size:11px}
+ .dashboard-planhome .building-task small{font-size:9px}
+ .dashboard-planhome .building-plan-book{padding:16px}
+ .dashboard-planhome .planhome-paper{padding:19px 18px}
+ .dashboard-planhome .planhome-paper h2{font-size:24px}
+ .dashboard-planhome .planhome-paper__top{margin-bottom:24px}
+ .dashboard-planhome .planhome-paper__count{font-size:10px}
+ .dashboard-planhome .building-slide__figure{flex-basis:78px;width:78px}
+}
+@media(max-width:720px){
+ .dashboard-shell.dashboard-compact.dashboard-planhome{display:flex;padding:12px;gap:0}
+ .dashboard-planhome .building-board__head.building-board__head--book{order:0;margin-bottom:9px;padding:12px}
+ .dashboard-planhome .building-board__head h1{font-size:22px!important}
+ .dashboard-planhome .rightcol{order:1;display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-self:stretch;max-width:none;margin:0 0 10px!important;gap:6px}
+ .dashboard-planhome #manager-connect .mc-mini__summary{padding:8px;gap:6px;min-height:43px}
+ .dashboard-planhome #manager-connect .mc-mini__copy{display:flex;flex-direction:column;align-items:flex-start;gap:1px}
+ .dashboard-planhome #manager-connect .mc-mini__title{font-size:10px}
+ .dashboard-planhome #manager-connect .mc-mini__subtitle{font-size:11px;line-height:1.4}
+ .dashboard-planhome #manager-connect .mc-mini__icon{display:none}
+ .dashboard-planhome #manager-connect .mc-status{display:none}
+ .dashboard-planhome #manager-connect .mc-mini__toggle{font-size:10px;min-height:33px;padding:5px}
+ .dashboard-planhome #manager-connect .mc-mini__body{padding:10px}
+ .dashboard-planhome #manager-connect .mc-code-row,.dashboard-planhome #manager-connect .mc-mini__manage{flex-direction:column}
+ .dashboard-planhome .planhome-assistance>summary{min-height:51px;padding:8px;font-size:11px;gap:5px}
+ .dashboard-planhome .planhome-assistance .safety-ai--rail{max-width:calc(100vw - 24px);width:330px}
+ .dashboard-planhome .compact-mobile-tabs{order:2;margin-bottom:11px!important}
+ .dashboard-planhome.compact-ready .compact-overview{display:contents!important}
+ .dashboard-planhome #compactWorkPanel,.dashboard-planhome #compactBuildingPanel,.dashboard-planhome #compactPlanPanel{order:3;width:100%;max-width:none;align-self:stretch;margin:0 0 12px;display:block}
+ .dashboard-planhome.compact-ready[data-mobile-view="plan"] #compactWorkPanel,.dashboard-planhome.compact-ready[data-mobile-view="plan"] #compactBuildingPanel,
+ .dashboard-planhome.compact-ready[data-mobile-view="work"] #compactPlanPanel,.dashboard-planhome.compact-ready[data-mobile-view="work"] #compactBuildingPanel,
+ .dashboard-planhome.compact-ready[data-mobile-view="building"] #compactPlanPanel,.dashboard-planhome.compact-ready[data-mobile-view="building"] #compactWorkPanel{display:none}
+ .dashboard-planhome .building-task{min-height:59px}
+ .dashboard-planhome .building-task>span:nth-child(2){font-size:12px}
+ .dashboard-planhome .building-plan-book{padding:15px 17px 16px;min-height:0;border-radius:13px}
+ .dashboard-planhome .building-plan-book__title{font-size:16px}
+ .dashboard-planhome .building-plan-book__years{grid-template-columns:40px minmax(0,1fr) 40px;margin:0 0 12px}
+ .dashboard-planhome .building-plan-book__years button{width:40px;height:44px}
+ .dashboard-planhome .building-plan-book__selection{flex-direction:column;gap:0}
+ .dashboard-planhome .building-plan-book__year{font-size:21px;line-height:28px}
+ .dashboard-planhome [data-book-label]{font-size:11px}
+ .dashboard-planhome .planhome-document{min-height:310px;padding:3px 6px 8px 0}
+ .dashboard-planhome .planhome-paper{min-height:310px;padding:18px 17px;border-left-width:6px;transform:rotate(1deg)}
+ .dashboard-planhome .planhome-paper h2{font-size:23px;line-height:1.45}
+ .dashboard-planhome .planhome-paper__top{font-size:10px;margin-bottom:22px}
+ .dashboard-planhome .planhome-paper__eyebrow{font-size:9px;letter-spacing:1.6px}
+ .dashboard-planhome .planhome-paper__building{font-size:12px}
+ .dashboard-planhome .planhome-paper__lines{padding:17px 0}
+ .dashboard-planhome [data-book-percent]{font-size:27px}
+ .dashboard-planhome .planhome-paper__count{font-size:10px}
+ .dashboard-planhome .building-plan-book__help{min-height:30px;font-size:10px}
+ .dashboard-planhome .building-plan-book__edit,.dashboard-planhome .building-plan-book__open{min-height:44px;font-size:12px;padding:9px 7px}
+ .dashboard-planhome .building-plan-book__sources>summary{min-height:36px;font-size:12px}
+ .dashboard-planhome .compact-building-panel{padding:15px 15px 0}
+ .dashboard-planhome .building-slide{min-height:120px;gap:9px}
+ .dashboard-planhome .building-slide__figure{flex-basis:95px;height:115px;min-height:115px}
+ .dashboard-planhome .building-slide__figure .building-skyline{transform:scale(.48)}
+ .dashboard-planhome .building-slide__name{font-size:14px}
+ .dashboard-planhome .building-slide__meta{font-size:11px}
+ .dashboard-planhome .building-carousel__controls{grid-template-columns:60px minmax(0,1fr) 60px;min-height:44px}
+ .dashboard-planhome .building-carousel__nav{min-height:42px;font-size:11px}
+ .dashboard-planhome .compact-assets>summary{min-height:44px;font-size:12px}
+}
+@media(max-width:360px){.dashboard-planhome .planhome-paper h2{font-size:20px}.dashboard-planhome .planhome-paper{padding:16px 13px}.dashboard-planhome .building-plan-book{padding:14px}.dashboard-planhome .planhome-paper__count>span{display:block}.dashboard-planhome .planhome-plan-status{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.dashboard-planhome .planhome-paper{transform:none}}
+
+/* Keep the paper-cover design compact enough for a laptop's initial viewport.
+   Expanded details and unusually long content may grow naturally; never clip them. */
+@media (min-width:721px) {
+ .dashboard-shell.dashboard-compact.dashboard-planhome{gap:10px;padding-top:10px;padding-bottom:12px}
+ .dashboard-planhome .building-board__head.building-board__head--book{padding:8px 13px;gap:11px}
+ .dashboard-planhome .building-board__head h1{font-size:22px!important}
+ .dashboard-planhome #manager-connect .mc-mini__summary{padding:5px 10px;min-height:36px}
+ .dashboard-planhome .planhome-assistance>summary{min-height:38px;padding:7px 12px}
+ .dashboard-planhome #compactWorkPanel{padding:11px 13px}
+ .dashboard-planhome .building-tasknav__head{margin-bottom:6px}
+ .dashboard-planhome .compact-progress{margin-bottom:7px}
+ .dashboard-planhome .compact-progress__note{margin-top:3px}
+ .dashboard-planhome .building-tasknav__grid,.dashboard-planhome .building-retention__grid{gap:6px}
+ .dashboard-planhome .building-retention{margin-top:0;padding-top:7px}
+ .dashboard-planhome .building-retention__title{margin-bottom:5px}
+ .dashboard-planhome .compact-building-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,55%);gap:0 12px;padding:9px 13px 0}
+ .dashboard-planhome .compact-building-heading{grid-column:1;grid-row:1;justify-content:flex-start;gap:7px}
+ .dashboard-planhome .compact-building-heading h2{font-size:14px;white-space:nowrap}
+ .dashboard-planhome .building-scene,.dashboard-planhome .building-carousel{display:contents}
+ .dashboard-planhome .building-carousel__viewport,.dashboard-planhome .building-empty{grid-column:1/-1;grid-row:2}
+ .dashboard-planhome .building-carousel__controls{grid-column:2;grid-row:1;grid-template-columns:48px minmax(0,1fr) 48px;margin:0;min-height:28px}
+ .dashboard-planhome .building-carousel__status{gap:0}
+ .dashboard-planhome .building-carousel__dots{padding:1px 0;gap:4px}
+ .dashboard-planhome .building-slide{min-height:64px;gap:10px}
+ .dashboard-planhome .building-slide__figure{flex-basis:80px;width:80px;height:64px;min-height:64px}
+ .dashboard-planhome .building-slide__figure .building-skyline{transform:scale(.29)}
+ .dashboard-planhome .building-slide__meta{line-height:1.4}
+ .dashboard-planhome .compact-assets{grid-column:1/-1;grid-row:3}
+ .dashboard-planhome .compact-assets>summary{padding:3px 0;min-height:28px}
+ .dashboard-planhome .building-empty{min-height:64px;padding:8px 0}
+ .dashboard-planhome .building-plan-book{padding:12px 18px}
+ .dashboard-planhome .building-plan-book__title{font-size:16px}
+ .dashboard-planhome .building-plan-book__intro{margin:0 0 3px;min-height:20px}
+ .dashboard-planhome .building-plan-book__help{min-height:23px;padding:1px 5px}
+ .dashboard-planhome .building-plan-book__years{margin-bottom:8px}
+ .dashboard-planhome .planhome-document{min-height:clamp(246px,calc(100dvh - 470px),325px);padding-top:2px;padding-bottom:9px}
+ .dashboard-planhome .planhome-paper{padding:15px 22px}
+ .dashboard-planhome .planhome-paper__top{margin-bottom:16px}
+ .dashboard-planhome .planhome-paper__eyebrow{margin-bottom:5px}
+ .dashboard-planhome .planhome-paper h2{margin-bottom:7px;font-size:clamp(22px,2.2vw,28px);line-height:1.3}
+ .dashboard-planhome .planhome-paper__lines{padding:10px 0 13px}
+ .dashboard-planhome .planhome-paper__lines i{height:3px;margin:5px 0}
+ .dashboard-planhome [data-book-percent]{font-size:28px}
+ .dashboard-planhome .building-plan-book__track{margin:6px 0 8px}
+ .dashboard-planhome .planhome-plan-status{margin-top:7px}
+ .dashboard-planhome .building-plan-book__sources{margin:3px 0 5px;padding-top:1px}
+ .dashboard-planhome .building-plan-book__sources>summary{min-height:25px}
+ .dashboard-planhome .building-plan-book__edit,.dashboard-planhome .building-plan-book__open{min-height:36px;padding:7px 10px}
+}
+@media(min-width:1050px){
+ .dashboard-planhome .building-board__head-copy{grid-template-columns:minmax(0,1fr) auto auto;column-gap:20px;row-gap:1px}
+ .dashboard-planhome .building-dong-strip{grid-column:2;grid-row:1/span 2;max-width:290px;margin:0;justify-content:flex-end}
+ .dashboard-planhome .building-dong-strip .is-others{max-width:210px}
+ .dashboard-planhome .building-plan-membership{grid-column:3;grid-row:1/span 2}
+}
+/* Short desktop windows use tighter spacing, while text and controls stay readable. */
+@media(min-width:1050px) and (max-height:700px){
+ .dashboard-shell.dashboard-compact.dashboard-planhome{gap:8px;padding-top:8px;padding-bottom:8px}
+ .dashboard-planhome .building-board__head.building-board__head--book{padding-top:6px;padding-bottom:6px}
+ .dashboard-planhome #compactWorkPanel{padding:9px 12px}
+ .dashboard-planhome .building-task{padding-top:5px;padding-bottom:5px;min-height:40px}
+ .dashboard-planhome .compact-progress{margin-bottom:5px}
+ .dashboard-planhome .building-tasknav__grid,.dashboard-planhome .building-retention__grid{gap:5px}
+ .dashboard-planhome .building-slide,.dashboard-planhome .building-slide__figure{height:56px;min-height:56px}
+ .dashboard-planhome .building-slide__figure .building-skyline{transform:scale(.25)}
+ .dashboard-planhome .building-plan-book{padding-top:10px;padding-bottom:10px}
+ .dashboard-planhome .building-plan-book__years{margin-bottom:5px}
+ .dashboard-planhome .planhome-document{min-height:220px}
+ .dashboard-planhome .planhome-paper{padding-top:12px;padding-bottom:12px}
+ .dashboard-planhome .planhome-paper__top{margin-bottom:8px}
+ .dashboard-planhome .planhome-paper__lines{padding:3px 0 5px}
+}
+
+/* Lead with the annual plan; use a narrower document column. */
+@media(min-width:721px){
+ .dashboard-shell.dashboard-compact.dashboard-planhome{grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr)}
+ .dashboard-planhome #compactPlanPanel{grid-column:1;grid-row:3/5}
+ .dashboard-planhome #compactWorkPanel{grid-column:2;grid-row:3}
+ .dashboard-planhome #compactBuildingPanel{grid-column:2;grid-row:4}
+ .dashboard-planhome .planhome-paper{padding-left:18px;padding-right:18px}
+ .dashboard-planhome .planhome-paper h2{font-size:clamp(22px,2vw,26px)}
+}
+@media(min-width:721px) and (max-width:1049px){
+ .dashboard-shell.dashboard-compact.dashboard-planhome{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)}
+ .dashboard-planhome .building-plan-book{padding-left:14px;padding-right:14px}
+ .dashboard-planhome .planhome-paper{padding-left:15px;padding-right:15px}
+}
+
+/* Equal task cards, a paper-sized cover, and a separate safety-assets dialog. */
+.dashboard-planhome .building-retention__grid .building-task--monthly{grid-column:auto}
+.dashboard-planhome .planhome-document{flex:1;flex-direction:column;align-items:center;justify-content:center;min-height:0;padding:6px 8px 9px}
+.dashboard-planhome .planhome-paper{flex:none;align-self:center;width:clamp(184px,calc((100dvh - 430px)*.7071),218px);max-width:100%;height:auto;min-height:0;aspect-ratio:210/297;padding:14px 15px;border-left-width:5px;color:inherit;text-decoration:none;cursor:pointer;transition:box-shadow .18s ease}
+.dashboard-planhome .planhome-paper__top{font-size:8px;line-height:1.4;margin-bottom:16px;gap:6px}
+.dashboard-planhome .planhome-paper__eyebrow{font-size:8px;line-height:1.4;letter-spacing:1.5px;margin:0 0 7px}
+.dashboard-planhome .planhome-paper h2{font-size:21px;line-height:1.3;letter-spacing:-.8px;margin:0 0 8px}
+.dashboard-planhome .planhome-paper [data-book-title-year]{display:block;font-size:15px;letter-spacing:-.3px;margin-bottom:2px}
+.dashboard-planhome .planhome-paper__building{font-size:11px;line-height:1.5}
+.dashboard-planhome .planhome-paper__lines{padding:9px 0 10px}
+.dashboard-planhome .planhome-paper__lines i{height:2px;margin:4px 0}
+.dashboard-planhome .planhome-paper .building-plan-book__progress-heading{font-size:9px}
+.dashboard-planhome .planhome-paper [data-book-percent]{font-size:25px;line-height:1.2}
+.dashboard-planhome .planhome-paper .building-plan-book__track{height:4px;margin:6px 0}
+.dashboard-planhome .planhome-paper__count{font-size:9px;line-height:1.5}
+.dashboard-planhome .planhome-paper__count>span{display:block}
+.dashboard-planhome .planhome-cover-hint{display:flex;align-items:center;justify-content:space-between;gap:5px;font-size:10px;line-height:1.5;color:#3566a8;margin-top:10px;padding-top:7px;border-top:1px solid #edf1f6}
+.dashboard-planhome .planhome-paper:focus-visible{outline:3px solid #76a5e8;outline-offset:5px}
+@media(hover:hover){.dashboard-planhome .planhome-paper:hover{box-shadow:0 14px 30px #24569c25}}
+@media(max-width:720px){
+ .dashboard-planhome .planhome-document{padding:6px 5px 12px}
+ .dashboard-planhome .planhome-paper{width:min(230px,100%);padding:17px 18px}
+}
+@media(min-width:721px) and (max-height:700px){
+ .dashboard-planhome .planhome-paper{width:172px;padding:10px 12px}
+ .dashboard-planhome .planhome-paper__top{margin-bottom:8px}
+ .dashboard-planhome .planhome-paper h2{font-size:19px;margin-bottom:6px}
+ .dashboard-planhome .planhome-paper [data-book-title-year]{font-size:13px}
+ .dashboard-planhome .planhome-paper__lines{padding:4px 0}
+ .dashboard-planhome .planhome-cover-hint{margin-top:4px;padding-top:5px}
+}
+@media(prefers-reduced-motion:reduce){.dashboard-planhome .planhome-paper{transition:none}}
+
+/* Building identity, manager, and account actions share one compact header row. */
+.dashboard-planhome .building-board__head.building-board__head--book{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(240px,1fr) 140px;gap:10px;align-items:stretch;padding:0;border:0;border-radius:0;background:none;box-shadow:none}
+.dashboard-planhome .planhome-header-building{display:flex;align-items:center;gap:12px;min-width:0;padding:11px 14px;border:1px solid #dce7f6;border-radius:12px;background:linear-gradient(115deg,#edf4ff,#fbfdff)}
+.dashboard-planhome .planhome-header-building .building-board__head-copy{display:grid;grid-template-columns:minmax(0,1fr);gap:2px;min-width:0}
+.dashboard-planhome .planhome-header-building .building-board__head-label,.dashboard-planhome .planhome-header-building h1{grid-column:1;grid-row:auto}
+.dashboard-planhome .planhome-header-building h1{font-size:22px!important}
+.dashboard-planhome .planhome-header-building .building-dong-strip{grid-column:1;grid-row:auto;max-width:100%;justify-content:flex-start;gap:4px;margin-top:3px;min-width:0;flex-wrap:nowrap}
+.dashboard-planhome .planhome-header-building .building-dong-strip span{flex-shrink:0;font-size:9px;padding:1px 5px;min-height:18px}
+.dashboard-planhome .planhome-header-building .building-dong-strip .is-others{flex:1;min-width:0;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dashboard-planhome .planhome-header-manager{position:relative;display:flex;align-items:stretch;min-width:0;z-index:5}
+.dashboard-planhome .planhome-header-manager #manager-connect.mc-mini{display:flex;flex-direction:column;justify-content:center;width:100%;height:100%;border:1px solid #dfe7f0;border-radius:12px;background:#fff;box-shadow:none;margin:0}
+.dashboard-planhome .planhome-header-manager .mc-mini__details{width:100%}
+.dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__summary{display:flex;align-items:center;flex-wrap:nowrap;gap:9px;padding:13px 12px;min-height:68px;border-radius:12px;background:#fff}
+.dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__icon{display:flex;flex-shrink:0;width:30px;height:32px;border-radius:8px}
+.dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__copy{display:flex;flex:1;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
+.dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__title{font-size:10px;color:#7b8b9f}
+.dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__subtitle{font-size:13px;line-height:1.45;color:#2e4563}
+.dashboard-planhome .planhome-header-manager #manager-connect .mc-status--accepted{display:none}
+.dashboard-planhome .planhome-header-manager #manager-connect .mc-status--pending{font-size:9px;padding:3px;max-width:70px;display:inline-flex}
+.dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__toggle{flex-shrink:0;min-height:32px;padding:5px 6px;font-size:10px;gap:3px;background:#f8fafd}
+.dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__body{position:absolute;z-index:7;top:calc(100% + 7px);right:0;width:410px;max-width:calc(100vw - 32px);max-height:60dvh;overflow:auto;overscroll-behavior:contain;padding:17px;border:1px solid #dbe5f0;border-radius:12px;background:#fff;box-shadow:0 14px 42px #28405f25}
+.dashboard-planhome .planhome-header-manager #manager-connect .mc-code-row,.dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__manage{flex-direction:column;align-items:stretch}
+.dashboard-planhome .planhome-header-actions{display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:7px;min-width:0;padding:10px;border:1px solid #dfe7f0;border-radius:12px;background:#fff}
+.dashboard-planhome .planhome-header-actions .building-plan-membership{display:flex;grid-column:auto;grid-row:auto;margin:0;min-width:0}
+.dashboard-planhome .planhome-header-actions .plan-link{width:100%;min-height:28px!important;padding:5px 7px!important;font-size:11px;justify-content:center;border-radius:7px}
+.dashboard-planhome .planhome-header-actions .plan-link__hint{display:none}
+.dashboard-planhome .planhome-header-actions .planhome-assistance{width:100%;align-self:stretch}
+.dashboard-planhome .planhome-header-actions .planhome-assistance>summary{min-height:28px;padding:4px 6px;font-size:10px;border-color:transparent;border-radius:6px;background:#f5f8fc;gap:5px}
+@media(min-width:721px){
+ .dashboard-shell.dashboard-compact.dashboard-planhome{grid-template-rows:auto auto auto}
+ .dashboard-planhome #compactPlanPanel{grid-row:2/4}
+ .dashboard-planhome #compactWorkPanel{grid-row:2}
+ .dashboard-planhome #compactBuildingPanel{grid-row:3}
+ .dashboard-planhome>.wrap>.section{grid-row:4}
+ .dashboard-planhome.workspace-open .one-stop{grid-row:2}
+}
+@media(min-width:721px) and (max-width:1000px){
+ .dashboard-planhome .building-board__head.building-board__head--book{grid-template-columns:minmax(0,1.2fr) minmax(210px,1fr) 115px;gap:8px}
+ .dashboard-planhome .planhome-header-building{padding:9px 11px;gap:8px}
+ .dashboard-planhome .planhome-header-building .compact-building-emblem{display:none}
+ .dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__summary{padding:11px 9px;gap:6px}
+ .dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__icon{display:none}
+}
+@media(max-width:720px){
+ .dashboard-planhome .building-board__head.building-board__head--book{grid-template-columns:minmax(0,1fr) 110px;gap:8px;padding:0;margin-bottom:10px}
+ .dashboard-planhome .planhome-header-building{grid-column:1/-1;grid-row:1;min-height:102px;padding:12px 124px 12px 12px}
+ .dashboard-planhome .planhome-header-building h1{font-size:21px!important}
+ .dashboard-planhome .planhome-header-building .building-dong-strip{flex-wrap:wrap}
+ .dashboard-planhome .planhome-header-building .building-dong-strip .is-primary{min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+ .dashboard-planhome .planhome-header-building .building-dong-strip .is-others{width:auto;max-width:none}
+ .dashboard-planhome .planhome-header-manager{grid-column:1/-1;grid-row:2}
+ .dashboard-planhome .planhome-header-manager:not(:has(*)){display:none}
+ .dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__summary{gap:6px;padding:10px;min-height:72px}
+ .dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__subtitle{font-size:12px}
+ .dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__icon{display:none}
+ .dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__toggle{min-height:36px}
+ .dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__body{left:0;right:auto;max-width:calc(100vw - 24px);padding:14px}
+ /* Share the building card row; its right padding reserves space for these controls. */
+ .dashboard-planhome .planhome-header-actions{grid-column:2;grid-row:1;align-self:center;position:relative;z-index:6;margin-right:12px;padding:0;gap:5px;border:0;border-radius:0;background:none;box-shadow:none}
+ .dashboard-planhome .planhome-header-actions .building-plan-membership .plan-link{width:100%!important}
+ .dashboard-planhome .planhome-header-actions .planhome-assistance .safety-ai--rail{width:330px;max-width:calc(100vw - 56px)}
+ .dashboard-planhome .planhome-header-actions .plan-link{min-height:32px!important;font-size:10px}
+ .dashboard-planhome .planhome-header-actions .planhome-assistance>summary{min-height:32px}
+ .dashboard-planhome .compact-mobile-tabs{margin-bottom:10px!important}
+}
+
+/* Work and building information share one stable, manually switched card. */
+.dashboard-planhome .compact-section-deck{grid-column:2;grid-row:2;align-self:stretch;display:flex;flex-direction:column;min-width:0;padding:17px 18px 10px;border:1px solid #dce5f0;border-radius:14px;background:#fff;box-shadow:0 4px 20px #243e5e06}
+.dashboard-planhome .compact-deck__head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 0 14px;border-bottom:1px solid #e9eef5}
+.dashboard-planhome .compact-deck__eyebrow{display:none;margin-bottom:4px;font-size:10px;font-weight:600;letter-spacing:.2px;color:#7b8da4}
+.dashboard-planhome .compact-deck__head h2{margin:0;font-size:19px;font-weight:750;line-height:1.45;letter-spacing:-.6px;color:#233a59;word-break:keep-all}
+.dashboard-planhome .compact-deck__arrows{display:flex;align-items:center;gap:3px;padding:3px;background:#f4f7fc;border:1px solid #e7edf5;border-radius:10px;flex:none}
+.dashboard-planhome .compact-deck__arrows[hidden],.dashboard-planhome .compact-deck__pages[hidden]{display:none}
+.dashboard-planhome .compact-deck__arrows button{display:grid;place-items:center;flex:none;width:32px;min-height:34px;padding:0;border:0;border-radius:7px;background:transparent;color:#5e7697;cursor:pointer}
+.dashboard-planhome .compact-deck__body{flex:1;min-width:0;padding-top:13px}
+.dashboard-planhome.compact-ready .compact-deck__body{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+.dashboard-planhome.compact-ready .compact-deck__body>[data-deck-active]{grid-area:1/1;min-width:0;align-self:stretch}
+.dashboard-planhome.compact-ready .compact-deck__body>[data-deck-active="false"]{visibility:hidden;opacity:0;pointer-events:none}
+.dashboard-planhome .compact-section-deck #compactWorkPanel,.dashboard-planhome .compact-section-deck #compactBuildingPanel{grid-area:1/1;width:100%;margin:0;padding:0;border:0;border-radius:0;background:none;box-shadow:none}
+.dashboard-planhome.compact-ready .compact-section-deck #compactWorkPanel{display:block}
+.dashboard-planhome.compact-ready .compact-section-deck #compactBuildingPanel{display:flex;flex-direction:column;gap:12px}
+.dashboard-planhome .compact-section-deck .building-tasknav__head{margin:0 0 6px;gap:8px}
+.dashboard-planhome .compact-section-deck .building-tasknav__head b{font-size:11px;font-weight:600;color:#73849b}
+.dashboard-planhome .compact-section-deck .compact-progress-count{border:0;background:none;padding:0;font-size:10px}
+.dashboard-planhome .compact-section-deck .compact-progress-count strong{font-size:14px}
+.dashboard-planhome .compact-section-deck .compact-progress{margin-bottom:13px}
+.dashboard-planhome .compact-section-deck .compact-progress__track{height:4px;background:#edf1f7}
+.dashboard-planhome .compact-section-deck .compact-progress__track>span{background:#477fe0}
+.dashboard-planhome .compact-section-deck .compact-progress__note{font-size:10px;color:#8a98ab;margin-top:5px}
+.dashboard-planhome .compact-section-deck .building-tasknav__grid,.dashboard-planhome .compact-section-deck .building-retention__grid{gap:8px}
+.dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description){display:grid;grid-template-columns:30px minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:9px;row-gap:3px;align-items:center;align-content:center;min-height:61px;padding:10px;border-radius:10px;border:1px solid #e1e8f1;background:#fff;box-shadow:0 2px 4px #233d5f03;color:#2e425c}
+.dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description)>.building-task__no{grid-column:1;grid-row:1/3;align-self:center;width:30px;height:32px;border:0;border-radius:9px;background:#edf3fd;color:#4773bc;font-size:13px;font-weight:750;box-shadow:none}
+.dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description)>span:nth-child(2){grid-column:2;grid-row:1;display:block;min-width:0;font-size:13px;line-height:1.4;font-weight:700;letter-spacing:-.3px}
+.dashboard-planhome .compact-section-deck .building-task>.building-task__description{grid-column:2;grid-row:2;display:block;min-width:0;color:#8b99ac;font-size:10px;font-style:normal;font-weight:400;line-height:1.4;letter-spacing:-.1px;word-break:keep-all;overflow-wrap:anywhere}
+.dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description)>small{grid-column:3;grid-row:1/3;max-width:45px;margin:0;align-self:center;color:#8798af;font-size:9px;line-height:1.5;text-align:right;word-break:keep-all;white-space:normal}
+.dashboard-planhome .compact-section-deck .building-task.is-done:has(>.building-task__description){background:#f6fbf9;border-color:#d9e9e2;color:#306352}
+.dashboard-planhome .compact-section-deck .building-task.is-done>.building-task__description{color:#839c92}
+.dashboard-planhome .compact-section-deck .building-task.is-now:has(>.building-task__description){background:#f1f6ff;border-color:#96b6ee;color:#285caf;animation:none;box-shadow:inset 3px 0 #5c8de0}
+.dashboard-planhome .compact-section-deck .building-task.is-now:has(>.building-task__description)>.building-task__no{background:#386fcf;color:#fff}
+.dashboard-planhome .compact-section-deck .task-done{width:22px;height:22px;border-radius:7px;background:#258365;box-shadow:0 2px 3px #2172510c}
+.dashboard-planhome .compact-section-deck .task-done svg{width:13px;height:13px}
+.dashboard-planhome .compact-section-deck .building-retention{margin-top:3px;padding-top:11px;border-color:#e9eef5}
+.dashboard-planhome .compact-section-deck .building-retention__title{margin-bottom:8px;font-size:11px;gap:6px}
+.dashboard-planhome .compact-section-deck .building-retention__title span{font-size:10px;padding:2px 5px}
+.dashboard-planhome .compact-deck__pages{display:flex;align-items:center;justify-content:center;gap:12px;flex:none;margin-top:9px;padding-top:6px;border-top:1px solid #eef2f7}
+.dashboard-planhome .compact-deck__pages button{display:flex;align-items:center;gap:5px;min-height:28px;border:0;background:none;font-family:inherit;font-size:10px;font-weight:500;line-height:1.5;color:#96a3b6;padding:3px 4px;cursor:pointer}
+.dashboard-planhome .compact-deck__pages button i{width:4px;height:4px;border-radius:4px;background:#cfd8e5}
+.dashboard-planhome .compact-deck__pages button[aria-pressed="true"]{color:#4575c3;font-weight:700}
+.dashboard-planhome .compact-deck__pages button[aria-pressed="true"] i{width:13px;background:#5e8bda}
+.dashboard-planhome .compact-deck__announce{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.dashboard-planhome .compact-section-deck .compact-building-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:0 0 2px;margin:0}
+.dashboard-planhome .compact-section-deck .compact-building-heading h2{font-size:12px;color:#7b8ea7;font-weight:600}
+.dashboard-planhome .compact-section-deck .compact-building-heading>span{font-size:11px;color:#5680b9;background:#edf4ff;border-radius:6px;padding:3px 7px}
+.dashboard-planhome .compact-section-deck .building-scene{display:flex;flex:1;flex-direction:column;min-height:0}
+.dashboard-planhome .compact-section-deck .building-carousel{display:flex;flex:1;flex-direction:column;gap:12px;min-height:0}
+.dashboard-planhome .compact-section-deck .building-carousel__viewport{display:flex;align-items:center;flex:1;background:linear-gradient(165deg,#f5f9ff,#fcfdff);border:1px solid #e9eff7;border-radius:12px;padding:14px;overflow:hidden}
+.dashboard-planhome .compact-section-deck .building-slide{width:100%;height:auto;min-height:215px;flex-direction:row;gap:16px}
+.dashboard-planhome .compact-section-deck .building-slide[hidden]{display:none}
+.dashboard-planhome .compact-section-deck .building-slide__figure{width:150px;flex-basis:150px;height:190px;min-height:190px;background:radial-gradient(ellipse at 50% 95%,#e6effc 0,transparent 66%)}
+.dashboard-planhome .compact-section-deck .building-slide__figure .building-skyline{transform:scale(.7)}
+.dashboard-planhome .compact-section-deck .building-slide__info{gap:8px;max-width:245px;flex:1}
+.dashboard-planhome .compact-section-deck .building-slide__name{font-size:18px;line-height:1.5}
+.dashboard-planhome .compact-section-deck .building-slide__meta{font-size:12px;line-height:1.8}
+.dashboard-planhome .compact-section-deck .building-carousel__controls{display:grid;grid-template-columns:65px minmax(0,1fr) 65px;min-height:40px;margin:0}
+.dashboard-planhome .compact-section-deck .building-carousel__single .building-carousel__controls{grid-template-columns:1fr}
+.dashboard-planhome .compact-section-deck .building-carousel__nav{min-height:36px;font-size:11px;border:1px solid #e3eaf3;border-radius:8px;background:#f9fbfe}
+.dashboard-planhome .compact-section-deck .building-carousel__status{gap:4px;font-size:11px}
+.dashboard-planhome .compact-section-deck .building-empty{flex:1;min-height:240px;padding:20px;display:grid;place-items:center;background:#f6f9fe;border:1px dashed #d9e3f1;border-radius:12px;line-height:1.9}
+@media(hover:hover){
+ .dashboard-planhome .compact-deck__arrows button:hover{background:#fff;color:#3268bc;box-shadow:0 1px 4px #23405f0c}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description):hover{border-color:#97b6e5;box-shadow:0 4px 10px #345d9310}
+ .dashboard-planhome .compact-deck__pages button:hover{color:#3566af}
+}
+@media(min-width:721px){
+ .dashboard-planhome #compactPlanPanel{grid-row:2}
+ .dashboard-planhome>.wrap>.section{grid-row:3}
+}
+@media(min-width:721px) and (max-height:760px){
+ .dashboard-planhome .compact-section-deck{padding:12px 15px 7px}
+ .dashboard-planhome .compact-deck__head{padding-bottom:9px}
+ .dashboard-planhome .compact-deck__body{padding-top:9px}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description){min-height:53px;padding:7px 9px}
+ .dashboard-planhome .compact-section-deck .compact-progress{margin-bottom:9px}
+ .dashboard-planhome .compact-section-deck .building-tasknav__grid,.dashboard-planhome .compact-section-deck .building-retention__grid{gap:6px}
+ .dashboard-planhome .compact-section-deck .building-retention{padding-top:8px;margin-top:0}
+ .dashboard-planhome .compact-deck__pages{margin-top:4px;padding-top:3px}
+}
+@media(max-width:1049px){
+ .dashboard-planhome .compact-section-deck{padding-left:13px;padding-right:13px}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description){column-gap:6px;padding-left:8px;padding-right:8px;grid-template-columns:26px minmax(0,1fr) auto}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description)>.building-task__no{width:26px;height:29px}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description)>span:nth-child(2){font-size:12px}
+}
+@media(max-width:720px){
+ .dashboard-planhome .compact-section-deck{order:3;width:100%;padding:15px 12px 8px;margin-bottom:12px;box-sizing:border-box}
+ .dashboard-planhome.compact-ready[data-mobile-view="plan"] .compact-section-deck{display:none}
+ .dashboard-planhome .compact-deck__head{gap:8px;padding-bottom:12px}
+ .dashboard-planhome .compact-deck__head h2{font-size:17px}
+ .dashboard-planhome .compact-deck__eyebrow{font-size:10px}
+ .dashboard-planhome .compact-deck__arrows{padding:1px;gap:0}
+ .dashboard-planhome .compact-deck__arrows button{width:38px;min-height:42px}
+ .dashboard-planhome .compact-section-deck .building-tasknav__grid,.dashboard-planhome .compact-section-deck .building-retention__grid{gap:7px}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description){grid-template-columns:24px minmax(0,1fr);grid-template-rows:auto auto auto;min-height:87px;column-gap:7px;row-gap:3px;padding:9px 8px}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description)>.building-task__no{grid-row:1/3;width:24px;height:29px;align-self:start;margin-top:1px}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description)>small{grid-column:2;grid-row:3;max-width:none;min-height:18px;text-align:left;font-size:9px}
+ .dashboard-planhome .compact-section-deck .building-task>.building-task__description{font-size:9px}
+ .dashboard-planhome .compact-section-deck .building-task .task-done{width:17px;height:17px;border-radius:5px}
+ .dashboard-planhome .compact-section-deck .building-task .task-done svg{width:11px;height:11px}
+ .dashboard-planhome .compact-section-deck .building-slide{flex-direction:column;min-height:260px;gap:10px}
+ .dashboard-planhome .compact-section-deck .building-slide__figure{flex-basis:auto;width:150px;height:180px;min-height:180px}
+ .dashboard-planhome .compact-section-deck .building-slide__info{flex:none;justify-content:center;max-width:100%}
+ .dashboard-planhome .compact-section-deck .building-slide__name,.dashboard-planhome .compact-section-deck .building-slide__meta{text-align:center}
+ .dashboard-planhome .compact-deck__pages{gap:14px;padding-top:3px}
+ .dashboard-planhome .compact-deck__pages button{min-height:40px;font-size:11px;padding:5px 8px}
+}
+
+@media(min-width:721px) and (max-height:680px){
+ .dashboard-planhome .compact-section-deck{padding-top:9px;padding-bottom:5px}
+ .dashboard-planhome .compact-deck__head{padding-bottom:6px}
+ .dashboard-planhome .compact-deck__arrows button{min-height:30px}
+ .dashboard-planhome .compact-deck__body{padding-top:7px}
+ .dashboard-planhome .compact-section-deck .building-slide{min-height:160px}
+ .dashboard-planhome .compact-section-deck .building-slide__figure{height:150px;min-height:150px}
+ .dashboard-planhome .compact-section-deck .building-slide__figure .building-skyline{transform:scale(.58)}
+ .dashboard-planhome .compact-section-deck .building-carousel__viewport{padding:10px}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description){min-height:51px;padding-top:6px;padding-bottom:6px}
+ .dashboard-planhome .compact-section-deck .building-retention__title{margin-bottom:6px}
+ .dashboard-planhome .compact-deck__pages{margin-top:2px;padding-top:2px}
+}
+
+/* Label the destination; show saved safety assets directly beside the building overview. */
+.dashboard-planhome .compact-deck__arrows{padding:0;border:0;background:none}
+.dashboard-planhome .compact-deck__arrows .compact-deck__switch{display:flex;align-items:center;justify-content:center;gap:6px;width:auto;min-height:36px;padding:7px 10px;border:1px solid #d8e5f7;border-radius:8px;background:#f0f6ff;color:#396ab7;font-family:inherit;font-size:12px;font-weight:650;line-height:1.4;white-space:nowrap}
+.dashboard-planhome .compact-deck__switch svg{flex:none}
+.dashboard-planhome .compact-deck__switch:is([data-deck-target="work"],[data-deck-target="tools"]) svg{order:-1;transform:rotate(180deg)}
+.dashboard-planhome.compact-ready .compact-section-deck #compactBuildingPanel{gap:9px}
+.dashboard-planhome .compact-section-deck .building-carousel{gap:7px}
+.dashboard-planhome .compact-section-deck .building-carousel__viewport{padding:8px 12px}
+.dashboard-planhome .compact-section-deck .building-slide{min-height:140px}
+.dashboard-planhome .compact-section-deck .building-slide__figure{height:135px;min-height:135px;flex-basis:125px;width:125px}
+.dashboard-planhome .compact-section-deck .building-slide__figure .building-skyline{transform:scale(.51)}
+.dashboard-planhome .compact-section-deck .building-carousel__controls{min-height:33px}
+.dashboard-planhome .compact-section-deck .building-carousel__nav{min-height:31px}
+.dashboard-planhome .compact-inline-assets{flex:none;padding-top:9px;border-top:1px solid #e8eef6}
+.dashboard-planhome .compact-inline-assets__heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.dashboard-planhome .compact-inline-assets__heading h3{margin:0;color:#334d70;font-size:13px;font-weight:700;line-height:1.5}
+.dashboard-planhome .compact-inline-assets__heading>span{font-size:10px;color:#719080}
+.dashboard-planhome .compact-inline-assets__hint{margin:3px 0 8px;color:#8697ad;font-size:10px;line-height:1.5}
+.dashboard-planhome .compact-inline-assets__grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.dashboard-planhome .compact-inline-assets .safety-asset{display:flex;align-items:center;gap:8px;min-width:0;min-height:55px;padding:9px;border:1px solid #dfeae5;border-radius:9px;background:#f7fbf9;color:#335c50;text-decoration:none;box-shadow:none;transition:border-color .15s,background-color .15s}
+.dashboard-planhome .compact-inline-assets .safety-asset__icon{display:flex;align-items:center;justify-content:center;flex:0 0 26px;width:26px;height:28px;margin:0;border-radius:7px;background:#ecf4f0;color:#518675;font-size:18px}
+.dashboard-planhome .compact-inline-assets .safety-asset__copy{flex:1;min-width:0}
+.dashboard-planhome .compact-inline-assets .safety-asset__copy b{display:block;margin:0;font-size:11px;line-height:1.5;font-weight:650;white-space:normal;overflow:visible;word-break:keep-all;overflow-wrap:anywhere}
+.dashboard-planhome .compact-inline-assets .safety-asset__copy small{display:block;margin-top:3px;font-size:9px;line-height:1.5;color:#86978f;white-space:normal;overflow:visible;word-break:keep-all;overflow-wrap:anywhere}
+.dashboard-planhome .compact-inline-assets .safety-asset__ok{display:grid;place-items:center;flex:none;align-self:center;width:17px;height:17px;border:0;border-radius:5px;background:#e6f2eb;color:#3f8a69;font-size:11px;padding:0}
+.dashboard-planhome .compact-inline-assets .safety-asset--empty{grid-column:1/-1;border-style:dashed;border-color:#d9e3f1;background:#f7faff;color:#567395}
+@media(hover:hover){
+ .dashboard-planhome .compact-deck__arrows .compact-deck__switch:hover{border-color:#9ebae5;background:#e9f2ff;color:#285da9;box-shadow:none}
+ .dashboard-planhome .compact-inline-assets .safety-asset:hover{border-color:#a9cbbc;background:#eff8f3;transform:none}
+}
+@media(min-width:721px) and (max-height:680px){
+ .dashboard-planhome .compact-section-deck .building-slide{min-height:100px}
+ .dashboard-planhome .compact-section-deck .building-slide__figure{height:100px;min-height:100px;flex-basis:100px;width:100px}
+ .dashboard-planhome .compact-section-deck .building-slide__figure .building-skyline{transform:scale(.4)}
+ .dashboard-planhome .compact-inline-assets .safety-asset{min-height:51px;padding:7px}
+ .dashboard-planhome .compact-inline-assets__hint{margin-bottom:6px}
+}
+@media(max-width:720px){
+ .dashboard-planhome .compact-deck__head h2{font-size:16px}
+ .dashboard-planhome .compact-deck__arrows .compact-deck__switch{min-height:44px;padding:7px 8px;gap:3px;font-size:11px}
+ .dashboard-planhome .compact-section-deck .building-slide{min-height:210px;gap:6px}
+ .dashboard-planhome .compact-section-deck .building-slide__figure{flex-basis:auto;height:130px;min-height:130px}
+ .dashboard-planhome .compact-section-deck .building-carousel__nav{min-height:44px}
+ .dashboard-planhome .compact-inline-assets__grid{grid-template-columns:minmax(0,1fr)}
+ .dashboard-planhome .compact-inline-assets .safety-asset{min-height:54px;padding:9px 10px}
+ .dashboard-planhome .compact-inline-assets .safety-asset__copy b{font-size:12px}
+ .dashboard-planhome .compact-inline-assets .safety-asset__copy small{font-size:10px}
+ .dashboard-planhome .compact-inline-assets .safety-asset__ok{margin-left:auto}
+}
+@media(prefers-reduced-motion:reduce){.dashboard-planhome .compact-inline-assets .safety-asset{transition:none}}
+
+/* The second work page replaces the expandable records/education/printing group. */
+.dashboard-planhome .compact-deck__title{min-width:0}
+.dashboard-planhome .compact-deck__section-label{display:block;margin:0 0 3px;color:#7c90ae;font-size:10px;font-weight:600;line-height:1.4}
+.dashboard-planhome.compact-ready .compact-section-deck #compactToolsPanel{grid-area:1/1;display:flex;flex-direction:column;width:100%;min-width:0;margin:0;padding:0;border:0;border-radius:0;background:none;box-shadow:none}
+.dashboard-planhome .compact-tools-panel__intro{margin:0 0 14px;color:#7e8fa5;font-size:11px;line-height:1.7;word-break:keep-all}
+.dashboard-planhome #compactToolsPanel #buildingFieldRecordsTitle{display:none}
+.dashboard-planhome #compactToolsPanel .building-task--locked:has(>.building-task__description){background:#f7f9fc;border-color:#e5eaf2;color:#8b99ac;cursor:default}
+.dashboard-planhome .compact-deck__pages{gap:14px}
+@media(min-width:721px) and (max-height:680px){
+ .dashboard-planhome .compact-deck__section-label{font-size:9px;margin-bottom:1px}
+}
+@media(max-width:720px){
+ .dashboard-planhome .compact-deck__head{gap:6px}
+ .dashboard-planhome .compact-deck__head h2{font-size:15px;line-height:1.5}
+ .dashboard-planhome .compact-deck__section-label{font-size:9px}
+ .dashboard-planhome .compact-deck__arrows .compact-deck__switch{font-size:10px;padding-left:7px;padding-right:7px}
+ .dashboard-planhome .compact-tools-panel__intro{font-size:11px;margin-bottom:12px}
+ .dashboard-planhome .compact-deck__pages{gap:5px;justify-content:space-between}
+ .dashboard-planhome .compact-deck__pages button{font-size:10px;padding-left:4px;padding-right:4px}
+}
+
+/* Numbered pages stay beside the work heading for immediate switching. */
+.dashboard-planhome .compact-deck__title-line{display:flex;align-items:center;gap:12px;min-width:0;min-height:32px}
+.dashboard-planhome .compact-work-pages{display:flex;align-items:center;gap:5px;flex:none}
+.dashboard-planhome .compact-work-pages[hidden]{display:none}
+.dashboard-planhome .compact-work-pages button{display:grid;place-items:center;flex:none;width:30px;height:32px;padding:0;border:1px solid #dce5f2;border-radius:7px;background:#f6f8fc;color:#8594aa;font-family:inherit;font-size:13px;font-weight:700;line-height:1;cursor:pointer;transition:background-color .15s,border-color .15s,color .15s,box-shadow .15s}
+.dashboard-planhome .compact-work-pages button[aria-pressed="true"]{border-color:#326bee;background:#326bee;color:#fff;box-shadow:0 2px 5px #326bee22}
+.dashboard-planhome .compact-work-pages button:focus-visible{outline:2px solid #2563eb;outline-offset:3px}
+@media(hover:hover){.dashboard-planhome .compact-work-pages button[aria-pressed="false"]:hover{border-color:#a9c1eb;background:#edf3ff;color:#326bee}}
+@media(max-width:1049px){.dashboard-planhome .compact-deck__title-line{gap:8px}.dashboard-planhome .compact-work-pages button{width:28px;height:32px}}
+@media(max-width:720px){
+ .dashboard-planhome .compact-deck__title-line{gap:10px;min-height:36px}
+ .dashboard-planhome .compact-work-pages button{width:34px;height:36px;font-size:13px}
+ .dashboard-planhome .compact-deck__head{position:relative;padding-top:29px}
+ .dashboard-planhome .compact-deck__section-label{position:absolute;left:0;top:6px;font-size:9px}
+ .dashboard-planhome .compact-deck__arrows{position:absolute;right:0;top:0}
+ .dashboard-planhome .compact-deck__arrows .compact-deck__switch{min-height:28px;padding:4px 6px;font-size:9px}
+ .dashboard-planhome .compact-deck__title-line h2{font-size:16px}
+}
+@media(prefers-reduced-motion:reduce){.dashboard-planhome .compact-work-pages button{transition:none}}
+
+/* Selected annual records share the plan's year without resizing the common cards. */
+.building-retention__title .work-year-label{margin-left:auto;font-size:11px;font-weight:750;color:#426994;white-space:nowrap}
+#compactWorkPanel .building-task.is-planned{background:#f0f6ff;border-color:#bdd5f8;color:#2055a3}
+#compactWorkPanel .building-task.is-planned small{color:#2563eb;background:#dfebff;border-radius:6px;padding:3px 6px}
+#compactWorkPanel .building-task small{white-space:nowrap}
+#compactWorkPanel .compact-progress__note{min-height:2.6em;line-height:1.4;word-break:keep-all}
+#compactWorkPanel[data-work-mode="future"] .compact-progress__track>span{background:#3978e9}
+#compactWorkPanel .building-task__description{white-space:normal;line-height:1.4}
+
+/* Annual plan preparation lives alongside the other safety-management work. */
+.dashboard-planhome.compact-ready .compact-section-deck #compactPlanWorkPanel{grid-area:1/1;display:flex;flex-direction:column;width:100%;min-width:0;margin:0;padding:0;border:0;border-radius:0;background:none;box-shadow:none}
+.compact-plan-work__heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.compact-plan-work__heading>div>span{color:#5079af;font-size:11px;font-weight:650}
+.compact-plan-work__heading h3{margin:4px 0 0;font-size:18px;color:#233a59;letter-spacing:-.4px}
+.compact-plan-work__status{padding:5px 9px;border:1px solid #dbe6f5;border-radius:7px;background:#f2f6fc;color:#587399;font-size:10px;white-space:nowrap}
+.compact-plan-work__intro{margin:8px 0 16px;font-size:11px;line-height:1.65;color:#7e8fa5;word-break:keep-all}
+.compact-plan-work__steps{display:grid;gap:10px}
+.dashboard-planhome .compact-section-deck .compact-plan-work .building-task:has(>.building-task__description){min-height:74px;grid-template-columns:30px minmax(0,1fr) auto;grid-template-rows:auto auto;padding:12px;column-gap:12px}
+.dashboard-planhome .compact-section-deck .compact-plan-work .building-task>.building-task__no{grid-row:1/3}
+.dashboard-planhome .compact-section-deck .compact-plan-work .building-task:has(>.building-task__description)>small{grid-column:3;grid-row:1/3;max-width:66px;white-space:normal}
+.compact-plan-work__note{display:flex;align-items:flex-start;gap:7px;margin:16px 0 0;padding:12px 0 0;border-top:1px solid #e8edf4;font-size:10px;line-height:1.6;color:#8594a9;word-break:keep-all}
+.compact-plan-work__note svg{flex:none;margin-top:1px}.compact-plan-work__note b{font-weight:600;color:#587399}
+.dashboard-planhome button.building-plan-book__edit{font-family:inherit;cursor:pointer;gap:8px}
+@media(max-width:720px){
+ .dashboard-planhome .compact-deck__title-line{gap:8px}.dashboard-planhome .compact-work-pages{gap:4px}
+ .dashboard-planhome .compact-work-pages button{width:31px;height:36px}
+ .dashboard-planhome .compact-deck__pages{gap:3px;flex-wrap:wrap}
+ .dashboard-planhome .compact-deck__pages button{font-size:9px;padding:4px}
+ .compact-plan-work__heading h3{font-size:17px}.compact-plan-work__intro{font-size:11px}
+ .dashboard-planhome .compact-section-deck .compact-plan-work .building-task:has(>.building-task__description){min-height:78px;column-gap:9px;padding:11px 9px;grid-template-columns:25px minmax(0,1fr) auto}
+ .dashboard-planhome .compact-section-deck .compact-plan-work .building-task:has(>.building-task__description)>small{font-size:9px;max-width:52px;text-align:right}
+ .dashboard-planhome .compact-section-deck .compact-plan-work .building-task>.building-task__no{align-self:center;margin:0}
+}
+/* Mobile overview shared by the owner and the partner's actual building view.
+   Keep the original links, annual data, permissions and dialog handlers. */
+.building-mobile-summary,.building-mobile-guide,.compact-deck__mobile-destination{display:none}
+@media(max-width:720px){
+ .dashboard-shell.dashboard-compact.dashboard-planhome.compact-ready{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto;gap:12px;padding:14px 14px 28px;align-items:start}
+ .dashboard-planhome.compact-ready .building-board__head.building-board__head--book{grid-column:1;grid-row:1;margin:0;gap:8px;grid-template-columns:minmax(0,1fr) 104px}
+ .dashboard-planhome .planhome-header-building{min-height:96px;padding:14px 116px 14px 14px;border-color:#dfe6ef;border-radius:15px;background:#fff;gap:10px}
+ .dashboard-planhome .planhome-header-building h1{font-size:21px!important;line-height:1.4;letter-spacing:-.65px}
+ .dashboard-planhome .building-board__head-label{font-size:10px;color:#7690ac}
+ .dashboard-planhome .building-mobile-summary{display:block;grid-column:1;margin:4px 0 0;font-size:10px;line-height:1.6;color:#8997a8;word-break:keep-all;overflow-wrap:anywhere}
+ .dashboard-planhome .planhome-header-building .building-dong-strip{gap:4px;margin-top:5px}
+ .dashboard-planhome .building-dong-strip span{font-size:9px;padding:2px 5px;min-height:0}
+ .dashboard-planhome .planhome-header-actions{margin-right:12px;gap:4px;align-self:center}
+ .dashboard-planhome .planhome-header-actions .plan-link{min-height:36px!important;max-width:none;border-radius:8px}
+ .dashboard-planhome .planhome-header-actions .plan-link__label{font-size:10px}
+ .dashboard-planhome .planhome-header-actions .planhome-assistance>summary{min-height:32px;font-size:9px;background:#f7f9fc;color:#7b8da4}
+ .dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__summary{min-height:44px;padding:8px 12px;gap:7px;background:#f9fbfd}
+ .dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__copy{flex-direction:row;align-items:baseline;flex-wrap:wrap;gap:3px 8px}
+ .dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__title{font-size:10px}
+ .dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__subtitle{font-size:11px}
+ .dashboard-planhome .planhome-header-manager #manager-connect .mc-mini__toggle{min-height:30px}
+ .dashboard-planhome.compact-ready .compact-mobile-tabs{display:none}
+ /* Mobile already presents this setup action above the plan card. */
+ .dashboard-planhome.compact-ready .location-start{display:none}
+ .dashboard-planhome .building-mobile-guide{display:flex;grid-column:1;grid-row:2;align-items:center;gap:10px;padding:11px 13px;border:1px solid #dce7f8;border-radius:11px;background:#edf4ff}
+ .building-mobile-guide>span{display:grid;place-items:center;flex:none;width:29px;height:29px;border-radius:8px;background:#fff;color:#5481be;font-size:20px}
+ .building-mobile-guide p{margin:0;min-width:0;line-height:1.6;word-break:keep-all;overflow-wrap:anywhere}
+ .building-mobile-guide strong{display:block;color:#436b9b;font-size:11px;font-weight:700}
+ .building-mobile-guide p>span{display:block;color:#8094b0;font-size:10px;margin-top:1px}
+ .dashboard-planhome.compact-ready[data-mobile-view] #compactPlanPanel{display:grid;grid-column:1;grid-row:3;grid-template-columns:minmax(0,1fr) 112px;grid-template-rows:auto auto auto;align-self:start;align-items:center;gap:3px 14px;width:100%;min-width:0;margin:0;padding:16px 18px;border:1px solid #dce5f3;border-radius:15px;background:#eef4ff;box-shadow:0 3px 14px #264c8310}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__heading{grid-column:1;grid-row:1;display:flex;justify-content:flex-start;gap:7px;margin:0;align-self:end}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__title{font-size:15px;letter-spacing:-.4px}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__retention{display:none}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__years{grid-column:1;grid-row:2;display:grid;grid-template-columns:30px minmax(0,1fr) 30px;gap:2px;max-width:170px;margin:0;padding:0}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__selection{display:flex;flex-direction:column;gap:1px}
+ .dashboard-planhome #compactPlanPanel [data-book-label]{font-size:9px;color:#8497b1}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__year{font-size:17px;line-height:1.4;letter-spacing:-.4px}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__years button{width:30px;height:44px;background:transparent;border:0;font-size:22px}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__years button:disabled{opacity:.35}
+ .dashboard-planhome #compactPlanPanel .planhome-document{grid-column:2;grid-row:1/5;display:flex;flex:none;align-items:center;justify-content:center;min-height:0;padding:0 4px 4px 0}
+ .dashboard-planhome #compactPlanPanel .planhome-paper{width:108px;max-width:100%;min-height:0;aspect-ratio:210/297;padding:10px 8px 8px;border-left-width:3px;border-radius:2px 8px 8px 2px;transform:rotate(1deg);box-shadow:0 6px 18px #294c7b12}
+ .dashboard-planhome #compactPlanPanel .planhome-paper:after{inset:3px -3px -3px 3px}
+ .dashboard-planhome #compactPlanPanel .planhome-paper__top{display:flex;margin-bottom:11px;gap:3px;font-size:4px;line-height:1.4}
+ .dashboard-planhome #compactPlanPanel .planhome-paper__eyebrow{display:block;font-size:4px;letter-spacing:.5px;margin:0 0 4px;line-height:1.4}
+ .dashboard-planhome #compactPlanPanel .planhome-paper h2{font-size:12px;line-height:1.4;letter-spacing:-.3px;margin:0 0 7px}
+ .dashboard-planhome #compactPlanPanel .planhome-paper [data-book-title-year]{display:block;margin:0;font-size:11px}
+ .dashboard-planhome #compactPlanPanel .planhome-paper__building{font-size:6px;line-height:1.5}
+ .dashboard-planhome #compactPlanPanel .planhome-paper__lines{padding:8px 0}
+ .dashboard-planhome #compactPlanPanel .planhome-paper__lines i{height:1px;margin:3px 0}
+ .dashboard-planhome #compactPlanPanel [data-book-progress-label]{font-size:5px}
+ .dashboard-planhome #compactPlanPanel [data-book-percent]{font-size:12px}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__track{height:2px;margin:4px 0 0}
+ .dashboard-planhome #compactPlanPanel .planhome-cover-hint,.dashboard-planhome #compactPlanPanel .planhome-paper__count,.dashboard-planhome #compactPlanPanel .planhome-plan-status,.dashboard-planhome #compactPlanPanel .building-plan-book__sources,.dashboard-planhome #compactPlanPanel .building-plan-book__intro>span{display:none}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__actions{grid-column:1;grid-row:3;display:flex;flex-direction:column;gap:0;align-self:end;min-width:0}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__edit,.dashboard-planhome #compactPlanPanel .building-plan-book__open{justify-content:space-between;min-height:36px;width:100%;margin:0;padding:5px 0;border:0;border-radius:0;background:none;color:#5175a4;font-size:11px;box-shadow:none}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__actions:has(.building-plan-book__open:not([hidden])) .building-plan-book__edit{display:none}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__open:after{content:'›';font-size:17px}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__intro{grid-column:1;grid-row:4;min-height:0;margin:3px 0 0}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__intro:has([data-book-help][hidden]){display:none}
+ .dashboard-planhome #compactPlanPanel .building-plan-book__help{min-height:32px;padding:6px 9px;font-size:10px}
+ .dashboard-planhome.compact-ready[data-mobile-view] .compact-section-deck{display:flex;grid-column:1;grid-row:4;align-self:start;width:100%;min-width:0;margin:0;padding:15px 14px 12px;border-radius:15px;box-shadow:none}
+ .dashboard-planhome .compact-deck__head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:0 0 10px}
+ .dashboard-planhome .compact-deck__title,.dashboard-planhome .compact-deck__title-line{display:contents}
+ .dashboard-planhome .compact-deck__title-line h2{grid-column:1/-1;font-size:15px;line-height:1.5;letter-spacing:-.4px;margin:0}
+ .dashboard-planhome .compact-deck__section-label{display:none}
+ .dashboard-planhome .compact-work-pages{grid-column:1;gap:5px}
+ .dashboard-planhome .compact-work-pages button{width:34px;height:36px;border-radius:8px;font-size:12px}
+ .dashboard-planhome .compact-deck__arrows{grid-column:2;position:static;background:none;border:0;padding:0}
+ .dashboard-planhome .compact-deck__arrows [data-deck-destination]{display:inline}
+ .dashboard-planhome .compact-deck__arrows .compact-deck__switch{display:flex;align-items:center;justify-content:center;gap:6px;width:auto;min-height:36px;padding:6px 9px;border:1px solid #e4eaf3;border-radius:8px;background:#f8fafd;color:#6c809b;font-size:10px}
+ .dashboard-planhome .compact-deck__switch svg{width:13px;height:13px}
+ .dashboard-planhome .compact-deck__body{padding-top:10px}
+ .dashboard-planhome.compact-ready .compact-deck__body>[data-deck-active="false"]{display:none!important}
+ .dashboard-planhome .compact-section-deck .building-tasknav__head{margin-bottom:8px;gap:5px}
+ .dashboard-planhome .compact-section-deck .building-tasknav__head b,.dashboard-planhome .compact-section-deck .compact-progress-count{font-size:10px}
+ .dashboard-planhome .compact-section-deck .compact-progress{display:none}
+ .dashboard-planhome .compact-section-deck :is(.building-tasknav__grid,.building-retention__grid){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description){grid-template-columns:24px minmax(0,1fr) 26px;grid-template-rows:auto auto;align-content:center;min-height:74px;padding:10px 8px;column-gap:6px;row-gap:3px;border-radius:10px;box-shadow:none}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description)>.building-task__no{grid-column:1;grid-row:1/3;align-self:center;margin:0;width:24px;height:28px;border-radius:7px;font-size:11px}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description)>span:nth-child(2){grid-column:2/-1;grid-row:1;font-size:12px;line-height:1.4;letter-spacing:-.4px;word-break:keep-all;overflow-wrap:anywhere}
+ .dashboard-planhome .compact-section-deck .building-task>.building-task__description{display:block;grid-column:2;grid-row:2;font-size:9px;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description)>small{grid-column:3;grid-row:2;align-self:center;min-width:0;max-width:100%;font-size:8px;line-height:1.4;white-space:normal;overflow-wrap:anywhere;margin:0;padding:0;background:transparent}
+ .dashboard-planhome .compact-section-deck .task-done{margin-left:auto;width:16px;height:17px;border-radius:5px;box-shadow:none}
+ .dashboard-planhome .compact-section-deck .task-done svg{width:11px;height:11px}
+ .dashboard-planhome .compact-section-deck .building-task.is-now:has(>.building-task__description){box-shadow:0 0 0 2px #e6effc}
+ .dashboard-planhome .compact-section-deck .building-task[data-frg-open]{grid-column:1/-1;min-height:46px;grid-template-columns:24px minmax(0,1fr) auto}
+ .dashboard-planhome .compact-section-deck .building-task[data-frg-open]>.building-task__description{grid-column:2;grid-row:2}
+ .dashboard-planhome .compact-section-deck .building-task[data-frg-open]>small{grid-column:3;grid-row:1/3;max-width:none;white-space:nowrap}
+ .dashboard-planhome .compact-section-deck .building-retention{padding-top:12px;margin-top:3px}
+ .dashboard-planhome .compact-section-deck .building-retention__title{flex-wrap:wrap;gap:5px;font-size:10px;margin-bottom:10px}
+ .dashboard-planhome .compact-section-deck .building-retention__title>svg{display:none}
+ .dashboard-planhome .compact-section-deck .building-retention__title>span{font-size:9px}
+ .dashboard-planhome .building-retention__title .work-year-label{margin-left:auto;font-size:10px;white-space:normal}
+ .dashboard-planhome .compact-deck__pages{display:none}
+ .dashboard-planhome .compact-plan-work__intro,.dashboard-planhome .compact-tools-panel__intro{font-size:11px;line-height:1.6}
+ .dashboard-planhome .compact-section-deck .compact-plan-work .building-task:has(>.building-task__description){grid-template-columns:26px minmax(0,1fr) auto;min-height:76px}
+ .dashboard-planhome .compact-section-deck .compact-plan-work .building-task:has(>.building-task__description)>span:nth-child(2){grid-column:2}
+ .dashboard-planhome .compact-section-deck .compact-plan-work .building-task:has(>.building-task__description)>small{grid-row:1/3;max-width:66px;font-size:10px}
+ .dashboard-planhome.compact-ready>.wrap>.section{grid-column:1;grid-row:5}
+}
+@media(max-width:360px){
+ .dashboard-shell.dashboard-compact.dashboard-planhome.compact-ready{padding-left:10px;padding-right:10px;gap:10px}
+ .dashboard-planhome .planhome-header-building h1{font-size:19px!important}
+ .dashboard-planhome.compact-ready[data-mobile-view] #compactPlanPanel{grid-template-columns:minmax(0,1fr) 100px;gap:3px 10px;padding:14px}
+ .dashboard-planhome.compact-ready[data-mobile-view] .compact-section-deck{padding:13px 10px 10px}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description){padding:9px 6px;column-gap:5px;grid-template-columns:22px minmax(0,1fr) 24px}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description)>.building-task__no{width:22px;height:26px}
+ .dashboard-planhome .compact-section-deck .building-task:has(>.building-task__description)>span:nth-child(2){font-size:11px}
+}
+
+/* A clear entry point to the plan's unified popup. */
+.planhome-cover-hint{display:inline-flex!important;align-items:center;gap:6px;padding:6px 10px;border-radius:7px;background:#e6efff;color:#2454a0;font-size:11px;font-weight:750}
+.building-plan-book__edit{text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.planhome-paper:hover .planhome-cover-hint,.planhome-paper:focus-visible .planhome-cover-hint{background:#2563eb;color:white}

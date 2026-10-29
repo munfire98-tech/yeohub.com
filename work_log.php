@@ -1,14 +1,18 @@
 <?php
 // work_log.php — 소방안전관리자 업무 수행 기록: 월별 목록 + 건물 고정정보
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 
 
-if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
+// 월별 기록과 저장 시각은 서버 기본값과 관계없이 한국 시간을 사용합니다.
+date_default_timezone_set('Asia/Seoul');
 if(session_status()!==PHP_SESSION_ACTIVE){
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)alp_session_start();
 }
 
 
@@ -21,7 +25,7 @@ function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']
 
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && $role !== 'building') { header('Location: /partner_center.php'); exit; }
 
 require_once __DIR__ . '/user_key.php';
 require_once __DIR__ . '/building_info.php';
@@ -305,18 +309,16 @@ $currentMonthKey = date('Y-m');
 $currentMonthLabel = date('Y년 n월');
 $currentMonthDone = isset($existing[$currentMonthKey]);
 
-// 최근 24개월을 연도별로 그룹핑 (DateTime 대신 기본 함수 사용 — 서버 호환성)
-$byYear = [];
-$doneByYear = [];
-$ty = (int)date('Y');
-$tm = (int)date('n');
-for ($i = 0; $i < 24; $i++) {
-  $ts   = mktime(0, 0, 0, $tm - $i, 1, $ty);
-  $key  = date('Y-m', $ts);
-  $year = date('Y', $ts);
-  $done = isset($existing[$key]);
-  $byYear[$year][] = ['key' => $key, 'label' => date('n', $ts) . '월', 'done' => $done];
-  if ($done) $doneByYear[$year] = ($doneByYear[$year] ?? 0) + 1;
+require_once __DIR__.'/building_work_year_common.php';
+$recordYear=bwy_year($_GET['year']??null);
+$byYear=[];$doneByYear=[];$ty=(int)date('Y');$tm=(int)date('n');
+// A selected annual folder shows all twelve months; the usual entry keeps the recent 24 months.
+for($i=0;$i<($recordYear!==null?12:24);$i++){
+  $ts=$recordYear!==null?mktime(0,0,0,12-$i,1,$recordYear):mktime(0,0,0,$tm-$i,1,$ty);
+  $key=date('Y-m',$ts);$year=date('Y',$ts);$future=$key>$currentMonthKey;
+  $done=!$future&&isset($existing[$key]);
+  $byYear[$year][]=['key'=>$key,'label'=>date('n',$ts).'월','done'=>$done,'future'=>$future];
+  if($done)$doneByYear[$year]=($doneByYear[$year]??0)+1;
 }
 
 $nick = $_SESSION['nickname'] ?? '사용자';
@@ -477,7 +479,7 @@ a{text-decoration:none}
 .quick-choice input:checked+span{border-color:var(--brand);background:#eff6ff;color:var(--brand2);font-weight:800}
 .quick-submit{width:100%;justify-content:center;margin-top:17px;padding:11px}
 @media(max-width:560px){.sprinkler-options,.sprinkler-choice{width:100%}.sprinkler-choice{justify-content:center}.facility-checks{grid-template-columns:1fr}}
-.notegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.notegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:16px}
 .notefield{display:flex;flex-direction:column;gap:5px}
 .notefield label{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px}
 .tag-empty{font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:999px;background:#fef2f2;color:#dc2626}
@@ -498,6 +500,18 @@ a{text-decoration:none}
 @media(max-width:560px){.page-actions{padding:8px}.page-actions__inner{gap:7px}.page-actions .btn{flex:1;min-width:0;padding:10px 8px;font-size:12.5px}}
 @media print{.page-actions{display:none!important}}
 .facility-summary{padding:16px 18px;background:#f7fafc;border:1px solid #dce6ed;border-radius:12px;margin:16px 0}.facility-summary-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.facility-summary-head a{font-size:12px;color:#087e97}.facility-summary-row{display:flex;gap:12px;margin-top:10px;font-size:12px}.facility-summary-row>span{flex:0 0 80px;color:#708291;padding-top:5px}.facility-summary-row>div{display:flex;flex-wrap:wrap;gap:6px}.facility-summary-row b{font-weight:500;background:white;border:1px solid #dfe9ee;color:#31536a;border-radius:7px;padding:4px 9px}.facility-summary p{font-size:12px;color:#6b7f8e}@media(max-width:540px){.facility-summary-row{display:block}.facility-summary-row>span{display:block;margin-bottom:6px}}
+/* Keep the monthly record form within small phone viewports. */
+@media(max-width:560px){
+ .nav__inner{height:auto;min-height:56px;flex-wrap:wrap;padding:10px 16px;gap:8px}
+ .nav__right{min-width:0;max-width:100%;flex-wrap:wrap;gap:8px}
+ .nav__right>span{overflow-wrap:anywhere}
+ .wrap{padding:20px 16px 96px;min-width:0}
+ .section,.notefield,.facility-summary-head{min-width:0}
+ .sprinkler-setup__text{min-width:0}
+ .facility-summary-head,.month-titlebar{flex-wrap:wrap}
+ .notefield textarea,.wrap input,.wrap select{font-size:16px}
+ .page-actions{padding-bottom:max(8px,env(safe-area-inset-bottom))}
+}
 </style>
 </head>
 <body>
@@ -507,7 +521,7 @@ a{text-decoration:none}
     <a class="nav__brand" href="/index.php">YEOHUB</a>
     <div class="nav__right">
       <span><?=h($nick)?>님</span>
-      <a class="btn" href="<?=h($url('/building_manager.php'))?>">← 메인</a>
+      <a class="btn" href="<?=h($url('/FireDesk.php'))?>">← 메인</a>
       <a class="btn" href="/logout.php">로그아웃</a>
     </div>
   </div>
@@ -515,7 +529,7 @@ a{text-decoration:none}
 
 <header class="page-head">
   <div class="page-head__inner">
-    <div class="crumb"><a href="<?=h($url('/building_manager.php'))?>">건물 소방안전관리</a> › 업무 수행 기록</div>
+    <div class="crumb"><a href="<?=h($url('/FireDesk.php'))?>">건물 소방안전관리</a> › 업무 수행 기록</div>
     <div class="badge"><span></span> 업무 수행 기록표 (별지 제12호)</div>
     <h1>업무 수행 기록</h1>
     <p>법정 서식에 맞춰 월 1회 이상 작성하고, PDF로 내려받아 보관하세요.</p>
@@ -676,7 +690,7 @@ a{text-decoration:none}
       </div>
     <?php endif; ?>
     <div class="month-titlebar">
-      <h2>월별 기록 (최근 2년)</h2>
+      <h2><?=$recordYear?h($recordYear).'년 월별 기록':'월별 기록 (최근 2년)'?></h2>
       <button class="btn settings-jump" type="button" onclick="openDefaultSettings()">⚙ 기본값 수정</button>
     </div>
     <div class="desc">작성할 달을 선택하세요. 작성 완료된 달은 초록색으로 표시됩니다. 연도별로 한 번에 인쇄·PDF 저장할 수 있습니다.</div>
@@ -684,7 +698,7 @@ a{text-decoration:none}
       <div class="warn">상단 <b>건물정보</b> 카드에서 상세 설정을 열어 기본정보를 먼저 확인해 주세요.</div>
     <?php endif; ?>
 
-    <?php if (!$currentMonthDone): ?>
+    <?php if (!$currentMonthDone && ($recordYear===null||$recordYear===$ty)): ?>
       <div class="monthguide" role="status">
         <span class="monthguide__month"><?=h(date('n'))?>월</span>
         <div class="monthguide__text">
@@ -722,7 +736,8 @@ a{text-decoration:none}
             <div class="mcard<?= $needsCurrentMonth ? ' mcard--attention' : '' ?>"<?= $isCurrentMonth ? ' aria-current="date"' : '' ?>>
               <div class="mlabel"><?=h($mo['label'])?><?php if ($isCurrentMonth): ?><span class="current-tag">이번 달</span><?php endif; ?></div>
               <div class="mstat">
-                <?php if ($mo['done']): ?>
+                <?php if ($mo['future']): ?><span class="todo">해당 월에 작성</span>
+                <?php elseif ($mo['done']): ?>
                   <span class="done">✓ 작성 완료</span>
                 <?php elseif ($needsCurrentMonth): ?>
                   <span class="todo">업무 수행 필요</span>
@@ -731,10 +746,11 @@ a{text-decoration:none}
                 <?php endif; ?>
               </div>
               <div class="mtoolbar">
-                <?php if ($defaultsLocked): ?>
+                <?php if ($mo['future']): ?><span aria-disabled="true">아직 시작하지 않은 달</span>
+                <?php elseif ($defaultsLocked): ?>
                   <span aria-disabled="true">기본값 작성 후 이용</span>
                 <?php else: ?>
-                  <a href="<?=h($url('/work_log_form.php?month=' . rawurlencode($mo['key'])))?>"><?= $mo['done'] ? '수정/인쇄 →' : ($needsCurrentMonth ? '이번 달 작성하기 →' : '작성하기 →') ?></a>
+                  <a href="<?=h($url('/work_log_form.php?month=' . rawurlencode($mo['key']).'&year='.substr($mo['key'],0,4)))?>"><?= $mo['done'] ? '수정/인쇄 →' : ($needsCurrentMonth ? '이번 달 작성하기 →' : '작성하기 →') ?></a>
                 <?php endif; ?>
               </div>
             </div>
@@ -778,7 +794,7 @@ a{text-decoration:none}
 
 <div class="page-actions" role="navigation" aria-label="페이지 작업">
   <div class="page-actions__inner">
-    <a class="btn btn--home" href="<?=h($url('/building_manager.php'))?>" target="_top">🏠 메인으로</a>
+    <a class="btn btn--home" href="<?=h($url('/FireDesk.php'))?>" target="_top">🏠 메인으로</a>
     <button class="btn btn--primary" type="button" onclick="openDefaultSettings()">⚙ 기본값 수정</button>
   </div>
 </div>

@@ -1,0 +1,28 @@
+/* Shared by private, annual and shared readers. Print only; saved content is untouched. */
+@page{size:A4 portrait;margin:14mm 12mm}
+@media print{
+ html,body,.doc{display:block!important;position:static!important;float:none!important;height:auto!important;max-height:none!important;overflow:visible!important;transform:none!important;contain:none!important}
+ html,body{width:auto!important;min-width:0!important;margin:0!important;padding:0!important;background:#fff!important}
+ .doc{width:auto!important;max-width:none!important;margin:0!important;padding:0!important;border:0!important;box-shadow:none!important}
+ .cover{min-height:268mm;margin:0!important;break-after:page;page-break-after:always}
+ .fp-doc-summary{margin:0!important;break-after:page;page-break-after:always}
+ /* A forced break starts every numbered item and every appendix on its own A4 sheet.
+    Long content can continue naturally; never shrink text or crop a fixed-height page. */
+ .doc>.sec{display:block!important;position:static;float:none;transform:none;break-before:page;page-break-before:always;break-inside:auto;page-break-inside:auto;margin:0!important;padding:0!important;border:0;border-radius:0;overflow:visible}
+ /* Also end the preceding section. Adjacent forced breaks collapse into one;
+    do not force a trailing sheet after the final section and signature. */
+ .doc>.sec:not(:last-of-type){break-after:page;page-break-after:always}
+ .sec__h{break-inside:avoid;page-break-inside:avoid;break-after:avoid;page-break-after:avoid;border-top:1px solid #cbd5e1;min-height:12mm;flex-wrap:nowrap}
+ .sec__t{flex:1;min-width:0;word-break:keep-all;overflow-wrap:anywhere}
+ .sec__skip{flex-shrink:0;max-width:30%;white-space:normal}
+ .fp-appendix .sec__no{width:auto;min-width:13mm;padding:0 1.8mm;white-space:nowrap;font-size:7.5pt}
+ .fp-book-reader .doc>.fp-appendix-title,.doc>.fp-appendix-title,#plan-references,#fp-print-notice{display:none!important}
+ table.d{border-collapse:collapse;border-radius:0;overflow:visible;break-inside:auto;page-break-inside:auto}
+ table.d thead{display:table-header-group}
+ table.d tbody{break-inside:auto;page-break-inside:auto}
+ table.d tr{break-inside:avoid;page-break-inside:avoid}
+ table.d th,table.d td{overflow-wrap:anywhere}
+ .para{overflow:visible;break-inside:auto;page-break-inside:auto;orphans:3;widows:3}
+ .sec p{orphans:3;widows:3}
+ .doc-foot{break-before:auto;page-break-before:auto}
+}

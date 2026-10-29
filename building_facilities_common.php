@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/building_dong_names.php';
 function bf_catalog():array{return [
 'fire_ext'=>['소화설비',['소화기구 및 자동소화장치','옥내소화전설비','옥외소화전설비','스프링클러설비','간이스프링클러설비','화재조기진압용 스프링클러설비','물분무소화설비','미분무소화설비','포소화설비','이산화탄소소화설비','할론소화설비','할로겐화합물 및 불활성기체소화설비','분말소화설비','강화액소화설비','고체에어졸소화설비']],
 'alarm'=>['경보설비',['단독경보형감지기','비상경보설비','자동화재탐지설비 및 시각경보기','화재알림설비','비상방송설비','통합감시시설','자동화재속보설비','누전경보기','가스누설경보기']],
@@ -10,8 +11,8 @@ function bf_catalog():array{return [
 function bf_id(string $name):string{return substr(hash('sha256',$name),0,16);}
 function bf_file():string{ $key=bi_user_key();if($key===''||!preg_match('/^[A-Za-z0-9_-]{1,100}$/D',$key))return '';return __DIR__.'/data/building/'.$key.'/facilities.php';}
 /** Read-only source snapshot. Never call bi_load() here: callers may hold member/state locks. */
-function bf_source():array {
- $key=bi_user_key();$bi=[];
+function bf_source(?string $userKey=null):array {
+ $key=$userKey??bi_user_key();$bi=[];
  if($key!==''&&preg_match('/^[A-Za-z0-9_-]{1,100}$/D',$key)){
   $file=__DIR__.'/data/building/'.$key.'/info.json';
   if(is_file($file)){
@@ -92,6 +93,11 @@ function bf_dong_options(array $bi):array {
  }
  return $options;
 }
+/** UI labels only: source signatures and saved installation scope IDs remain canonical. */
+function bf_named_scopes(array $scopes,array $building):array {
+ foreach(bdn_rows($building) as $entry){$id=$entry['facility_id'];if($entry['alias']!==''&&isset($scopes[$id]))$scopes[$id]['label']=$entry['name'].($id==='base'?' · 기본동':'');}
+ return $scopes;
+}
 function bf_scopes(array $data,array $options=[]):array {
  $scopes=is_array($data['scopes']??null)?$data['scopes']:[];
  if(!$scopes)$scopes=['base'=>['label'=>$options['base']??'기본동 · 기존 현황','included'=>true,'items'=>$data['items']??[]]];
@@ -125,6 +131,16 @@ function bf_save_multi(array $inputs,array $included,string $revision,array $opt
    foreach(bf_catalog() as $g)foreach($g[1] as $name){$key=bf_id($name);$v=$inputs[$id][$key]??[];$prior=$scope['items'][$key]??[];
     if(!is_array($v)||!in_array($v['status']??'unknown',['yes','no','unknown'],true))throw new RuntimeException('설치 여부를 확인해 주세요.');
     $row=['status'=>$v['status']??'unknown'];foreach(['quantity'=>40,'location'=>200,'note'=>500] as $field=>$max){$row[$field]=trim((string)($v[$field]??$prior[$field]??''));if(mb_strlen($row[$field])>$max)throw new RuntimeException('시설 정보 길이를 줄여 주세요.');}
+    if($name==='옥내소화전설비'){
+     $type=$v['hydrant_start']??$prior['hydrant_start']??'';
+     if(!is_string($type)||!in_array($type,['','auto','manual','both'],true))throw new RuntimeException('옥내소화전 기동 방식을 확인해 주세요.');
+     $row['hydrant_start']=$row['status']==='yes'?$type:'';
+    }
+    if($name==='자동화재탐지설비 및 시각경보기'){
+     $location=$v['receiver_location']??$prior['receiver_location']??'';
+     if(!is_string($location)||mb_strlen($location)>200||preg_match('/[\x00-\x1f\x7f]/u',$location))throw new RuntimeException('수신기 위치는 한 줄, 200자 이내로 입력해 주세요.');
+     $row['receiver_location']=trim($location);
+    }
     $scope['items'][$key]=$row;
    }
   }unset($scope);
@@ -132,12 +148,44 @@ function bf_save_multi(array $inputs,array $included,string $revision,array $opt
   unset($out['_sync_notice']);
   if(bf_source()['signature']!==$source['signature'])throw new RuntimeException('저장 중 기본정보가 변경되었습니다. 다시 열어 주세요.');
   if($reset||($stored['basic_source']['signature']??'')!==$source['signature'])bf_backup($f,$stored);
-  $tmp=tempnam($dir,'.fac-');if(!$tmp||file_put_contents($tmp,"<?php exit; ?>\n".json_encode($out,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR))===false||!rename($tmp,$f))throw new RuntimeException('저장하지 못했습니다.');return $out;
+  $tmp=tempnam($dir,'.fac-');if(!$tmp||file_put_contents($tmp,"<?php exit; ?>\n".json_encode($out,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR))===false||!rename($tmp,$f))throw new RuntimeException('저장하지 못했습니다.');
+  require_once __DIR__.'/fire_plan_auto_sync.php';fpa_queue();return $out;
  }finally{if($tmp&&is_file($tmp))unlink($tmp);flock($lock,LOCK_UN);fclose($lock);}
 }
-function bf_summary(array $d):string{if(!empty($d['scopes'])){$parts=[];foreach($d['scopes'] as $scope){if(empty($scope['included']))continue;$one=['items'=>$scope['items']??[]];$c=bf_counts($one);$parts[]='['.$scope['label'].']'."\n".(bf_summary($one)?:'선택한 시설이 없습니다.');}return implode("\n\n",$parts);}$lines=[];foreach(bf_catalog() as $group)foreach($group[1] as $name){$v=$d['items'][bf_id($name)]??[];if(($v['status']??'')==='yes')$lines[]=$name.(!empty($v['quantity'])?' / '.$v['quantity']:'').(!empty($v['location'])?' / '.$v['location']:'').(!empty($v['note'])?' / 메모: '.$v['note']:'');}return implode("\n",$lines);}
+function bf_summary(array $d):string{if(!empty($d['scopes'])){$parts=[];foreach($d['scopes'] as $scope){if(empty($scope['included']))continue;$one=['items'=>$scope['items']??[]];$c=bf_counts($one);$parts[]='['.$scope['label'].']'."\n".(bf_summary($one)?:'선택한 시설이 없습니다.');}return implode("\n\n",$parts);}$lines=[];foreach(bf_catalog() as $group)foreach($group[1] as $name){$v=$d['items'][bf_id($name)]??[];if(($v['status']??'')==='yes')$lines[]=$name.($name==='옥내소화전설비'&&!empty($v['hydrant_start'])?' / '.(['auto'=>'자동 기동 방식','manual'=>'ON·OFF 버튼 방식','both'=>'자동 기동 / ON·OFF 버튼 방식 함께 설치'][$v['hydrant_start']]??''):'').($name==='자동화재탐지설비 및 시각경보기'&&!empty($v['receiver_location'])?' / 수신기: '.$v['receiver_location']:'').(!empty($v['quantity'])?' / '.$v['quantity']:'').(!empty($v['location'])?' / '.$v['location']:'').(!empty($v['note'])?' / 메모: '.$v['note']:'');}return implode("\n",$lines);}
 function bf_render_reference():void{require_once __DIR__.'/building_info.php';$d=bf_load();$c=bf_counts($d);$query=[];if(!empty($_GET['embed']))$query['embed']='1';if((!empty($_SESSION['is_admin'])||!empty($_SESSION['ID_OK']))&&is_string($_GET['uid']??null))$query['uid']=$_GET['uid'];$url='/building_facilities.php'.($query?'?'.http_build_query($query):'');$e=fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8'); ?>
 <details class="bf-reference" style="margin:14px auto;padding:12px 16px;max-width:1200px;border:1px solid #dce5ed;border-radius:10px;background:#f7fafc;font:13px/1.7 system-ui"><summary style="cursor:pointer">소방시설 현황</summary><p style="white-space:pre-wrap;margin:10px 0"><?=$e(bf_summary($d)?:'선택한 시설이 없습니다.')?></p><p>설치 현황을 참고해 업무를 작성하세요. 점검 결과나 훈련 실시 여부를 자동으로 판단하지 않습니다.</p><a href="<?=$e($url)?>">소방시설 확인·수정 →</a></details>
 <?php }
 
 function bf_reset(string $revision,array $options):array{return bf_save_multi([],['base'],$revision,$options,true);}
+
+/** Education reads the same aligned, included facility scopes as the facility form. */
+function bf_hydrant_education(array $data):array {
+ $rows=[];$modes=[];$unknown=false;$present=false;$key=bf_id('옥내소화전설비');
+ foreach(bf_scopes($data) as $scope){
+  if(empty($scope['included']))continue;
+  $v=$scope['items'][$key]??[];$status=$v['status']??'unknown';$type=$v['hydrant_start']??'';
+  if($status==='no')continue;
+  if($status==='yes'){
+   $present=true;
+   if(in_array($type,['auto','manual'],true))$modes[$type]=true;
+   elseif($type==='both'){$modes['auto']=true;$modes['manual']=true;}
+   else{$type='';$unknown=true;}
+  }else{$type='';$unknown=true;}
+  $rows[]=['label'=>(string)($scope['label']??'기본동'),'status'=>$status,'type'=>$type];
+ }
+ return ['rows'=>$rows,'modes'=>array_keys($modes),'unconfirmed'=>$unknown,'present'=>$present];
+}
+
+/** Included buildings only; retained values on unchecked equipment never enter the plan. */
+function bf_receiver_locations(array $data,array $building=[]):string {
+ $scopes=bf_named_scopes(bf_scopes($data),$building);$rows=[];
+ foreach($scopes as $scope){
+  if(empty($scope['included']))continue;
+  $v=$scope['items'][bf_id('자동화재탐지설비 및 시각경보기')]??[];
+  if(($v['status']??'')!=='yes'||trim((string)($v['receiver_location']??''))==='')continue;
+  $rows[]=['label'=>(string)($scope['label']??'기본동'),'location'=>trim($v['receiver_location'])];
+ }
+ if(count($scopes)===1 && count($rows)===1)return $rows[0]['location'];
+ return implode(' / ',array_map(static fn($row)=>$row['label'].': '.$row['location'],$rows));
+}

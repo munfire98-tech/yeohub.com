@@ -1,11 +1,10 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/subscription_account.php';
 /** Read the target account's persisted entitlement; never trust a browser flag. */
 function pc_active(string $uid):bool {
  if(!preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$uid))return false;
- $file=__DIR__.'/data/subscribe/'.$uid.'/subscription.json';
- if(!is_file($file))return false;
- $sub=json_decode((string)file_get_contents($file),true);if(!is_array($sub))return false;
+ $sub=sa_read($uid);if(!$sub)return false;
  $status=(string)($sub['status']??'');
  $eligible=$status==='active'||($status==='payment_failed'&&!empty($sub['paid_at'])&&!in_array($sub['failed_from_status']??'',['canceled','refunded','expired'],true));
  if(!$eligible)return false;

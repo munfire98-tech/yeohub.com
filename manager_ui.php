@@ -54,17 +54,17 @@ function mg_local_connect_option(string $returnTo): void {
     </style>
     <?php } ?>
     <details class="mc-local-choice">
-      <summary><span>담당 매니저가 없으신가요?</span><span class="mc-local-choice__link">로컬매니저 연결 <?=mg_icon('arrow')?></span></summary>
+      <summary><span>연결된 업체가 없으신가요?</span><span class="mc-local-choice__link">로컬 파트너 연결 <?=mg_icon('arrow')?></span></summary>
     <div class="mc-local">
-      <div class="mc-local__head"><span><?=mg_icon('users')?></span><strong>로컬매니저에게 연결 요청</strong></div>
-      <p>연결을 요청하면 로컬매니저가 확인합니다.<br>수락 후 건물정보와 업무 현황이 공유됩니다.</p><p><strong>초기 고객 PRO 프로모션</strong><br>프로모션 기간에 가입하고 로컬 매니저 연결이 완료되면, 첫 구독부터 구독을 유지하는 동안 연 59,000원 혜택을 받을 수 있습니다. 프로모션 기간 중에는 대상 고객이 구독 종료 후 다시 구독해도 연 59,000원이 적용됩니다. 프로모션 종료 후에도 구독을 계속 유지하면 할인 가격이 유지되며, 종료 후 구독이 끊긴 상태에서 다시 구독하면 당시 정상가가 적용됩니다. 적용 여부와 가격은 PRO 이용 안내에서 확인해 주세요.</p>
+      <div class="mc-local__head"><span><?=mg_icon('users')?></span><strong>로컬 파트너 연결</strong></div>
+      <p>정보 공유에 동의하면 로컬 파트너와 바로 연결됩니다.<br>연결 후 기본정보에서 건물등록을 시작할 수 있습니다.</p><p><strong>초기 고객 PRO 프로모션</strong><br>프로모션 기간에 가입하고 로컬 파트너 연결이 완료되면, 첫 구독부터 구독을 유지하는 동안 연 59,000원 혜택을 받을 수 있습니다. 프로모션 기간 중에는 대상 고객이 구독 종료 후 다시 구독해도 연 59,000원이 적용됩니다. 프로모션 종료 후에도 구독을 계속 유지하면 할인 가격이 유지되며, 종료 후 구독이 끊긴 상태에서 다시 구독하면 당시 정상가가 적용됩니다. 적용 여부와 가격은 PRO 이용 안내에서 확인해 주세요.</p>
       <form method="post" action="/manager_portal.php">
         <input type="hidden" name="csrf" value="<?=mg_e($_SESSION['csrf'])?>">
         <input type="hidden" name="action" value="register_code">
         <input type="hidden" name="return_to" value="<?=mg_e($returnTo)?>">
         <input type="hidden" name="manager_code" value="FM-61A8AD50E2">
-        <label class="mc-consent"><input type="checkbox" name="manager_consent" value="1" required><span>수락한 로컬매니저에게 건물정보와 업무 현황을 공유하는 데 동의합니다.</span></label>
-        <button class="mc-button mc-button--primary" type="submit">로컬매니저 연결 요청 <?=mg_icon('arrow')?></button>
+        <label class="mc-consent"><input type="checkbox" name="manager_consent" value="1" required><span>로컬 파트너에게 건물정보와 업무 현황을 공유하는 데 동의합니다.</span></label>
+        <button class="mc-button mc-button--primary" type="submit">동의하고 로컬 파트너 연결 <?=mg_icon('arrow')?></button>
       </form>
     </div>
     </details>
@@ -78,10 +78,10 @@ function mg_connect_card(bool $compact=false,string $returnTo='portal'): void {
         if(!mg_active($me,'building'))return;
         $state=mg_read(mg_state_file());$ref=mg_connection_manager($me,$members);
         $status=$ref!==''?mg_link_status($uid,$me,$state):'none';
-        $isPending=$status==='pending';$isAccepted=$status==='accepted';
+        $isPending=$status==='pending';$isAccepted=$status==='accepted';$localConnected=mg_is_local_partner($ref,$members);
         $old=$_SESSION['manager_code_old']??'';unset($_SESSION['manager_code_old']);
         $formOpen=!$isPending&&!$isAccepted;
-        $nickname=(string)($members[$ref]['nickname']??$ref);
+        $nickname=trim((string)preg_replace('/(?:\s*(?:매니저|파트너))+$/u','',(string)($members[$ref]['nickname']??$ref)));
     }catch(Throwable $e){echo '<div class="mc-notice mc-notice--error" role="alert">연결 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</div>';return;}
     if ($compact) {
         mg_compact_card($uid,$me,$status,$nickname,(string)$old,$returnTo);
@@ -89,25 +89,25 @@ function mg_connect_card(bool $compact=false,string $returnTo='portal'): void {
     }
     ?>
     <section class="mc-connect<?=$compact?' mc-connect--compact':''?>" id="manager-connect" aria-labelledby="manager-connect-title">
-      <div class="mc-connect__top"><span class="mc-kicker"><?=mg_icon('shield')?> 담당 매니저</span><span class="mc-status mc-status--<?=mg_e($status)?>"><i></i><?=$isAccepted?(pc_active($uid)?'PRO 이용 중':'담당 매니저 연결됨'):($isPending?'수락 대기':'연결 전')?></span></div>
+      <div class="mc-connect__top"><span class="mc-kicker"><?=mg_icon('shield')?> 연결 업체</span><span class="mc-status mc-status--<?=mg_e($status)?>"><i></i><?=$isAccepted?(pc_active($uid)?'PRO 이용 중':'연결 업체 연결됨'):($isPending?'수락 대기':'연결 전')?></span></div>
       <?php mg_notice(); ?>
       <?php if($formOpen): ?>
-      <div class="mc-intro"><div><h2 id="manager-connect-title">담당 매니저와 연결하세요</h2><p>담당 매니저와 연결하고,<br class="mc-mobile-break"> 부족한 업무를 함께 확인하세요.</p></div><span class="mc-connect__symbol"><?=mg_icon('link')?></span></div>
+      <div class="mc-intro"><div><h2 id="manager-connect-title">업체를 연결하세요</h2><p>업체를 연결하고,<br class="mc-mobile-break"> 필요한 항목의 지원을 요청하세요.</p></div><span class="mc-connect__symbol"><?=mg_icon('link')?></span></div>
       <?php if(in_array($status,['rejected','revoked'],true)): ?><p class="mc-context"><?=$status==='rejected'?'이전 요청이 수락되지 않았습니다. 코드를 확인한 뒤 다시 요청할 수 있습니다.':'연결이 해제되었습니다. 코드를 등록하면 새 요청을 보냅니다.'?></p><?php endif; ?>
       <form method="post" action="/manager_portal.php" class="mc-code-form" data-manager-form>
         <input type="hidden" name="csrf" value="<?=mg_e($_SESSION['csrf'])?>"><input type="hidden" name="action" value="register_code"><input type="hidden" name="return_to" value="<?=mg_e($returnTo)?>">
-        <label class="mc-label" for="manager-code-input">매니저 고유 코드</label>
+        <label class="mc-label" for="manager-code-input">파트너 고유 코드</label>
         <div class="mc-code-row"><div class="mc-input-wrap"><span><?=mg_icon('link')?></span><input id="manager-code-input" name="manager_code" type="text" maxlength="13" minlength="13" pattern="[Ff][Mm]-[0-9A-Fa-f]{10}" placeholder="FM-XXXXXXXXXX" value="<?=mg_e($old)?>" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="manager-code-help" required></div><button class="mc-button mc-button--primary" type="submit">연결 요청 <?=mg_icon('arrow')?></button></div>
-        <p class="mc-field-help" id="manager-code-help">매니저에게 전달받은 13자리 코드를 입력하세요.</p>
-        <label class="mc-consent"><input type="checkbox" name="manager_consent" value="1" required><span>매니저가 요청을 수락하면 <strong>건물정보와 업무 진행 현황</strong>을 조회하는 데 동의합니다.</span></label>
+        <p class="mc-field-help" id="manager-code-help">파트너에게 전달받은 13자리 코드를 입력하세요.</p>
+        <label class="mc-consent"><input type="checkbox" name="manager_consent" value="1" required><span>파트너가 요청을 수락하면 <strong>건물정보와 업무 진행 현황</strong>을 조회하는 데 동의합니다.</span></label>
       </form>
           <?php mg_local_connect_option($returnTo); ?>
       <?php else: ?>
-      <div class="mc-person"><span class="mc-avatar"><?=mg_icon('users')?></span><div><h2 id="manager-connect-title"><?=mg_e($nickname)?><span> 매니저</span></h2><p><?=$isPending?'연결 요청을 보냈습니다. 매니저의 수락을 기다리고 있어요.':'이 건물의 정보와 업무 진행 현황을 함께 확인하고 있어요.'?></p></div></div>
+      <div class="mc-person"><span class="mc-avatar"><?=mg_icon('users')?></span><div><h2 id="manager-connect-title"><?=mg_e($nickname)?><span> 파트너</span></h2><p><?=$isPending?'연결 요청을 보냈습니다. 파트너의 수락을 기다리고 있어요.':'이 건물의 정보와 업무 진행 현황을 함께 확인하고 있어요.'?></p></div></div>
       <?php if($isAccepted&&!pc_active($uid)): ?><p class="mc-context">PRO로 소방안전 업무 기록을 한곳에서 작성·관리하세요. <a href="/subscribe_page.php">PRO 이용 안내 →</a></p><?php endif;?>
-      <div class="mc-connection-detail"><span><?=mg_icon($isPending?'clock':'check')?> <?=$isPending?'수락 후에 건물정보가 공유됩니다.':'승인된 매니저만 현황을 조회할 수 있습니다.'?></span><?php mg_action_form($uid,$me,'revoked',$isPending?'요청 취소':'연결 해제',$returnTo,'text'); ?></div>
+      <div class="mc-connection-detail"><span><?=mg_icon($isPending?'clock':'check')?> <?=$isPending?'수락 후에 건물정보가 공유됩니다.':'승인된 파트너만 현황을 조회할 수 있습니다.'?></span><?php mg_action_form($uid,$me,'revoked',$isPending?'요청 취소':'연결 해제',$returnTo,'text'); ?></div>
       <?php endif; ?>
-      <ol class="mc-steps" aria-label="매니저 연결 순서"><li class="<?=$status!=='none'&&($isPending||$isAccepted)?'is-done':'is-now'?>"><span><?=$isPending||$isAccepted?mg_icon('check'):'01'?></span>코드 등록</li><li class="<?=$isAccepted?'is-done':($isPending?'is-now':'')?>"><span><?=$isAccepted?mg_icon('check'):'02'?></span>매니저 수락</li><li class="<?=$isAccepted?'is-now':''?>"><span>03</span>함께 관리</li></ol>
+      <ol class="mc-steps" aria-label="파트너 연결 순서"><li class="<?=$status!=='none'&&($isPending||$isAccepted)?'is-done':'is-now'?>"><span><?=$isPending||$isAccepted?mg_icon('check'):'01'?></span>코드 등록</li><li class="<?=$isAccepted?'is-done':($isPending?'is-now':'')?>"><span><?=$isAccepted?mg_icon('check'):'02'?></span><?=$localConnected?'연결 완료':'파트너 수락'?></li><li class="<?=$isAccepted?'is-now':''?>"><span>03</span>함께 관리</li></ol>
       <div class="mc-privacy"><?=mg_icon('lock')?> 연결은 언제든 해제할 수 있습니다.</div>
     </section>
     <?php
@@ -147,18 +147,18 @@ function mg_compact_card(string $uid,array $me,string $status,string $nickname,s
       <details class="mc-mini__details"<?=$expand?' open':''?>>
         <summary class="mc-mini__summary">
           <span class="mc-mini__icon"><?=mg_icon($accepted?'users':'link')?></span>
-          <span class="mc-mini__copy"><span class="mc-mini__title" id="manager-connect-title">담당 매니저</span><span class="mc-mini__subtitle"><?=mg_e($formOpen?($status==='rejected'?'이전 요청이 거절되었습니다.':($status==='revoked'?'연결이 해제되었습니다.':'전달받은 매니저 코드를 입력하세요.')):$nickname.' 매니저')?></span></span>
-          <?php if(!$formOpen): ?><span class="mc-status mc-status--<?=mg_e($status)?>"><i></i><?=$accepted?(pc_active($uid)?'PRO 이용 중':'담당 매니저 연결됨'):'수락 대기'?></span><?php endif; ?>
-          <span class="mc-mini__toggle"><span><?=$formOpen?'매니저 연결':'관리'?></span><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span>
+          <span class="mc-mini__copy"><span class="mc-mini__title" id="manager-connect-title">연결 업체</span><span class="mc-mini__subtitle"><?=mg_e($formOpen?($status==='rejected'?'이전 요청이 거절되었습니다.':($status==='revoked'?'연결이 해제되었습니다.':'전달받은 파트너 코드를 입력하세요.')):$nickname.' 파트너')?></span></span>
+          <?php if(!$formOpen): ?><span class="mc-status mc-status--<?=mg_e($status)?>"><i></i><?=$accepted?(pc_active($uid)?'PRO 이용 중':'연결 업체 연결됨'):'수락 대기'?></span><?php endif; ?>
+          <span class="mc-mini__toggle"><span><?=$formOpen?'파트너 연결':'관리'?></span><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span>
         </summary>
         <div class="mc-mini__body">
           <?php if($expand) mg_notice(); ?>
           <?php if($formOpen): ?>
           <form method="post" action="/manager_portal.php" class="mc-code-form" data-manager-form>
             <input type="hidden" name="csrf" value="<?=mg_e($_SESSION['csrf'])?>"><input type="hidden" name="action" value="register_code"><input type="hidden" name="return_to" value="<?=mg_e($returnTo)?>">
-            <label class="mc-label" for="manager-code-input">매니저 고유 코드</label>
+            <label class="mc-label" for="manager-code-input">파트너 고유 코드</label>
             <div class="mc-code-row"><div class="mc-input-wrap"><input id="manager-code-input" name="manager_code" type="text" maxlength="13" minlength="13" pattern="[Ff][Mm]-[0-9A-Fa-f]{10}" placeholder="FM-XXXXXXXXXX" value="<?=mg_e($old)?>" autocomplete="off" autocapitalize="characters" spellcheck="false" required></div><button class="mc-button mc-button--primary" type="submit">연결 요청</button></div>
-            <label class="mc-consent"><input type="checkbox" name="manager_consent" value="1" required><span>수락한 매니저에게 건물정보와 업무 현황을 공유하는 데 동의합니다.</span></label>
+            <label class="mc-consent"><input type="checkbox" name="manager_consent" value="1" required><span>수락한 파트너에게 건물정보와 업무 현황을 공유하는 데 동의합니다.</span></label>
           </form>
           <?php mg_local_connect_option($returnTo); ?>
           <?php else: ?>
@@ -167,12 +167,12 @@ function mg_compact_card(string $uid,array $me,string $status,string $nickname,s
             <div class="mc-collab-invite__copy">
               <span class="mc-collab-invite__eyebrow">PRO 서비스</span>
               <h3>소방안전 업무 기록을 체계적으로</h3>
-              <p>기본정보부터 소방계획서, 매월 업무 기록까지 작성·관리하고,<br class="mc-collab-invite__break"> 필요한 항목은 담당 매니저에게 작성 도움을 요청하세요.</p>
+              <p>소방안전관리자가 소방계획서와 업무 기록을 작성·관리합니다.<br class="mc-collab-invite__break"> 필요한 항목은 연결 업체에게 지원을 요청할 수 있습니다.</p>
             </div>
             <a class="mc-collab-invite__link" href="/subscribe_page.php">PRO 이용 안내<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a>
           </div>
           <?php endif;?>
-          <div class="mc-mini__manage"><p><?=$pending?'매니저가 수락하면 건물정보와 업무 현황이 공유됩니다.':'담당 매니저가 건물정보와 업무 현황을 조회할 수 있습니다.'?></p><?php mg_action_form($uid,$me,'revoked',$pending?'요청 취소':'연결 해제',$returnTo,'text'); ?></div>
+          <div class="mc-mini__manage"><p>소방안전관리자가 업무를 작성·관리하며, 파트너의 지원 범위와 일정은 서로 확인해 주세요.</p><p><?=$pending?'파트너가 수락하면 건물정보와 업무 현황이 공유됩니다.':'연결 업체가 건물정보와 업무 현황을 조회할 수 있습니다.'?></p><?php mg_action_form($uid,$me,'revoked',$pending?'요청 취소':'연결 해제',$returnTo,'text'); ?></div>
           <?php endif; ?>
         </div>
       </details>

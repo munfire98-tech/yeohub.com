@@ -1,10 +1,15 @@
 <?php
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 // Uses the normal login session, never the isolated editing session.
 require_once __DIR__.'/manager_common.php';
 require_once __DIR__.'/pro_collaboration.php';
 require_once __DIR__.'/manager_plan_request_cleanup.php';
-if(session_status()!==PHP_SESSION_ACTIVE) session_start();
+require_once __DIR__.'/manager_jawi_help.php';
+require_once __DIR__.'/manager_train_help.php';
+if(session_status()!==PHP_SESSION_ACTIVE) alp_session_start();
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -21,7 +26,7 @@ if($method==='POST'&&!in_array($action,['create','resolve'],true)) mh_fail('지�
 try {
     // Connect only after explicit consent. Existing pending connections are retained.
     if($action==='create') {
-        if(!pc_active($actor))mh_fail('작성 도움 요청은 PRO 구독 후 이용할 수 있습니다.',403);
+        if(!pc_active($actor))mh_fail('작성 문의은 PRO 구독 후 이용할 수 있습니다.',403);
         $text=trim((string)($_POST['text']??''));$field=trim((string)($_POST['field']??''));
         if($text===''||strlen($text)>3000||!preg_match('/^[A-Za-z0-9_]{1,80}$/D',$field)) mh_fail('요청 항목을 확인해 주세요.');
         if(strpos($field,'__fp_')===0){
@@ -29,11 +34,13 @@ try {
           require_once __DIR__.'/fire_plan_db.php';
           if(!fp_load_plan($fm[1])||!isset(fp_chat_schema()[$fm[2]][$fm[3]]))mh_fail('현재 계정의 소방계획서 질문을 확인해 주세요.');
         }
+        if(strpos($field,'__jw_')===0&&!mjh_valid($actor,$field))mh_fail('현재 계정의 자위소방대 교육·훈련 질문을 확인해 주세요.');
+        if(strpos($field,'__tr_')===0&&!mth_valid($actor,$field))mh_fail('현재 계정의 소방훈련·교육 질문을 확인해 주세요.');
         $members=mg_members();$me=$members[$actor]??[];$state=mg_read(mg_state_file());
         if(!mg_active($me,'building')) mh_fail('건물관리자만 요청할 수 있습니다.',403);
         $manager=mg_connection_manager($me,$members);$status=mg_link_status($actor,$me,$state);
         if($manager===''||!in_array($status,['accepted','pending'],true)) {
-            if(($_POST['consent']??'')!=='1') mh_fail('로컬매니저 연결과 정보 공유에 동의해 주세요.');
+            if(($_POST['consent']??'')!=='1') mh_fail('로컬 파트너 연결과 정보 공유에 동의해 주세요.');
             mg_request_manager($actor,'FM-61A8AD50E2',true);
         }
     }
@@ -57,13 +64,15 @@ try {
               &&($r['link_key']??'')===mg_link_key($u,$m);
           };
           if($action==='create'){
-            if(!$isUser||!in_array($mode,['accepted','pending'],true))throw new RuntimeException('매니저 연결 상태를 확인해 주세요.');
+            if(!$isUser||!in_array($mode,['accepted','pending'],true))throw new RuntimeException('파트너 연결 상태를 확인해 주세요.');
             $text=trim((string)($_POST['text']??''));$field=trim((string)($_POST['field']??''));
             if($text===''||strlen($text)>3000||!preg_match('/^[A-Za-z0-9_]{1,80}$/D',$field))throw new RuntimeException('요청 항목을 확인해 주세요.');
             // Recheck while holding the same request-store lock used by plan deletion.
             if(strpos($field,'__fp_')===0){
               if(!preg_match('/^__fp_([0-9]+)_([0-9]+)_([A-Za-z0-9_]+)$/D',$field,$fm)||!fp_load_plan($fm[1])||!isset(fp_chat_schema()[$fm[2]][$fm[3]]))throw new RuntimeException('삭제되었거나 변경된 소방계획서입니다. 목록에서 다시 열어 주세요.');
             }
+            if(strpos($field,'__jw_')===0&&!mjh_valid($actor,$field))throw new RuntimeException('삭제되었거나 변경된 교육·훈련 기록입니다. 목록에서 다시 열어 주세요.');
+            if(strpos($field,'__tr_')===0&&!mth_valid($actor,$field))throw new RuntimeException('삭제되었거나 변경된 훈련·교육 기록입니다. 목록에서 다시 열어 주세요.');
             $key=mg_link_key($actor,$me);$duplicate=false;$open=0;
             foreach($rows as $r){if(($r['uid']??'')!==$actor||($r['status']??'')!=='pending')continue;$open++;
               if(($r['link_key']??'')===$key&&($r['field']??'')===$field)$duplicate=true;}
@@ -77,12 +86,16 @@ try {
           if($action==='resolve'){
             $id=(string)($_POST['id']??'');
             if(!$isManager||!isset($rows[$id])||!$visible($rows[$id]))throw new RuntimeException('처리할 권한이 없습니다.');
+            if(strpos((string)($rows[$id]['field']??''),'__tr_')===0)throw new RuntimeException('소방훈련·교육 문답에서 답변을 저장해 주세요.');
+            if(strpos((string)($rows[$id]['field']??''),'__jw_')===0)throw new RuntimeException('자위소방대 교육·훈련 문답에서 답변을 저장해 주세요.');
             if(strpos((string)($rows[$id]['field']??''),'__fp_')===0)throw new RuntimeException('소방계획서 문답에서 답변을 저장해 주세요.');
             if(($rows[$id]['field']??'')==='__facilities')throw new RuntimeException('소방시설 현황 화면에서 설치 여부를 확인하고 저장해 주세요.');
             $reply=trim((string)($_POST['reply']??''));
             if($reply===''||strlen($reply)>3000)throw new RuntimeException('처리 내용을 1~1,000자 정도로 입력해 주세요.');
             if($rows[$id]['status']==='pending'){$rows[$id]['status']='resolved';$rows[$id]['reply']=$reply;$rows[$id]['resolved_at']=date('c');$rows[$id]['resolved_by']=$actor;}
           }
+          mjh_prune($rows,$visible);
+          mth_prune($rows,$visible);
           mh_prune_deleted_plans($rows,$visible,__DIR__.'/data/fireplan');
           $list=[];$buildingNames=[];
           foreach($rows as $r)if($visible($r)){$r['name']=(string)($members[$r['uid']]['nickname']??$r['uid']);

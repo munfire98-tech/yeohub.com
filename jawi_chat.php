@@ -6,13 +6,16 @@
    한 문항 답할 때마다 바로 저장되어, 중간에 나가도 이어서 할 수 있습니다.
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -22,29 +25,37 @@ function is_admin(): bool {
 function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']); }
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && $role !== 'building') { header('Location: /partner_center.php'); exit; }
 
 require_once __DIR__ . '/jawi_db.php';
+require_once __DIR__.'/building_work_year_common.php';
+$recordYear=bwy_year($_GET['year']??null);
+if($recordYear!==null&&$recordYear>(int)substr(fpsc_today(),0,4)&&empty($_GET['id'])){header('Location: /fire_plan.php?year='.$recordYear.'&schedule_kind=jawi');exit;}
 require_once __DIR__ . '/building_info.php';
+require_once __DIR__ . '/manager_jawi_help.php';
 
 /* ── 기록 준비 ────────────────────────────────────────────
    주소에 id 가 없을 때 무조건 새 기록을 만들면, 화면에 들어올 때마다
    빈 기록이 쌓입니다. 그래서 먼저 이어서 쓸 기록이 있는지 물어봅니다. */
 $id  = (string)($_GET['id'] ?? '');
 $rec = $id !== '' ? jw_load($id) : null;
+if(isset($_GET['help_step']) && (!$rec || !mjh_parse('__jw_'.$id.'_'.(string)$_GET['help_step']))){
+  http_response_code(404); exit('요청한 교육·훈련 기록을 찾을 수 없습니다. 목록에서 다시 열어 주세요.');
+}
 
 /* 새로 시작을 고른 경우에만 만듭니다 */
 if (!$rec && ($_GET['new'] ?? '') === '1') {
-  $id = jw_create();
-  header('Location: /jawi_chat.php?id=' . urlencode($id));
+  $id = jw_create($recordYear);
+  header('Location: /jawi_chat.php?id=' . urlencode($id).($recordYear?'&year='.$recordYear:''));
   exit;
 }
 
 if (!$rec) {
   $picks = jw_list();
+  if($recordYear!==null)$picks=array_values(array_filter($picks,static fn($row)=>bwy_record_year(jw_load((string)($row['id']??''))??[],'jawi',$recordYear)));
   if (!$picks) {                       // 첫 기록이면 물어볼 것 없이 바로 시작
-    $id = jw_create();
-    header('Location: /jawi_chat.php?id=' . urlencode($id));
+    $id = jw_create($recordYear);
+    header('Location: /jawi_chat.php?id=' . urlencode($id).($recordYear?'&year='.$recordYear:''));
     exit;
   }
   /* 이어서 쓸 기록 고르기 화면 */
@@ -127,8 +138,8 @@ if (!$rec) {
               마지막 수정 <?=h($upd ?: '-')?>
             </div>
           </div>
-          <a class="btn btn--pri" href="/jawi_chat.php?id=<?=h(rawurlencode($pid))?>">이어서 쓰기 →</a>
-          <a class="btn" href="/jawi_edit.php?id=<?=h(rawurlencode($pid))?>">표로</a>
+          <a class="btn btn--pri" href="/jawi_chat.php?id=<?=h(rawurlencode($pid))?><?=$recordYear?'&amp;year='.$recordYear:''?>">이어서 쓰기 →</a>
+          <a class="btn" href="/jawi_edit.php?id=<?=h(rawurlencode($pid))?><?=$recordYear?'&amp;year='.$recordYear:''?>">표로</a>
         </div>
       <?php endforeach; ?>
       <?php if (count($picks) > 8): ?>
@@ -140,7 +151,7 @@ if (!$rec) {
     <div class="newbox">
       <div class="newbox__l"><b>새로 실시한 훈련이라면</b><br>
         새 기록을 만들어 처음부터 작성합니다.</div>
-      <a class="btn btn--pri" href="/jawi_chat.php?new=1">+ 새 기록 시작하기</a>
+      <a class="btn btn--pri" href="/jawi_chat.php?new=1<?=$recordYear?'&amp;year='.$recordYear:''?>">+ 새 기록 시작하기</a>
     </div>
   </main>
   </body>
@@ -170,8 +181,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'save_ste
     if ($k === 'mgrs' || $k === 'attend') { $data[$k] = is_array($v) ? $v : []; }
     else { $data[$k] = is_scalar($v) ? (string)$v : ''; }
   }
-  $ok = jw_save($id, $data);
-  echo json_encode(['ok'=>$ok, 'error'=>$ok?'':'저장하지 못했습니다.'], JSON_UNESCAPED_UNICODE);
+  $patch=array_intersect_key($patch,array_flip($allow));
+  try { $ok=mjh_save(jw_user_key(),$id,$patch,static fn()=>jw_save($id,$data)); }
+  catch(Throwable $e){ error_log('Jawi help save: '.$e->getMessage()); $ok=false; }
+  echo json_encode(['ok'=>$ok, 'error'=>$ok?'':'저장하지 못했습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.'], JSON_UNESCAPED_UNICODE);
   exit;
 }
 
@@ -188,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'reset') 
   foreach ($keepKeys as $k) { if (isset($old[$k])) $fresh[$k] = $old[$k]; }
 
   jw_save($id, $fresh);
-  header('Location: /jawi_chat.php?id=' . urlencode($id) . '&reset=1');
+  header('Location: /jawi_chat.php?id=' . urlencode($id) . '&reset=1'.($recordYear?'&year='.$recordYear:''));
   exit;
 }
 /* ── 화면 ─────────────────────────────────────────────── */
@@ -496,7 +509,14 @@ button{font:inherit;color:inherit;cursor:pointer}
   <div id="chat"></div>
 </main>
 
+<?php if(!is_admin() && (empty($_SESSION['_imp']) || !empty($_SESSION['_mge_actor']))): ?>
+<script src="/manager_help.js?v=20261015-partner-1-inquiry-1" data-jawi="<?=h($id)?>" data-uid="<?=h(jw_user_key())?>" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
+<?php endif; ?>
 <script>
+var CAN_REQUEST_HELP=<?=!is_admin() && empty($_SESSION['_imp']) && empty($_SESSION['_mge_actor'])?'true':'false'?>;
+var JAWI_RECORD=<?=json_encode($id,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
+var HELP_REVIEW=<?=!empty($_SESSION['_mge_help_review'])?'true':'false'?>;
+var HELP_STEP=<?=json_encode((string)($_GET['help_step']??''),JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
 var CSRF = <?=json_encode(jw_csrf())?>;
 var SAVED = <?=json_encode($d, JSON_UNESCAPED_UNICODE)?>;
 var AUTO  = <?=json_encode($autoBase, JSON_UNESCAPED_UNICODE)?>;
@@ -547,16 +567,25 @@ function save(patch, done){
     .then(function(r){ return r.json(); })
     .then(function(j){
       window.recordModalPending--;
-      if(j && j.ok){window.recordModalDirty=false;document.dispatchEvent(new Event('record-saved'));}
+      if(j && j.ok){window.recordModalDirty=false;document.dispatchEvent(new Event('record-saved'));
+        if(window.managerHelp)window.managerHelp.refresh();
+        try{if(window.parent!==window)window.parent.managerHelp?.refresh();}catch(e){}
+        if('BroadcastChannel' in window){var channel=new BroadcastChannel('manager-plan-changes');channel.postMessage('jawi-saved');channel.close();}
+      }
       if(!j || !j.ok) bot(md('⚠️ ' + ((j&&j.error)?j.error:'저장하지 못했습니다.')));
-      if(done) done();
+      if(done) done(!!(j&&j.ok));
     })
-    .catch(function(){ window.recordModalPending=Math.max(0,(window.recordModalPending||0)-1);bot(md('⚠️ 연결이 끊겼습니다. 잠시 후 다시 시도해 주세요.')); if(done) done(); });
+    .catch(function(){ window.recordModalPending=Math.max(0,(window.recordModalPending||0)-1);bot(md('⚠️ 연결이 끊겼습니다. 잠시 후 다시 시도해 주세요.')); if(done) done(false); });
 }
 function put(patch, shown, next){
-  for(var k in patch) SAVED[k]=patch[k];
-  clearBox(); if(shown!==null) me(shown);
-  save(patch, function(){ step++; bump(); go(); });
+  if(window.recordModalPending)return;
+  var answer=document.getElementById('ansBox');
+  if(answer)answer.querySelectorAll('button').forEach(function(b){b.disabled=true;});
+  save(patch, function(ok){
+    if(!ok){if(answer){answer.querySelectorAll('button').forEach(function(b){b.disabled=false;});answer.scrollIntoView({block:'center',behavior:'smooth'});}return;}
+    for(var k in patch)SAVED[k]=patch[k];
+    clearBox();if(shown!==null)me(shown);if(HELP_REVIEW){bump();bot(md('**답변을 저장했습니다.**'));return;}step++;bump();go();
+  });
 }
 
 /* ── 질문 ── */
@@ -643,6 +672,8 @@ function answered(s){
 
 /* ── 시작 ── */
 function start(){
+  var requested=STEPS.findIndex(function(s){return s.id===HELP_STEP;});
+  if(requested>=0){step=requested;bump();if(!HELP_REVIEW)bot(md('**작성 문의한 항목입니다.**\n내용을 확인하고 답변을 저장하면 요청이 완료 처리됩니다.'));ask(STEPS[step]);return;}
   /* 대상물 정보는 기본정보에서 자동으로 채워 넣는다 */
   var need = {};
   ['site_name','address','grade','rep','tel','wd_day','wd_night','hd_day','hd_night'].forEach(function(k){
@@ -749,10 +780,15 @@ function ask(s){
     var ti=document.createElement('input'); ti.type='time'; ti.step='300';
     var cur=/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}))?/.exec(SAVED[s.id]||'');
     if(cur){ di.value=cur[1]; if(cur[2]) ti.value=cur[2]; }
-    else { di.value = new Date().toISOString().slice(0,10); }
+    else {
+      var selectedYear=<?=json_encode($recordYear)?>,today=<?=json_encode(fpsc_today())?>;
+      if(selectedYear){di.min=selectedYear+'-01-01';di.max=String(selectedYear)+'-12-31'<today?selectedYear+'-12-31':today;}
+      di.value=!selectedYear||selectedYear===Number(today.slice(0,4))?today:'';
+      if(selectedYear)b.appendChild(document.createTextNode(selectedYear+'년 실제 실시일을 선택해 주세요.'));
+    }
     row.appendChild(di); row.appendChild(ti); b.appendChild(row);
     mkGo(b, function(){
-      if(!di.value){ di.focus(); return; }
+      if(!di.value||!di.checkValidity()){ di.reportValidity();di.focus();return; }
       var v = di.value + (ti.value ? ' ' + ti.value : '');
       var p={}; p[s.id]=v; put(p, v, null);
     });
@@ -1004,47 +1040,46 @@ function ask(s){
   }
 }
 
-/* ── 잘 모르겠을 때 소방계획서.com에 물어보기 ── */
-function requestReview(s, btn){
-  if (btn.disabled) return;
-  btn.disabled = true;
-  btn.textContent = '요청 중…';
-  var label = (s.q || '').replace(/\?$/, '');
-  var fd = new FormData();
-  fd.append('kind', 'review');
-  fd.append('text', '자위소방대 교육·훈련 기록부: ' + label);
-  fetch('/assist_log.php', { method:'POST', body:fd, credentials:'same-origin' })
-    .then(function(r){ return r.json(); })
-    .then(function(j){
-      if (!j || !j.ok) throw new Error('request');
-      clearBox();
-      me('잘 모르겠어요 · yeohub에 요청');
-      bot(md('**yeohub에 검토를 요청했습니다.**\n' +
-        '관리자가 확인하고 답을 드립니다. 이 항목은 비워둔 채로 다음으로 넘어가겠습니다.'));
-      step++; setTimeout(go, 520);
-    })
-    .catch(function(){
-      btn.disabled = false;
-      btn.textContent = '🙋 잘 모르겠어요 · yeohub에 요청하기';
-      alert('요청을 접수하지 못했습니다. 잠시 후 다시 시도해 주세요.');
-    });
+/* ── 현재 연결 업체에게 질문별 작성 문의 ── */
+function reviewLabel(state){
+  return '🙋 잘 모르겠어요 · '+(state&&state.mode==='local'?'로컬 파트너에게 요청하기':'연결 업체에게 요청하기');
+}
+async function requestReview(s, btn){
+  if(btn.disabled||window.recordModalPending)return;
+  var controls=Array.from(document.querySelectorAll('#ansBox button')).map(function(el){return [el,el.disabled];});
+  controls.forEach(function(pair){pair[0].disabled=true;});
+  btn.disabled=true;btn.textContent='요청 중…';
+  try{
+    if(!window.managerHelp)throw new Error('요청 기능을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+    var state=await window.managerHelp.request('__jw_'+JAWI_RECORD+'_'+s.id,'자위소방대 교육·훈련: '+s.q.replace(/\?$/,''));
+    if(!state){btn.disabled=false;btn.textContent=reviewLabel(window.managerHelp.getState());return;}
+    clearBox();me('연결 업체에게 작성 문의');
+    var name=state.manager_name||'연결 업체';
+    bot(md('**'+name+'에게 작성 문의를 보냈습니다.**\n'+
+      (state.mode==='pending'?'파트너가 연결을 수락하면 이 항목을 확인할 수 있습니다.':'파트너의 작성 요청함에서 이 항목을 확인할 수 있습니다.')+
+      '\n이 항목은 비워두고 다음 질문으로 넘어갑니다.'));
+    step++;bump();setTimeout(go,520);
+  }catch(e){btn.disabled=false;btn.textContent=reviewLabel(window.managerHelp?.getState());bot(md('⚠️ '+(e.message||'요청을 접수하지 못했습니다. 다시 시도해 주세요.')));}
+  finally{controls.forEach(function(pair){if(pair[0].isConnected)pair[0].disabled=pair[1];});}
+}
+function addReview(b,s){
+  if(s.noreview||!CAN_REQUEST_HELP)return;
+  var row=b.querySelector('.subrow');
+  if(!row){row=document.createElement('div');row.className='subrow';b.appendChild(row);}
+  var rq=document.createElement('button');rq.className='btn btn--sm';rq.type='button';
+  rq.style.cssText='border-color:#fdba74;color:#b45309;white-space:normal;text-align:left';
+  rq.textContent=reviewLabel(window.managerHelp?.getState());
+  rq.onclick=function(){requestReview(s,rq);};row.appendChild(rq);
+  var hint=document.createElement('div');hint.style.cssText='width:100%;font-size:12px;color:var(--mut2);overflow-wrap:anywhere';row.appendChild(hint);
+  window.managerHelp?.ready.then(function(state){
+    if(!rq.isConnected||!state)return;
+    rq.textContent=reviewLabel(state);
+    var pending=state.rows.some(function(r){return r.field==='__jw_'+JAWI_RECORD+'_'+s.id&&r.status==='pending'&&r.connection_active;});
+    if(pending){rq.textContent='✓ 연결 업체 확인 대기 중';rq.disabled=true;}
+    hint.textContent=state.manager_name?'받는 사람: '+state.manager_name+(state.mode==='pending'?' · 연결 수락 대기 중':''):'';
+  });
 }
 
-/* 질문마다 붙이는 요청 버튼 */
-function addReview(b, s){
-  if (s.noreview) return;
-  var row = b.querySelector('.subrow');
-  if (!row){ row = document.createElement('div'); row.className='subrow'; b.appendChild(row); }
-  var rq = document.createElement('button');
-  rq.className = 'btn btn--sm';
-  rq.type = 'button';
-  rq.style.cssText = 'border-color:#fdba74;color:#b45309';
-  rq.textContent = '🙋 잘 모르겠어요 · yeohub에 요청하기';
-  rq.onclick = function(){ requestReview(s, rq); };
-  row.appendChild(rq);
-}
-
-/* ── 도구 ── */
 function mkNum(label, val){
   var box=document.createElement('div'); box.className='nbox';
   box.innerHTML='<span class="nbox__l">'+esc(label)+'</span>';
@@ -1063,7 +1098,7 @@ function mkGo(b, fn, label){
   var row=b.querySelector('.subrow');
   if(!row){ row=document.createElement('div'); row.className='subrow'; b.appendChild(row); }
   var go=document.createElement('button'); go.className='btn btn--pri'; go.type='button';
-  go.textContent=label||'다음'; go.onclick=fn;
+  go.textContent=label||(HELP_REVIEW?'답변 저장':'다음'); go.onclick=fn;
   row.appendChild(go); return go;
 }
 function addFree(b, s, label, multi){
@@ -1087,7 +1122,7 @@ function addFree(b, s, label, multi){
   row.appendChild(t);
 }
 function addSkip(b, s, label){
-  if(!s.skip) return;
+  if(HELP_REVIEW||!s.skip) return;
   var row=b.querySelector('.subrow');
   if(!row){ row=document.createElement('div'); row.className='subrow'; b.appendChild(row); }
   var sk=document.createElement('button'); sk.className='btn btn--sm'; sk.type='button';
@@ -1100,7 +1135,8 @@ function addSkip(b, s, label){
 function finish(){
   clearBox();
   typing(function(){
-    bot(md('다 채웠습니다. 아래 내용으로 기록부가 만들어집니다.\n\n' +
+    var intro=STEPS.every(answered)?'다 채웠습니다. 아래 내용으로 기록부가 만들어집니다.':'답변한 내용으로 기록부를 정리했습니다. 비어 있는 항목과 파트너 확인 요청은 다시 확인해 주세요.';
+    bot(md(intro+'\n\n' +
       '표에서 더 다듬으실 수 있고, 바로 인쇄하거나 PDF로 저장하셔도 됩니다.'));
     var d=document.createElement('div'); d.className='done';
     var rows=[

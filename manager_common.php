@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/subscription_account.php';
 /* No session impersonation. The actor always comes from the authenticated session. */
 function mg_uid(): string {
     if (empty($_SESSION['is_user']) || !empty($_SESSION['_imp'])) return '';
@@ -62,12 +63,12 @@ function mg_registration(array $members, string $uid, string $role, string $code
     $code = strtoupper(trim($code));
     if ($role === 'agency') return ['ok'=>true, 'fields'=>['manager_code'=>mg_code($members)]];
     if ($code === '') return ['ok'=>true, 'fields'=>[]];
-    if (!$consent) return ['ok'=>false, 'error'=>'매니저에게 건물정보와 업무 진행 현황을 공유하는 데 동의해 주세요.'];
+    if (!$consent) return ['ok'=>false, 'error'=>'파트너에게 건물정보와 업무 진행 현황을 공유하는 데 동의해 주세요.'];
     foreach ($members as $id=>$m) {
         if (!is_array($m) || !mg_active($m, 'agency') || ($m['manager_code'] ?? '') !== $code || (string)$id === $uid) continue;
         return ['ok'=>true, 'fields'=>['referrer_uid'=>(string)$id, 'referrer_created'=>(string)($m['created'] ?? ''), 'referral_at'=>date('c'), 'manager_consent_at'=>date('c')]];
     }
-    return ['ok'=>false, 'error'=>'사용 가능한 매니저 코드가 아닙니다. 코드를 다시 확인해 주세요.'];
+    return ['ok'=>false, 'error'=>'사용 가능한 파트너 코드가 아닙니다. 코드를 다시 확인해 주세요.'];
 }
 function mg_referrer(array $member, array $members): string {
     $id = (string)($member['referrer_uid'] ?? '');
@@ -85,7 +86,7 @@ function mg_connection_manager(array $m, array $members): string {
 }
 function mg_has_paid(string $uid): bool {
     if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$uid)) throw new RuntimeException('회원 정보를 확인해 주세요.');
-    $d = mg_read(__DIR__.'/data/subscribe/'.$uid.'/subscription.json');
+    $d = sa_read($uid);
     if (!empty($d['manager_first_payment'])) return true;
     $seenTestSuccess = false;
     foreach ((array)($d['history'] ?? []) as $r) {
@@ -96,17 +97,30 @@ function mg_has_paid(string $uid): bool {
     }
     return !$seenTestSuccess && trim((string)($d['paid_at'] ?? '')) !== '';
 }
+/** Dedicated local account; never auto-accept ordinary company codes. */
+function mg_is_local_partner(string $uid,array $members):bool{return $uid==='0918'&&mg_active($members[$uid]??[],'agency')&&strtoupper((string)($members[$uid]['manager_code']??''))==='FM-61A8AD50E2';}
+function mg_local_accept(array $members,array &$state,string $uid):bool {
+ $member=$members[$uid]??[];$local=mg_connection_manager($member,$members);
+ if(!mg_active($member,'building')||!mg_is_local_partner($local,$members)||empty($member['manager_consent_at'])||empty($member['manager_request_id'])||mg_link_status($uid,$member,$state)!=='pending')return false;
+ $state['links'][mg_link_key($uid,$member)]=['status'=>'accepted','at'=>date('c'),'actor'=>$local,'source'=>'local_auto','user'=>$uid];return true;
+}
+function mg_local_reconcile_pending(string $onlyUid=''):int {
+ $members=mg_members();$state=mg_read(mg_state_file());$needed=false;
+ foreach($members as $uid=>$member){if(($onlyUid===''||(string)$uid===$onlyUid)&&is_array($member)&&mg_connection_manager($member,$members)==='0918'&&mg_link_status((string)$uid,$member,$state)==='pending'&&!empty($member['manager_consent_at'])&&!empty($member['manager_request_id'])){$needed=true;break;}}
+ if(!$needed)return 0;
+ return mg_member_tx(static function(array &$current)use($onlyUid){return mg_state_tx(static function(array &$s)use($current,$onlyUid){$count=0;foreach($current as $uid=>$member)if(($onlyUid===''||(string)$uid===$onlyUid)&&is_array($member)&&mg_local_accept($current,$s,(string)$uid))$count++;return $count;});});
+}
 function mg_request_manager(string $actor, string $code, bool $consent): void {
     mg_member_tx(function(array &$members) use ($actor,$code,$consent) {
         $me = $members[$actor] ?? [];
         if (!mg_active($me,'building')) throw new RuntimeException('건물관리자 계정에서 등록해 주세요.');
         $registration = mg_registration($members,$actor,'building',$code,$consent);
         if (!$registration['ok']) throw new RuntimeException($registration['error']);
-        if (empty($registration['fields']['referrer_uid'])) throw new RuntimeException('매니저 코드를 입력해 주세요.');
+        if (empty($registration['fields']['referrer_uid'])) throw new RuntimeException('파트너 코드를 입력해 주세요.');
         mg_state_tx(function(array &$state) use (&$members,$actor,$me,$registration) {
             $current = mg_connection_manager($me,$members);
             if ($current !== '' && in_array(mg_link_status($actor,$me,$state),['pending','accepted'],true)) {
-                throw new RuntimeException('이미 연결 요청 중이거나 연결된 매니저가 있습니다. 먼저 요청을 취소하거나 연결을 해제해 주세요.');
+                throw new RuntimeException('이미 연결 요청 중이거나 연결된 업체가 있습니다. 먼저 요청을 취소하거나 연결을 해제해 주세요.');
             }
             $fields = $registration['fields'];
             if (empty($me['referrer_uid'])) {
@@ -118,9 +132,11 @@ function mg_request_manager(string $actor, string $code, bool $consent): void {
             $members[$actor]['manager_requested_at'] = date('c');
             $members[$actor]['manager_consent_at'] = date('c');
             $members[$actor]['manager_request_id'] = bin2hex(random_bytes(16));
-            // Fresh request key defaults to pending. No separate partial state write is needed.
+            // Ordinary companies stay pending; the consented local route connects immediately.
+            mg_local_accept($members,$state,$actor);
         });
     });
+    try{require_once __DIR__.'/visit_push_common.php';vp_notify_member_change($actor);}catch(Throwable $e){error_log('Connection request notification deferred.');}
 }
 function mg_link_status(string $uid, array $m, array $state): string {
     return (string)($state['links'][mg_link_key($uid, $m)]['status'] ?? 'pending');
@@ -152,6 +168,7 @@ function mg_decide(string $actor, string $target, string $action, string $reques
 
         });
     });
+    try{require_once __DIR__.'/visit_push_common.php';if($action==='accepted')vp_notify_member_change($target);vp_wake();}catch(Throwable $e){error_log('Connection change push deferred.');}
 }
 /* Trusted server payment result only. There is deliberately no HTTP award endpoint. */
 require_once __DIR__.'/manager_rewards.php';

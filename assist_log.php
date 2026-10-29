@@ -8,6 +8,9 @@
    기록을 원치 않으시면 아래 LOG_ON 을 false 로 바꾸세요.
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 const LOG_ON   = true;
 const LOG_KEEP = 3000;                 // 최근 몇 건까지 보관할지
@@ -30,7 +33,7 @@ if (function_exists('mb_substr')) $text = mb_substr($text, 0, 200, 'UTF-8');
 else                              $text = substr($text, 0, 400);
 
 /* 같은 사람이 도배하지 못하게 — 한 세션에서 시간당 60건까지 */
-if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
+if (session_status() !== PHP_SESSION_ACTIVE) { alp_session_start(); }
 $uid = trim((string)($_SESSION['member_id'] ?? ''));
 if ($kind === 'review' && ($uid === '' || empty($_SESSION['is_user']))) {
   http_response_code(401);

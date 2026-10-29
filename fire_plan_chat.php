@@ -1,23 +1,30 @@
 <?php
 // 소방계획서 전체 문답. 원본 업무자료는 읽기만 하고 확인한 답변만 저장합니다.
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 date_default_timezone_set('Asia/Seoul');
 if(session_status()!==PHP_SESSION_ACTIVE){
 ini_set('session.cookie_httponly','1');
 if (PHP_VERSION_ID >= 70300) session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']);
-session_start();
+alp_session_start();
 }
 function h($s): string { return htmlspecialchars((string)$s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8'); }
 function is_admin(): bool { return !empty($_SESSION['is_admin']) || (!empty($_SESSION['ID_OK']) && $_SESSION['ID_OK'] == 1); }
 if (!is_admin() && empty($_SESSION['is_user'])) { header('Location: /index.php'); exit; }
-if (!is_admin() && ($_SESSION['role'] ?? '') !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && ($_SESSION['role'] ?? '') !== 'building') { header('Location: /partner_center.php'); exit; }
 require_once __DIR__.'/fire_plan_db.php';
+require_once __DIR__.'/fire_plan_overview_common.php';
 require_once __DIR__.'/building_info.php';
 require_once __DIR__.'/evacuation_plan_common.php';
 if (fp_user_key() === '') { http_response_code(403); exit('사용자 정보를 확인할 수 없습니다. 다시 로그인해 주세요.'); }
 $context = [];
+$fromBook=($_GET['from_book']??'')==='1';if($fromBook)$context['from_book']='1';
+$workFlow=($_GET['workflow']??'')==='1';
+if($workFlow)$context['workflow']='1';
 if (($_GET['embed'] ?? '') === '1') $context['embed'] = '1';
 if (($_GET['modal'] ?? '') === '1') $context['modal'] = '1';
 if (is_admin() && isset($_GET['uid']) && is_string($_GET['uid'])) $context['uid'] = $_GET['uid'];
@@ -50,7 +57,7 @@ $schema = fp_chat_schema();
 $bi = bi_load();
 $common = epc_load();
 $selection=(array)($plan['source_selection'] ?? []);
-$sources = fp_chat_sources($bi,$common,$planYear,$selection);
+$sources = fpo_sources($bi,$common,$planYear,$selection);
 $sectionTitles = [];
 foreach (fp_sections() as $chapter) foreach ($chapter['items'] as $c=>$t) $sectionTitles[(string)$c] = $t;
 function chat_reply(array $data, int $status = 200): void {
@@ -65,39 +72,28 @@ function chat_sections(array $plan): array {
 }
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
   if (!hash_equals(fp_csrf(),(string)($_POST['csrf'] ?? ''))) chat_reply(['ok'=>false,'error'=>'세션이 만료되었습니다. 새로고침 후 다시 시도해 주세요.'],403);
+  if (($_POST['act'] ?? '') === 'evacuation') {
+    if (!empty($_SESSION['_mge_help_review'])) chat_reply(['ok'=>false,'error'=>'요청 창에서는 해당 질문만 답변할 수 있습니다.'],403);
+    $request=json_decode((string)($_POST['patch']??'{}'),true);
+    if (!is_array($request)||!is_string($request['source']??null)||!is_string($request['revision']??null)) chat_reply(['ok'=>false,'error'=>'반영할 피난계획을 다시 확인해 주세요.'],400);
+    if (!hash_equals(fpo_hash($plan),$request['revision'])||!hash_equals($sources['groups']['evacuation']['fingerprint'],$request['source'])) chat_reply(['ok'=>false,'error'=>'자료가 변경되었습니다. 새로고침 후 피난계획을 다시 확인해 주세요.'],409);
+    try {$plan=fpo_save_import($planId,$sources,$selection,$request['revision'],true);}
+    catch (RuntimeException $e) {chat_reply(['ok'=>false,'error'=>$e->getMessage()],409);}
+    $selection=(array)$plan['source_selection'];
+    chat_reply(['ok'=>true,'sections'=>chat_sections($plan),'sources'=>fpo_sources($bi,$common,$planYear,$selection),'selection'=>$selection,'bundle'=>$plan['source_bundle']??[],'revision'=>fpo_hash($plan),'help_pending'=>mfp_pending(fp_user_key(),$planId)]);
+  }
   if (($_POST['act'] ?? '') === 'sources') {
     require_once __DIR__.'/fire_plan_chat_import.php';
     $selected=json_decode((string)($_POST['patch']??'[]'),true);
     if(!is_array($selected))chat_reply(['ok'=>false,'error'=>'반영할 자료를 선택해 주세요.'],400);
     foreach($selected as $id)if(!is_string($id)||!isset($sources['groups'][$id]))chat_reply(['ok'=>false,'error'=>'자료 선택을 확인해 주세요.'],400);
     $selected=array_values(array_unique($selected));
-    $allSources=fp_chat_sources($bi,$common,$planYear,$selected);
-    if(in_array('monthly',$selected,true)&&function_exists('bf_load')){
-      $inventory=bf_load();
-      foreach(bf_catalog() as $category=>$group){
-        if(!isset($schema['2'][$category]))continue;
-        $allKnown=true;$present=[];
-        foreach($group[1] as $name){$status=$inventory['items'][bf_id($name)]['status']??'unknown';if(!in_array($status,['yes','no'],true))$allKnown=false;if($status==='yes')$present[]=$name;}
-        if($allKnown||$present){$allSources['data']['2'][$category]=$present;if($allKnown&&!$present)$allSources['known_empty']['2'][$category]=true;}
-      }
-      if(!empty($inventory['revision']))$allSources['data']['2']['memo']=bf_summary($inventory);
-    }
-    $plan=fp_chat_import($plan,$allSources,$schema);$plan['source_selection']=$selected;
-    $s1=(array)($plan['sections']['1']['data']??[]);$s3=(array)($plan['sections']['3']['data']??[]);
-    foreach($schema as $c=>$fields){
-      $answered=(array)($plan['sections'][$c]['data']['_chat_answers']??[]);$complete=true;
-      foreach($fields as $key=>$field)if(fp_chat_visible((string)$c,$key,$s1,$s3)&&!in_array($key,$answered,true)){$complete=false;break;}
-      $plan['sections'][$c]['data']['_chat_complete']=$complete;$plan['sections'][$c]['is_done']=$complete?1:0;
-    }
-    $skips=fp_skip_rules($s1);$allComplete=true;
-    foreach($schema as $c=>$fields)if(!isset($skips[$c])&&empty($plan['sections'][$c]['data']['_chat_complete']))$allComplete=false;
-    $plan['status']=$allComplete?'done':'draft';
-    if(!fp_write_json(fp_plan_file($planId),$plan))chat_reply(['ok'=>false,'error'=>'자료를 반영하지 못했습니다. 다시 시도해 주세요.'],500);
-    fp_touch_index($planId,$plan);
-    fp_apply_skips($planId,fp_skip_rules((array)($plan['sections']['1']['data']??[])));
-    chat_reply(['ok'=>true,'sections'=>chat_sections($plan),'sources'=>$allSources,'selection'=>$plan['source_selection'],'help_pending'=>mfp_pending(fp_user_key(),$planId)]);
+    $allSources=fpo_sources($bi,$common,$planYear,$selected);
+    try{$plan=fpo_save_import($planId,$allSources,$selected,fpo_hash($plan));}
+    catch(RuntimeException $e){chat_reply(['ok'=>false,'error'=>$e->getMessage()],409);}
+    chat_reply(['ok'=>true,'sections'=>chat_sections($plan),'sources'=>$allSources,'selection'=>$plan['source_selection'],'bundle'=>$plan['source_bundle']??[],'revision'=>fpo_hash($plan),'help_pending'=>mfp_pending(fp_user_key(),$planId)]);
   }
-  if (empty($plan['source_selection_set'])) chat_reply(['ok'=>false,'error'=>'먼저 반영할 자료를 선택하거나 직접 작성을 선택해 주세요.'],400);
+  if (empty($plan['source_selection_set']) && empty($_SESSION['_mge_help_review'])) chat_reply(['ok'=>false,'error'=>'먼저 반영할 자료를 선택하거나 직접 작성을 선택해 주세요.'],400);
   $code = (string)($_POST['code'] ?? '');
   if (!isset($schema[$code])) chat_reply(['ok'=>false,'error'=>'잘못된 항목입니다.'],400);
   $cur = fp_get_section($planId,$code);
@@ -109,6 +105,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $answered = (array)($cur['_chat_answers'] ?? []);
     foreach ($patch as $key=>$v) {
       if (!isset($schema[$code][$key])) chat_reply(['ok'=>false,'error'=>'저장할 수 없는 필드입니다.'],400);
+      if($code==='11' && !empty($cur['_training_schedule']['events']) && preg_match('/^t[12]_(when|who|how)$/D',(string)$key))chat_reply(['ok'=>false,'error'=>'저장한 예정 일정은 교육·훈련 일정 화면에서 수정해 주세요.'],409);
       $field = $schema[$code][$key];
       if ($field['type'] === 'multi') {
         if (!is_array($v)) chat_reply(['ok'=>false,'error'=>'선택값을 확인해 주세요.'],400);
@@ -129,6 +126,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
       }
       if ($code === '1' && in_array($key,['name','addr','mgr_name','grade'],true) && $v === '') chat_reply(['ok'=>false,'error'=>'기본 필수정보는 비워둘 수 없습니다. 나중에 답하기를 선택할 수 있습니다.'],400);
       $cur[$key] = $v; $answered[] = $key;unset($cur['_source_values'][$key]);
+    }
+    if($code==='3' && isset($patch['comprehensive']) && ($s3['comprehensive']??'')!==$cur['comprehensive']){
+      // A change of inspection kind requires confirming the affected dates again.
+      foreach(['r1_when','r2_when'] as $dateKey)if(!array_key_exists($dateKey,$patch))$answered=array_values(array_diff($answered,[$dateKey]));
     }
     $cur['_chat_answers'] = array_values(array_unique($answered));
     // Each successful answer updates completion using the current visibility rules.
@@ -164,10 +165,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
   $complete = true; $skips = fp_skip_rules($all['1']);
   foreach ($schema as $c=>$fields) if (!isset($skips[$c]) && empty($all[$c]['_chat_complete'])) $complete = false;
   fp_set_status($planId,$complete?'done':'draft');
-  chat_reply(['ok'=>true,'sections'=>$all,'complete'=>$complete,'help_pending'=>mfp_pending(fp_user_key(),$planId)]);
+  chat_reply(['ok'=>true,'sections'=>$all,'complete'=>$complete,'revision'=>fpo_hash(fp_load_plan($planId)),'help_pending'=>mfp_pending(fp_user_key(),$planId)]);
 }
-$boot = ['help_pending'=>mfp_pending(fp_user_key(),$planId),'csrf'=>fp_csrf(),'year'=>$planYear,'selection'=>$selection,'selectionSet'=>!empty($plan['source_selection_set']),'schema'=>$schema,'titles'=>$sectionTitles,'sections'=>chat_sections($plan),'sources'=>$sources,
-  'listUrl'=>$url('/fire_plan.php'),'editUrl'=>$url('/fire_plan_edit.php',['id'=>$planId]),
+$boot = ['bundle'=>$plan['source_bundle']??[],'revision'=>fpo_hash($plan),'help_pending'=>mfp_pending(fp_user_key(),$planId),'csrf'=>fp_csrf(),'year'=>$planYear,'selection'=>$selection,'selectionSet'=>!empty($plan['source_selection_set']),'schema'=>$schema,'titles'=>$sectionTitles,'sections'=>chat_sections($plan),'sources'=>$sources,
+  'overviewUrl'=>$fromBook?$url('/fire_plan_book.php',['year'=>$planYear]):$url('/fire_plan.php',['id'=>$planId,'year'=>$planYear]+($workFlow?['workspace'=>'review']:[])),'listUrl'=>$url('/fire_plan.php'),'editUrl'=>$url('/fire_plan_edit.php',['id'=>$planId]),
   'printUrl'=>$url('/fire_plan_print.php',['id'=>$planId])];
 ?>
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -199,6 +200,12 @@ a{color:inherit;text-decoration:none}button,input,textarea,select{font:inherit;c
 
 /* Question number and the primary action stay together with the answer. */
 #stage{scroll-margin-top:105px}#stage .question-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px;padding:0;border:0;line-height:1.5}#stage .question-id{display:inline-flex;align-items:center;padding:5px 10px;border-radius:8px;background:#e8f2f8;color:#22637c;font-size:12px;font-weight:800;letter-spacing:.02em}#stage .question-section{font-size:12px;color:#63798b;font-weight:600}#stage .question-position{margin-left:auto;font-size:12px;font-weight:700;color:#718699;white-space:nowrap}#stage .question{font-size:21px;line-height:1.55;letter-spacing:-.5px}#stage .actions{align-items:center;gap:10px;margin-top:18px;padding:14px 0 0;border-top:1px solid #e3ebf1}#stage .actions .question-next{margin-left:auto;min-height:46px;padding:12px 22px;border-radius:11px;background:#176c89;border-color:#176c89;color:white;font-size:14px;font-weight:750;box-shadow:0 3px 8px #176c8915}#stage .actions .question-next:hover{background:#105a74}#stage .save-hint{text-align:right;font-size:11px;margin-top:0}#stage .answer-extra{margin-top:22px;border-top:1px dashed #dbe5ed;padding-top:12px}#stage .extra-buttons .btn{min-height:34px;padding:7px 11px;background:transparent;font-size:12px;color:#788b9b;border-color:#dfe7ed}#stage .error:empty{display:none}#stage .direct-answer-input{margin-bottom:10px}#stage .quick-answer{margin:10px 0 0}#stage .card{animation:questionReveal .18s ease-out}@keyframes questionReveal{from{opacity:.5;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}@media(max-width:540px){#stage .msg__av{display:none}#stage .answer{margin-left:0}#stage .msg__b{width:100%;min-width:0}#stage .question{font-size:19px}#stage .actions .question-next{flex:1;min-width:0;padding:12px 14px}#stage .question-section{max-width:58%;overflow-wrap:anywhere}#stage .question-meta{gap:6px}#stage .plan-help-card{margin-top:12px}}@media(prefers-reduced-motion:reduce){#stage .card{animation:none}}
+
+#stage.inspection-mode{scroll-margin-top:62px;padding-bottom:48px}#stage.inspection-mode .msg__b{max-width:100%}#stage.inspection-mode .question{font-size:18px}#stage.inspection-mode .hint{font-size:11px}#stage.inspection-mode .actions{margin-top:12px;padding-top:10px}.reuse-source-button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:10px 13px;margin:0 0 18px;border:1px solid #cedced;border-radius:10px;background:#fff;color:#325987;font-size:12px;font-weight:700}.reuse-source-button span{font-size:10px;color:#7a8aa0;font-weight:400}.reuse-source-button[hidden]{display:none}.reuse-lead{margin:0 0 13px;color:#607086;font-size:13px}.inspection-kind{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}.inspection-kind button{padding:14px 8px;border:1px solid #d4dfec;background:#fff;border-radius:12px;font-size:13px;font-weight:700}.inspection-kind button[aria-pressed=true]{border-color:#79a1e6;background:#eaf2ff;color:#2559b0;box-shadow:0 0 0 2px #2563eb0a}.inspection-values{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px}.inspection-values>div{background:white;border:1px solid #dde5ef;border-radius:12px;padding:13px 10px}.inspection-values small,.inspection-values b,.inspection-values span{display:block}.inspection-values small{font-size:11px;color:#6e7d93}.inspection-values b{font-size:17px;line-height:1.5;color:#254c83;margin:5px 0;overflow-wrap:anywhere}.inspection-values span{font-size:10px;color:#8693a6}.reuse-empty{font-size:13px;color:#78879b;padding:12px 0}.reuse-details{margin:12px 0;border:1px solid #e0e7ef;border-radius:10px;background:#fff;padding:10px 12px;font-size:12px}.reuse-details summary{cursor:pointer;color:#536b8b}.reuse-details p{white-space:pre-wrap;margin:8px 0;color:#68788b}.quick-answer__choices .option{border-radius:11px;text-align:left;white-space:normal}.quick-answer__choices .option:hover{transform:translateY(-1px)}
+@media(max-width:520px){.inspection-values{gap:6px}.inspection-values>div{padding:10px 8px}.inspection-values b{font-size:15px}.inspection-values span{font-size:9px}#inputArea:not(.options) input,#inputArea textarea{font-size:16px}.inspection-kind button{font-size:12px}.quick-answer .option{min-height:44px}.reuse-source-button{margin-bottom:14px}}
+@media(max-width:540px) and (max-height:540px){#stage.inspection-mode .msg{margin-bottom:8px}#stage.inspection-mode .msg__b{padding:10px 12px}#stage.inspection-mode .reuse-lead{margin-bottom:8px;font-size:12px}#stage.inspection-mode .inspection-kind{margin-bottom:8px}#stage.inspection-mode .inspection-kind button{padding:10px 6px}#stage.inspection-mode .inspection-values>div{padding:8px}#stage.inspection-mode .reuse-details{margin:8px 0;padding:8px 10px}#stage.inspection-mode .hint{margin-top:6px;padding-top:6px}#stage.inspection-mode .actions{margin-top:8px;padding-top:8px}}
+@media(max-width:360px){#stage.inspection-mode .actions{gap:6px}#stage.inspection-mode .actions .btn{flex:1;min-width:0;padding:10px 6px;font-size:11px;white-space:nowrap}}
+.evacuation-summary{display:flex;align-items:center;gap:12px;padding:17px;border:1px solid #cbdcff;border-radius:14px;background:#eff5ff;color:#2559b0}.evacuation-summary__icon{display:grid;place-items:center;flex-shrink:0;width:34px;height:34px;background:#dbeafe;border-radius:10px;font-weight:800}.evacuation-summary>div{min-width:0;flex:1}.evacuation-summary b{display:block;font-size:14px}.evacuation-summary small{display:block;font-size:11px;color:#667c9d;margin-top:3px;word-break:keep-all}.evacuation-summary__badge{flex-shrink:0;font-size:10px;border-radius:6px;background:white;padding:3px 7px}.evacuation-mode .actions>.primary{min-height:44px}.evacuation-mode .review{max-height:260px;margin-bottom:0;border:0;padding:0}.evacuation-mode .hint{word-break:keep-all}@media(max-width:360px){.evacuation-summary{padding:12px;gap:8px}.evacuation-summary__icon{width:28px;height:28px}.evacuation-summary b{font-size:13px}}
 </style>
 <?php if (isset($context['modal'])): ?>
 <style>.nav{display:none}.prog{top:0}.wrap{max-width:none;padding:16px 22px 34px}.card{scroll-margin-top:98px}@media(max-width:540px){.wrap{padding:14px}}.prefill-note{padding:9px 12px;margin:10px 0;border:1px solid #cfe5df;border-radius:9px;background:#eff8f4;color:#33755d;font-size:12px;line-height:1.6}
@@ -207,15 +214,16 @@ a{color:inherit;text-decoration:none}button,input,textarea,select{font:inherit;c
 </head><body>
 <nav class="nav"><div class="nav__in">
   <a class="brand" href="/index.php" target="_top">소방계획서.com</a>
-  <div class="nav__actions"><a class="btn" href="<?=h($url('/fire_plan_edit.php',['id'=>$planId]))?>">표로 작성</a><a class="btn" href="<?=h($url('/fire_plan.php'))?>">← 목록</a></div>
+  <div class="nav__actions"><a class="btn" href="<?=h($url('/fire_plan_edit.php',['id'=>$planId]))?>">표로 작성</a><a class="btn" href="<?=h($fromBook?$url('/fire_plan_book.php',['year'=>$planYear]):$url('/fire_plan.php'))?>"><?=$fromBook?'← 소방계획서':'← 목록'?></a></div>
 </div></nav>
-<div class="prog"><div class="prog__in"><div class="prog__row"><span><?=$planYear?>년 소방계획서</span><span><b id="progressPct">0%</b> · <span id="progressText"></span></span></div><div class="bar"><i id="progressBar"></i></div></div></div>
+<div class="prog"><div class="prog__in"><div class="prog__row"><?php if($fromBook):?><a href="<?=h($url('/fire_plan_book.php',['year'=>$planYear]))?>" style="color:inherit;text-decoration:none;font-weight:700">← <?=$planYear?>년 소방계획서</a><?php else:?><span><?=$planYear?>년 소방계획서</span><?php endif;?><span><b id="progressPct">0%</b> · <span id="progressText"></span></span></div><div class="bar"><i id="progressBar"></i></div></div></div>
 <main class="wrap">
 <details class="chat-settings"><summary><span class="chat-settings__summary"><b>작성 설정</b><small id="sourceSummary">반영할 자료를 선택하면 자동으로 채워집니다.</small></span></summary><div class="chat-settings__body">
   <div class="toolbar"><label for="sectionNav">작성 항목</label><select id="sectionNav" aria-label="작성 항목 선택"></select></div>
   <div class="source-bar"><span aria-hidden="true"></span><button type="button" class="btn btn--sm" id="changeSources">반영 자료 선택</button></div>
 </div></details>
-<script src="/manager_help.js?v=13" data-fireplan="<?=h($planId)?>" data-uid="<?=h(fp_user_key())?>" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
+<script src="/manager_help.js?v=20261015-partner-1-inquiry-1" data-fireplan="<?=h($planId)?>" data-uid="<?=h(fp_user_key())?>" data-manager="<?=!empty($_SESSION['_mge_actor'])?'1':'0'?>"></script>
+<button type="button" class="reuse-source-button" id="reuseSources">↻ 기존 자료 불러오기 <span>입력한 내용은 유지</span></button>
 <div id="chatLog" aria-label="작성 대화 기록"></div>
 <div id="stage"></div><div id="saveStatus" class="status" role="status"></div>
 </main><script>
@@ -232,9 +240,63 @@ const esc = v => text(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt
 const grade3 = () => String(data['1'].grade || '').replace(/\s/g,'') === '3급';
 const comp = () => data['3'].comprehensive === '포함' || (data['3'].comprehensive !== '제외' && !grade3());
 function skipped(c){return ({'7':'split','8':'joint','12':'hazmat'})[c] && data['1'][({'7':'split','8':'joint','12':'hazmat'})[c]] === '해당없음';}
-function visible(f){return !(code === '1' && ['ins_co','ins_term','ins_life','ins_prop'].includes(f.key) && data['1'].ins !== '가입') && !(code === '3' && f.key.startsWith('r2_') && !comp());}
+function visible(f){if(code==='11'&&data['11']._training_schedule?.events?.length&&/^t[12]_(when|who|how)$/.test(f.key))return false;return !(code === '1' && ['ins_co','ins_term','ins_life','ins_prop'].includes(f.key) && data['1'].ins !== '가입') && !(code === '3' && f.key.startsWith('r2_') && !comp());}
 function fields(){return helpMode&&activeHelp?Object.values(APP.schema[code]).filter(f=>f.key===activeHelp.key):Object.values(APP.schema[code]).filter(visible);}
 function answered(k){return (data[code]._chat_answers || []).includes(k);}
+function evacuationSummary(){
+  if(helpMode||HELP_REVIEW_ID||code!=='5')return false;
+  const source=APP.sources.groups.evacuation,stored=APP.bundle?.groups?.evacuation;
+  const fresh=source?.available&&source.appendix?.floors?.length>0;
+  if(!fresh&&!stored?.appendix?.floors?.length)return false;
+  const changed=fresh&&(!stored||stored.fingerprint!==source.fingerprint);
+  const floors=(changed?source:stored)?.appendix?.floors||[];
+  const content=changed?source.data['5']:data['5'];
+  const missing=fields().filter(f=>!answered(f.key));
+  const manual=fields().filter(f=>answered(f.key)||!empty(data['5'][f.key])).some(f=>!(f.key in (data['5']._source_values||{}))||data['5'][f.key]!==data['5']._source_values[f.key]);
+  const title=changed?'작성한 피난계획을 그대로 반영할까요?':'피난계획이 소방계획서에 반영되어 있어요';
+  const lead=changed?'사용 계획으로 저장한 층별 경로와 집결지를 가져옵니다.':'같은 내용을 다시 작성하지 않아도 됩니다.';
+  const rows=[['층별 대피경로',content.route],['집결지',content.assembly],['피난 지원 대상',content.weak_loc],['피난보조 방법',content.weak_plan]];
+  card(title,'<p class="reuse-lead">'+lead+'</p><div class="evacuation-summary"><span class="evacuation-summary__icon" aria-hidden="true">✓</span><div><b>'+floors.length+'개 층 · 피난계획</b><small>주·대체 경로 · 피난유도 · 잔류자 확인</small></div><span class="evacuation-summary__badge">'+(changed?'반영 대기':'반영됨')+'</span></div><details class="reuse-details"><summary>'+ (changed?'가져올 피난계획 보기':'반영된 내용 보기')+'</summary><dl class="review">'+rows.filter(r=>!empty(r[1])).map(r=>'<div><dt>'+esc(r[0])+'</dt><dd>'+esc(r[1])+'</dd></div>').join('')+'</dl></details><p class="hint">'+(changed?APP.year+'년 현황과 맞는지 확인한 뒤 반영해 주세요. 직접 수정한 내용은 유지됩니다.':manual?'소방계획서에서 직접 수정한 답변도 유지하고 있습니다.': '저장된 피난계획을 기준으로 반영했습니다.')+'</p>');
+  stage.classList.add('inspection-mode','evacuation-mode');
+  if(changed){
+    button('피난계획 반영하기',async()=>{if(await send('evacuation',{source:source.fingerprint,revision:APP.revision})){recordTurn('작성한 피난계획 반영');sourceSummary();evacuationSummary();}},true);
+    button('현재 내용으로 계속',()=>{fieldIndex=0;askNext(false);});
+  }else{
+    button(missing.length?'빠진 정보 '+missing.length+'개만 확인 →':'다음 항목 →',()=>{fieldIndex=0;if(missing.length)askNext(false);else nextSection();},true);
+    button('직접 수정',()=>{fieldIndex=0;askNext(true);});
+  }
+  return true;
+}
+function inspectionProposal(kind){
+  const approval=String(data['1'].approval||''),date=/^(\d{4})-(\d{2})-(\d{2})$/.exec(approval);
+  if(!date||!['1급','2급','3급'].includes(String(data['1'].grade||'').replace(/\s/g,'')))return {};
+  const month=Number(date[2]);if(month<1||month>12)return {};
+  const out={comprehensive:kind,r1_when:'매년 '+(kind==='포함'?(month+5)%12+1:month)+'월',r3_when:'매월 1일',memo:'불량 발견 즉시 관계인에게 보고하고 필요한 안전조치를 실시한다. 점검업체와 보수 일정·방법을 협의하여 조치하고 결과를 확인·기록한다.'};
+  if(kind==='포함')out.r2_when='매년 '+month+'월';
+  const company=APP.sources.data['3']?.r1_who;if(company){out.r1_who=company;if(kind==='포함')out.r2_who=company;}
+  if(data['1'].mgr_name)out.r3_who=data['1'].mgr_name;
+  return out;
+}
+function inspectionSetup(){
+  if(helpMode||code!=='3'||data['3']._chat_complete||!Object.keys(inspectionProposal('제외')).length)return false;
+  const isOpen=k=>!answered(k)&&empty(data['3'][k]);
+  if(!['comprehensive','r1_when','r2_when','r1_who','r2_who','r3_when','r3_who','memo'].some(isOpen))return false;
+  let kind=data['3'].comprehensive||APP.sources.data['3']?.comprehensive||'';
+  card('점검 일정을 채울까요?', '<p class="reuse-lead">기본정보의 사용승인일 <b>'+esc(data['1'].approval)+'</b></p><div class="inspection-kind" role="group" aria-label="계획할 점검 종류"><button type="button" data-kind="제외">작동점검만</button><button type="button" data-kind="포함">종합 + 작동점검</button></div><div id="inspection-preview" aria-live="polite"></div><p class="hint">사용승인월 기준 제안입니다. 점검업체와 실제 대상·기준월·이전 점검일을 확인 후 적용하세요.</p>');
+  stage.classList.add('inspection-mode');
+  let patch={};
+  const apply=button('일정 확인 후 반영 →',async()=>{if(!kind||!Object.keys(patch).length)return;if(await send('answer',patch)){recordTurn('사용승인월 기준 점검 일정 반영');fieldIndex=0;askNext(false);}},true);
+  button('직접 선택하며 작성',()=>{fieldIndex=0;askNext(false);});
+  function preview(){
+    stage.querySelectorAll('[data-kind]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.kind===kind)));
+    patch={};
+    if(kind){const proposed=inspectionProposal(kind);Object.entries(proposed).forEach(([k,v])=>{if(isOpen(k))patch[k]=v;});}
+    const html=kind?'<div class="inspection-values">'+[['r1_when','작동점검'],...(kind==='포함'?[['r2_when','종합점검']]:[]),['r3_when','외관점검']].map(([k,label])=>'<div><small>'+label+'</small><b>'+esc(patch[k]||data['3'][k]||'직접 확인')+'</b><span>'+(!isOpen(k)?'기존 답변 유지':k==='r3_when'?'자체 관리 일정':'사용승인월 기준 제안')+'</span></div>').join('')+'</div><details class="reuse-details"><summary>대응대책·담당자 확인</summary><p>'+esc(data['3'].memo||patch.memo)+'</p><p>자체점검 담당: '+esc(data['3'].r1_who||patch.r1_who||'업체명 확인 필요')+'</p><p>외관점검 담당: '+esc(data['3'].r3_who||patch.r3_who||'별도 선택')+'</p></details>':'<p class="reuse-empty">해당하는 점검 종류를 먼저 선택해 주세요.</p>';
+    document.getElementById('inspection-preview').innerHTML=html;apply.disabled=!kind||!Object.keys(patch).length;requestAnimationFrame(()=>requestAnimationFrame(()=>stage.scrollIntoView({block:'start',behavior:'instant'})));
+  }
+  stage.querySelectorAll('[data-kind]').forEach(b=>{if(!isOpen('comprehensive'))b.disabled=b.dataset.kind!==kind;b.onclick=()=>{kind=b.dataset.kind;preview();};});
+  preview();return true;
+}
 function suggestion(k){
   const source = (APP.sources.data[code] || {})[k];
   if (!empty(source)) return source;
@@ -243,7 +305,7 @@ function suggestion(k){
     if(k === 'comprehensive' && grade3()) return '제외';
     if(k === 'r3_when') return '매월 1일';
     if(k === 'r3_who') return data['1'].mgr_name || '';
-    if(k === 'r1_when' && grade3() && !comp() && /^\d{4}-\d{2}-\d{2}$/.test(data['1'].approval || '')) return '매년 '+Number(data['1'].approval.slice(5,7))+'월 (연 1회, 해당 월 말일까지)';
+    if(['r1_when','r2_when'].includes(k) && data['3'].comprehensive) return inspectionProposal(data['3'].comprehensive)[k] || '';
     if(k === 'memo') return '불량 발견 즉시 관계인에게 보고하고 위험구역 안전조치를 실시한다. 점검업체와 보수 일정·방법을 협의하여 수리하고, 조치 결과를 확인·기록한다.';
   }
   if(code === '4' && k === 'memo') return '이상 발견 → 관계인 보고 → 필요한 안전조치 → 보수 담당 및 일정 협의 → 정비 완료 확인 → 업무기록에 결과를 남긴다.';
@@ -266,7 +328,7 @@ function updateProgress(){
   document.getElementById('progressBar').style.width = pct+'%';
   nav.innerHTML = codes.map(c=>'<option value="'+c+'">'+c+'. '+esc(APP.titles[c])+(skipped(c)?' · 해당없음':data[c]._chat_complete?' · 확인 완료':'')+'</option>').join(''); nav.value = code;
 }
-function card(title, body='') {saveCurrentAnswer=null;stage.innerHTML='<section class="card"><div class="msg"><div class="msg__av" aria-hidden="true">🚒</div><div class="msg__b"><h2 class="question" tabindex="-1">'+esc(title)+'</h2></div></div><div class="answer">'+body+'<div class="actions" id="actions"></div><div class="error" id="error" role="alert"></div></div></section>';const meta=stage.querySelector('.question-meta');if(meta)stage.querySelector('.msg__b').prepend(meta);requestAnimationFrame(()=>stage.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}));}
+function card(title, body='') {stage.classList.remove('inspection-mode','evacuation-mode');saveCurrentAnswer=null;stage.innerHTML='<section class="card"><div class="msg"><div class="msg__av" aria-hidden="true">🚒</div><div class="msg__b"><h2 class="question" tabindex="-1">'+esc(title)+'</h2></div></div><div class="answer">'+body+'<div class="actions" id="actions"></div><div class="error" id="error" role="alert"></div></div></section>';const meta=stage.querySelector('.question-meta');if(meta)stage.querySelector('.msg__b').prepend(meta);requestAnimationFrame(()=>stage.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}));}
 function recordTurn(answer){
   const log=document.getElementById('chatLog'),turn=document.createElement('div');turn.className='chat-turn';
   const question=document.createElement('div');question.className='msg';question.innerHTML='<div class="msg__av" aria-hidden="true">🚒</div><div class="msg__b chat-bot"></div>';question.querySelector('.chat-bot').textContent=stage.querySelector('.question')?.textContent || '내용 확인';
@@ -274,7 +336,7 @@ function recordTurn(answer){
 }
 function sourceSummary(){document.getElementById('sourceSummary').textContent=APP.sources.names.length?'반영 자료 · '+APP.sources.names.join(' · '):'자동 반영할 자료 없음 · 추가 내용을 작성해 주세요';}
 function chooseSources(){
-  updateProgress();nav.disabled=true;
+  document.getElementById('reuseSources').hidden=true;updateProgress();nav.disabled=true;
   const html='<p class="hint">필요한 자료만 골라주세요. 선택한 자료는 바로 저장되며, 해당 질문은 건너뜁니다.</p><div class="source-grid">'+Object.entries(APP.sources.groups).map(([id,g])=>'<label class="source-option"><input type="checkbox" value="'+id+'" '+((APP.selectionSet?APP.selection.includes(id):g.available)?'checked ':'')+(!g.available?'disabled ':'')+'><span><b>'+esc(g.title)+'</b><small>'+esc(g.detail)+(g.available?'':' · 불러올 자료 없음')+'</small></span></label>').join('')+'</div><p class="hint">기본정보·편성·피난계획은 현재 자료입니다. '+APP.year+'년 당시 현황과 맞는지 확인해 주세요. 직접 수정한 답변은 유지됩니다.</p>';
   card(APP.year+'년 계획서에 어떤 자료를 반영할까요?',html);
   stage.querySelectorAll('.source-option input').forEach(el=>el.addEventListener('change',()=>dirty=true));
@@ -290,15 +352,16 @@ function chooseSources(){
 let helpJumpUsed=false,helpMode=false,activeHelp=null,helpRows=APP.help_pending||[],helpCompleted=0;
 const deferredHelp=new Set();
 function parseHelp(row){const m=/^__fp_([0-9]+)_([0-9]+)_([A-Za-z0-9_]+)$/.exec(row.field||'');return m&&m[1]===String(HELP_PLAN_ID)?{...row,code:m[2],key:m[3]}:null;}
-function pendingHelp(){return helpRows.map(parseHelp).filter(r=>r&&APP.schema[r.code]?.[r.key]);}
+const HELP_REVIEW_ID=<?=json_encode((string)($_SESSION['_mge_help_review']['id']??''))?>;
+function pendingHelp(){return helpRows.filter(r=>!HELP_REVIEW_ID||r.id===HELP_REVIEW_ID).map(parseHelp).filter(r=>r&&APP.schema[r.code]?.[r.key]);}
 function nextHelp(){
  const pending=pendingHelp(),next=pending.find(r=>!deferredHelp.has(r.field));
  if(next){activeHelp=next;code=next.code;fieldIndex=0;reviewAll=true;dirty=false;updateProgress();askNext(true);return;}
  activeHelp=null;dirty=false;
- if(helpRows.length&&!pending.length){card('요청 항목을 확인해 주세요.','<p class="hint">현재 문답에서 열 수 없는 요청이 남아 있습니다. 상단 요청 목록을 확인해 주세요.</p>');}
+ if(!HELP_REVIEW_ID&&helpRows.length&&!pending.length){card('요청 항목을 확인해 주세요.','<p class="hint">현재 문답에서 열 수 없는 요청이 남아 있습니다. 상단 요청 목록을 확인해 주세요.</p>');}
  else if(pending.length){card('아직 요청사항이 남아 있습니다.','<p class="hint">나중에 작성으로 남긴 질문 '+pending.length+'건이 있습니다. 저장한 답변만 완료 처리됩니다.</p>');button('남은 요청 이어서 작성',()=>{deferredHelp.clear();nextHelp();},true);}
  else{card('요청사항 작성 완료','<div class="help-finished"><b>이 계획서의 요청사항을 모두 작성했습니다.</b><p>답변이 저장되었고, 유저 화면에서도 요청 완료로 표시됩니다.</p></div>');}
- button('전체 소방계획서 보기',()=>{helpMode=false;helpJumpUsed=true;resumeChat();});
+ if(!HELP_REVIEW_ID)button('전체 소방계획서 보기',()=>{helpMode=false;helpJumpUsed=true;resumeChat();});
 }
 function nextUserQuestion(fromCode=code,fromKey=null){
  dirty=false;helpMode=false;activeHelp=null;code=fromCode;
@@ -313,6 +376,10 @@ function nextUserQuestion(fromCode=code,fromKey=null){
 }
 
 function resumeChat(){
+ if(HELP_REVIEW_ID&&!pendingHelp().length){nextHelp();return;}
+ document.getElementById('reuseSources').hidden=false;
+ const overviewSection=new URLSearchParams(location.search).get('section');
+ if(!HELP_REVIEW_ID&&!helpJumpUsed&&APP.schema[overviewSection]){helpJumpUsed=true;helpMode=false;enter(overviewSection);return;}
  if(IS_HELP_MANAGER&&!helpJumpUsed&&pendingHelp().length){
   const q=new URLSearchParams(location.search),wanted='__fp_'+HELP_PLAN_ID+'_'+q.get('help_code')+'_'+q.get('help_key');
   helpRows.sort((a,b)=>Number(b.field===wanted)-Number(a.field===wanted));
@@ -361,6 +428,9 @@ function quickPresets(f){
     s4:[['피난로 확보·대피 유도','피난유도반이 피난경로를 확보하고 가까운 비상구를 통해 집결지로 대피 유도']],
     s5:[['집결지 인원 확인','집결지에서 부서·층별 인원을 확인하고 미대피자를 파악하여 소방대에 보고']]
   };
+  const sourcePick=APP.sources.suggestions?.[code]?.[f.key];if(sourcePick)add(sourcePick.label,sourcePick.value);
+  const savedSource=(APP.sources.data[code]||{})[f.key];if(!empty(savedSource)&&typeof savedSource==='string')add('저장된 자료 사용',savedSource);
+  const suggested=suggestion(f.key);if(!empty(suggested))add(code==='3'&&/when$/.test(f.key)?'사용승인월 기준 · '+suggested:'제안 내용 사용',suggested);
   (fixed[f.key]||[]).forEach(x=>add(x[0],x[1]));
   const label=String(f.label||''),key=String(f.key||'');
   if(f.type==='date'){
@@ -372,13 +442,13 @@ function quickPresets(f){
       '3':'불량 발견 즉시 관계인에게 보고하고 안전조치를 실시한 뒤 보수 일정과 방법을 협의하여 조치 결과를 기록한다.',
       '4':'이상 발견 시 관계인에게 보고하고 필요한 안전조치와 보수를 실시한 뒤 완료 결과를 업무기록에 남긴다.',
       '5':'각 층 재실자는 가까운 피난계단을 이용해 외부 집결지로 이동하고, 층별 담당자는 잔류자를 확인한 뒤 인원 현황을 보고한다.',
-      '6':'화재신고, 상황전파, 초기소화, 피난유도, 응급처치 순으로 자체 훈련을 실시한다.',
+      '6':'방화문·방화셔터 주변의 장애물을 제거하고 마감재와 방염물품의 손상 여부를 확인하여 이상 시 보수한다.',
       '7':'관리 구역과 담당 역할을 사전에 구분하고 비상 시 연락체계와 공동 대응 절차에 따라 조치한다.',
       '8':'관계 대상과 연락망을 공유하고 화재 발생 시 상황전파, 초기대응, 피난유도를 공동으로 실시한다.',
       '10':'작업 전 가연물을 제거하고 소화기를 비치하며, 작업 중 화재감시자를 배치하고 작업 후 잔불과 주변 이상 유무를 확인한다.',
-      '11':'화재 발생 시 인명안전을 최우선으로 상황을 전파하고 초기 대응 후 신속히 대피한다.',
+      '11':'경보·신고·초기소화·피난유도 훈련과 소방시설 사용 교육을 실시하고, 결과와 개선사항을 기록하여 다음 계획에 반영한다.',
       '12':'위험물은 지정된 장소에 보관하고 취급 전 안전수칙과 소화설비 위치를 확인한다.',
-      '13':'교육·훈련 결과와 개선사항을 기록하고 다음 교육계획에 반영한다.',
+      '13':'소방안전관리자가 매월 업무수행 기록표를 작성하고, 점검 내용과 조치사항을 기록·보관한다.',
       '15':'피난안내도와 소방시설 사용방법을 잘 보이는 장소에 게시하고 정기적으로 상태를 확인한다.'
     };if(memo[code])add('일반적인 내용 사용',memo[code]);
   }
@@ -394,13 +464,15 @@ function quickPresets(f){
 }
 function renderQuickAnswers(area,input,f,current,onPick,onManual){
   const picks=quickPresets(f),box=document.createElement('div');box.className='quick-answer';
-  const label=document.createElement('span');label.className='quick-answer__label';label.textContent='빠른 입력 · 선택 후 아래에서 저장';
+  const label=document.createElement('span');label.className='quick-answer__label';label.textContent='선택하면 저장하고 다음으로 넘어가요';
   const choices=document.createElement('div');choices.className='quick-answer__choices';box.append(label,choices);
+  const sourcePick=APP.sources.suggestions?.[code]?.[f.key];
+  if(sourcePick&&String(sourcePick.value).includes('\n')){const preview=document.createElement('details');preview.className='reuse-details';const title=document.createElement('summary');title.textContent='기존 내용 먼저 확인';const contents=document.createElement('p');contents.textContent=sourcePick.value;preview.append(title,contents);box.append(preview);}
   const buttons=[];
   picks.forEach(p=>{const b=document.createElement('button');b.type='button';b.className='option'+(p.value.length>45?' option--long':'');b.textContent=p.label;b.title=p.label===p.value?'':p.value;b.onclick=async()=>{if(busy)return;input.value=p.value;input.dispatchEvent(new Event('input',{bubbles:true}));b.classList.add('on');if(onPick)await onPick();};choices.append(b);buttons.push([b,p.value]);});
   const manual=document.createElement('button');manual.type='button';manual.className='btn btn--sm quick-answer__manual';manual.textContent='직접 입력';manual.onclick=()=>{box.hidden=true;input.hidden=false;if(onManual)onManual();input.focus();try{input.select();}catch(e){}};choices.append(manual);
   const sync=()=>{buttons.forEach(([b,val])=>b.classList.toggle('on',input.value.trim()===val));};
-  input.classList.add('direct-answer-input');input.hidden=false;input.addEventListener('input',sync);area.append(box);sync();
+  input.classList.add('direct-answer-input');input.hidden=picks.length>0&&empty(current);input.addEventListener('input',sync);area.prepend(box);sync();
 }
 async function send(act,patch={}) {
   if(busy)return false;busy=true;
@@ -410,13 +482,27 @@ async function send(act,patch={}) {
     const body = new FormData();body.set('csrf',APP.csrf);body.set('code',code);body.set('act',act);body.set('patch',JSON.stringify(patch));
     const r = await fetch(location.href,{method:'POST',body,credentials:'same-origin',signal:controller.signal});
     const j = await r.json();if(!r.ok || !j.ok)throw new Error(j.error || '저장하지 못했습니다.');
-    data = j.sections;if(Array.isArray(j.help_pending)){helpRows=j.help_pending;window.managerHelp?.applyPlanPending?.(HELP_PLAN_ID,helpRows);}if(j.sources){APP.sources=j.sources;APP.selection=j.selection;APP.selectionSet=true;}dirty=false;updateProgress();savedStatus.textContent='저장되었습니다';window.managerHelp?.refresh();try{if(window.parent!==window)window.parent.managerHelp?.refresh();if(window.top!==window.parent)window.top.managerHelp?.refresh();if('BroadcastChannel' in window){const ch=new BroadcastChannel('manager-plan-changes');ch.postMessage('plan-saved');ch.close();}}catch(e){}return true;
+    data = j.sections;if(Array.isArray(j.help_pending)){helpRows=j.help_pending;window.managerHelp?.applyPlanPending?.(HELP_PLAN_ID,helpRows);}if(j.revision)APP.revision=j.revision;if(j.bundle)APP.bundle=j.bundle;if(j.sources){APP.sources=j.sources;APP.selection=j.selection;APP.selectionSet=true;}dirty=false;updateProgress();savedStatus.textContent='저장되었습니다';window.managerHelp?.refresh();try{if(window.parent!==window)window.parent.managerHelp?.refresh();if(window.top!==window.parent)window.top.managerHelp?.refresh();if('BroadcastChannel' in window){const ch=new BroadcastChannel('manager-plan-changes');ch.postMessage('plan-saved');ch.close();}}catch(e){}return true;
   }catch(e){document.getElementById('error').textContent=e.message || '연결을 확인하고 다시 시도해 주세요.';savedStatus.textContent='저장되지 않았습니다. 현재 답변을 다시 저장해 주세요.';return false;}
   finally{clearTimeout(timeout);busy=false;nav.disabled=!APP.selectionSet;stage.querySelectorAll('button,input,textarea').forEach(el=>{if(!el.closest('.source-option') || APP.sources.groups[el.value]?.available)el.disabled=false;});}
 }
 function enter(c){code=c;fieldIndex=0;dirty=false;reviewAll=false;updateProgress();
   if(skipped(c)){card('일반현황에서 해당없음으로 선택한 항목입니다.');button('다음 항목',nextSection,true);return;}
-  if(fields().every(f=>answered(f.key))){card('이 항목은 저장된 내용으로 채워졌습니다.',reviewHtml(fields()));button('새로 다시 작성',()=>{fieldIndex=0;askNext(true);},true);button('다음 항목',nextSection);return;}
+  if(code==='11'&&!helpMode&&!HELP_REVIEW_ID){
+    const scheduled=data['11']._training_schedule?.events||[];
+    card(APP.year+'년 교육·훈련 예정 일정', '<p class="reuse-lead">'+(scheduled.length?'저장한 '+scheduled.length+'개 일정이 계획서에 반영되어 있어요.':'예정 월이나 날짜를 클릭해서 간편하게 정해 보세요.')+'</p>'+(scheduled.length?'<dl class="review">'+scheduled.map(e=>'<div><dt>'+esc(({fire:'소방훈련',education:'소방교육',jawi:'자위소방대 교육'})[e.kind])+'</dt><dd>'+esc(e.date)+' 예정</dd></div>').join('')+'</dl>':''));
+    button(scheduled.length?'예정 일정 수정':'예정 일정 정하기',()=>{const u=new URL('fire_plan_schedule.php',location.href);u.search=location.search;u.searchParams.set('id',HELP_PLAN_ID);u.searchParams.delete('section');location.href=u.href;},true);
+    button(scheduled.length?'신규자 교육·추가 내용 확인 →':'문답으로 직접 작성',()=>{fieldIndex=0;askNext(false);});return;
+  }
+  if(code==='6'&&!helpMode&&!HELP_REVIEW_ID&&data['6']?._flame_guide?.checks?.length){
+    const checks=data['6']._flame_guide.checks;
+    const labels={applies:'선택 조건상 방염 적용 대상',outside:'선택 조건상 제30조 대상 아님',uncertain:'추가 확인 필요'};
+    card('방염 확인 내용이 6번에 반영되어 있어요','<p class="reuse-lead">'+APP.year+'년 계획서에 저장한 내용입니다. 실제 설치 물품·필증·유지관리 계획도 이어서 확인해 주세요.</p><dl class="review">'+checks.map(c=>'<div><dt>'+esc(c.dong?.name||'확인한 동')+'</dt><dd>'+esc(labels[c.result?.state]||'추가 확인 필요')+'<br><small>'+esc((c.result?.reasons||[]).concat(c.result?.missing||[]).join(' / '))+'</small></dd></div>').join('')+'</dl>');
+    button('설치 물품·유지관리 작성',()=>{fieldIndex=0;askNext(false);},true);return;
+  }
+  if(evacuationSummary())return;
+  if(fields().every(f=>answered(f.key))){card('이 항목은 저장된 내용으로 채워졌습니다.','<details class="reuse-details"><summary>불러온 내용 확인·수정</summary>'+reviewHtml(fields())+'</details>');button('새로 다시 작성',()=>{fieldIndex=0;askNext(true);},true);button('다음 항목',nextSection);return;}
+  if(inspectionSetup())return;
   askNext(false);
 }
 function askNext(all){if(all!==undefined)reviewAll=all;
@@ -443,7 +529,7 @@ function askNext(all){if(all!==undefined)reviewAll=all;
     const opts=[...new Set([...f.options,...(f.type==='multi'&&Array.isArray(v)?v:[])])];
     area.className='options';area.setAttribute('role','group');area.setAttribute('aria-label',f.label);
     opts.forEach(o=>{const label=document.createElement('label');label.className='option';const input=document.createElement('input');input.type=f.type==='multi'?'checkbox':'radio';input.name='answer';input.value=o;input.checked=f.type==='multi'?(Array.isArray(v)&&v.includes(o)):v===o;label.append(input,document.createTextNode(o));area.append(label);
-      input.addEventListener('change',()=>{dirty=true;if(f.type==='multi'&&input.checked){area.querySelectorAll('input').forEach(other=>{if(other!==input&&(o==='해당없음'||other.value==='해당없음'))other.checked=false;});}});
+      input.addEventListener('change',()=>{dirty=true;if(f.type==='choice'){submit();return;}if(f.type==='multi'&&input.checked){area.querySelectorAll('input').forEach(other=>{if(other!==input&&(o==='해당없음'||other.value==='해당없음'))other.checked=false;});}});
 
     });read=()=>{const vs=[...area.querySelectorAll('input:checked')].map(i=>i.value);return f.type==='multi'?vs:vs[0]||'';};
   }else{
@@ -471,12 +557,12 @@ function askNext(all){if(all!==undefined)reviewAll=all;
   const requestTitle=document.createElement('strong');requestTitle.textContent='이 질문의 작성을 요청할까요?';
   const requestDesc=document.createElement('p');requestDesc.textContent=APP.titles[code]+' · '+f.label;requestDesc.setAttribute('role','status');
   const requestHint=document.createElement('small');requestHint.textContent='지금 보이는 질문만 전달되며, 접수 후 다음 질문으로 넘어갑니다.';requestCopy.append(requestTitle,requestDesc,requestHint);requestCard.append(requestIcon,requestCopy);extra.append(requestCard);
-  function requestDone(){requestCard.classList.add('is-sent');requestTitle.textContent='매니저에게 요청을 보냈어요';requestDesc.textContent='답변이 작성되면 이 질문의 요청이 완료됩니다.';request.textContent='요청 접수 완료';request.disabled=true;}
+  function requestDone(){requestCard.classList.add('is-sent');requestTitle.textContent='파트너에게 요청을 보냈어요';requestDesc.textContent='답변이 작성되면 이 질문의 요청이 완료됩니다.';request.textContent='요청 접수 완료';request.disabled=true;}
   const requestCode=code,requestKey=f.key;
-  const request=button('담당 매니저 확인 중…',async()=>{
+  const request=button('연결 업체 확인 중…',async()=>{
     request.disabled=true;busy=true;nav.disabled=true;
     try{const state=await window.managerHelp.request('__fp_'+HELP_PLAN_ID+'_'+requestCode+'_'+requestKey,APP.year+'년 소방계획서 · '+APP.titles[requestCode]+' · '+f.label);
-      if(state){requestDone();recordTurn('작성 도움 요청 · '+f.label);savedStatus.textContent='‘'+f.label+'’ 질문의 요청을 보냈습니다.';dirty=false;try{window.parent.managerHelp?.refresh();}catch(e){}nextUserQuestion(requestCode,requestKey);}
+      if(state){requestDone();recordTurn('작성 문의 · '+f.label);savedStatus.textContent='‘'+f.label+'’ 질문의 요청을 보냈습니다.';dirty=false;try{window.parent.managerHelp?.refresh();}catch(e){}nextUserQuestion(requestCode,requestKey);}
       else request.disabled=false;
     }catch(e){request.disabled=false;document.getElementById('error').textContent=e.message;}finally{busy=false;nav.disabled=false;}
   });requestCard.hidden=IS_HELP_MANAGER;request.disabled=true;request.classList.add('plan-help-button');requestCard.append(request);
@@ -485,10 +571,10 @@ function askNext(all){if(all!==undefined)reviewAll=all;
     if(IS_HELP_MANAGER||state?.mode==='manager'){requestCard.hidden=true;return;}
     const field='__fp_'+HELP_PLAN_ID+'_'+code+'_'+f.key;
     const pending=state?.rows.some(r=>r.field===field&&r.status==='pending'&&r.connection_active);
-    if(pending){requestDone();return;}request.disabled=false;request.textContent=state?.mode==='local'?'로컬매니저 연결하고 요청하기':(state?.manager_name||'담당 매니저')+'에게 요청하기';
+    if(pending){requestDone();return;}request.disabled=false;request.textContent=state?.mode==='local'?'로컬 파트너 연결하고 요청하기':(state?.manager_name||'연결 업체')+'에게 요청하기';
   });
   const help=document.createElement('span');help.className='save-hint';help.textContent='답변을 확인한 뒤 저장하고 다음을 눌러주세요.';document.getElementById('actions').append(help);
-  if(quickInput){renderQuickAnswers(area,quickInput,f,v,()=>{},()=>{if(nextBtn)nextBtn.hidden=false;help.textContent='내용을 적은 뒤 다음을 눌러주세요';});if(f.type!=='memo')quickInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submit();}});}
+  if(quickInput){renderQuickAnswers(area,quickInput,f,v,()=>submit(),()=>{if(nextBtn)nextBtn.hidden=false;help.textContent='내용을 적은 뒤 다음을 눌러주세요';});if(f.type!=='memo')quickInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submit();}});}
   stage.querySelector('.question').focus({preventScroll:true});
 }
 function sectionEnd(){
@@ -501,7 +587,7 @@ function sectionEnd(){
 function nextSection(){reviewAll=false;const i=codes.indexOf(code);const next=codes.slice(i+1).find(c=>!skipped(c));if(next)enter(next);else finish();}
 function finish(){const pending=codes.filter(c=>!skipped(c)&&!data[c]._chat_complete);card(pending.length?'미확인 항목을 이어서 작성할 수 있어요.':'전체 문답 내용을 확인했습니다.', '<p class="hint">'+(pending.length?'미확인 항목: '+pending.map(c=>esc(c+'. '+APP.titles[c])).join(' · '):'최종 서류를 확인한 뒤 인쇄해 주세요. 문답 완료가 법정 적합성을 보증하는 것은 아닙니다.')+'</p>');
   pending.forEach(c=>button(c+'. '+APP.titles[c],()=>enter(c)));
-  const actions=document.getElementById('actions');[['표에서 최종 확인',APP.editUrl],['인쇄 · PDF',APP.printUrl],['목록으로',APP.listUrl]].forEach(([label,href],index)=>{const a=document.createElement('a');a.className='btn'+(index===0?' btn--pri':'');a.href=href;a.textContent=label;if(label==='인쇄 · PDF'){a.target='_blank';a.rel='noopener';}actions.append(a);});
+  const actions=document.getElementById('actions');[['완성 현황 확인',APP.overviewUrl],['인쇄 · PDF',APP.printUrl],['표에서 수정',APP.editUrl]].forEach(([label,href],index)=>{const a=document.createElement('a');a.className='btn'+(index===0?' btn--pri':'');a.href=href;a.textContent=label;if(label==='인쇄 · PDF'){a.target='_blank';a.rel='noopener';}actions.append(a);});
 }
 nav.addEventListener('change',()=>{const selected=nav.value;if(dirty&&!confirm('저장하지 않은 답변이 있습니다. 다른 항목으로 이동할까요?')){nav.value=code;return;}helpMode=false;activeHelp=null;helpJumpUsed=true;enter(selected);});
 window.addEventListener('beforeunload',e=>{if(dirty||busy){e.preventDefault();e.returnValue='';}});
@@ -521,13 +607,14 @@ document.addEventListener('keydown',event=>{
 });
 document.addEventListener('click',event=>{
   const link=event.target.closest('a[href]');
-  if(link && new URLSearchParams(location.search).get('modal')==='1' && new URL(link.href).pathname==='/fire_plan.php'){
+  if(link && new URLSearchParams(location.search).get('modal')==='1' && new URL(link.href).pathname==='/fire_plan.php' && !new URL(link.href).searchParams.has('id')){
     event.preventDefault();closePopup();
   }
 });
+document.getElementById('reuseSources').addEventListener('click',()=>document.getElementById('changeSources').click());
 document.getElementById('changeSources').addEventListener('click',()=>{if(busy)return;if(dirty&&!confirm('입력 중인 답변을 두고 저장된 자료를 반영할까요?'))return;dirty=false;chooseSources();});
 sourceSummary();
-if(APP.selectionSet)resumeChat();else chooseSources();
+if(HELP_REVIEW_ID||APP.selectionSet)resumeChat();else chooseSources();
 </script>
 <?php if (is_file(__DIR__.'/admin_quickmemo_widget.php')) require_once __DIR__.'/admin_quickmemo_widget.php'; ?>
 </body></html>

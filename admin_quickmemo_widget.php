@@ -1,10 +1,13 @@
 <?php
-/* 관리자 공통 빠른 메모 — clients_mini.php와 data/quickmemo.json 공유 */
+/* 관리자 공통 빠른 메모 — partner_center.php와 data/quickmemo.json 공유 */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
   ini_set('session.cookie_httponly', '1');
-  session_start();
+  alp_session_start();
 }
 
 if (!function_exists('aqm_is_admin')) {

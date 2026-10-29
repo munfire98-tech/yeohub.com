@@ -13,11 +13,14 @@
      filterControl.addTo(map);
    }
  }
- const labels={all:'전체',pre:'사전등록',linked:'매니저 연결',pro:'PRO 이용'};let rows=[],status='all',selected=null,month='all';
+ const labels={all:'전체',pre:'사전등록',linked:'파트너 연결',pro:'PRO 이용'};let rows=[],status='all',selected=null,month='all';
+ const returnList=window.managerNavigation?.state?.list;
+ if(returnList){status=Object.hasOwn(labels,returnList.status)?returnList.status:'all';selected=typeof returnList.selected==='string'?returnList.selected:null;month=['all','unknown',...Array.from({length:12},(_,i)=>String(i+1))].includes(returnList.month)?returnList.month:'all';input.value=typeof returnList.query==='string'?returnList.query:'';}
+ window.managerNavigation?.register('list',()=>({status,selected,month,query:input.value}));
  const kind=r=>r.preregistered?'pre':r.subscription?.active?'pro':'linked';
  function matching(r){return(status==='all'||kind(r)===status)&&(month==='all'||(month==='unknown'?!r.approval_month:String(r.approval_month)===month))&&[r.name,r.address].join(' ').toLocaleLowerCase().includes(input.value.trim().toLocaleLowerCase());}
  function emit(fit=false){document.dispatchEvent(new CustomEvent('manager-building-filter',{detail:{fit,selected: selected,uids:rows.filter(r=>matching(r)).map(r=>r.uid)}}));}
- function scrollToMap(){
+ function scrollToMap(animate=true){
    requestAnimationFrame(()=>{
      const target=document.querySelector('.main-cols')||document.querySelector('.focus-map');if(!target)return;
      let topInset=12;
@@ -32,7 +35,7 @@
      const rect=target.getBoundingClientRect();
      const top=Math.max(0,window.scrollY+rect.top-topInset);
      if(Math.abs(window.scrollY-top)<3)return;
-     window.scrollTo({top,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+     window.scrollTo({top,behavior:!animate||matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
    });
  }
  function choose(uid,fromMap=false){selected=uid;render();if(!fromMap)document.dispatchEvent(new CustomEvent('manager-map-focus',{detail:{uid}}));scrollToMap();}
@@ -72,21 +75,28 @@
    menu.append(toggle,del);return menu;
  }
  function render(fit=false){
- filters.replaceChildren();Object.keys(labels).forEach(k=>{const b=document.createElement('button');b.type='button';const label=document.createElement('span');label.className='mb-filter-label';
+ filters.replaceChildren();Object.keys(labels).forEach(k=>{const b=document.createElement('button');b.type='button';b.dataset.mbFilter=k;const label=document.createElement('span');label.className='mb-filter-label';
 if(k!=='all'){const icon=document.createElement('span');icon.className='mb-status-symbol mb-symbol-'+k;icon.textContent=k==='pre'?'P':k==='pro'?'S':'C';icon.setAttribute('aria-hidden','true');label.append(icon);}
-const caption=document.createElement('span');caption.textContent=labels[k];label.append(caption);
-const count=document.createElement('span');count.className='mb-filter-count';count.textContent=String(rows.filter(r=>k==='all'||kind(r)===k).length);b.append(label,count);b.setAttribute('aria-pressed',String(k===status));b.onclick=()=>{status=k;selected=null;render(true);scrollToMap();};filters.append(b);});
- const visible=rows.filter(r=>matching(r)&&(!selected||r.uid===selected));summary.textContent=visible.length+'개 건물';back.hidden=!selected;list.replaceChildren();
+const caption=document.createElement('span');caption.className='mb-filter-caption';caption.textContent=labels[k];label.append(caption);
+if(k==='all'){const allBadge=document.createElement('span');allBadge.className='mb-mobile-all';allBadge.textContent='ALL';allBadge.setAttribute('aria-hidden','true');label.append(allBadge);}
+const count=document.createElement('span');count.className='mb-filter-count';count.textContent=String(rows.filter(r=>k==='all'||kind(r)===k).length);b.append(label,count);b.setAttribute('aria-label',labels[k]+' '+count.textContent+'곳');b.title=labels[k];b.setAttribute('aria-pressed',String(k===status));b.onclick=()=>{status=k;selected=null;render(true);scrollToMap();};filters.append(b);});
+ const visible=rows.filter(r=>matching(r)&&(!selected||r.uid===selected));summary.textContent=(rows.some(r=>r.demo)?'예시 ':'')+visible.length+'개 건물';back.hidden=!selected;list.replaceChildren();
  if(!visible.length){const e=document.createElement('p');e.className='ms-empty';e.textContent='조건에 맞는 건물이 없습니다.';list.append(e);}
- visible.forEach(r=>{const card=document.createElement('article');card.className='mb-card';const select=document.createElement('button');select.type='button';select.className='mb-select';const name=document.createElement('strong');name.textContent=r.name||'이름 미입력';const badge=document.createElement('span');badge.className='mb-badge mb-'+kind(r);{const symbol=document.createElement('span');symbol.className='mb-status-symbol mb-symbol-'+kind(r);symbol.textContent=kind(r)==='pre'?'P':kind(r)==='pro'?'S':'C';symbol.setAttribute('aria-hidden','true');badge.append(symbol);}badge.append(document.createTextNode(labels[kind(r)]));badge.title=kind(r)==='linked'?'매니저 연결 완료 · 현재 PRO 구독 없음':labels[kind(r)];select.append(name,badge);select.onclick=()=>choose(r.uid);const addr=document.createElement('p');addr.textContent=r.address||'주소 미입력';card.append(select,addr);if(kind(r)==='linked'){const note=document.createElement('small');note.className='mb-unsubscribed';note.textContent='매니저 연결 완료 · PRO 미구독';card.append(note);}
- const actions=document.createElement('div');actions.className='ms-actions';if(r.preregistered){const a=document.createElement('a');a.className='ms-button';a.href='/manager_addresses.php?id='+encodeURIComponent(r.address_id);a.dataset.addressOpen='1';a.textContent='기본정보 수정';actions.append(a);}else{const source=originals.get(r.uid)?.querySelector('.ms-actions');if(source){const clone=source.cloneNode(true);clone.querySelectorAll('[data-ms-map]').forEach(b=>b.remove());actions.append(...clone.childNodes);}else{const a=document.createElement('a');a.className='ms-button';a.href='/manager_view.php?uid='+encodeURIComponent(r.uid);a.target='_blank';a.rel='noopener';a.textContent='유저 화면';actions.append(a);}}
- const mapBtn=document.createElement('button');mapBtn.className='ms-button';mapBtn.type='button';mapBtn.textContent='지도 보기';mapBtn.onclick=()=>choose(r.uid);actions.append(mapBtn);if(r.preregistered)actions.append(draftMenu(r));card.append(actions);list.append(card);});emit(fit);
+ visible.forEach(r=>{const card=document.createElement('article');card.className='mb-card';const select=document.createElement('button');select.type='button';select.className='mb-select';const name=document.createElement('strong');name.textContent=r.name||'이름 미입력';const badge=document.createElement('span');badge.className='mb-badge mb-'+kind(r);{const symbol=document.createElement('span');symbol.className='mb-status-symbol mb-symbol-'+kind(r);symbol.textContent=kind(r)==='pre'?'P':kind(r)==='pro'?'S':'C';symbol.setAttribute('aria-hidden','true');badge.append(symbol);}badge.append(document.createTextNode(labels[kind(r)]));badge.title=kind(r)==='linked'?'파트너 연결 완료 · 현재 PRO 구독 없음':labels[kind(r)];select.append(name,badge);select.onclick=()=>choose(r.uid);const addr=document.createElement('p');addr.textContent=r.address||'주소 미입력';card.append(select,addr);if(kind(r)==='linked'){const note=document.createElement('small');note.className='mb-unsubscribed';note.textContent='파트너 연결 완료 · PRO 미구독';card.append(note);}
+ const actions=document.createElement('div');actions.className='ms-actions';if(r.demo){const hint=document.createElement('span');hint.className='mb-demo-label';hint.textContent='체험용 예시';actions.append(hint);if(r.featuredDemo){const demo=document.createElement('button');demo.type='button';demo.className='ms-button';demo.dataset.partnerDemoOpen='1';demo.textContent='건물관리 체험';demo.setAttribute('aria-haspopup','dialog');actions.append(demo);}}else if(r.preregistered){const a=document.createElement('a');a.className='ms-button';a.href='/manager_addresses.php?id='+encodeURIComponent(r.address_id);a.dataset.addressOpen='1';a.textContent='기본정보 수정';actions.append(a);}else{const source=originals.get(r.uid)?.querySelector('.ms-actions');if(source){const clone=source.cloneNode(true);clone.querySelectorAll('[data-ms-map]').forEach(b=>b.remove());actions.append(...clone.childNodes);}else{const a=document.createElement('a');a.className='ms-button';a.href='/manager_view.php?uid='+encodeURIComponent(r.uid);a.textContent='유저 화면';actions.append(a);}}
+ const mapBtn=document.createElement('button');mapBtn.className='ms-button';mapBtn.type='button';mapBtn.textContent='지도 보기';mapBtn.onclick=()=>choose(r.uid);actions.append(mapBtn);if(r.preregistered&&!r.demo)actions.append(draftMenu(r));card.append(actions);list.append(card);});emit(fit);
  }
  document.addEventListener('manager-building-clear-selection',()=>{selected=null;render(true);});
  input.oninput=()=>{selected=null;render();};back.onclick=()=>{selected=null;render(true);scrollToMap();};
- document.addEventListener('manager-buildings-updated',e=>{rows=e.detail.buildings||[];if(!rows.some(r=>r.uid===selected))selected=null;render();});
- document.addEventListener('manager-building-selected',e=>{const r=rows.find(r=>r.uid===e.detail.uid);if(!r)return;if(!matching(r)){status='all';input.value='';}document.getElementById('ms-tab-users')?.click();choose(r.uid,true);});
- document.addEventListener('manager-month-filter',e=>{month=String(e.detail.month||'all');selected=null;render();});
+ document.addEventListener('manager-buildings-updated',e=>{rows=e.detail.displayBuildings||e.detail.buildings||[];if(!rows.some(r=>r.uid===selected))selected=null;render();});
+ document.addEventListener('manager-building-selected',e=>{const r=rows.find(r=>r.uid===e.detail.uid);if(!r)return;if(!matching(r)){status='all';input.value='';}const tab=document.getElementById('ms-tab-users');if(tab&&tab.getAttribute('aria-selected')!=='true')tab.click();choose(r.uid,true);});
+ document.addEventListener('manager-month-filter',e=>{const next=String(e.detail.month||'all');if(month===next)return;month=next;selected=null;render();});
  document.addEventListener('manager-buildings-unavailable',()=>{rows=[];selected=null;render();summary.textContent='목록을 불러오지 못했습니다. 새로고침해 주세요.';});
  summary.textContent='건물 목록을 불러오고 있습니다.';
+ // Start with the same all-buildings framing and workspace alignment as “전체”.
+ // Run only on entry; periodic server refreshes must not pull the page back.
+ function alignInitialWorkspace(){if(window.managerNavigation?.state)return;render(true);scrollToMap(false);}
+ if(document.readyState==='complete')alignInitialWorkspace();
+ else window.addEventListener('load',alignInitialWorkspace,{once:true});
+
 })();

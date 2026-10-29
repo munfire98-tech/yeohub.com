@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
-date_default_timezone_set('Asia/Seoul');if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
+date_default_timezone_set('Asia/Seoul');if(session_status()!==PHP_SESSION_ACTIVE)alp_session_start();
 if((empty($_SESSION['is_admin'])&&(empty($_SESSION['ID_OK'])||$_SESSION['ID_OK']!=1))||!empty($_SESSION['_imp'])){http_response_code(403);exit('사이트 관리자만 이용할 수 있습니다.');}
 require_once __DIR__.'/annual_billing_engine.php';
 function h($v):string{return htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
@@ -22,12 +25,12 @@ try{
 }catch(Throwable $e){$message=$e->getMessage();}
 $settings=ab_scheduler_settings();try{$mode=ab_mode();}catch(Throwable $e){$mode='설정 확인 필요';}
 $members=ab_read_file(__DIR__.'/data/members.json');$records=[];$due=0;$problems=0;
-foreach(glob(__DIR__.'/data/subscribe/*/subscription.json')?:[] as $file){$uid=basename(dirname($file));try{$d=ab_read($uid);$why=ab_due_reason($uid,$d);if($why==='')$due++;if(!empty($d['billing_notice'])||($d['charge_attempt']['state']??'')==='unknown'||($d['status']??'')==='refund_pending')$problems++;$records[]=['uid'=>$uid,'d'=>$d,'why'=>$why];}catch(Throwable $e){$problems++;}}
+foreach(glob(__DIR__.'/data/subscribe/*/subscription.json')?:[] as $file){$uid=basename(dirname($file));try{$d=ab_read_file($file);if(($d['status']??'')==='withdrawn')continue;$why=ab_due_reason($uid,$d);if(!sa_matches($uid,$d)){$d['auto_renew']=false;$d['billing_notice']=($d['status']??'')==='withdrawn'?'탈퇴 처리 완료 · 결제 기록 별도 보관':'이전 계정의 결제 기록 · 현재 회원에게 적용 안 됨';}if($why==='')$due++;if(!empty($d['billing_notice'])||($d['charge_attempt']['state']??'')==='unknown'||($d['status']??'')==='refund_pending')$problems++;$records[]=['uid'=>$uid,'d'=>$d,'why'=>$why];}catch(Throwable $e){$problems++;}}
 function form_start(string $act):void{global $csrf;echo '<form method="post"><input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="act" value="'.h($act).'">';}
 ?>
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>연간 구독 결제 관리</title><style>
 *{box-sizing:border-box}body{margin:0;background:#f4f7fa;color:#23364b;font:14px/1.7 system-ui}main{max-width:1120px;margin:auto;padding:32px 20px}h1{font-size:25px;margin:0}h2{font-size:16px;margin:0 0 12px}.muted{color:#738396;font-size:12px}.card{background:white;padding:22px;border:1px solid #e0e7ee;border-radius:14px;margin:18px 0}.stats{display:flex;gap:12px;flex-wrap:wrap}.stats .card{flex:1;min-width:180px}.stats b{display:block;font-size:26px}.tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}button{background:#136e87;color:white;padding:9px 14px;border:0;border-radius:8px;cursor:pointer;font:600 13px system-ui}form{margin:0}code{overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;padding:12px 8px;border-bottom:1px solid #e9eef3;vertical-align:top}td{overflow-wrap:anywhere}label{display:block;margin:10px 0}.notice{padding:13px;background:#fff5df;color:#825717;border-radius:9px}a{color:#087e98}.scroll{overflow:auto}button:focus-visible{outline:3px solid #79b8d4;outline-offset:3px}</style></head><body><main>
-<h1>연간 구독 결제 관리</h1><p class="muted">기본 연 69,000원 · 사전등록·로컬 매니저 연결 고객 구독 유지 시 59,000원 · 12개월 자동갱신 · 구독 동의와 결제일을 확인한 대상만 처리합니다.</p>
+<h1>연간 구독 결제 관리</h1><p class="muted">기본 연 69,000원 · 사전등록·로컬 파트너 연결 고객 구독 유지 시 59,000원 · 12개월 자동갱신 · 구독 동의와 결제일을 확인한 대상만 처리합니다.</p>
 <?php if($message):?><p class="notice" role="status"><?=h($message)?></p><?php endif;?>
 <div class="stats"><div class="card">현재 모드<b><?=h($mode)?></b></div><div class="card">갱신 대상<b><?=$due?>명</b></div><div class="card">확인 필요<b><?=$problems?>명</b></div></div>
 <section class="card"><h2>자동 실행 설정</h2><p>실행 상태: <b><?=$settings['enabled']?'켜짐':'꺼짐'?></b> · 최근 실행: <?=h($settings['last_run']?:'아직 없음')?></p>

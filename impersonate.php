@@ -16,11 +16,14 @@
      · 누가 언제 누구 계정에 들어갔는지 기록에 남습니다
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 function imp_is_admin(): bool {
   return (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'])
@@ -134,7 +137,7 @@ imp_log('enter', $uid, $adminNm);
 /* 어느 화면으로 갈지 — ?to= 로 지정할 수 있습니다 (우리 사이트 안쪽만 허용) */
 $to = (string)($_GET['to'] ?? '');
 if ($to === '' || strpos($to, '//') === 0 || !preg_match('#^/[A-Za-z0-9_]+\.php#', $to)) {
-  $to = ($_SESSION['role'] === 'building') ? '/building_manager.php' : '/clients_mini.php';
+  $to = ($_SESSION['role'] === 'building') ? '/FireDesk.php' : '/partner_center.php';
 }
 header('Location: ' . $to);
 exit;

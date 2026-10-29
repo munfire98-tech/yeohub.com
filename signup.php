@@ -7,6 +7,9 @@
  * POST mode=login     : 일반회원 로그인
  */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 $SESSION_TTL = 60 * 60 * 24 * 30;
 ini_set('session.cookie_httponly', '1');
@@ -22,7 +25,9 @@ if (PHP_VERSION_ID >= 70300) {
     'samesite' => 'Lax',
   ]);
 }
-session_start();
+alp_session_start();
+if(is_file(__DIR__.'/visit_push_common.php')){require_once __DIR__.'/visit_push_common.php';try{vp_observe();}catch(Throwable $e){error_log('Visit push binding check failed');}}
+
 
 const USER_ID_PATTERN = '/^[a-z][a-z0-9_]{3,19}$/';
 const USER_PASSWORD_MIN = 8;
@@ -40,7 +45,7 @@ function normalize_role(string $role): string {
       사용자가 상단 아이콘으로 직접 들어가는 방식입니다.
       다른 곳에서 쓸 수 있어 함수는 남겨둡니다. */
 function role_landing(string $role): string {
-  return $role === 'building' ? '/building_manager.php' : '/clients_mini.php';
+  return $role === 'building' ? '/FireDesk.php' : '/partner_center.php';
 }
 
 function normalize_userid(string $userid): string {
@@ -270,20 +275,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         } else {
           unset($_SESSION['email_verified'][$email], $_SESSION['email_verified'][$emailRaw]);
 
-          require_once __DIR__ . '/telegram_config.php';
-          $roleKo = $role === 'building' ? '건물 소방안전관리자' : '소방 대행업체';
-          $tg = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-          @send_telegram(
-            "<b>TWORIX 새 회원 가입</b>\n\n"
-            . '아이디: <code>' . $tg($uid) . "</code>\n"
-            . '닉네임: ' . $tg($nickname) . "\n"
-            . '유형: ' . $tg($roleKo) . "\n"
-            . '이메일: ' . $tg($email) . "\n"
-            . ($phone !== '' ? '연락처: ' . $tg($phone) . "\n" : '')
-            . '가입시각: ' . $created
-          );
+          require_once __DIR__.'/telegram_member_events.php';
+          tme_signup($uid);
+          require_once __DIR__.'/visit_push_common.php';vp_notify_member_change($uid);
 
-          session_regenerate_id(true);
+          vp_detach();session_regenerate_id(true);
           $_SESSION['is_admin'] = false;
           $_SESSION['ID_OK'] = 0;
           $_SESSION['is_user'] = true;
@@ -291,6 +287,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
           $_SESSION['nickname'] = $nickname;
           $_SESSION['role'] = $role;
           $_SESSION['login_type'] = 'member';
+          alp_login();
           header('Location: ' . role_landing($role));
           exit;
         }
@@ -335,7 +332,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         unset($_SESSION['login_failures']);
         $uid = (string)$result['uid'];
         $role = (string)$result['role'];
-        session_regenerate_id(true);
+        vp_detach();session_regenerate_id(true);
         $_SESSION['is_admin'] = false;
         $_SESSION['ID_OK'] = 0;
         $_SESSION['is_user'] = true;
@@ -343,6 +340,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $_SESSION['nickname'] = (string)$result['nickname'];
         $_SESSION['role'] = $role;
         $_SESSION['login_type'] = 'member';
+          alp_login();
+        if(!empty($_SESSION['visit_push_return'])){header('Location: /visit_push_open.php?message='.rawurlencode($_SESSION['visit_push_return']));exit;}
         header('Location: /index.php');
         exit;
       }

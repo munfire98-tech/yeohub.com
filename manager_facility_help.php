@@ -23,7 +23,7 @@ function mfh_save(string $uid,bool $confirmed,callable $save,bool $reset=false):
      if($editor!==''&&(($r['manager']??'')!==$editor||($r['manager_created']??null)!==($members[$editor]['created']??null)))continue;
      $r['status']='resolved';$r['resolved_at']=date('c');$r['resolved_by']=$editor!==''?$editor:$owner;
      $r['resolved_kind']=$editor!==''?'manager':'user';
-     $r['reply']=($editor!==''?'담당 매니저가':'유저가').' 소방시설 설치 여부 확인을 마치고 현황을 저장했습니다.';
+     $r['reply']=($editor!==''?'연결 업체가':'유저가').' 소방시설 설치 여부 확인을 마치고 현황을 저장했습니다.';
     }unset($r);return $data;
    },true);
   });

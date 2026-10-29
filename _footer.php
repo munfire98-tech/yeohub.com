@@ -17,7 +17,8 @@
 .footer-top{display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start;margin-bottom:30px}
 .footer-brand{flex:1 1 280px;min-width:0}
 .footer-logo{font-size:21px;font-weight:800;letter-spacing:-.01em;color:var(--ft-fg);margin-bottom:9px}
-.footer-desc{font-size:13.5px;line-height:1.75;color:var(--ft-mut);margin:0;max-width:340px}
+.footer-tagline{margin:0 0 9px;color:#345b88;font-size:12px;font-weight:700;letter-spacing:-.02em}
+.footer-desc{font-size:13px;line-height:1.85;color:var(--ft-mut);margin:0;max-width:430px;word-break:keep-all;overflow-wrap:anywhere}
 
 .footer-cols{display:flex;gap:56px;flex-wrap:wrap}
 .footer-col{min-width:120px}
@@ -55,9 +56,10 @@
     <div class="footer-top">
       <div class="footer-brand">
         <div class="footer-logo">소방계획서.com</div>
+        <p class="footer-tagline">소방안전관리 통합 업무 시스템</p>
         <p class="footer-desc">
-          건물관리자와 매니저가 함께 작성하는 업무 기록.<br>
-          필요한 서식을 한곳에서 작성하고 관리합니다.
+          건물정보·업무기록·일정·소방계획서를 한곳에서 관리합니다.<br>
+          안전관리자의 직접 관리와 연결 업체의 효율적인 업무 확인을 지원합니다.
         </p>
       </div>
 
@@ -65,6 +67,8 @@
         <div class="footer-col">
           <div class="footer-col__t">서비스</div>
           <a href="/service.php">서비스 안내</a>
+          <a href="/service.php#service-compare">무료·PRO 기능 비교</a>
+          <a href="/fire_plan_sample.html" target="_blank" rel="noopener" aria-label="소방계획서 출력 예시 · 새 창">소방계획서 출력 예시 ↗</a>
           <a href="/faq.php">자주 묻는 질문</a>
         </div>
         <div class="footer-col">
@@ -103,5 +107,6 @@
 </footer>
 
 <?php require_once __DIR__ . '/admin_quickmemo_widget.php'; ?>
+<?php require_once __DIR__ . '/manager_quickmemo.php'; ?>
 </body>
 </html>

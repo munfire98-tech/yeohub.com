@@ -8,6 +8,9 @@
  *     /evac_qr.php?id=모델ID
  */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 /* ── 세션 설정: login.php / admin_members.php 와 동일해야
    관리자 로그인이 인식된다. 쿠키 도메인을 .tworix.com 으로 맞춘다. ── */
@@ -25,7 +28,7 @@ if (PHP_VERSION_ID >= 70300) {
     'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
   ]);
 }
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+if (session_status() !== PHP_SESSION_ACTIVE) alp_session_start();
 
 require_once __DIR__ . '/evac_common.php';
 

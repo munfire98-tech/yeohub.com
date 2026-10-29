@@ -6,6 +6,9 @@
  *  회원 탈퇴는 맨 아래 '계정' 항목에서 withdraw.php 로 연결된다.
  */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 $SESSION_TTL = 60 * 60 * 24 * 30;
 ini_set('session.cookie_httponly', '1');
@@ -21,7 +24,13 @@ if (PHP_VERSION_ID >= 70300) {
     'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
   ]);
 }
-session_start();
+alp_session_start();
+if(is_file(__DIR__.'/visit_push_common.php')){require_once __DIR__.'/visit_push_common.php';try{vp_observe();}catch(Throwable $e){error_log('Visit push binding check failed');}}
+
+require_once __DIR__.'/manager_common.php';
+require_once __DIR__.'/account_password.php';
+header('Cache-Control: no-store');
+if (!empty($_SESSION['_imp']) || !empty($_SESSION['_mge_actor'])) { http_response_code(403); exit('본인 계정으로 로그인한 후 이용해 주세요.'); }
 
 $isMember = !empty($_SESSION['is_user']) || !empty($_SESSION['member_id']);
 if (!$isMember) { header('Location: /index.php'); exit; }
@@ -61,6 +70,7 @@ if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
 $CSRF = $_SESSION['csrf'];
 
 $msg = ''; $msgType = '';
+if (!empty($_SESSION['password_change_done'])) { unset($_SESSION['password_change_done']); $msg='비밀번호가 변경되었습니다. 다음 로그인부터 새 비밀번호를 사용하세요.'; $msgType='ok'; }
 
 /* ── 내 정보 저장 ── */
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '') === 'profile') {
@@ -84,14 +94,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
       $me['nickname'] = mb_check_encoding($newNick, 'UTF-8')
                         ? (function_exists('mb_substr') ? mb_substr($newNick, 0, 40) : substr($newNick, 0, 120))
                         : $newNick;
-      $me['email'] = $newEmail;
+      if(($me['joined_via']??'')==='manager_qr' && $newEmail!==$prevEmail){$me['pending_email']=$newEmail;$me['email_verification_required']=true;$me['email']='';unset($me['email_challenge']);}else{$me['email']=$newEmail;}
       $me['phone'] = $newPhone;
       /* 값이 바뀌면 인증 상태는 초기화한다 */
       if ($newEmail !== $prevEmail) $me['email_ok'] = false;
       if ($newPhone !== $prevPhone) $me['phone_ok'] = false;
 
-      $members[$uid] = $me;
-      if (st_write($MEMBERS, $members)) {
+      $profileSaved=false;
+      try {
+        mg_member_tx(function(array &$all) use ($uid,$me) {
+          if (!isset($all[$uid])) throw new RuntimeException('Missing account');
+          foreach (['nickname','email','phone','email_ok','phone_ok'] as $field) $all[$uid][$field]=$me[$field]??false;
+          if(($me['joined_via']??'')==='manager_qr'){ $all[$uid]['pending_email']=$me['pending_email']??'';$all[$uid]['email_verification_required']=$me['email_verification_required']??false;if(!isset($me['email_challenge']))unset($all[$uid]['email_challenge']);}
+        });
+        $profileSaved=true;
+      } catch (Throwable $e) { error_log('Profile update failed'); }
+      if ($profileSaved) {
         $_SESSION['nickname'] = $me['nickname'];
         $nick = $me['nickname'];
         $msg = '저장했습니다.'; $msgType = 'ok';
@@ -102,13 +120,38 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
   }
 }
 
+/* Password changes always target the signed-in account, never a posted user id. */
+$pwError='';
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '') === 'password') {
+  if (!is_string($_POST['csrf']??null) || !hash_equals($CSRF,$_POST['csrf'])) {
+    http_response_code(403); $pwError='화면을 새로고침한 후 다시 시도해 주세요.';
+  } elseif (mg_uid()!==$uid || $isKakao) {
+    http_response_code(403); $pwError='본인 일반회원 계정으로 로그인해 주세요.';
+  } else {
+    $current=is_string($_POST['current_password']??null)?$_POST['current_password']:'';
+    $next=is_string($_POST['new_password']??null)?$_POST['new_password']:'';
+    $confirm=is_string($_POST['confirm_password']??null)?$_POST['confirm_password']:'';
+    try {
+      $pwError=mg_member_tx(function(array &$all) use ($uid,$current,$next,$confirm) {
+        return account_change_password($all,$uid,$current,$next,$confirm,time());
+      });
+      if ($pwError==='') {
+        alp_password_changed();vp_detach();session_regenerate_id(true);
+        $_SESSION['csrf']=bin2hex(random_bytes(24));
+        $_SESSION['password_change_done']=true;
+        header('Location: /settings.php#password',true,303); exit;
+      }
+    } catch (Throwable $e) { error_log('Password change failed'); $pwError='저장에 실패했습니다. 잠시 후 다시 시도해 주세요.'; }
+  }
+}
+
 $email    = (string)($me['email'] ?? '');
 $phone    = (string)($me['phone'] ?? '');
 $emailOk  = !empty($me['email_ok']);
 $phoneOk  = !empty($me['phone_ok']);
 $joined   = (string)($me['created'] ?? '');
-$roleKo   = $role === 'agency' ? '소방 대행업체' : ($role === 'building' ? '건물 소방안전관리자' : '미설정');
-$homeUrl  = $role === 'agency' ? '/clients_mini.php' : '/building_manager.php';
+$roleKo   = $role === 'agency' ? '파트너' : ($role === 'building' ? '건물 소방안전관리자' : '미설정');
+$homeUrl  = $role === 'agency' ? '/partner_center.php' : '/FireDesk.php';
 
 /* 건물명 (건물관리자만) */
 $bldgName = '';
@@ -172,6 +215,9 @@ if ($role !== 'agency') {
     .row .k{width:100%;margin-bottom:-4px}
     .go{margin-left:0}
   }
+input[type=password]{width:100%;min-width:0;padding:10px 11px;border:1px solid var(--line);border-radius:9px;font:inherit}
+.pw-summary{display:flex;justify-content:space-between;align-items:center;cursor:pointer;color:var(--brand);list-style:none;font-weight:600;padding:5px 0}.pw-summary::-webkit-details-marker{display:none}
+@media(max-width:768px),(hover:none) and (pointer:coarse){.fld input{font-size:16px!important;min-width:0;max-width:100%}}
 </style>
 </head>
 <body>
@@ -204,6 +250,7 @@ if ($role !== 'agency') {
             <span class="badge <?=$emailOk ? 'ok' : 'no'?>"><?=$emailOk ? '인증됨' : '미인증'?></span>
           <?php endif; ?>
         </label>
+        <?php if(($me['joined_via']??'')==='manager_qr'): ?><p><a href="/invite_email.php">이메일 인증·주소 수정하기 →</a></p><?php endif; ?>
         <input type="email" id="email" name="email" value="<?=h($email)?>" placeholder="example@domain.com">
       </div>
 
@@ -222,6 +269,29 @@ if ($role !== 'agency') {
     </form>
   </div>
 
+  <?php if(mg_active($me,'agency')): ?><section class="card" id="partner-company" data-pci-settings><h2>소속 업체 정보</h2><p class="hint">불러오는 중…</p></section><link rel="stylesheet" href="/partner_company.css?v=20261022-1"><script src="/partner_company.js?v=20261022-1" defer></script><?php endif; ?>
+
+  <div class="card" id="password">
+    <h2>비밀번호 변경</h2>
+    <?php if ($isKakao || empty($me['pw_hash'])): ?>
+      <p class="hint">소셜 로그인 계정은 가입한 서비스에서 비밀번호를 변경해 주세요.</p>
+    <?php else: ?>
+    <details <?= $pwError!==''?'open':'' ?>>
+      <summary class="pw-summary">비밀번호 변경하기 <span aria-hidden="true">⌄</span></summary>
+      <p class="hint">현재 비밀번호를 확인한 뒤 새 비밀번호를 설정합니다.</p>
+      <?php if ($pwError!==''): ?><div class="flash err" role="alert"><?=h($pwError)?></div><?php endif; ?>
+      <form method="post" action="/settings.php#password">
+        <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
+        <input type="hidden" name="action" value="password">
+        <div class="fld"><label class="f" for="current-password">현재 비밀번호</label><input id="current-password" type="password" name="current_password" autocomplete="current-password" required></div>
+        <div class="fld"><label class="f" for="new-password">새 비밀번호</label><input id="new-password" type="password" name="new_password" autocomplete="new-password" minlength="8" maxlength="64" required><p class="hint">영문·숫자·기호 8~64자로 입력해 주세요.</p></div>
+        <div class="fld"><label class="f" for="confirm-password">새 비밀번호 확인</label><input id="confirm-password" type="password" name="confirm_password" autocomplete="new-password" minlength="8" maxlength="64" required></div>
+        <button class="btn pri" type="submit">비밀번호 변경</button>
+      </form>
+    </details>
+    <?php endif; ?>
+  </div>
+
   <!-- 계정 정보 -->
   <div class="card">
     <h2>계정</h2>
@@ -231,7 +301,7 @@ if ($role !== 'agency') {
     </div>
     <div class="row">
       <span class="k">가입 경로</span>
-      <span class="v"><?=$isKakao ? '카카오 로그인' : '자체 가입'?></span>
+      <span class="v"><?=($me['joined_via']??'')==='manager_qr' ? '파트너 QR 가입' : ($isKakao ? '카카오 가입' : '자체 가입')?></span>
     </div>
     <div class="row">
       <span class="k">사용자 유형</span>
@@ -252,7 +322,7 @@ if ($role !== 'agency') {
       <div class="row">
         <span class="k">거래처 관리</span>
         <span class="v dim">등록된 거래처와 일정을 관리합니다.</span>
-        <a class="go" href="/clients_mini.php">관리 →</a>
+        <a class="go" href="/partner_center.php">관리 →</a>
       </div>
     <?php else: ?>
       <div class="row">
@@ -276,7 +346,7 @@ if ($role !== 'agency') {
     <div class="row">
       <span class="k">구독 · 결제</span>
       <span class="v dim">요금제와 결제 내역을 확인합니다.</span>
-      <a class="go" href="/clients_mini.php?view=subscribe">이동 →</a>
+      <a class="go" href="/partner_center.php?view=subscribe">이동 →</a>
     </div>
     <div class="row">
       <span class="k">도움말</span>

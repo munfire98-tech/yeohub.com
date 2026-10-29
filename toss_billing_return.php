@@ -6,11 +6,14 @@
    실패: ?code=...&message=...          → 사유 표시
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 if (!ini_get('date.timezone')) date_default_timezone_set('Asia/Seoul');
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']);
-session_start();
+alp_session_start();
 header('Cache-Control: no-store');header('Referrer-Policy: no-referrer');
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
@@ -58,6 +61,11 @@ if ($failCode !== '') {
     }
   }
 }
+if((($_GET['invite_flow']??'')==='1'||($_GET['mobile_flow']??'')==='1')&&($_GET['auth_window']??'')!=='1'){
+ $_SESSION['annual_flash']=[$ok?'카드가 등록되었습니다. 금액과 자동갱신 안내를 확인하고 구독을 시작해 주세요.':$title.' · '.$detail,$ok?'ok':'err'];
+ $destination=(($_GET['invite_flow']??'')!=='1' && ($_GET['pro_popup']??'')==='1')?'/FireDesk.php?pro_popup=1':'/subscribe_page.php';
+ session_write_close();header('Location: '.$destination,true,303);exit;
+}
 if(($_GET['pro_popup']??'')==='1'){
  $_SESSION['annual_flash']=[$ok?'카드가 등록되었습니다. 요금과 자동갱신 안내를 확인한 후 결제해 주세요.':$title.' · '.$detail,$ok?'ok':'err'];
 }
@@ -98,12 +106,12 @@ if(($_GET['pro_popup']??'')==='1'){
   <h1><?=h($title)?></h1>
   <p><?=h($detail)?></p>
 
-  <?php if(($_GET['pro_popup']??'')==='1'): ?>
+  <?php if(($_GET['pro_popup']??'')==='1'||($_GET['auth_window']??'')==='1'): ?>
   <button class="btn" type="button" id="returnToPro">PRO 이용 안내로 돌아가기</button>
   <script>
   function returnToPro(){
    try{if(window.opener&&!window.opener.closed){window.opener.postMessage({type:'pro-card-return'},location.origin);window.close();return;}}catch(e){}
-   location.replace('/building_manager.php?pro_popup=1');
+   location.replace(<?=json_encode(($_GET['pro_popup']??'')==='1'?'/FireDesk.php?pro_popup=1':('/subscribe_page.php'.(($_GET['invite_flow']??'')==='1'?'?invite_flow=1':'')))?>);
   }
   // Remove authentication parameters before any subsequent navigation.
   history.replaceState(null,'','/toss_billing_return.php?pro_popup=1');
@@ -112,7 +120,7 @@ if(($_GET['pro_popup']??'')==='1'){
   </script>
   <?php else: ?><a class="btn" href="/subscribe_page.php">연간 구독 페이지로</a><?php endif; ?>
   <?php if (!$ok): ?>
-    <a class="btn btn--ghost" href="/building_manager.php">나중에 할게요</a>
+    <a class="btn btn--ghost" href="/FireDesk.php">나중에 할게요</a>
   <?php endif; ?>
 
   <?php if (!tb_is_live()): ?>

@@ -1,0 +1,50 @@
+#manager-quickmemo{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom) + var(--mqm-keyboard,0px) + var(--mqm-visit-footer,0px));z-index:9500;font-family:system-ui,-apple-system,"Apple SD Gothic Neo",sans-serif;color:#59472e}
+#manager-quickmemo *{box-sizing:border-box}#manager-quickmemo [hidden]{display:none!important}
+#manager-quickmemo button{font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#manager-quickmemo .mqm-toggle{display:flex;align-items:center;gap:8px;min-height:44px;padding:11px 16px;border:1px solid #29364a;border-radius:999px;background:#1a2436;color:#fff;font-size:13px;font-weight:650;box-shadow:0 6px 20px #15264125;margin-left:auto}
+#manager-quickmemo .mqm-dot{width:6px;height:6px;border-radius:50%;background:#f7ce71}
+#manager-quickmemo[data-state="saved"] .mqm-dot{background:#63d5ae}#manager-quickmemo[data-state="error"] .mqm-dot{background:#fca5a5}
+#manager-quickmemo .mqm-panel{position:absolute;right:0;bottom:55px;width:min(360px,calc(var(--mqm-width,100vw) - 36px));max-height:calc(var(--mqm-height,100dvh) - 100px);display:flex;flex-direction:column;overflow:hidden;border:1px solid #e7d7af;border-radius:16px;background:#fffdf4;box-shadow:0 14px 42px #1b2b4426}
+#manager-quickmemo .mqm-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:#fff4cf;border-bottom:1px solid #eee0b7;flex-shrink:0}
+#manager-quickmemo .mqm-head strong{font-size:14px;font-weight:750;color:#67501e}#manager-quickmemo .mqm-head p{font-size:11px;line-height:1.5;color:#96825d;margin:3px 0 0}
+#manager-quickmemo .mqm-close{display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:8px;background:#f4e7bf;color:#897240;font-size:22px;padding:0}
+#manager-quickmemo textarea{display:block;flex:1 1 auto;min-height:0;width:100%;height:clamp(140px,28dvh,250px);max-height:50dvh;padding:14px 16px;border:0;background:transparent;resize:none;outline:0;color:#55472f;font:14px/1.8 system-ui;overflow:auto;overscroll-behavior:contain}
+#manager-quickmemo textarea::placeholder{color:#ac9a7a}#manager-quickmemo textarea:focus{box-shadow:inset 0 0 0 2px #e5c366}
+#manager-quickmemo .mqm-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;padding:9px 12px;border-top:1px solid #eee3c9;background:#fff9e8}
+#manager-quickmemo .mqm-state{font-size:11px;line-height:1.6;color:#927d53;overflow-wrap:anywhere}#manager-quickmemo[data-state="error"] .mqm-state{color:#b45332}
+#manager-quickmemo .mqm-save{flex:0 0 auto;min-height:34px;padding:6px 11px;border:1px solid #e8d7ae;border-radius:8px;background:white;color:#7a602e;font-size:12px;font-weight:650}#manager-quickmemo button:disabled{opacity:.55;cursor:default}
+#manager-quickmemo button:focus-visible{outline:3px solid #6599e3;outline-offset:3px}.mqm-sr{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media(max-width:600px),(hover:none) and (pointer:coarse){#manager-quickmemo textarea{font-size:16px}#manager-quickmemo .mqm-toggle{min-height:44px}}
+@media print{#manager-quickmemo{display:none!important}}
+
+/* Mobile memo is a full content screen above the shared bottom menu. */
+#manager-quickmemo.mqm-inline{position:fixed!important;inset:auto 0 auto 0!important;top:var(--mqm-screen-top,0px)!important;width:100%!important;height:var(--mqm-screen-height,calc(100dvh - 90px))!important;z-index:12000;color:#24364c}
+#manager-quickmemo.mqm-inline .mqm-toggle{display:none!important}
+#manager-quickmemo.mqm-inline .mqm-panel{position:relative!important;inset:auto!important;display:flex;width:100%!important;height:100%!important;max-height:none!important;border:0;border-radius:0;background:#fff;box-shadow:none}
+#manager-quickmemo.mqm-inline .mqm-head{padding:17px 18px;background:#fff;border-bottom:1px solid #e8edf5}
+#manager-quickmemo.mqm-inline .mqm-head strong{color:#24364c;font-size:21px;letter-spacing:-.6px}
+#manager-quickmemo.mqm-inline .mqm-head p{color:#7c8b9c;font-size:12px}
+#manager-quickmemo.mqm-inline .mqm-close{width:36px;height:36px;border-radius:10px;background:#f2f5fa;color:#63768d;font-size:30px}
+#manager-quickmemo.mqm-inline textarea{flex:1 1 0;height:auto;max-height:none;min-height:0;padding:20px 18px;color:#33455c;font-size:16px;line-height:1.9}
+#manager-quickmemo.mqm-inline textarea::placeholder{color:#95a2b2}
+#manager-quickmemo.mqm-inline textarea:focus{box-shadow:none}
+#manager-quickmemo.mqm-inline .mqm-foot{padding:11px 16px;background:#f8faff;border-color:#e8edf5}
+#manager-quickmemo.mqm-inline .mqm-state{color:#738399}
+#manager-quickmemo.mqm-inline[data-state="error"] .mqm-state{color:#b45332}
+#manager-quickmemo.mqm-inline .mqm-save{border-color:#d6e3f8;background:#edf4ff;color:#2b63bb}
+
+/* iOS keyboard: one opaque visual-viewport screen, with scrolling only in the editor. */
+#manager-quickmemo.mqm-inline{overflow:hidden;overscroll-behavior:none;isolation:isolate;background:#fff;min-height:0}
+#manager-quickmemo.mqm-inline .mqm-panel{min-height:0;overflow:hidden}
+#manager-quickmemo.mqm-inline textarea{overflow-y:auto;overscroll-behavior-y:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;scroll-padding-block:18px}
+body.mqm-mobile-open .mvc-planner>.mvc-toast{visibility:hidden;pointer-events:none}
+#manager-quickmemo.mqm-inline.mqm-keyboard-open .mqm-head{padding-top:10px;padding-bottom:10px}
+#manager-quickmemo.mqm-inline.mqm-keyboard-open .mqm-head p{display:none}
+#manager-quickmemo.mqm-inline.mqm-keyboard-open .mqm-foot{padding-bottom:10px}
+
+/* Keep the opaque screen at layout-viewport size while only its editor fits the
+   visual viewport. iOS keyboard/accessory transparency must never reveal the map. */
+#manager-quickmemo.mqm-inline:is(.mqm-editing,.mqm-keyboard-open){top:0!important;height:100vh!important;height:100lvh!important;min-height:100vh!important;overflow:visible!important;background:#fff}
+#manager-quickmemo.mqm-inline:is(.mqm-editing,.mqm-keyboard-open) .mqm-panel{position:absolute!important;top:var(--mqm-screen-top,0px)!important;left:0!important;right:0!important;bottom:auto!important;height:var(--mqm-screen-height,100dvh)!important;overflow:hidden}
+/* Also obscure planner content during native caret scrolling/repaint frames. */
+body.mqm-mobile-open dialog.mvc-planner>.mvc-layout{visibility:hidden!important;pointer-events:none}

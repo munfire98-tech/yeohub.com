@@ -1,0 +1,1 @@
+/* Click sounds and vibration feedback are disabled. Kept for old page references. */

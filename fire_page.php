@@ -1,5 +1,5 @@
 <?php
-/* 자위소방대 편성표 전용 페이지 — clients_mini.php 에서 require 됨.
+/* 자위소방대 편성표 전용 페이지 — partner_center.php 에서 require 됨.
    $clients, $CSRF, $DATA_DIR 등은 상위 스코프에서 이미 정의되어 있다. */
 if (!function_exists('h')) { function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); } }
 $cl_for_select = $clients;

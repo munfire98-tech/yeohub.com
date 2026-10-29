@@ -9,9 +9,12 @@
    (index.php 에 코드로 고정된 계정이라, 잠길 위험이 없습니다).
    ============================================================= */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax']); }
-session_start();
+alp_session_start();
 
 $isAdmin = (!empty($_SESSION['is_admin'])) || (!empty($_SESSION['ID_OK']) && $_SESSION['ID_OK'] == 1);
 if (!$isAdmin) { header('Location: /admin_login.php'); exit; }
@@ -124,7 +127,7 @@ $accounts = aa_read();
 </style>
 </head>
 <body>
-<div class="nav"><b>관리자 계정 관리</b><a href="/building_manager.php">← 관리자 화면으로</a></div>
+<div class="nav"><b>관리자 계정 관리</b><a href="/FireDesk.php">← 관리자 화면으로</a></div>
 
 <div class="wrap">
   <h1>관리자 계정</h1>

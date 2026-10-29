@@ -6,6 +6,11 @@ function fp_chat_import(array $plan,array $sources,array $schema):array {
  foreach($schema as $code=>$fields){
   $section=$plan['sections'][$code]??['data'=>[],'is_done'=>0,'is_skipped'=>0];
   $data=(array)($section['data']??[]);$answers=(array)($data['_chat_answers']??[]);$auto=(array)($data['_source_values']??[]);$changed=false;
+  if((string)$code==='3'&&isset($sources['data']['3'])&&function_exists('fp_inspection_defaults')){
+   $basis=$data;
+   if(isset($auto['comprehensive'])&&($basis['comprehensive']??null)===$auto['comprehensive'])unset($basis['comprehensive']);
+   $sources['data']['3']=fp_inspection_defaults((array)($plan['sections']['1']['data']??[]),$basis,(string)($sources['data']['3']['r1_who']??''));
+  }
   foreach($fields as $key=>$field){
    $current=$data[$key]??null;$wasAuto=array_key_exists($key,$auto)&&$current===$auto[$key];
    $empty=is_array($current)?!$current:$current===null||trim((string)$current)==='';

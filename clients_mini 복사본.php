@@ -2,6 +2,9 @@
 // dashboard.php — 지도+달력 메인 + 마을/퀘스트 관리 + 날짜 코멘트
 // 일정 타입: visit / inspect / as(카운트) / report / submit
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 /* ── 카카오맵 JavaScript 키 (주소→좌표 변환용) ──
    카카오 콘솔 > 앱 > 앱 키 > JavaScript 키를 넣으세요.
@@ -11,7 +14,7 @@ const KAKAO_JS_KEY = 'b00cf3b12ed8cfeaefbf6d37101d8d81';
 /* ── 세션/보안 ── */
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 /* ── 헬퍼 ── */
 function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
@@ -2048,7 +2051,7 @@ body .inactive-panel.ms-sidebar{display:flex;max-height:calc(100dvh - 110px)}
     <?php if($msReady): ?><button type="button" class="manager-header-wallet" data-wallet-open aria-haspopup="dialog" aria-controls="manager-wallet-dialog"><span class="header-wallet-icon" aria-hidden="true"><?=mg_icon('coin')?></span><span class="header-wallet-label">파이어 마일리지<small>적립 내역 보기</small></span><strong><?=number_format((int)$ms['balance'])?><small>개</small></strong><span aria-hidden="true" class="wallet-chevron">›</span></button><?php endif; ?>
   </div>
 </header>
-<?php if($managerHeaderName!==null): ?><script src="/manager_help.js?v=20260926-inbox" data-manager="1"></script><?php endif; ?>
+<?php if($managerHeaderName!==null): ?><script src="/manager_help.js?v=20260926-inbox-inquiry-1" data-manager="1"></script><?php endif; ?>
 
 <?php if($msReady)ms_render_wallet($ms); ?>
 
@@ -6219,7 +6222,7 @@ function estSavePdf() {
 })();
 </script>
 <script src="/manager_addresses_modal.js?v=6" defer></script>
-<script src="/manager_map.js?v=20260929-visit-calendar" defer></script>
+<script src="/manager_map.js?v=20260929-visit-calendar-inquiry-1" defer></script>
 <script src="/manager_sidebar.js?v=7" defer></script>
 <link rel="stylesheet" href="/manager_building_list.css?v=20260929-delete-center">
 <script src="/manager_building_list.js?v=20260929-delete" defer></script>

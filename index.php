@@ -1,9 +1,14 @@
 <?php
 // index.php
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
+require_once __DIR__ . '/annual_plan.php';
 /* ─ 카카오 로그인 설정 ─ */
-define('KAKAO_KEY',      'aea180f8a9ccf7395bccfb6dfbede9c6');   // 카카오 콘솔의 REST API 키
-define('KAKAO_SECRET',   '7s3nrcwrdf5Hp5CxmlX3zOpWXfKy7IiJ');   // 카카오 로그인 클라이언트 시크릿 (콘솔에서 복사한 정확한 값)
+$__oauthKeys = require __DIR__.'/oauth_keys.php';
+define('KAKAO_KEY', (string)($__oauthKeys['kakao_key'] ?? ''));   // 카카오 콘솔의 REST API 키
+define('KAKAO_SECRET', (string)($__oauthKeys['kakao_secret'] ?? ''));   // 카카오 로그인 클라이언트 시크릿 (콘솔에서 복사한 정확한 값)
 define('KAKAO_REDIRECT', 'https://www.yeohub.com/index.php?kakao_callback');
 
 /* ─ Session/Security ─ */
@@ -20,7 +25,9 @@ if (PHP_VERSION_ID >= 70300) {
     'samesite' => 'Lax',
   ]);
 }
-session_start();
+alp_session_start();
+if(is_file(__DIR__.'/visit_push_common.php')){require_once __DIR__.'/visit_push_common.php';try{vp_observe();}catch(Throwable $e){error_log('Visit push binding check failed');}}
+
 
 /* ─ 관리자 계정 ─
    mhg1234 은 비상용 최초 계정입니다(코드에 고정). 잠길 걱정 없이 항상 로그인됩니다.
@@ -76,7 +83,7 @@ function work_page(): string {
     return '/select_role.php';
   }
   $role = $_SESSION['role'] ?? 'agency';
-  return $role === 'building' ? '/building_manager.php' : '/clients_mini.php';
+  return $role === 'building' ? '/FireDesk.php' : '/partner_center.php';
 }
 /* 카카오 사용자 유형 저장소 (kakaoId => 'agency'|'building') */
 function kakao_roles_file(): string { return __DIR__ . '/data/kakao_roles.json'; }
@@ -178,7 +185,7 @@ if (isset($_GET['kakao_callback'])) {
     if ($nickname === '') $nickname = '사용자';
 
     if ($kakaoId) {
-      session_regenerate_id(true);
+      vp_detach();session_regenerate_id(true);
       // 관리자로 인정할 카카오 ID 목록 (필요하면 여기에 본인 카카오 숫자 ID 추가)
       $ADMIN_KAKAO_IDS = [
         // 예) '1234567890',
@@ -288,6 +295,7 @@ if (isset($_GET['kakao_callback'])) {
     exit;
   }
 
+  alp_login();
   // 로그인 후 이동: 첫 로그인(유형 미선택)만 유형 선택 페이지로 보내고,
   // 그 외에는 메인(index.php)에 머무릅니다. 업무페이지는 상단 버튼으로 직접 들어갑니다.
   if (!empty($_SESSION['is_user'])) {
@@ -311,10 +319,11 @@ if (($_POST['action'] ?? '') === 'login') {
      화이트리스트 값만 허용해 오픈 리다이렉트를 막는다. */
   $fromAdminPage = (($_POST['redirect_back'] ?? '') === '/admin_login.php?err=1');
   if (admin_verify($u, $p)) {
-    session_regenerate_id(true);
+    vp_detach();session_regenerate_id(true);
     $_SESSION['is_admin']   = true;
     $_SESSION['ID_OK']      = 1;
     $_SESSION['login_type'] = 'admin';
+    alp_login($u);
     $notice = '로그인 성공';
     if ($fromAdminPage) { header('Location: /admin_manager_payouts.php'); exit; }
   } else {
@@ -326,7 +335,7 @@ if (($_POST['action'] ?? '') === 'login') {
 /* ─ 로그아웃 ─ */
 if (isset($_GET['logout']) && $_GET['logout'] === '1') {
   assert_csrf((string)($_GET['csrf'] ?? ''));
-  $_SESSION = [];
+  alp_forget_current();vp_detach();$_SESSION = [];
   if (ini_get('session.use_cookies')) {
     $p = session_get_cookie_params();
     setcookie(session_name(), '', time()-42000, $p['path'], $p['domain'], $p['secure'] ?? false, $p['httponly'] ?? true);
@@ -335,23 +344,30 @@ if (isset($_GET['logout']) && $_GET['logout'] === '1') {
   header('Location: /'); exit;
 }
 
+if(!empty($_SESSION['visit_push_return'])&&vp_actor(mg_members())!==''){header('Location: /visit_push_open.php?message='.rawurlencode($_SESSION['visit_push_return']));exit;}
 header('Content-Type: text/html; charset=utf-8');
 ?>
 <!doctype html>
 <html lang="ko">
 <head>
+<!-- Home-screen icon -->
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/app-icons/sobang-180-v1.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/app-icons/sobang-32-v1.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="apple-mobile-web-app-title" content="소방계획서">
+
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="naver-site-verification" content="08ff3d5a27a9c771ad785abfa862bd9f69a87ba9" />
 <meta name="naver-site-verification" content="6345bf3b5d83c352d473eb9f72377eb4bbb38253" /><!-- 소방계획서.com -->
-<title>소방계획서(소방계획서) | 소방안전관리 플랫폼</title>
-<meta name="description" content="소방계획서.com(소방계획서)는 소방안전관리자를 위한 소방안전관리 플랫폼입니다. 업무 수행 기록과 소방계획서를 한 곳에서 관리하세요." />
+<title>소방계획서.com | 소방안전 기록관리</title>
+<meta name="description" content="안전관리자는 건물정보·업무 기록·소방계획서를 직접 관리하고, 업체는 거래처 지도·방문일정·알림과 작성 문의를 한곳에서 확인합니다. PC와 모바일에서 각자의 업무를 이어가세요." />
 <meta name="keywords" content="소방계획서,Yeohub,소방계획서 소방,소방안전관리,소방안전관리 플랫폼,소방안전관리자,업무수행기록,소방계획서,소방행정" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="소방계획서.com(소방계획서) | 소방안전관리 플랫폼" />
-<meta property="og:description" content="요허브는 소방안전관리자를 위한 플랫폼입니다. 업무 수행 기록부터 소방계획서까지 한 곳에서 관리하세요." />
-<meta property="og:url" content="https://www.yeohub.com" />
-<meta property="og:site_name" content="소방계획서.com(소방계획서)" />
+<meta property="og:title" content="소방계획서.com | 소방안전 기록관리" />
+<meta property="og:description" content="소방안전관리 통합 업무 시스템. 건물정보·방문일정·업무수행기록·소방계획서를 하나의 시스템에서 관리합니다. 소방안전관리자의 직접 작성과 관리를 지원하며, 업체 연결을 통해 업무 현황과 작성 문의를 함께 확인할 수 있습니다." />
+<meta property="og:url" content="https://www.xn--989ay50awvdzmk18f.com/" />
+<meta property="og:site_name" content="소방계획서.com" />
 <meta property="og:locale" content="ko_KR" />
 <style>
 :root{
@@ -646,29 +662,58 @@ footer a:hover{color:var(--fg)}
 .hero__note--collaboration>strong{display:block;color:var(--fg);font-size:clamp(20px,2.2vw,24px);line-height:1.5;font-weight:700;letter-spacing:-.7px}
 .hero__note--collaboration>p{margin:10px 0 0;color:var(--mut2);font-size:13px;line-height:1.85;letter-spacing:-.1px}
 @media(max-width:520px){.hero__note--collaboration{margin-top:18px}.hero__note--collaboration>strong{font-size:21px}.collaboration-break{display:none}}
+/* 메인 서비스 미리보기: 실제 기능의 항목과 흐름을 축약해 표시합니다. */
+.promo{width:100%;min-width:0}.promo__slide{min-width:0}.promo__top{gap:8px;flex-wrap:wrap}.promo__meta{font-family:inherit}.promo__cap{min-height:3.2em;line-height:1.6;word-break:keep-all;overflow-wrap:anywhere}.promo__sample-note{text-align:center;font-size:10.5px;color:var(--mut);margin-top:5px;line-height:1.6}
+.promo__dots{gap:4px;margin-top:7px}.promo__dot{width:24px;height:28px;border-radius:8px;background:transparent;display:grid;place-items:center}.promo__dot::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--bd2);transition:.15s}.promo__dot.is-on{width:24px;background:transparent}.promo__dot.is-on::before{width:18px;border-radius:4px;background:var(--accent)}
+.promo__dot:focus-visible,.promo__slide:focus-visible,.promo__arw:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}.promo__arw:focus-visible{opacity:1}
+.home-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:30px;padding-top:26px;border-top:1px solid #dfe7f1}.home-tool{min-width:0;background:#fff;border:1px solid #e0e7f0;border-radius:13px;padding:20px}.home-tool--manager{background:#f3f8f6;border-color:#d8e8e0}.home-tool__badge{display:inline-block;background:#e9f3ee;color:#25725c;font-size:10px;font-weight:750;border-radius:5px;padding:3px 7px;margin-bottom:10px}.home-tool__badge--pro{background:#eaf1ff;color:#2563eb}.home-tool h3{font-size:15px;letter-spacing:-.3px;margin-bottom:6px}.home-tool p{font-size:12px;color:var(--mut2);line-height:1.8;word-break:keep-all;overflow-wrap:anywhere}.home-tools__note{font-size:11px;line-height:1.8;color:var(--mut2);margin-top:14px;word-break:keep-all}.home-tools__note a{white-space:nowrap;font-weight:650}
+@media(max-width:680px){.home-tools{grid-template-columns:1fr;margin-top:24px;padding-top:22px}.home-tool{padding:17px}.promo__tag{font-size:12px}.promo__meta{font-size:10px}}
+
 </style>
+<link rel="stylesheet" href="/home_screen_add.css?v=20261001-1">
+<script src="/home_screen_add.js?v=20261028-kakao-1" defer></script>
+<style>
+/* Mobile auth inputs: avoid focus zoom and horizontal overflow. */
+@media(max-width:768px),(hover:none) and (pointer:coarse){
+ #authModal input:not([type=hidden]):not([type=checkbox]):not([type=radio]),
+ #authModal select,#authModal textarea{font-size:16px!important;box-sizing:border-box;min-width:0;max-width:100%}
+ #authModal .auth-form,#authModal .field,#authModal .email-row{min-width:0;max-width:100%}
+ #authModal .email-row .inp{flex:1 1 0;width:0;min-width:0}
+ #authModal .mini-btn{padding-inline:10px}
+ #authModal{box-sizing:border-box;padding:12px}
+ #authModal .modal{max-width:100%;max-height:min(90vh,720px);max-height:min(90dvh,720px)}
+ #authModal .amodal__left{overscroll-behavior:contain;overflow-x:hidden}
+}
+@media(max-width:720px){
+ #authModal .modal{width:100%;grid-template-columns:minmax(0,1fr);max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px)}
+ #authModal .amodal__left{padding:28px 20px 22px}
+ #authModal .roles{flex-wrap:wrap}
+ #authModal .role{min-width:0;max-width:100%;box-sizing:border-box}
+}
+</style>
+<script src="/visit_badge.js?v=20261021-1" defer></script>
+<link rel="stylesheet" href="/home_product.css?v=20261026-partner-mobile-18">
+<link rel="stylesheet" href="/kakao_install_guide.css?v=20261028-1"><script src="/kakao_install_guide.js?v=20261028-1" defer></script>
 </head>
-<body>
+<body class="product-home">
 
 <!-- NAV -->
 <nav class="nav">
   <div class="nav__inner">
     <div class="nav__brand">
-      소방계획서.com
+      <svg class="hanok-brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M9 5h12l5 5v18H9V5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M20 5v6h6M13 16h9M13 20h9M13 24h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M5 5v23" stroke="#9c5141" stroke-width="2" stroke-linecap="round"/></svg><span>소방계획서.com</span>
       <?php if (is_admin()): ?>
         <span class="nav__badge">관리자</span>
       <?php endif; ?>
     </div>
     <ul class="nav__links" id="navLinks">
       <?php if(is_admin()): ?>
-      <li><a href="/admin_manager_payouts.php">매니저·출금 관리</a></li>
+      <li><a href="/admin_manager_payouts.php">파트너·출금 관리</a></li>
       <li><a href="/admin_members.php">회원 관리</a></li>
       <li><a href="/admin_accounts.php">관리자 계정</a></li>
       <?php else: ?>
       <li><a href="/faq.php">FAQ</a></li>
       <li><a href="/service.php">서비스</a></li>
-      <li><a href="/ar.php">피난시뮬레이터</a></li>
-      <li><a href="/pro_mode.php">PRO</a></li>
       <?php endif; ?>
       <?php if (is_logged_in()): ?>
         <?php if (!empty($_SESSION['nickname'])): ?>
@@ -688,7 +733,7 @@ footer a:hover{color:var(--fg)}
         <?php endif; ?>
 
         <div class="nw-icons">
-          <a class="nw-icobtn" href="<?=h(work_page())?>" title="<?= is_admin() ? '매니저 관리' : ((($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리' : '업무페이지') ?>">
+          <a class="nw-icobtn" href="<?=h(work_page())?>" title="<?= is_admin() ? '파트너 관리' : ((($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리' : '파트너 센터') ?>">
             <svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h1M11 8h1M7 12h1M11 12h1M7 16h1M11 16h1M17 14h1M17 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           </a>
           <?php if(!is_admin()): ?>
@@ -708,12 +753,12 @@ footer a:hover{color:var(--fg)}
             <div class="nw-pop" id="navPop">
               <div class="nw-pop__head">
                 <div class="nw-pop__name"><?=h($_SESSION['nickname'] ?? '사용자')?>님</div>
-                <div class="nw-pop__sub"><?= is_admin() ? '관리자' : ((($_SESSION['role'] ?? '') === 'building') ? '건물 소방안전관리자' : '소방대행업체') ?></div>
+                <div class="nw-pop__sub"><?= is_admin() ? '관리자' : ((($_SESSION['role'] ?? '') === 'building') ? '건물 소방안전관리자' : '파트너') ?></div>
               </div>
               <div class="nw-pop__list">
                 <a class="nw-pop__item" href="<?=h(work_page())?>">
                   <svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h1M11 8h1M7 12h1M11 12h1M7 16h1M11 16h1M17 14h1M17 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                  <?= is_admin() ? '매니저 관리' : ((($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리' : '업무페이지') ?>
+                  <?= is_admin() ? '파트너 관리' : ((($_SESSION['role'] ?? 'agency') === 'building') ? '건물 관리' : '파트너 센터') ?>
                 </a>
                 <?php if(is_admin()): ?>
                 <a class="nw-pop__item" href="/admin_members.php">회원 관리</a>
@@ -762,9 +807,10 @@ footer a:hover{color:var(--fg)}
   <div class="hero">
    <div class="hero__grid">
     <div class="hero__col">
-      <div class="hero__label"><span></span>SB.PLAN</div>
-                    <h1>소방안전 <em>기록관리</em></h1>
-                    <p class="hero__sub">소방안전관리, 수행에서 증명까지</p>
+      <div class="hero__label"><span></span>건물과 업무, 사람을 연결하는 통합 시스템</div>
+                    <div class="hero__title-row"><h1><span class="home-purpose">소방계획서</span><em>소방안전관리<br><span class="hero__title-accent">통합 업무 시스템</span></em></h1></div>
+                    <p class="hero__sub">건물정보·방문일정·업무수행기록·소방계획서를 하나의 시스템에서 관리합니다.<br>소방안전관리자의 직접 작성과 관리를 지원하며, 업체 연결을 통해 업무 현황과 작성 문의를 함께 확인할 수 있습니다.</p>
+      <?php if (!is_logged_in()): ?><div class="hanok-hero-actions"><button class="btn btn--primary" type="button" id="openAuth2">시작하기 <span aria-hidden="true">→</span></button><a class="hanok-text-link" href="#home-preview">역할별 예시 체험 <span aria-hidden="true">→</span></a></div><?php elseif (is_admin()): ?><div class="hanok-hero-actions"><a class="btn btn--primary" href="/admin_manager_payouts.php">관리 화면으로 <span aria-hidden="true">↗</span></a></div><?php endif; ?>
       <?php if (is_logged_in() && !is_admin()): ?>
         <?php
           $isBuildingRole=(($_SESSION['role'] ?? 'agency') === 'building');
@@ -780,280 +826,76 @@ footer a:hover{color:var(--fg)}
           <a class="btn btn--primary" href="<?=h(work_page())?>"><?=h($workLabel)?></a>
         </div>
       <?php endif; ?>
-                    <div class="hero__note hero__note--collaboration">
-                      <strong>함께 작성하고 관리하는<br>소방안전 업무 기록</strong>
-                      <p>건물관리자와 매니저가 업무 현황을 공유하고,<br class="collaboration-break"> 필요한 기록을 한곳에서 체계적으로 작성·관리합니다.</p>
-                    </div>
+      <div class="hero__note hero__note--collaboration"><span>PC · 모바일 지원</span><i aria-hidden="true"></i><span>건물정보 연동</span><i aria-hidden="true"></i><span>궁금한 내용은 작성 문의</span><i aria-hidden="true"></i><span>인쇄 · PDF</span><button type="button" id="home-screen-add" aria-label="홈 화면에 추가하기" aria-haspopup="dialog" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M9 11h6m-3-3v6m-1 5h2"/></svg><span>홈 화면 추가</span></button></div>
       <?php if ($notice !== ''): ?>
         <div class="alert <?= is_admin() ? 'alert--ok' : 'alert--warn' ?>"
              style="max-width:400px;margin:16px 0 0"><?=h($notice)?></div>
       <?php endif; ?>
     </div>
 
-    <!-- 홍보 슬라이드: 서비스 5가지 -->
-    <div class="promo" id="promo">
-      <div class="promo__track" id="promoTrack">
 
-        <!-- 1. 건축물대장 자동 조회 -->
-        <a class="promo__slide" href="/service.php">
-          <div class="promo__top">
-            <span class="promo__tag"><span class="dot"></span>건축물대장 자동 조회</span>
-            <span class="promo__meta">공공데이터 연동</span>
-          </div>
-          <div class="promo__stage promo__stage--rpt">
-            <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="건축물대장 자동 조회">
-              <rect x="0" y="0" width="340" height="210" fill="#fff"/>
-              <rect x="20" y="22" width="300" height="26" rx="6" fill="#f8fafc" stroke="#d4dbe6"/>
-              <circle cx="38" cy="35" r="5" fill="none" stroke="#7a8699" stroke-width="1.6"/>
-              <line x1="42" y1="39" x2="46" y2="43" stroke="#7a8699" stroke-width="1.6" stroke-linecap="round"/>
-              <text x="56" y="39" font-size="9" fill="#56627a" font-family="sans-serif">서울특별시 용산구 한강대로 405</text>
-              <circle cx="26" cy="64" r="6" fill="#eefaf1"/>
-              <path d="M23 64l2.5 2.5L29.5 62" stroke="#15803d" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-              <text x="38" y="67" font-size="8" fill="#15803d" font-family="sans-serif">건축물대장에서 불러왔습니다</text>
-              <rect x="20"  y="82" width="145" height="40" rx="6" fill="#f5f7fb"/>
-              <rect x="175" y="82" width="145" height="40" rx="6" fill="#f5f7fb"/>
-              <rect x="20"  y="130" width="145" height="40" rx="6" fill="#f5f7fb"/>
-              <rect x="175" y="130" width="145" height="40" rx="6" fill="#f5f7fb"/>
-              <text x="32" y="97" font-size="7" fill="#7a8699" font-family="sans-serif">연면적</text>
-              <text x="32" y="114" font-size="13" fill="#1a2436" font-family="sans-serif" font-weight="600">15,723㎡</text>
-              <text x="187" y="97" font-size="7" fill="#7a8699" font-family="sans-serif">층수</text>
-              <text x="187" y="114" font-size="13" fill="#1a2436" font-family="sans-serif" font-weight="600">지하1 / 지상8</text>
-              <text x="32" y="145" font-size="7" fill="#7a8699" font-family="sans-serif">구조</text>
-              <text x="32" y="162" font-size="13" fill="#1a2436" font-family="sans-serif" font-weight="600">철근콘크리트조</text>
-              <text x="187" y="145" font-size="7" fill="#7a8699" font-family="sans-serif">사용승인일</text>
-              <text x="187" y="162" font-size="13" fill="#1a2436" font-family="sans-serif" font-weight="600">2015-03-24</text>
-            </svg>
-          </div>
-          <p class="promo__cap">주소만 검색하면 규모·구조·용도가 한 번에 채워집니다</p>
-        </a>
 
-        <!-- 2. 문답식 설정 -->
-        <a class="promo__slide" href="/service.php">
-          <div class="promo__top">
-            <span class="promo__tag"><i>💬</i> 문답식or클릭 설정</span>
-            <span class="promo__meta">묻는 대로 답하면 끝</span>
-          </div>
-          <div class="promo__stage promo__stage--rpt">
-            <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="문답식 설정 대화 화면">
-              <rect x="0" y="0" width="340" height="210" fill="#fff"/>
-              <rect x="20" y="20" width="200" height="30" rx="10" fill="#f1f5f9"/>
-              <text x="32" y="39" font-size="8.5" fill="#1a2436" font-family="sans-serif">소방안전관리자로 선임된 분은 누구인가요?</text>
-              <rect x="150" y="58" width="170" height="26" rx="10" fill="#2563eb"/>
-              <text x="308" y="75" font-size="8.5" fill="#fff" font-family="sans-serif" text-anchor="end">홍길동</text>
-              <rect x="20" y="92" width="230" height="30" rx="10" fill="#f1f5f9"/>
-              <text x="32" y="111" font-size="8.5" fill="#1a2436" font-family="sans-serif">소방안전관리 등급은 어떻게 되나요?</text>
-              <rect x="20" y="130" width="126" height="24" rx="8" fill="#eefaf1" stroke="#bfe6cb"/>
-              <text x="30" y="145" font-size="7.5" fill="#15803d" font-family="sans-serif">건축물 계산상 1급입니다 </text>
-              <rect x="20" y="160" width="44" height="22" rx="7" fill="#fff" stroke="#d4dbe6"/>
-              <text x="42" y="174" font-size="8" fill="#56627a" font-family="sans-serif" text-anchor="middle">특급</text>
-              <rect x="70" y="160" width="44" height="22" rx="7" fill="#eefaf1" stroke="#22c55e"/>
-              <text x="92" y="174" font-size="8" fill="#15803d" font-family="sans-serif" text-anchor="middle" font-weight="600">1급 ✓</text>
-              <rect x="120" y="160" width="44" height="22" rx="7" fill="#fff" stroke="#d4dbe6"/>
-              <text x="142" y="174" font-size="8" fill="#56627a" font-family="sans-serif" text-anchor="middle">2급</text>
-              <rect x="170" y="160" width="44" height="22" rx="7" fill="#fff" stroke="#d4dbe6"/>
-              <text x="192" y="174" font-size="8" fill="#56627a" font-family="sans-serif" text-anchor="middle">3급</text>
-            </svg>
-          </div>
-          <p class="promo__cap">어려운 서식 용어 대신, 물어보는 대로 답하면 됩니다</p>
-        </a>
-
-        <!-- 3. 자위소방대 편성 -->
-        <a class="promo__slide" href="/service.php">
-          <div class="promo__top">
-            <span class="promo__tag"><i>🧯</i> 자위소방대 편성</span>
-            <span class="promo__meta">명단만 붙여넣으면 자동</span>
-          </div>
-          <div class="promo__stage promo__stage--rpt">
-            <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="명단 수정과 자동 편성을 한 번에 처리하는 자위소방대 팝업">
-              <rect width="340" height="210" fill="#eef2f7"/>
-              <rect x="12" y="9" width="316" height="192" rx="12" fill="#fff" stroke="#cbd5e1"/>
-              <path d="M12 21a12 12 0 0112-12h292a12 12 0 0112 12v22H12V21z" fill="#f8fafc"/>
-              <line x1="12" y1="43" x2="328" y2="43" stroke="#e2e8f0"/>
-              <circle cx="28" cy="26" r="7" fill="#eaf2ff"/>
-              <path d="M25.5 29v-5l2.5-1.5 2.5 1.5v5M24 29.5h8" fill="none" stroke="#2563eb" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-              <text x="41" y="29.5" font-size="9" fill="#172033" font-family="sans-serif" font-weight="700">자위소방대 편성</text>
-              <rect x="245" y="18" width="52" height="16" rx="8" fill="#ecfdf3"/>
-              <text x="271" y="28.7" font-size="6.5" fill="#047857" font-family="sans-serif" text-anchor="middle" font-weight="700">자동 배치 가능</text>
-              <path d="M310 22l7 7m0-7l-7 7" stroke="#94a3b8" stroke-width="1.2" stroke-linecap="round"/>
-
-              <rect x="26" y="51" width="86" height="17" rx="8.5" fill="#eaf2ff"/>
-              <circle cx="38" cy="59.5" r="5" fill="#2563eb"/><text x="38" y="62" font-size="6" fill="#fff" font-family="sans-serif" text-anchor="middle" font-weight="700">1</text>
-              <text x="70" y="62" font-size="7" fill="#1d4ed8" font-family="sans-serif" text-anchor="middle" font-weight="700">명단 수정</text>
-              <rect x="127" y="51" width="86" height="17" rx="8.5" fill="#f1f5f9"/>
-              <circle cx="139" cy="59.5" r="5" fill="#94a3b8"/><text x="139" y="62" font-size="6" fill="#fff" font-family="sans-serif" text-anchor="middle" font-weight="700">2</text>
-              <text x="171" y="62" font-size="7" fill="#64748b" font-family="sans-serif" text-anchor="middle" font-weight="700">자동 편성</text>
-              <rect x="228" y="51" width="86" height="17" rx="8.5" fill="#f1f5f9"/>
-              <circle cx="240" cy="59.5" r="5" fill="#94a3b8"/><text x="240" y="62" font-size="6" fill="#fff" font-family="sans-serif" text-anchor="middle" font-weight="700">3</text>
-              <text x="272" y="62" font-size="7" fill="#64748b" font-family="sans-serif" text-anchor="middle" font-weight="700">인원 배치</text>
-
-              <rect x="26" y="77" width="112" height="84" rx="7" fill="#f8fafc" stroke="#dbe3ed"/>
-              <text x="36" y="90" font-size="7.5" fill="#334155" font-family="sans-serif" font-weight="700">근무자 명단</text>
-              <text x="128" y="90" font-size="6.5" fill="#64748b" font-family="sans-serif" text-anchor="end">6명</text>
-              <circle cx="38" cy="105" r="6" fill="#dbeafe"/><text x="38" y="107.5" font-size="5.5" fill="#2563eb" font-family="sans-serif" text-anchor="middle" font-weight="700">문</text>
-              <text x="49" y="104" font-size="7" fill="#1e293b" font-family="sans-serif" font-weight="700">문우주</text><text x="49" y="112" font-size="5.7" fill="#94a3b8" font-family="sans-serif">관리팀 · 팀장</text>
-              <line x1="34" y1="118" x2="130" y2="118" stroke="#e2e8f0"/>
-              <circle cx="38" cy="130" r="6" fill="#dcfce7"/><text x="38" y="132.5" font-size="5.5" fill="#15803d" font-family="sans-serif" text-anchor="middle" font-weight="700">김</text>
-              <text x="49" y="129" font-size="7" fill="#1e293b" font-family="sans-serif" font-weight="700">김철수</text><text x="49" y="137" font-size="5.7" fill="#94a3b8" font-family="sans-serif">시설팀 · 대리</text>
-              <line x1="34" y1="143" x2="130" y2="143" stroke="#e2e8f0"/>
-              <text x="82" y="154" font-size="6.2" fill="#64748b" font-family="sans-serif" text-anchor="middle">이영희 외 3명</text>
-
-              <path d="M143 115h8m-3-3l3 3-3 3" fill="none" stroke="#60a5fa" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-
-              <rect x="156" y="77" width="158" height="84" rx="7" fill="#fff" stroke="#bcd0eb"/>
-              <text x="166" y="90" font-size="7.5" fill="#1e3a8a" font-family="sans-serif" font-weight="700">편성 미리보기</text>
-              <rect x="166" y="97" width="63" height="23" rx="5" fill="#172554"/>
-              <text x="197.5" y="106" font-size="5.7" fill="#93c5fd" font-family="sans-serif" text-anchor="middle">대장</text><text x="197.5" y="115" font-size="6.8" fill="#fff" font-family="sans-serif" text-anchor="middle" font-weight="700">문우주</text>
-              <rect x="237" y="97" width="67" height="23" rx="5" fill="#334155"/>
-              <text x="270.5" y="106" font-size="5.7" fill="#cbd5e1" font-family="sans-serif" text-anchor="middle">부대장</text><text x="270.5" y="115" font-size="6.8" fill="#fff" font-family="sans-serif" text-anchor="middle" font-weight="700">김철수</text>
-              <rect x="166" y="127" width="42" height="25" rx="4" fill="#eff6ff" stroke="#bfdbfe"/>
-              <text x="187" y="137" font-size="5.7" fill="#1d4ed8" font-family="sans-serif" text-anchor="middle" font-weight="700">비상연락</text><text x="187" y="146" font-size="5.8" fill="#475569" font-family="sans-serif" text-anchor="middle">이영희</text>
-              <rect x="214" y="127" width="42" height="25" rx="4" fill="#fff7ed" stroke="#fed7aa"/>
-              <text x="235" y="137" font-size="5.7" fill="#c2410c" font-family="sans-serif" text-anchor="middle" font-weight="700">초기소화</text><text x="235" y="146" font-size="5.8" fill="#475569" font-family="sans-serif" text-anchor="middle">박민수</text>
-              <rect x="262" y="127" width="42" height="25" rx="4" fill="#f0fdf4" stroke="#bbf7d0"/>
-              <text x="283" y="137" font-size="5.7" fill="#15803d" font-family="sans-serif" text-anchor="middle" font-weight="700">피난유도</text><text x="283" y="146" font-size="5.8" fill="#475569" font-family="sans-serif" text-anchor="middle">정대한</text>
-
-              <rect x="26" y="171" width="76" height="20" rx="6" fill="#fff" stroke="#cbd5e1"/>
-              <text x="64" y="184" font-size="7" fill="#475569" font-family="sans-serif" text-anchor="middle" font-weight="700">명단 수정</text>
-              <rect x="190" y="171" width="124" height="20" rx="6" fill="#2563eb"/>
-              <text x="252" y="184" font-size="7" fill="#fff" font-family="sans-serif" text-anchor="middle" font-weight="700">이 명단으로 자동 편성</text>
-            </svg>
-          </div>
-          <p class="promo__cap">명단 수정부터 자동 편성·인원 조정까지 한 팝업에서</p>
-        </a>
-
-        <!-- 4. 피난 시뮬레이션 -->
-        <a class="promo__slide" href="/service.php">
-          <div class="promo__top">
-            <span class="promo__tag"><i>🚪</i> 피난 시뮬레이션</span>
-            <span class="promo__meta">대피 동선 확인</span>
-          </div>
-          <div class="promo__stage promo__stage--rpt">
-            <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="피난 동선 시뮬레이션">
-              <rect x="0" y="0" width="340" height="210" fill="#fff"/>
-              <rect x="30" y="24" width="280" height="130" rx="4" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
-              <line x1="115" y1="24" x2="115" y2="100" stroke="#cbd5e1" stroke-width="1.5"/>
-              <line x1="225" y1="24" x2="225" y2="100" stroke="#cbd5e1" stroke-width="1.5"/>
-              <line x1="30" y1="100" x2="310" y2="100" stroke="#cbd5e1" stroke-width="1.5"/>
-              <circle cx="70" cy="60" r="9" fill="#fee2e2"/>
-              <text x="70" y="64" font-size="9" text-anchor="middle" font-family="sans-serif">🔥</text>
-              <path d="M70 76 L70 112 L150 112 L150 140" stroke="#2563eb" stroke-width="2" fill="none" stroke-dasharray="4 3" stroke-linecap="round"/>
-              <path d="M170 60 L170 112 L150 112" stroke="#2563eb" stroke-width="2" fill="none" stroke-dasharray="4 3" stroke-linecap="round"/>
-              <path d="M270 60 L270 112 L155 112" stroke="#2563eb" stroke-width="2" fill="none" stroke-dasharray="4 3" stroke-linecap="round"/>
-              <rect x="132" y="140" width="36" height="14" rx="3" fill="#16a34a"/>
-              <text x="150" y="150" font-size="7" fill="#fff" font-family="sans-serif" text-anchor="middle">비상구</text>
-              <circle cx="170" cy="60" r="4" fill="#64748b"/>
-              <circle cx="270" cy="60" r="4" fill="#64748b"/>
-              <text x="30" y="178" font-size="8" fill="#56627a" font-family="sans-serif">예상 대피시간</text>
-              <text x="105" y="178" font-size="8" fill="#1a2436" font-family="sans-serif" font-weight="600">4분 12초</text>
-              <text x="180" y="178" font-size="8" fill="#56627a" font-family="sans-serif">병목 구간</text>
-              <text x="245" y="178" font-size="8" fill="#d8471f" font-family="sans-serif" font-weight="600">2층 계단</text>
-            </svg>
-          </div>
-          <p class="promo__cap">화재 시 대피 흐름을 미리 확인하고 교육 자료로 씁니다</p>
-        </a>
-
-        <!-- 5. 법정서식 자동 완성 -->
-        <a class="promo__slide" href="/service.php">
-          <div class="promo__top">
-            <span class="promo__tag"><i>📄</i> 법정서식 자동 완성</span>
-            <span class="promo__meta">별지 제12호서식</span>
-          </div>
-          <div class="promo__stage promo__stage--rpt">
-            <svg viewBox="0 0 340 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="업무 수행 기록표">
-              <rect x="0" y="0" width="340" height="210" fill="#fff"/>
-              <text x="16" y="16" font-size="5.5" fill="#555" font-family="sans-serif">■ 화재의 예방 및 안전관리에 관한 법률 시행규칙 [별지 제12호서식]</text>
-              <text x="170" y="34" font-size="11" fill="#111" font-family="sans-serif" font-weight="600" text-anchor="middle" letter-spacing="1.5">소방안전관리자 업무 수행 기록표</text>
-              <rect x="16" y="46" width="66" height="17" fill="#f3f4f6" stroke="#333" stroke-width=".7"/>
-              <rect x="82" y="46" width="106" height="17" fill="#fff" stroke="#333" stroke-width=".7"/>
-              <rect x="188" y="46" width="50" height="17" fill="#f3f4f6" stroke="#333" stroke-width=".7"/>
-              <rect x="238" y="46" width="86" height="17" fill="#fff" stroke="#333" stroke-width=".7"/>
-              <text x="49" y="58" font-size="6.5" fill="#111" font-family="sans-serif" text-anchor="middle">수행일자</text>
-              <text x="88" y="58" font-size="6.5" fill="#111" font-family="sans-serif">2026-08-20</text>
-              <text x="213" y="58" font-size="6.5" fill="#111" font-family="sans-serif" text-anchor="middle">수행자</text>
-              <text x="244" y="58" font-size="6.5" fill="#111" font-family="sans-serif">문우주</text>
-              <rect x="16" y="63" width="66" height="17" fill="#f3f4f6" stroke="#333" stroke-width=".7"/>
-              <rect x="82" y="63" width="242" height="17" fill="#fff" stroke="#333" stroke-width=".7"/>
-              <text x="49" y="75" font-size="6.5" fill="#111" font-family="sans-serif" text-anchor="middle">대상물</text>
-              <text x="88" y="75" font-size="6.5" fill="#111" font-family="sans-serif">○○빌딩 · 지상 12층 · 연면적 15,200㎡</text>
-              <rect x="16" y="84" width="66" height="15" fill="#f3f4f6" stroke="#333" stroke-width=".7"/>
-              <rect x="82" y="84" width="160" height="15" fill="#f3f4f6" stroke="#333" stroke-width=".7"/>
-              <rect x="242" y="84" width="82" height="15" fill="#f3f4f6" stroke="#333" stroke-width=".7"/>
-              <text x="49" y="94" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">항 목</text>
-              <text x="162" y="94" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">확인내용</text>
-              <text x="283" y="94" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">확인결과</text>
-              <rect x="16" y="99" width="66" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
-              <rect x="82" y="99" width="160" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
-              <rect x="242" y="99" width="82" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
-              <text x="49" y="113" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">소방시설</text>
-              <text x="88" y="113" font-size="6" fill="#333" font-family="sans-serif">수신기 및 제어반 정상 작동 확인</text>
-              <text x="283" y="113" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">☑ 양호</text>
-              <rect x="16" y="121" width="66" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
-              <rect x="82" y="121" width="160" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
-              <rect x="242" y="121" width="82" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
-              <text x="49" y="135" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">피난방화시설</text>
-              <text x="88" y="135" font-size="6" fill="#333" font-family="sans-serif">방화문 폐쇄 및 피난통로 확인</text>
-              <text x="283" y="135" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">☑ 양호</text>
-              <rect x="16" y="143" width="66" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
-              <rect x="82" y="143" width="160" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
-              <rect x="242" y="143" width="82" height="22" fill="#fff" stroke="#333" stroke-width=".7"/>
-              <text x="49" y="157" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">화기취급감독</text>
-              <text x="88" y="157" font-size="6" fill="#333" font-family="sans-serif">화기취급 구역 이상 유무 확인</text>
-              <text x="283" y="157" font-size="6" fill="#111" font-family="sans-serif" text-anchor="middle">☑ 양호</text>
-              <text x="16" y="180" font-size="5.5" fill="#8a94a6" font-family="sans-serif">210mm×297mm[백상지(80g/㎡)]</text>
-            </svg>
-          </div>
-          <p class="promo__cap">법정서식 그대로, 인쇄하면 이 모습 그대로 나옵니다</p>
-        </a>
-      </div>
-
-      <div class="promo__dots" role="tablist">
-        <button class="promo__dot is-on" data-i="0" aria-label="1번 슬라이드"></button>
-        <button class="promo__dot" data-i="1" aria-label="2번 슬라이드"></button>
-        <button class="promo__dot" data-i="2" aria-label="3번 슬라이드"></button>
-        <button class="promo__dot" data-i="3" aria-label="4번 슬라이드"></button>
-        <button class="promo__dot" data-i="4" aria-label="5번 슬라이드"></button>
-      </div>
-      <button class="promo__arw promo__arw--l" aria-label="이전">‹</button>
-      <button class="promo__arw promo__arw--r" aria-label="다음">›</button>
-    </div>
+    
+<section id="home-preview" class="home-audiences" aria-labelledby="homeAudiencesTitle">
+  <div class="home-audiences-heading"><h2 id="homeAudiencesTitle">안전관리자는 스스로, 업체는 더 효율적으로.</h2><p>각자의 업무를 편리하게, 필요한 정보는 연결해서.</p></div>
+  <div class="home-audience-grid">
+    <article class="home-audience-card home-company-example-card"><div class="home-audience-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5H5v16h14V5h-3"/><rect x="8" y="3" width="8" height="4" rx="1"/><path d="m8 12 2 2 5-5M8 18h7"/></svg></div><div class="home-audience-copy"><span class="home-audience-for">소방안전관리자</span><h3>소방계획서 작성부터 일상 업무 관리까지.</h3><p>건물정보와 업무 기록을 직접 확인하고 소방계획서를 작성하세요.<br>필요할 때 업체를 연결해 작성 내용을 문의할 수 있습니다.</p><div class="home-audience-features"><span>업무 기록</span><span>소방계획서 작성</span><span>작성 문의</span></div><button type="button" class="home-company-preview-open" id="homeSafetyPreviewOpen" aria-haspopup="dialog"><span class="home-company-card-hit" aria-hidden="true"></span>건물관리 예시 체험 <span aria-hidden="true">→</span></button></div></article>
+    <article class="home-audience-card home-company-example-card"><div class="home-audience-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Zm6-3v15m6-12v15"/><path d="m6 10 1 1 5-1 5 3 1-1"/></svg></div><div class="home-audience-copy"><span class="home-audience-for">소방 관련 업체 · 파트너 센터</span><h3>여러 거래처의 관리를 한곳에서.</h3><p>거래처 지도·방문일정·업무 알림으로 일정을 관리하세요.<br>연결된 건물의 작성 현황과 문의도 함께 확인할 수 있습니다.</p><div class="home-audience-features"><span>거래처 지도</span><span>방문일정·알림</span><span>작성 문의 응대</span></div><button type="button" class="home-company-preview-open" id="homePartnerPreviewOpen" aria-haspopup="dialog"><span class="home-company-card-hit" aria-hidden="true"></span>파트너센터 예시 체험 <span aria-hidden="true">→</span></button></div></article>
+  </div>
+</section>
    </div>
   </div>
 </section>
 
+
+
+<aside class="home-service-principle" aria-labelledby="homePrincipleTitle"><h2 id="homePrincipleTitle">서비스 운영 원칙</h2><p><span class="principle-line">소방계획서.com은 <strong>관련 법령에서 정한 필수 사항을 정확히 반영</strong>하는 것을 기본 원칙으로 삼고,</span> <span class="principle-line"><strong>소방청의 권장사항에 최대한 부합</strong>하도록 서비스를 지속적으로 점검하고 개선하고 있습니다.</span></p></aside>
+
+<dialog id="homeSafetyPreviewDialog" class="home-partner-preview-dialog" aria-labelledby="homeSafetyPreviewTitle"><header><div><span>FIREDESK · 예시 체험</span><h2 id="homeSafetyPreviewTitle">우리 건물의 소방안전관리를 직접 체험하세요.</h2></div><div class="home-example-dialog-actions"><button type="button" id="homeMobilePreviewOpen" aria-haspopup="dialog">모바일 화면 확인 ↗</button><button type="button" id="homeSafetyPreviewClose" aria-label="건물관리 예시 닫기">닫기 ×</button></div></header><iframe id="homeFireDeskFrame" data-src="/firedesk_example.php/FireDesk.php" title="가상 건물 FireDesk 화면 체험" sandbox="allow-scripts allow-same-origin allow-modals" referrerpolicy="same-origin"></iframe></dialog>
+<dialog class="home-mobile-preview-dialog" id="homeMobilePreviewDialog" aria-labelledby="homeMobilePreviewTitle"><header><div><span>FIREDESK · MOBILE</span><h2 id="homeMobilePreviewTitle">모바일 화면 미리보기</h2></div><button type="button" id="homeMobilePreviewClose" aria-label="모바일 미리보기 닫기">닫기 ×</button></header><iframe id="homeFireDeskMobileFrame" data-src="/firedesk_example.php/FireDesk.php" title="가상 건물 FireDesk 모바일 화면 체험" sandbox="allow-scripts allow-same-origin allow-modals" referrerpolicy="same-origin"></iframe></dialog>
+<dialog id="homePartnerPreviewDialog" class="home-partner-preview-dialog" aria-labelledby="homePartnerPreviewTitle"><header><div><span>PARTNER CENTER · 예시 체험</span><h2 id="homePartnerPreviewTitle">지도와 업무모드를 직접 눌러보세요.</h2></div><div class="home-example-dialog-actions"><button type="button" id="homePartnerMobilePreviewOpen" aria-haspopup="dialog">모바일 화면 확인 ↗</button><button type="button" id="homePartnerPreviewClose" aria-label="파트너센터 예시 닫기">닫기 ×</button></div></header><iframe id="homePartnerPreviewFrame" data-src="/partner_center_example.php" title="파트너센터 지도와 업무모드 예시" sandbox="allow-scripts allow-same-origin allow-modals" referrerpolicy="same-origin"></iframe></dialog>
+<dialog class="home-mobile-preview-dialog" id="homePartnerMobilePreviewDialog" aria-labelledby="homePartnerMobilePreviewTitle"><header><div><span>PARTNER CENTER · MOBILE</span><h2 id="homePartnerMobilePreviewTitle">파트너센터 모바일 예시</h2></div><button type="button" id="homePartnerMobilePreviewClose" aria-label="파트너센터 모바일 예시 닫기">닫기 ×</button></header><iframe id="homePartnerMobilePreviewFrame" data-src="/partner_center_example.php" title="파트너센터 모바일 지도와 업무모드 예시" sandbox="allow-scripts allow-same-origin allow-modals" referrerpolicy="same-origin"></iframe></dialog>
+<script src="/home_firedesk_preview.js?v=20261026-partner-mobile-10" defer></script>
 <!-- MAIN -->
 <main class="main">
   <?php if (is_admin()): ?>
       <div class="cta-box">
-        <p class="cta-box__msg"><span class="accent">매니저 관리</span>에서 가입 현황·보유 코인·출금 신청을 확인하세요.</p>
+        <p class="cta-box__msg"><span class="accent">파트너 관리</span>에서 가입 현황·파이어 마일리지·출금 신청을 확인하세요.</p>
         <div class="cta-box__btns">
-          <a class="btn btn--primary btn--lg" href="/admin_manager_payouts.php">매니저 관리 →</a>
+          <a class="btn btn--primary btn--lg" href="/admin_manager_payouts.php">파트너 관리 →</a>
           <a class="btn btn--lg btn--admin" href="/admin_memo.php">메모 열기 →</a>
           <a class="btn btn--lg btn--admin" href="/admin_members.php">👥 회원 관리 →</a>
           <a class="btn btn--lg btn--admin" href="/admin_accounts.php">관리자 계정 관리 →</a>
         </div>
       </div>
-  <?php elseif (!is_logged_in()): ?>
-    <div class="cta-box">
-      <p class="cta-box__msg">지금 가입하고 <span class="accent">업무페이지</span>를 시작해보세요.</p>
-      <button class="btn btn--primary btn--lg" id="openAuth2">회원가입 · 로그인</button>
-    </div>
   <?php endif; ?>
 
   <section class="service-guide" aria-labelledby="serviceGuideTitle">
     <div class="service-guide__head">
-      <div class="service-guide__eyebrow">함께하는 소방안전관리</div>
-      <h2 id="serviceGuideTitle">매니저와 함께 관리하고<br>기록으로 안전을 이어갑니다</h2>
-      <p class="service-guide__lead">건물 등록 한 번으로 필요한 소방 업무를 이어가세요. 담당 매니저와 함께 해야 할 일을 확인하고, 소방계획서부터 교육·훈련, 점검과 조치 내용까지 차근차근 기록할 수 있습니다.</p>
+      <div class="service-guide__eyebrow">직접 작성하고, 필요한 내용을 문의하세요.</div>
+      <h2 id="serviceGuideTitle">내 건물 확인부터<br>소방계획서 완성까지</h2>
+      <p class="service-guide__lead">업체의 안내로 가입해도, 직접 가입해도 관리의 중심은 소방안전관리자입니다. 내 건물의 현황을 확인하고, 수행한 업무를 기록하며, 저장한 자료로 소방계획서를 완성해 가세요.</p>
+    </div>
+    <div class="home-start-paths" aria-label="두 가지 가입 경로">
+      <article><span>업체 안내로 시작</span><h3>초대받은 건물정보를 확인하세요.</h3><p>업체에서 받은 초대 QR·링크로 가입하고, 사전등록된 정보를 확인해 직접 관리를 이어가세요.</p></article>
+      <article><span>직접 가입해 시작</span><h3>내 건물정보부터 준비하세요.</h3><p>직접 가입한 뒤 안내에 따라 내 건물 등록을 진행하세요. 작성 중 문의할 곳이 필요하면 로컬 연결을 이용할 수 있습니다.</p></article>
     </div>
     <div class="service-flow">
-      <article class="service-step"><span class="service-step__num"></span><h3>건물 등록</h3><p>건축물 정보와 소방시설 현황을 한 번 입력합니다.</p></article>
-      <article class="service-step"><span class="service-step__num"></span><h3>자위소방대</h3><p>건물 조직에 맞게 역할과 편성표를 구성합니다.</p></article>
-      <article class="service-step"><span class="service-step__num"></span><h3>업무수행기록</h3><p>점검과 조치 내용을 남겨 업무수행 근거를 보관합니다.</p></article>
-      <article class="service-step"><span class="service-step__num"></span><h3>교육·훈련</h3><p>계획부터 실시 결과까지 빠짐없이 기록합니다.</p></article>
-      <article class="service-step"><span class="service-step__num"></span><h3>소방계획서</h3><p>등록한 정보를 바탕으로 법정서식을 작성하고 관리합니다.</p></article>
+      <article class="service-step"><span class="service-step__num"></span><h3>내 건물 확인</h3><p>초대받은 건물정보를 확인하거나, 직접 가입 후 내 건물을 등록할 정보를 준비합니다.</p></article>
+      <article class="service-step"><span class="service-step__num"></span><h3>기본정보 준비</h3><p>조회한 건물정보를 확인하고 동별로 설치된 소방시설을 선택·저장합니다.</p></article>
+      <article class="service-step"><span class="service-step__num"></span><h3>편성·피난계획</h3><p>근무자 명단으로 자위소방대를 편성하고, 대피방법과 집결지 등을 준비합니다.</p></article>
+      <article class="service-step"><span class="service-step__num"></span><h3>업무 기록</h3><p>수행한 업무와 조치 내용, 자위소방대 교육 및 소방훈련 실시 결과를 남깁니다.</p></article>
+      <article class="service-step"><span class="service-step__num"></span><h3>소방계획서 완성</h3><p>저장한 자료를 불러와 계획서를 작성·수정하고 필요한 서류를 인쇄·PDF 저장합니다.</p></article>
     </div>
+    <div class="home-tools" aria-label="함께 이용하는 서비스 기능">
+      <article class="home-tool"><span class="home-tool__badge">무료</span><h3>소방안전관리자 현황표</h3><p>기본정보에 입력한 대상명·관리자·연락처·등급을 불러와 현황표를 인쇄합니다.</p></article>
+      <article class="home-tool"><span class="home-tool__badge home-tool__badge--pro">PRO</span><h3>비화재보 기록</h3><p>발생 상황과 조치 내용을 기록하고, 저장한 내용을 다시 확인합니다.</p></article>
+      <article class="home-tool"><span class="home-tool__badge home-tool__badge--pro">PRO</span><h3>소방교육자료</h3><p>소화기 사용법과 건물에 설정한 옥내소화전 기동 방식에 맞는 교육영상을 확인합니다.</p></article>
+      <article class="home-tool"><span class="home-tool__badge home-tool__badge--pro">PRO</span><h3>궁금한 내용은 작성 문의</h3><p>직접 작성하다 궁금한 항목을 연결 업체 또는 연결된 로컬에 문의하고, 받은 답변을 확인합니다.</p></article>
+    </div>
+    <p class="home-tools__note">건물관리 회원은 업체 연결 후 기본정보·시설 현황을 이용할 수 있습니다. PRO 업무 작성과 작성 문의는 해당 건물의 구독 상태에 따라 제공됩니다. 문의에 대한 지원 범위와 일정은 연결 업체와 확인해 주세요. <a href="/service.php#service-compare">무료·PRO 기능 비교 →</a></p>
     <div class="service-guide__result">
-      <div><b>함께 확인하고, 빠짐없이 남기는 업무 기록</b><span>담당 매니저와 건물별 업무 현황을 확인하고, 필요한 기록을 바로 찾아 출력하세요.</span></div>
+      <div><b>스스로 관리하고, 궁금할 때 문의하세요.</b><span>업무의 확인·작성·관리는 소방안전관리자가, 작성 문의의 답변은 연결 업체 또는 로컬이 맡습니다.</span></div>
       <?php if (is_logged_in()): ?><a class="btn" href="<?=h(work_page())?>">건물 관리 시작하기 →</a><?php else: ?><button class="btn" type="button" id="openAuth3">무료로 시작하기 →</button><?php endif; ?>
     </div>
   </section>
@@ -1181,7 +1023,7 @@ $oldRole = (string)($oldSignup['role'] ?? '');
         <label>사용자 유형</label>
         <div class="roles">
           <label class="role"><input type="radio" name="role" value="building" <?= $oldRole !== 'agency' ? 'checked' : '' ?>> 건물 소방안전관리자</label>
-          <label class="role"><input type="radio" name="role" value="agency" <?= $oldRole === 'agency' ? 'checked' : '' ?>> 매니저</label>
+          <label class="role"><input type="radio" name="role" value="agency" <?= $oldRole === 'agency' ? 'checked' : '' ?>> 파트너</label>
         </div>
       </div>
       <button class="btn btn--primary" type="submit" id="mo-submit" disabled
@@ -1191,15 +1033,15 @@ $oldRole = (string)($oldSignup['role'] ?? '');
     </div><!-- /amodal__left -->
 
     <div class="amodal__right">
-      <h4>지금 가입하고<br>바로 시작하세요</h4>
+      <h4>내 건물의 관리,<br>직접 시작하세요</h4>
       <?php
         $amFeats = [
           ['📋', '소방계획서 작성'],
           ['🏢', '건축물대장 자동 조회'],
           ['🧯', '자위소방대 편성'],
           ['🚒', '점검·훈련 기록'],
-          ['📅', '일정·D-DAY 알림'],
-          ['🗺️', '거래처 지도'],
+          ['📅', '파트너 방문일정·메모'],
+          ['🗺️', '거래처 지도·초대 QR'],
         ];
       ?>
       <div class="amodal__mlabel"><span class="dot"></span>제공하는 기능</div>
@@ -1213,11 +1055,11 @@ $oldRole = (string)($oldSignup['role'] ?? '');
       </div>
       <div class="amodal__check">
         <span class="ico">✓</span>
-        <div class="tx"><b>무료로 시작 가능</b><span>가입만 해도 기본 기능을 바로 써볼 수 있어요</span></div>
+        <div class="tx"><b>무료로 시작 가능</b><span>기본정보·시설 현황은 업체 또는 로컬 연결 후 이용할 수 있어요</span></div>
       </div>
       <div class="amodal__check">
         <span class="ico">✓</span>
-        <div class="tx"><b>1년 구독 69,000원</b><span>사전등록·로컬 매니저 연결 고객 구독 유지 시 59,000원</span></div>
+        <div class="tx"><b>PRO 12개월 이용권 · <?=number_format(AP_PROMO_PRICE)?>원</b><span>사전등록·로컬 파트너 연결 프로모션 대상 고객 기준 · 로그인 후 적용 금액을 확인하세요.</span></div>
       </div>
       <div class="amodal__more"><a href="/service.php">자세히 보기 →</a></div>
     </div>
@@ -1556,9 +1398,9 @@ $oldRole = (string)($oldSignup['role'] ?? '');
     function go(k){
       i = (k + n) % n;
       track.scrollTo({ left: track.clientWidth * i, behavior:'smooth' });
-      dots.forEach((d,j)=>d.classList.toggle('is-on', j===i));
+      dots.forEach((d,j)=>{d.classList.toggle('is-on', j===i);d.setAttribute('aria-pressed',String(j===i));});
     }
-    function auto(){ stop(); timer = setInterval(()=>go(i+1), 4500); }
+    function auto(){ stop(); if(matchMedia('(prefers-reduced-motion: reduce)').matches || document.hidden || promo.matches(':hover') || promo.contains(document.activeElement)) return; timer = setInterval(()=>go(i+1), 6500); }
     function stop(){ if(timer){ clearInterval(timer); timer=null; } }
 
     dots.forEach(d=> d.addEventListener('click', e=>{ e.preventDefault(); go(+d.dataset.i); auto(); }));
@@ -1569,12 +1411,16 @@ $oldRole = (string)($oldSignup['role'] ?? '');
     let st;
     track.addEventListener('scroll', ()=>{ clearTimeout(st); st=setTimeout(()=>{
       const k = Math.round(track.scrollLeft / track.clientWidth);
-      if(k!==i){ i=k; dots.forEach((d,j)=>d.classList.toggle('is-on', j===i)); }
+      if(k!==i){ i=k; dots.forEach((d,j)=>{d.classList.toggle('is-on', j===i);d.setAttribute('aria-pressed',String(j===i));}); }
     }, 80); });
 
     const promo = document.getElementById('promo');
     promo.addEventListener('mouseenter', stop);
     promo.addEventListener('mouseleave', auto);
+    promo.addEventListener('focusin', stop);
+    promo.addEventListener('focusout', ()=>setTimeout(auto,0));
+    document.addEventListener('visibilitychange', ()=>document.hidden?stop():auto());
+    window.addEventListener('resize', ()=>track.scrollTo({left:track.clientWidth*i,behavior:'instant'}));
     if(!matchMedia('(prefers-reduced-motion: reduce)').matches) auto();
   })();
 </script>

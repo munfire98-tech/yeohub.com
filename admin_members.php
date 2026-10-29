@@ -6,6 +6,9 @@
  *   · 삭제 전 자동 백업
  */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 /* ── 세션 설정: login.php와 반드시 동일해야 관리자 로그인이 인식됨 ──
    login.php가 쿠키 도메인을 .tworix.com 으로 잡기 때문에,
@@ -32,7 +35,8 @@ if (PHP_VERSION_ID >= 70300) {
     'samesite' => 'Lax',
   ]);
 }
-session_start();
+alp_session_start();
+require_once __DIR__.'/withdraw_manager.php';
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 
@@ -62,7 +66,7 @@ if (!$isAdmin) {
        . "<p><a href='/impersonate.php?stop=1' style='display:inline-block;margin-top:8px;"
        . "padding:11px 20px;background:#b45309;color:#fff;border-radius:9px;"
        . "text-decoration:none;font-weight:700'>관리자로 돌아가기 →</a></p>"
-       . "<p style='margin-top:14px'><a href='/building_manager.php' style='color:#1d4ed8;font-size:14px'>"
+       . "<p style='margin-top:14px'><a href='/FireDesk.php' style='color:#1d4ed8;font-size:14px'>"
        . "← {$nk}님 화면으로</a></p></div>";
     exit;
   }
@@ -227,37 +231,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['act'] ?? '') ==
     if (!$targets) {
       $msg = '삭제할 회원을 선택하세요.'; $msgType = 'err';
     } else {
-      $members = load_members($FILE);
-
-      /* 백업 먼저 */
-      if (!is_dir($BACKUPDIR)) @mkdir($BACKUPDIR, 0775, true);
-      $bk = $BACKUPDIR . '/members_' . date('Ymd_His') . '.json';
-      @copy($FILE, $bk);
-
-      $deleted = []; $dirCnt = 0;
+      $deleted = []; $failures = []; $dirCnt = 0;
       foreach ($targets as $uid) {
-        if (!isset($members[$uid])) continue;
-        unset($members[$uid]);
-        $deleted[] = $uid;
-        /* 계정과 묶인 기록(시뮬 배정·배정요청·검토요청)은
-           체크와 상관없이 항상 지웁니다.
-           남겨두면 같은 아이디로 다시 가입한 사람에게 그대로 넘어갑니다. */
-        member_purge_extras($DATA, $uid);
-        if ($withData) {
-          foreach (member_dirs($DATA, $uid) as $d) {
-            if (is_dir($d)) { rrmdir($d); $dirCnt++; }
+        if (!sa_valid_uid($uid)) { $failures[] = $uid . ': 잘못된 회원 정보'; continue; }
+        try {
+          $dest = $DATA . '/_backups/withdrawn/' . $uid . '_' . gmdate('Ymd_His') . '_' . bin2hex(random_bytes(4));
+          if (!is_dir($dest) && !mkdir($dest, 0700, true) && !is_dir($dest)) throw new RuntimeException('삭제 자료 보관 폴더를 만들지 못했습니다.');
+          // Always retire billing, even when the administrator keeps work documents.
+          wm_remove_member($uid, $dest . '/_member.json');
+          $deleted[] = $uid;
+          member_purge_extras($DATA, $uid);
+          if ($withData) {
+            foreach (member_dirs($DATA, $uid) as $d) {
+              if (is_dir($d)) { rrmdir($d); $dirCnt++; }
+            }
           }
-        }
+        } catch (Throwable $e) { $failures[] = $uid . ': ' . $e->getMessage(); }
       }
-
-      if ($deleted && save_members($FILE, $members)) {
-        $msg = count($deleted) . '명 삭제 완료 (' . implode(', ', $deleted) . ')'
-             . ($withData && $dirCnt ? " · 데이터 폴더 {$dirCnt}개 정리" : '')
-             . ' · 백업: ' . basename($bk);
-        $msgType = 'ok';
-      } else {
-        $msg = '삭제에 실패했습니다.'; $msgType = 'err';
-      }
+      $msg = count($deleted) . '명 삭제 완료'
+           . ($deleted ? ' (' . implode(', ', $deleted) . ')' : '')
+           . ($withData && $dirCnt ? " · 데이터 폴더 {$dirCnt}개 정리" : '')
+           . ($deleted ? ' · 이전 구독·카드 연결 종료, 결제 기록 별도 보관' : '')
+           . ($failures ? ' · 확인 필요: ' . implode(' / ', $failures) : '');
+      $msgType = $failures ? 'err' : 'ok';
     }
   }
 }
@@ -377,7 +373,7 @@ foreach ($members as $uid => $m) {
   /* 구독 상태 — 결제일이 됐는지 함께 계산합니다 */
   $subF = $SUB_BASE . '/' . $uid . '/subscription.json';
   $subExists = is_file($subF);
-  $sub  = $subExists ? (json_decode((string)@file_get_contents($subF), true) ?: []) : [];
+  $sub  = sa_read($uid);
   $subStatus = (string)($sub['status'] ?? 'none');
   $subCard   = trim((string)($sub['billing_key'] ?? '')) !== '';
   $subNext   = trim((string)($sub['next_billing'] ?? ''));
@@ -625,7 +621,7 @@ td.uid{font-weight:700}
   <div class="nav__in">
     <a class="brand" href="/">TWORIX</a>
     <div style="display:flex;gap:8px">
-      <a class="btn" href="/clients_mini.php">← 대시보드</a>
+      <a class="btn" href="/admin_manager_payouts.php">← 파트너 관리</a>
       <a class="btn" href="/logout.php">로그아웃</a>
     </div>
   </div>
@@ -666,7 +662,7 @@ td.uid{font-weight:700}
       <select name="role" onchange="this.form.submit()">
         <option value="">전체 유형</option>
         <option value="building" <?=$fRole==='building'?'selected':''?>>건물관리자</option>
-        <option value="agency"   <?=$fRole==='agency'?'selected':''?>>대행업체</option>
+        <option value="agency"   <?=$fRole==='agency'?'selected':''?>>파트너</option>
       </select>
       <input type="hidden" name="sub" value="<?=h($fSub)?>">
       <button class="btn" type="submit">검색</button>
@@ -732,7 +728,7 @@ td.uid{font-weight:700}
               <?php if ($r['role'] === 'building'): ?>
                 <span class="tag tag--bld">건물관리자</span>
               <?php else: ?>
-                <span class="tag tag--agc">대행업체</span>
+                <span class="tag tag--agc">파트너</span>
               <?php endif; ?>
             </td>
             <td>
@@ -742,9 +738,13 @@ td.uid{font-weight:700}
 	              </button>
               <a class="btn btn--docs" href="/admin_member_review.php?uid=<?=urlencode($r['uid'])?>"
                  title="기본정보 · 소방계획서 · 업무수행 기록표를 봅니다">📄 서류</a>
+              <?php if ($r['role'] === 'agency'): ?>
+              <a class="btn btn--imp" href="/admin_manager_view.php?uid=<?=urlencode($r['uid'])?>">파트너 화면</a>
+              <?php else: ?>
               <a class="btn btn--imp" href="/impersonate.php?uid=<?=urlencode($r['uid'])?>"
                  title="이 회원 화면으로 들어가 직접 고칩니다"
                  onclick="return confirm('<?=h($r['nickname'] ?: $r['uid'])?>님 계정으로 들어갑니다.\n화면 위 띠에서 언제든 관리자로 돌아올 수 있습니다.')">👤 대리보기</a>
+              <?php endif; ?>
             </td>
             <!-- 구독 -->
             <td class="sub-cell">

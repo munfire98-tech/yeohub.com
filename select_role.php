@@ -1,10 +1,13 @@
 <?php
-// select_role.php — 카카오 로그인 사용자의 유형(대행업체/건물관리자) 선택
+// select_role.php — 카카오 로그인 사용자의 유형(파트너/건물관리자) 선택
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -15,7 +18,7 @@ function is_logged_in(): bool {
   return is_admin() || !empty($_SESSION['is_user']);
 }
 function role_landing(string $role): string {
-  return $role === 'building' ? '/building_manager.php' : '/clients_mini.php';
+  return $role === 'building' ? '/FireDesk.php' : '/partner_center.php';
 }
 
 // 카카오 로그인 사용자만 이용 (member는 가입 때 이미 선택함)
@@ -74,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         return true;
       });
       if ($rolesSaved) {
+        require_once __DIR__.'/visit_push_common.php';vp_notify_member_change($uid);
         $_SESSION['member_id'] = 'kakao_' . $kakaoId;
         $_SESSION['role'] = $role;
         header('Location: ' . role_landing($role)); exit;
@@ -152,7 +156,7 @@ button:hover{background:var(--brand2)}
         <label class="role">
           <input type="radio" name="role" value="agency">
           <span>
-            <span class="t">매니저</span><br>
+            <span class="t">파트너</span><br>
             <span class="d">소방 업무를 대행하는 사업자용 화면을 이용합니다.</span>
           </span>
         </label>

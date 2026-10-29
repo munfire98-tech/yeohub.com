@@ -5,7 +5,7 @@ require_once __DIR__.'/manager_common.php';
 function mh_save_requested_answer(string $actor,string $uid,string $id,array $patch,callable $save): bool {
  return mg_member_tx(function(array &$members)use($actor,$uid,$id,$patch,$save){
   return mg_state_tx(function(array &$state)use($members,$actor,$uid,$id,$patch,$save){
-   if(!mg_active($members[$actor]??[],'agency')||!mg_can_view($actor,$uid,$members,$state))throw new RuntimeException('담당 매니저 연결을 확인해 주세요.');
+   if(!mg_active($members[$actor]??[],'agency')||!mg_can_view($actor,$uid,$members,$state))throw new RuntimeException('연결 업체 연결을 확인해 주세요.');
    return mg_tx(__DIR__.'/data/manager_help_requests.php',function(array &$rows)use($members,$actor,$uid,$id,$patch,$save){
     $r=$rows[$id]??[];
     if(($r['uid']??'')!==$uid||($r['manager']??'')!==$actor||($r['link_key']??'')!==mg_link_key($uid,$members[$uid])
@@ -23,7 +23,7 @@ function mh_save_requested_answer(string $actor,string $uid,string $id,array $pa
     if(($r['status']??'')==='resolved')return true; // idempotent retry; do not overwrite a later answer
     if(!$save())throw new RuntimeException('답변을 저장하지 못했습니다. 다시 시도해 주세요.');
     $rows[$id]['status']='resolved';$rows[$id]['resolved_at']=date('c');$rows[$id]['resolved_by']=$actor;
-    $rows[$id]['reply']='담당 매니저가 요청한 항목을 확인하고 기본정보에 저장했습니다.';
+    $rows[$id]['reply']='연결 업체가 요청한 항목을 확인하고 기본정보에 저장했습니다.';
     return true;
    },true);
   });

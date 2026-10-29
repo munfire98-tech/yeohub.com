@@ -1,6 +1,9 @@
 <?php
 // list.php — 단일파일 통합판 (관리자 버튼/삭제 CSRF/검색 포함)
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 /* ── 30일 로그인 유지 ── */
 $SESSION_TTL = 60 * 60 * 24 * 30;
 ini_set('session.cookie_httponly', '1');
@@ -14,7 +17,7 @@ if (PHP_VERSION_ID >= 70300) {
     'samesite' => 'Lax',
   ]);
 }
-session_start();
+alp_session_start();
 
 /* ─────────────────────────────────────────────
    최소 헬퍼 (inc/util.php 없이도 동작)
@@ -124,7 +127,7 @@ if ($region !== '') {
         <!-- 관리자용 빠른 이동 -->
         <a href="/clients.php" class="chip" style="margin-left:8px">거래처</a>
         <a href="/clients.php?new=1#newClient" class="chip" style="margin-left:6px">＋ 거래처</a>
-        <a href="/clients_mini.php" class="chip" style="margin-left:6px">미니 대시보드</a>
+        <a href="/partner_center.php" class="chip" style="margin-left:6px">미니 대시보드</a>
       <?php endif; ?>
     </div>
     <nav>

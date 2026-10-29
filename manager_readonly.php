@@ -23,6 +23,6 @@ function mg_readonly_html(string $html,string $nickname): string {
     $style=$doc->createElement('style');$style->appendChild($doc->createTextNode('.manager-readonly-bar{position:sticky;top:0;z-index:2147483647;background:#174a39;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:15px;font:14px/1.6 system-ui,sans-serif}.manager-readonly-bar span{flex:1}.manager-readonly-bar a{color:#fff!important;text-decoration:underline!important;white-space:nowrap}a[aria-disabled=true]{cursor:default!important}button:disabled,input:disabled,select:disabled{cursor:default!important}'));$head->appendChild($style);
     $bar=$doc->createElement('div');$bar->setAttribute('class','manager-readonly-bar');
     $text=$doc->createElement('span');$text->appendChild($doc->createTextNode($nickname.' · 건물관리 화면 (읽기 전용)'));$bar->appendChild($text);
-    $back=$doc->createElement('a','지도로 돌아가기');$back->setAttribute('href','/clients_mini.php');$bar->appendChild($back);$body->insertBefore($bar,$body->firstChild);
+    $back=$doc->createElement('a','지도로 돌아가기');$back->setAttribute('href','/partner_center.php');$bar->appendChild($back);$body->insertBefore($bar,$body->firstChild);
     return $doc->saveHTML();
 }

@@ -1,35 +1,31 @@
 <?php
 declare(strict_types=1);
 /** Server-only monthly reward ledger. All amounts are KRW. */
-const MR_COIN_VALUE = 1500;
+require_once __DIR__.'/manager_reward_policy.php';
 function mr_month_at(string $start,int $month):string {
     $base=new DateTimeImmutable($start,new DateTimeZone('Asia/Seoul'));
     $target=$base->modify('first day of this month')->modify('+'.$month.' months');
     return $target->setDate((int)$target->format('Y'),(int)$target->format('m'),min((int)$base->format('d'),(int)$target->format('t')))->format(DATE_ATOM);
 }
 function mr_award(string $uid,array $receipt):void {
-    if(!preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$uid)||($receipt['live']??false)!==true||($receipt['status']??'')!=='DONE'||!in_array((int)($receipt['amount']??0),[59000,69000],true)||empty($receipt['payment_key'])||empty($receipt['order_id'])||strtotime((string)($receipt['at']??''))===false)return;
+    if(!preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$uid)||($receipt['live']??false)!==true||($receipt['status']??'')!=='DONE'||!in_array((int)($receipt['amount']??0),[59000,69000],true)||empty($receipt['payment_key'])||empty($receipt['order_id'])||mr_timestamp((string)($receipt['at']??''))===false)return;
     mg_member_tx(function(array &$members)use($uid,$receipt){
         $m=$members[$uid]??[];$manager=mg_connection_manager($m,$members);
         if(!mg_active($m,'building')||$manager==='')return;
-        mg_state_tx(function(array &$s)use($uid,$receipt,$members,$m,$manager){
+        $current=sa_read($uid);$ownsReceipt=($current['manager_first_payment']['payment_key']??'')===$receipt['payment_key'];
+        foreach($current['history']??[] as $payment)if(($payment['paymentKey']??'')===$receipt['payment_key']&&($payment['test']??null)===false&&!empty($payment['ok']))$ownsReceipt=true;
+        if(!$ownsReceipt)return;
+        mg_state_tx(function(array &$s)use($uid,$receipt,$members,$m,$manager,$current){
             $pk=(string)$receipt['payment_key'];$id=hash('sha256',$pk);
             if(isset($s['refunds'][$pk]))return;
             if(!isset($s['monthly_rewards'][$id])){
-                // A duplicate annual payment must not create overlapping reward years.
-                $start=date('Y-m-d',strtotime($receipt['at']));$end=substr(mr_month_at($receipt['at'],12),0,10);
-                foreach($s['monthly_rewards']??[] as $existing){
-                    if(($existing['user']??'')!==$uid||($existing['user_created']??'')!==(string)($m['created']??''))continue;
-                    if($start<substr(mr_month_at($existing['started_at'],12),0,10)&&$end>date('Y-m-d',strtotime($existing['started_at'])))return;
-                }
-
                 if(!mg_can_view($manager,$uid,$members,$s))return;
                 $link=$s['links'][mg_link_key($uid,$m)]??[];
                 // Do not award a subscription purchased before this manager's accepted connection.
-                if(strtotime((string)($link['at']??''))>strtotime($receipt['at']))return;
-                $s['monthly_rewards'][$id]=['user'=>$uid,'user_created'=>(string)($m['created']??''),'manager'=>$manager,'manager_created'=>(string)($members[$manager]['created']??''),'connection_key'=>mg_link_key($uid,$m),'payment_key'=>$pk,'order_id'=>$receipt['order_id'],'started_at'=>$receipt['at'],'closed_at'=>null];
-                // Existing single coin is installment 1, not an additional coin.
-                foreach($s['rewards']??[] as $key=>$r){if(($r['payment_key']??'')===$pk){$s['rewards'][$key]['user']=$uid;$s['rewards'][$key]['installment']=1;$s['rewards'][$key]['unit_value']=MR_COIN_VALUE;break;}}
+                if(mr_timestamp((string)($link['at']??''))>mr_timestamp($receipt['at']))return;
+                $policy=mr_starter_reserve($s,$id,$uid,$m,$manager,$receipt,$current);
+                $s['monthly_rewards'][$id]=$policy+['user'=>$uid,'user_created'=>(string)($m['created']??''),'manager'=>$manager,'manager_created'=>(string)($members[$manager]['created']??''),'connection_key'=>mg_link_key($uid,$m),'payment_key'=>$pk,'order_id'=>$receipt['order_id'],'started_at'=>$receipt['at'],'closed_at'=>null];
+
             }
         });
     });
@@ -38,7 +34,8 @@ function mr_award(string $uid,array $receipt):void {
 function mr_accrue(string $uid,?int $now=null):void {
     $now=$now??time();
     mg_member_tx(function(array &$members)use($uid,$now){
-        $m=$members[$uid]??[];$sub=mg_read(__DIR__.'/data/subscribe/'.$uid.'/subscription.json');
+        $m=$members[$uid]??[];$sub=sa_read($uid);
+        if(($sub['status']??'')!=='active'||in_array($sub['refund_attempt']['state']??'',['prepared','unknown','done'],true))return;
         mg_state_tx(function(array &$s)use($uid,$now,$m,$members,$sub){
             foreach($s['monthly_rewards']??[] as $id=>$plan){
                 if(($plan['user']??'')!==$uid||!empty($plan['closed_at']))continue;
@@ -47,12 +44,25 @@ function mr_accrue(string $uid,?int $now=null):void {
                 if(!mg_active($m,'building')||($m['created']??'')!==$plan['user_created']||($members[$manager]['created']??'')!==$plan['manager_created']||!mg_can_view($manager,$uid,$members,$s)||mg_link_key($uid,$m)!==$plan['connection_key']){$s['monthly_rewards'][$id]['closed_at']=date(DATE_ATOM,$now);continue;}
                 // Any refunded/cancelled subscription stops further rewards; renewal-off alone does not.
                 if(in_array($sub['status']??'',['refunded','canceled'],true)){$s['monthly_rewards'][$id]['closed_at']=date(DATE_ATOM,$now);continue;}
-                for($i=0;$i<12;$i++){
-                    $due=mr_month_at($plan['started_at'],$i);if(strtotime($due)>$now)break;
-                    $exists=false;foreach($s['rewards']??[] as $r){if(($r['payment_key']??'')===$pk&&(int)($r['installment']??1)===$i+1){$exists=true;break;}}
+                $workUid=preg_replace('/[^A-Za-z0-9_]/','_',$uid);
+                foreach(glob(__DIR__.'/data/worklog/'.$workUid.'/m????-??.json')?:[] as $file){
+                    $record=mg_read($file);
+                    if(!mr_worklog_complete($record,substr(basename($file),1,7)))continue;
+                    $event=$record['_reward_submissions'][hash('sha256',$pk)]??[];
+                    $month=substr(basename($file),1,7);
+                    if(!mr_valid_submission($event,$plan,$month,$now))continue;
+                    $exists=false;
+                    foreach($s['rewards']??[] as $reward){
+                        if(($reward['user']??'')!==$uid)continue;
+                        if(isset($reward['user_created'])&&$reward['user_created']!==$plan['user_created'])continue;
+                        $rewardMonth=(string)($reward['worklog_month']??mr_calendar_month((string)($reward['at']??'')));
+                        if($rewardMonth===$month){$exists=true;break;}
+                    }
                     if($exists)continue;
-                    $key='monthly_'.hash('sha256',$pk.':'.$i);
-                    $s['rewards'][$key]=['user'=>$uid,'manager'=>$manager,'manager_created'=>$plan['manager_created'],'payment_key'=>$pk,'order_id'=>$plan['order_id'],'installment'=>$i+1,'unit_value'=>MR_COIN_VALUE,'at'=>$due,'posted_at'=>date(DATE_ATOM,$now),'reversed'=>false];
+                    $installment=mr_installment($s,$plan,$event,$month);
+                    if($installment===null)continue;
+                    $key='worklog_'.hash('sha256',$uid.'|'.$plan['user_created'].'|'.$month);
+                    $s['rewards'][$key]=['user'=>$uid,'user_created'=>$plan['user_created'],'manager'=>$manager,'manager_created'=>$plan['manager_created'],'payment_key'=>$pk,'order_id'=>$plan['order_id'],'mileage'=>$installment['mileage'],'unit_value'=>$installment['mileage'],'reward_policy'=>$plan['reward_policy']??'monthly-v1','worklog_month'=>$month,'reason'=>$installment['reason'],'at'=>$event['at'],'posted_at'=>date(DATE_ATOM,$now),'reversed'=>false];
                 }
             }
         });
@@ -60,7 +70,7 @@ function mr_accrue(string $uid,?int $now=null):void {
 }
 function mr_reconcile(string $uid):void {
     if(!preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$uid))return;
-    $d=mg_read(__DIR__.'/data/subscribe/'.$uid.'/subscription.json');
+    $d=sa_read($uid);
     foreach($d['manager_full_refunds']??[] as $pk)mg_reverse($uid,(string)$pk);
     foreach((array)($d['history']??[]) as $h){
         if(!is_array($h)||($h['test']??null)!==false||empty($h['ok'])||!in_array($h['type']??'',['payment','renewal',''],true))continue;
@@ -74,4 +84,48 @@ function mr_sync_manager(string $actor):void {
     foreach($members as $uid=>$m)if(is_array($m)&&mg_active($m,'building')&&mg_connection_manager($m,$members)===$actor)$uids[(string)$uid]=true;
     foreach($state['monthly_rewards']??[] as $r)if(($r['manager']??'')===$actor)$uids[$r['user']]=true;
     foreach(array_keys($uids) as $uid)mr_reconcile($uid);
+}
+
+/** Calendar months always use Korea time, independent of the PHP host timezone. */
+function mr_calendar_month(string $at):string {
+    if(trim($at)==='')return '';
+    try{return (new DateTimeImmutable($at,new DateTimeZone('Asia/Seoul')))->setTimezone(new DateTimeZone('Asia/Seoul'))->format('Y-m');}catch(Throwable $e){return '';}
+}
+function mr_worklog_complete(array $record,string $month):bool {
+    $date=DateTimeImmutable::createFromFormat('!Y-m-d',(string)($record['date']??''),new DateTimeZone('Asia/Seoul'));
+    if(!$date||$date->format('Y-m-d')!==($record['date']??'')||$date->format('Y-m')!==$month||trim((string)($record['performer']??''))==='')return false;
+    foreach(['sobang','pinan','hwagi','etc'] as $key){
+        if(trim((string)($record[$key]['note']??''))!==''&&in_array($record[$key]['result']??'',['양호','불량'],true))return true;
+    }
+    return false;
+}
+/** Only the authenticated user-save path calls this; metadata is never copied from POST. */
+function mr_worklog_stamp(string $uid,string $month,array $record,array $previous,?int $now=null):array {
+    $events=(array)($previous['_reward_submissions']??[]);$now=$now??time();
+    if($month!==mr_calendar_month('@'.$now)||!mr_worklog_complete($record,$month))return $events;
+    $members=mg_members();$member=$members[$uid]??[];$manager=mg_connection_manager($member,$members);$state=mg_read(mg_state_file());
+    if(!mg_active($member,'building')||$manager===''||!mg_can_view($manager,$uid,$members,$state))return $events;
+    $sub=sa_read($uid);
+    $end=mr_timestamp((string)($sub['expires_at']??$sub['next_billing']??''));
+    if(($sub['status']??'')!=='active'||!$end||$end<=$now||in_array($sub['refund_attempt']['state']??'',['prepared','unknown','done'],true))return $events;
+    $pk=(string)($sub['last_payment_key']??'');$payment=[];
+    foreach((array)($sub['history']??[]) as $h){if(($h['paymentKey']??'')===$pk&&$pk!==''&&($h['test']??null)===false&&!empty($h['ok'])&&in_array($h['type']??'',['payment','renewal'],true))$payment=$h;}
+    if(!$payment||isset($state['refunds'][$pk]))return $events;
+    $paid=mr_timestamp((string)($payment['at']??''));if(!$paid||$paid>$now)return $events;
+    $id=hash('sha256',$pk);
+    $facilities=mr_facilities_ready($uid,$member);
+    if(!isset($events[$id])||($events[$id]['user_created']??'')!==($member['created']??'')||($facilities&&empty($events[$id]['facilities_confirmed']))){
+        $events[$id]=['month'=>$month,'at'=>(new DateTimeImmutable('@'.$now))->setTimezone(new DateTimeZone('Asia/Seoul'))->format(DATE_ATOM),'user_created'=>(string)($member['created']??''),'payment_key'=>$pk,'subscription_end'=>$end,'connection_key'=>mg_link_key($uid,$member),'manager'=>$manager,'facilities_confirmed'=>$facilities];
+    }
+    return $events;
+}
+function mr_valid_submission(array $event,array $plan,string $month,int $now):bool {
+    if(!$event||($event['month']??'')!==$month||($event['payment_key']??'')!==$plan['payment_key']||($event['user_created']??'')!==$plan['user_created']||($event['connection_key']??'')!==$plan['connection_key']||($event['manager']??'')!==$plan['manager'])return false;
+    $at=mr_timestamp((string)($event['at']??''));$start=mr_timestamp($plan['started_at']);
+    return $at!==false&&$start!==false&&$at>=$start&&$at<=(int)$now&&$at<(int)($event['subscription_end']??0)&&mr_calendar_month((string)$event['at'])===$month;
+}
+
+function mr_timestamp(string $at) {
+    if(trim($at)==='')return false;
+    try{return (new DateTimeImmutable($at,new DateTimeZone('Asia/Seoul')))->getTimestamp();}catch(Throwable $e){return false;}
 }

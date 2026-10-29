@@ -1,6 +1,9 @@
 <?php
 // login.php — 관리자 로그인
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 // 세션 안전 기본값 + 30일 로그인 유지
 $SESSION_TTL = 60 * 60 * 24 * 30;
@@ -27,7 +30,9 @@ if (PHP_VERSION_ID >= 70300) {
     'samesite' => 'Lax',
   ]);
 }
-session_start();
+alp_session_start();
+if(is_file(__DIR__.'/visit_push_common.php')){require_once __DIR__.'/visit_push_common.php';try{vp_observe();}catch(Throwable $e){error_log('Visit push binding check failed');}}
+
 
 // ── 관리자 계정 설정 ──
 $ADMIN_ID   = 'mhg1234';
@@ -52,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   if ($id_ok && $pass_ok) {
-    $_SESSION['is_admin'] = true;
+    $_SESSION['is_admin'] = true;alp_login($id,'legacy');
     if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
     header('Location: /list.php'); // 절대경로 권장
     exit;
@@ -62,6 +67,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 <!doctype html><html lang="ko"><head>
+<!-- Home-screen icon -->
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/app-icons/sobang-180-v1.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/app-icons/sobang-32-v1.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="apple-mobile-web-app-title" content="소방계획서">
+
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>관리자 로그인</title>
 <style>

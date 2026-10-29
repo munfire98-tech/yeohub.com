@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/user_key.php';
+require_once __DIR__ . '/fire_plan_source_helpers.php';
 
 /* 관리자가 이 회원 화면을 대리로 볼 때 위에 알림 띠를 붙입니다 */
 @include_once __DIR__ . '/_imp.php';
@@ -227,6 +228,16 @@ function fp_save_section(string $planId, string $code, array $data, bool $done =
   $plan = fp_load_plan($planId);
   if (!$plan) return false;
   if (!isset($plan['sections']) || !is_array($plan['sections'])) $plan['sections'] = [];
+  if ($code === '11' && !empty($plan['sections']['11']['data']['_training_schedule']['events'])) {
+    require_once __DIR__.'/fire_plan_schedule_common.php';
+    // Older table/chat clients must not erase or roll back the structured schedule.
+    $data = fpsc_project($data, $plan['sections']['11']['data']['_training_schedule']['events']);
+  }
+  // Structured annual applicability checks belong to the guide, not older section forms.
+  if ($code === '6') {
+    unset($data['_flame_guide']);
+    if (isset($plan['sections']['6']['data']['_flame_guide'])) $data['_flame_guide'] = $plan['sections']['6']['data']['_flame_guide'];
+  }
   $skipped = $plan['sections'][$code]['is_skipped'] ?? 0;
   $plan['sections'][$code] = ['data'=>$data, 'is_done'=>$done?1:0, 'is_skipped'=>$skipped];
   $plan['updated_at'] = date('Y-m-d H:i:s');
@@ -351,17 +362,32 @@ function fp_comprehensive(array $s1, array $s3): bool {
   if (($s3['comprehensive'] ?? '') === '제외') return false;
   return !fp_is_grade3($s1);
 }
-function fp_inspection_defaults(array $s1, array $s3 = []): array {
-  $d = ['r3_when'=>'매월 1일']; // 사용자 관리 일정이며 법정 일자로 표기하지 않습니다.
-  if (fp_is_grade3($s1) && !fp_comprehensive($s1,$s3)) {
-    $d['comprehensive'] = '제외';
-    $date = preg_replace('/[^0-9]/','',(string)($s1['approval'] ?? ''));
-    if (strlen($date) === 8 && checkdate((int)substr($date,4,2),(int)substr($date,6,2),(int)substr($date,0,4))) {
-      $d['r1_when'] = '매년 '.(int)substr($date,4,2).'월 (연 1회, 해당 월 말일까지)';
-    }
+/** Proposed annual schedule; actual inspection applicability remains editable. */
+function fp_inspection_defaults(array $s1, array $s3 = [], string $company = ''): array {
+  $d=['r3_when'=>'매월 1일'];$grade=preg_replace('/\s+/u','',(string)($s1['grade']??''));
+  $kind=(string)($s3['comprehensive']??'');
+  if(!in_array($kind,['포함','제외'],true))$kind=in_array($grade,['1급','2급'],true)?'포함':($grade==='3급'?'제외':'');
+  if($kind!=='')$d['comprehensive']=$kind;
+  $date=preg_replace('/[^0-9]/','',(string)($s1['approval']??''));
+  if(in_array($grade,['1급','2급','3급'],true)&&strlen($date)===8&&checkdate((int)substr($date,4,2),(int)substr($date,6,2),(int)substr($date,0,4))){
+    $month=(int)substr($date,4,2);
+    if($kind==='포함'){$d['r2_when']='매년 '.$month.'월';$d['r1_when']='매년 '.(($month+5)%12+1).'월';}
+    elseif($kind==='제외')$d['r1_when']='매년 '.$month.'월';
   }
-  if (trim((string)($s1['mgr_name'] ?? '')) !== '') $d['r3_who'] = $s1['mgr_name'];
+  if(trim($company)!==''){$d['r1_who']=trim($company);if($kind==='포함')$d['r2_who']=trim($company);}
+  if(trim((string)($s1['mgr_name']??''))!=='')$d['r3_who']=$s1['mgr_name'];
+  $d['memo']='불량 발견 즉시 관계인에게 보고하고 필요한 안전조치를 실시한다. 점검업체와 보수 일정·방법을 협의하여 조치하고 결과를 확인·기록한다.';
   return $d;
+}
+/** Read only the accepted partner's explicitly saved company; never use a nickname. */
+function fp_inspection_partner_company():string {
+  require_once __DIR__.'/manager_common.php';
+  $uid=fp_user_key();$members=mg_members();$member=$members[$uid]??[];
+  if(!is_array($member))return '';$partner=mg_connection_manager($member,$members);
+  if($partner===''||!mg_can_view($partner,$uid,$members,mg_read(mg_state_file())))return '';
+  require_once __DIR__.'/partner_company_common.php';
+  $profile=pci_read($partner,$members);
+  return ($profile['mode']??'')==='company'?trim((string)($profile['company']??'')):'';
 }
 function fp_chat_visible(string $code, string $key, array $s1, array $s3): bool {
   if (isset(fp_skip_rules($s1)[$code])) return false;
@@ -373,18 +399,20 @@ function fp_chat_visible(string $code, string $key, array $s1, array $s3): bool 
 /* 최신 저장순으로 읽고, 대장/부대장의 객체형·구형 배열형을 모두 지원합니다. */
 function fp_team_source(): array {
   $key = fp_user_key();
-  $out = ['memo'=>'','total'=>0];
+  $out = ['memo'=>'','total'=>0,'members'=>[],'document'=>null];
   if ($key === '') return $out;
   $rows = array_values(array_filter(fp_read_json(__DIR__.'/data/fireplan/'.$key.'/_jawi.json'),'is_array'));
   usort($rows,fn($a,$b)=>strcmp((string)($b['saved'] ?? $b['updated_at'] ?? $b['created'] ?? ''),(string)($a['saved'] ?? $a['updated_at'] ?? $a['created'] ?? '')));
   $p = $rows[0] ?? [];
+  if($p){require_once __DIR__.'/fire_plan_team_common.php';$out['document']=fpt_document($p);}
   $lines = []; $people = [];
-  $person = function(array $m, string $role) use (&$lines,&$people): void {
+  $person = function(array $m, string $role) use (&$lines,&$people,&$out): void {
     $name = trim((string)($m['name'] ?? $m[0] ?? ''));
     if ($name === '') return;
     $tel = preg_replace('/\D/','',(string)($m['tel'] ?? $m[1] ?? ''));
     $people[$name.'|'.$tel] = true;
     $task = trim((string)($m['task'] ?? $m[2] ?? ''));
+    $out['members'][]=['role'=>$role,'name'=>$name,'tel'=>$tel,'task'=>$task];
     $lines[] = $role.' : '.$name.($task !== '' ? ' — '.$task : ' — 임무 확인 필요');
   };
   foreach (['cmd'=>'대장','deputy'=>'부대장'] as $k=>$l) if (is_array($p[$k] ?? null)) $person($p[$k],$l);
@@ -419,11 +447,22 @@ function fp_chat_sources(array $bi, array $evac, ?int $year = null, ?array $sele
   if (trim((string)($d['5']['assembly'] ?? '')) === '') $d['5']['assembly'] = (string)($bi['assembly_kind'] ?? '');
   if (!empty($d['5']['route']) || !empty($d['5']['assembly'])) $names[] = '피난계획·집결지';
   foreach (['alarm_method'=>'s1','reporter'=>'s2','headcount_method'=>'s5'] as $from=>$to) if (trim((string)($evac[$from] ?? '')) !== '') $d['14'][$to] = (string)$evac[$from];
+  $guides = [];
+  foreach ((array)($evac['floors'] ?? []) as $key=>$floor) {
+    if (!is_array($floor)) continue;
+    $people = [];
+    foreach (['guide'=>'피난유도','checker'=>'잔류자 확인'] as $field=>$label) {
+      $person = trim((string)($floor[$field] ?? ''));
+      if ($person !== '') $people[] = $label.': '.$person;
+    }
+    if ($people) $guides[] = (string)($floor['label'] ?? $key).' · '.implode(' / ',$people);
+  }
+  if ($guides) $d['14']['s4'] = implode("\n",$guides);
   $routeNote = trim((string)($bi['fire_engine_route_note'] ?? ''));
   if ($routeNote !== '') { $d['14']['memo'] = '소방차 진입 시 주의사항: '.$routeNote; $names[] = '소방차 진입로'; }
   $team = fp_team_source();
   if ($team['memo'] !== '') { $d['9']['memo'] = $team['memo']; $names[] = '자위소방대 편성·대원별 임무'; }
-  $histories = []; $months = [];
+  $histories = []; $months = []; $trainingSuggestions=[];
   $key = fp_user_key();
   if ($key !== '') {
     $fixed = fp_read_json(__DIR__.'/data/worklog/'.preg_replace('/[^A-Za-z0-9_]/','_',$key).'/building.json');
@@ -438,42 +477,41 @@ function fp_chat_sources(array $bi, array $evac, ?int $year = null, ?array $sele
       $base = __DIR__.'/data/worklog/'.preg_replace('/[^A-Za-z0-9_]/','_',$key);
       for ($month=1;$month<=12;$month++) {
         $file=$base.'/m'.$year.'-'.sprintf('%02d',$month).'.json';
-        if (is_file($file) && fp_read_json($file)) $months[]=$month.'월';
+        if (is_file($file)) { $record=fp_read_json($file); if(trim((string)($record['date']??''))!=='' && trim((string)($record['performer']??''))!=='') $months[]=$month.'월'; }
       }
       if ($months) $d['13']['memo'] = trim(($d['13']['memo'] ?? '')."\n\n".$year.'년 저장된 월별 기록: '.implode(', ',$months));
     }
-    $history = [];
-    foreach (['train'=>['train_date','소방훈련·교육'],'jawi'=>['edu_date','자위소방대 교육']] as $folder=>$meta) {
-      $dates = [];
-      foreach (fp_read_json(__DIR__.'/data/'.$folder.'/'.$key.'/_index.json') as $r) {
-        if (!is_array($r)) continue;
-        $v = (string)($r[$meta[0]] ?? '');
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/',$v) && $v <= date('Y-m-d') && ($year === null || (int)substr($v,0,4)===$year)) $dates[] = $v;
-      }
-      if ($dates) { rsort($dates); $histories[$folder]=$meta[1].' 실시 기록: '.implode(', ',array_unique($dates)); $history[] = $histories[$folder]; $names[] = $meta[1].' 기록'; }
+    foreach (['train'=>'소방훈련·교육','jawi'=>'자위소방대 교육'] as $folder=>$title) {
+      $reference=fp_training_source($folder,$year);
+      if($reference['memo']!=='')$histories[$folder]=$reference['memo'];
+      if($folder==='train')$trainingSuggestions=$reference['suggestions'];
     }
-    if ($history) $d['11']['memo'] = implode("\n",$history); // 과거 실시일을 미래 계획일로 간주하지 않습니다.
+    if($histories)$d['11']['memo']=implode("\n\n",$histories);
+
   }
   require_once __DIR__.'/building_info.php';require_once __DIR__.'/building_facilities_common.php';
   $inventory=bf_load();
-  if(!empty($inventory['revision'])){
+  if(bf_counts($inventory)['confirmed']>0){
     foreach(bf_catalog() as $category=>$group){
       $values=(array)($d['2'][$category]??[]);
       foreach($group[1] as $name){$v=$inventory['items'][bf_id($name)]['status']??'unknown';if($v==='yes')$values[]=$name;elseif($v==='no')$values=array_values(array_diff($values,[$name]));}
       $d['2'][$category]=array_values(array_unique($values));
     }
+    $d['1']['recv_loc']=bf_receiver_locations($inventory,$bi);
     $counts=bf_counts($inventory);
     $d['2']['memo']='시설현황: 설치 있음 '.$counts['present'].'종 / 미확인 '.$counts['unknown'].'종'."\n".bf_summary($inventory);
     $names[]='건물 시설현황 체크리스트';
   }
   $groups = [
-    'basic'=>['title'=>'기본정보','detail'=>'현재 건물정보·관리자·진입로 메모','data'=>['1'=>$d['1'] ?? [],'14'=>isset($d['14']['memo'])?['memo'=>$d['14']['memo']]:[]]],
+    'basic'=>['title'=>'기본정보','detail'=>'건물정보·관리자·진입로 · 자체점검 일정·담당 업체','data'=>['1'=>array_diff_key($d['1'] ?? [],['recv_loc'=>true]),'3'=>fp_inspection_defaults($d['1']??[],[],fp_inspection_partner_company()),'14'=>isset($d['14']['memo'])?['memo'=>$d['14']['memo']]:[]]],
     'team'=>['title'=>'자위소방대 편성','detail'=>'현재 편성된 인원과 대원별 임무','data'=>['9'=>$d['9'] ?? []]],
-    'monthly'=>['title'=>'시설현황·매월 기록','detail'=>($year ?? date('Y')).'년 기록 '.count($months).'개월 · 공통 시설현황 포함','data'=>['2'=>$d['2'] ?? [],'13'=>$d['13'] ?? []]],
-    'jawi_education'=>['title'=>'자위소방대 교육','detail'=>isset($histories['jawi'])?'선택 연도의 실시 기록':'선택 연도의 기록 없음','data'=>['11'=>isset($histories['jawi'])?['memo'=>$histories['jawi']]:[]]],
-    'training'=>['title'=>'소방훈련·교육','detail'=>isset($histories['train'])?'선택 연도의 실시 기록':'선택 연도의 기록 없음','data'=>['11'=>isset($histories['train'])?['memo'=>$histories['train']]:[]]],
-    'evacuation'=>['title'=>'피난계획','detail'=>'현재 층별 피난경로·집결지·대응방법','data'=>['5'=>$d['5'] ?? [],'14'=>array_intersect_key($d['14'] ?? [],array_flip(['s1','s2','s5']))]],
+    'monthly'=>['title'=>'시설현황·매월 기록','detail'=>'수신기 위치 · 동별 설비 · '.($year ?? date('Y')).'년 기록 '.count($months).'개월','data'=>['1'=>['recv_loc'=>$d['1']['recv_loc']??''],'2'=>$d['2'] ?? [],'13'=>$d['13'] ?? []]],
+    'jawi_education'=>['title'=>'자위소방대 교육','detail'=>isset($histories['jawi'])?'선택 연도의 일시·장소·교육내용':'선택 연도의 기록 없음','data'=>['11'=>isset($histories['jawi'])?['memo'=>$histories['jawi']]:[]]],
+    'training'=>['title'=>'소방훈련·교육','detail'=>isset($histories['train'])?'선택 연도의 일시·방법·내용·개선계획':'선택 연도의 기록 없음','data'=>['11'=>isset($histories['train'])?['memo'=>$histories['train']]:[]]],
+    'evacuation'=>['title'=>'피난계획','detail'=>'현재 층별 피난경로·집결지·대응방법','data'=>['5'=>$d['5'] ?? [],'14'=>array_intersect_key($d['14'] ?? [],array_flip(['s1','s2','s4','s5']))]],
   ];
+  $incidents=fp_incident_source($year);
+  if($incidents)$groups['incidents']=['title'=>'비화재보 기록','detail'=>$year.'년 발생·조치 기록 '.count($incidents).'건','data'=>['13'=>['memo'=>$year.'년 비화재보 기록 '.count($incidents).'건을 보관한다. 발생 위치·원인·조치 내용은 첨부 현황에서 확인한다.']]];
   $merged=[]; $names=[];
   foreach ($groups as $id=>&$group) {
     $group['available']=false;
@@ -481,12 +519,13 @@ function fp_chat_sources(array $bi, array $evac, ?int $year = null, ?array $sele
     if ($selected!==null && !in_array($id,$selected,true)) continue;
     if ($group['available']) $names[]=$group['title'];
     foreach ($group['data'] as $code=>$fields) foreach ($fields as $key=>$value) {
-      if ($code==11 && $key==='memo' && isset($merged[$code][$key])) $merged[$code][$key].="\n".$value;
+      if (in_array((int)$code,[11,13],true) && $key==='memo' && isset($merged[$code][$key])) $merged[$code][$key].="\n".$value;
       else $merged[$code][$key]=$value;
     }
   }
   unset($group);
-  return ['data'=>$merged,'names'=>$names,'groups'=>$groups];
+  if(strlen((string)($merged['11']['memo']??''))>29000)$merged['11']['memo']=mb_strcut($merged['11']['memo'],0,28500,'UTF-8')."\n(나머지는 원본 교육·훈련 기록에서 확인)";
+  return ['data'=>$merged,'names'=>$names,'groups'=>$groups,'suggestions'=>($selected===null||in_array('training',$selected,true))?['11'=>$trainingSuggestions]:[]];
 }
 
 function fp_count_states(array $plan): array {

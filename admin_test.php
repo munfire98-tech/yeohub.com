@@ -1,10 +1,13 @@
 <?php
 // admin_test.php — 관리자 전용 기능 점검표
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+if (session_status() !== PHP_SESSION_ACTIVE) alp_session_start();
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -76,7 +79,7 @@ foreach ($reviewRows as $row) {
 $phpFiles = [
   'index.php','signup.php','email_code.php',
   'user_key.php','admin_members.php','admin_member_review.php',
-  'building_manager.php','building_info.php','building_setup.php','building_setup_chat.php',
+  'FireDesk.php','building_info.php','building_setup.php','building_setup_chat.php',
   'work_log.php','work_log_form.php','work_log_print.php',
   'assist_log.php','evac_common.php','evac_assign_api.php','settings.php','withdraw.php',
 ];
@@ -134,10 +137,10 @@ $groups['회원가입/로그인'] = [
 ];
 
 $groups['관리자 회원 보기'] = [
-  check_item('회원 아이디가 building_manager.php?uid 로 연결', file_has($ROOT . '/admin_members.php', 'building_manager.php?uid='), '연결됨', '회원 아이디 링크 확인', '/admin_members.php'),
+  check_item('회원 아이디가 FireDesk.php?uid 로 연결', file_has($ROOT . '/admin_members.php', 'FireDesk.php?uid='), '연결됨', '회원 아이디 링크 확인', '/admin_members.php'),
   check_item('관리자 uid 보기 함수', file_has($ROOT . '/user_key.php', 'app_admin_view_user_key'), '있음', 'user_key.php 확인'),
-  check_item('building_manager 관리자 전용 박스', file_has($ROOT . '/building_manager.php', '관리자 전용'), '있음', '관리자 박스 없음', '/building_manager.php'),
-  check_item('내부 링크 uid 유지', file_has($ROOT . '/building_manager.php', '$url = function'), '유지됨', 'uid 유지 링크 확인'),
+  check_item('building_manager 관리자 전용 박스', file_has($ROOT . '/FireDesk.php', '관리자 전용'), '있음', '관리자 박스 없음', '/FireDesk.php'),
+  check_item('내부 링크 uid 유지', file_has($ROOT . '/FireDesk.php', '$url = function'), '유지됨', 'uid 유지 링크 확인'),
   check_item('문답 저장 fetch가 uid 유지', file_has($ROOT . '/building_setup_chat.php', 'location.pathname + location.search'), '유지됨', '문답 POST uid 누락'),
 ];
 
@@ -160,15 +163,15 @@ $groups['확인요청 처리'] = [
   check_item('assist_log.php review 저장', file_has($ROOT . '/assist_log.php', "'review'") && file_has($ROOT . '/assist_log.php', "row['status']"), '확인', 'status 저장 확인 필요', '/assist_log.php'),
   check_item('관리자 확인완료 처리 화면', file_has($ROOT . '/admin_member_review.php', "act' value=\"resolve\"") || file_has($ROOT . '/admin_member_review.php', 'save_building'), '있음', '처리 화면 확인', '/admin_member_review.php'),
   check_item('회원 목록 확인요청 배지', file_has($ROOT . '/admin_members.php', 'reviewCount') && file_has($ROOT . '/admin_members.php', 'tag--review'), '있음', '배지 누락', '/admin_members.php'),
-  check_item('기본정보 완료 우선순위', file_has($ROOT . '/building_manager.php', '$reviewResolvedRecent') && file_has($ROOT . '/building_manager.php', '관리자 확인완료'), '있음', '완료 표시 흐름 확인', '/building_manager.php'),
+  check_item('기본정보 완료 우선순위', file_has($ROOT . '/FireDesk.php', '$reviewResolvedRecent') && file_has($ROOT . '/FireDesk.php', '관리자 확인완료'), '있음', '완료 표시 흐름 확인', '/FireDesk.php'),
 ];
 
 $groups['시뮬레이션 배정요청'] = [
   check_item('신청 전 건물·관리자 정보 확인창',
-    file_has($ROOT . '/building_manager.php', 'evacReqForm')
-      && file_has($ROOT . '/building_manager.php', 'manager_phone')
-      && file_has($ROOT . '/building_manager.php', 'evacFormAddress'),
-    '기본정보 자동입력 및 수정 가능', '신청 확인창 누락', '/building_manager.php'),
+    file_has($ROOT . '/FireDesk.php', 'evacReqForm')
+      && file_has($ROOT . '/FireDesk.php', 'manager_phone')
+      && file_has($ROOT . '/FireDesk.php', 'evacFormAddress'),
+    '기본정보 자동입력 및 수정 가능', '신청 확인창 누락', '/FireDesk.php'),
   check_item('신청정보 서버 검증 및 저장',
     file_has($ROOT . '/evac_assign_api.php', 'manager_name')
       && file_has($ROOT . '/evac_assign_api.php', 'evac_store_request')
@@ -217,7 +220,7 @@ a{text-decoration:none;color:inherit}.nav{height:56px;background:#fff;border-bot
 <body>
 <nav class="nav">
   <a class="brand" href="/">TWORIX</a>
-  <div style="display:flex;gap:8px"><a class="btn" href="/admin_members.php">회원 관리</a><a class="btn" href="/clients_mini.php">대시보드</a></div>
+  <div style="display:flex;gap:8px"><a class="btn" href="/admin_members.php">회원 관리</a><a class="btn" href="/partner_center.php">대시보드</a></div>
 </nav>
 <main class="wrap">
   <h1>기능 테스트</h1>

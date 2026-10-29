@@ -82,7 +82,7 @@
    sort.onchange=renderRanking;
    rankButton.onclick=()=>{rankPanel.hidden=!rankPanel.hidden;rankButton.setAttribute('aria-expanded',String(!rankPanel.hidden));rankButton.textContent=rankPanel.hidden?'연면적 순서 보기':'연면적 순서 닫기';if(!rankPanel.hidden){renderRanking();requestAnimationFrame(()=>{dialog.scrollTo({top:dialog.scrollTop+rankPanel.getBoundingClientRect().top-dialog.getBoundingClientRect().top-24,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});});}};
    dialog.append(grid,rankPanel);
-   const distribution=node('div',undefined,'mv-distribution');['사전등록 '+stats.pre+'곳','매니저 연결 '+stats.linked+'곳','PRO 이용 '+stats.pro+'곳'].forEach(t=>distribution.append(node('span',t)));dialog.append(distribution);
+   const distribution=node('div',undefined,'mv-distribution');['사전등록 '+stats.pre+'곳','파트너 연결 '+stats.linked+'곳','PRO 이용 '+stats.pro+'곳'].forEach(t=>distribution.append(node('span',t)));dialog.append(distribution);
    dialog.append(node('p','동별 현황이 있으면 표시된 모든 동의 연면적을 합산합니다. 기준동은 기본정보의 최신 면적을 한 번만 포함하며, 동별 현황이 없으면 기본정보 연면적을 사용합니다. 중복 등록된 거래처는 각각 포함됩니다. 위 현황은 전체 거래처 기준입니다.','mv-note'));
    if(stats.missingDongs)dialog.append(node('p','연면적이 없는 '+stats.missingDongs+'개 동은 합계에서 제외했습니다. '+stats.partial+'개 거래처는 일부 동의 면적만 반영되어 합계·평균·최대 면적이 실제보다 작을 수 있습니다.','mv-warning'));
    const profile=insights(buildings),profileGrid=node('div',undefined,'mv-profile-grid');
@@ -95,7 +95,7 @@
      usePanel.replaceChildren();const members=useBuildings(buildings,label),header=node('div',undefined,'mv-use-header');
      header.append(node('h3',label+' · '+members.length+'곳'));const closeList=node('button','접기');closeList.type='button';closeList.onclick=()=>{openUse(label);useButtons.find(v=>v.label===label)?.button.focus();};header.append(closeList);usePanel.append(header);
      const list=node('ul',undefined,'mv-use-list');members.forEach(r=>{const item=node('li'),text=node('div');text.append(node('strong',r.name||'이름 미입력'),node('small',r.address||'주소 미입력'));
-       const info=[];if(typeof r.total_area==='number'&&r.total_area>0)info.push(format(r.total_area)+' ㎡'+(r.area_missing_dongs>0?' · 일부 합산':''));info.push(r.preregistered?'사전등록':r.subscription?.active?'PRO 이용':'매니저 연결');text.append(node('small',info.join(' · ')));
+       const info=[];if(typeof r.total_area==='number'&&r.total_area>0)info.push(format(r.total_area)+' ㎡'+(r.area_missing_dongs>0?' · 일부 합산':''));info.push(r.preregistered?'사전등록':r.subscription?.active?'PRO 이용':'파트너 연결');text.append(node('small',info.join(' · ')));
        const link=node('a','정보 확인');link.href=r.preregistered?'/manager_addresses.php?id='+encodeURIComponent(r.address_id):'/manager_view.php?uid='+encodeURIComponent(r.uid);link.target='_blank';link.rel='noopener';link.setAttribute('aria-label',(r.name||'거래처')+' 정보 확인 (새 창)');item.append(text,link);list.append(item);});usePanel.append(list);
      requestAnimationFrame(()=>{if(!dialog||usePanel.hidden)return;dialog.scrollTo({top:dialog.scrollTop+usePanel.getBoundingClientRect().top-dialog.getBoundingClientRect().top-24,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});});
    }

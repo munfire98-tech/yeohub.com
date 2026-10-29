@@ -1,12 +1,15 @@
 <?php
 // work_log_setup_chat.php — 업무수행 기록표 기본값 대화형 설정
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 require_once __DIR__.'/manager_edit_guard.php';
 
 if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+if(session_status()!==PHP_SESSION_ACTIVE)alp_session_start();
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -16,7 +19,7 @@ function is_admin(): bool {
 function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']); }
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && $role !== 'building') { header('Location: /partner_center.php'); exit; }
 
 require_once __DIR__ . '/building_info.php';
 require_once __DIR__ . '/user_key.php';
@@ -147,7 +150,7 @@ $nick = $_SESSION['nickname'] ?? '사용자';
 </style>
 </head>
 <body>
-<nav class="nav"><div class="nav__in"><a class="brand" href="/index.php">TWORIX</a><div style="display:flex;gap:8px"><form method="post" style="display:inline" onsubmit="return confirm('확인내용 기본값을 모두 지우고 처음부터 다시 시작합니다.\n계속할까요?')"><input type="hidden" name="act" value="reset"><input type="hidden" name="csrf" value="<?=h($CSRF)?>"><button class="btn" type="submit">↺ 처음부터 다시</button></form><a class="btn" href="/work_log.php">← 목록</a><a class="btn" href="/building_manager.php">메인</a></div></div></nav>
+<nav class="nav"><div class="nav__in"><a class="brand" href="/index.php">TWORIX</a><div style="display:flex;gap:8px"><form method="post" style="display:inline" onsubmit="return confirm('확인내용 기본값을 모두 지우고 처음부터 다시 시작합니다.\n계속할까요?')"><input type="hidden" name="act" value="reset"><input type="hidden" name="csrf" value="<?=h($CSRF)?>"><button class="btn" type="submit">↺ 처음부터 다시</button></form><a class="btn" href="/work_log.php">← 목록</a><a class="btn" href="/FireDesk.php">메인</a></div></div></nav>
 <div class="prog"><div class="prog__in"><div class="prog__row"><span>업무수행 기록표 기본값</span><span><b id="pPct"><?=$prog['percent']?>%</b> · <span id="pNum"><?=$prog['filled']?>/<?=$prog['total']?></span></span></div><div class="bar"><i id="pBar" style="width:<?=$prog['percent']?>%"></i></div></div></div>
 <main class="wrap">
   <?php if (!$biDone): ?><div class="alert">먼저 건물 기본정보를 마저 입력하면 상호·주소·등급·규모가 업무수행 기록표에 자동으로 들어갑니다. 현재 누락: <?=h(implode(', ', $biProg['missing']))?></div><?php endif; ?>
@@ -227,7 +230,7 @@ function finish(){
     var rows=[['소방시설',SAVED.note_sobang],['피난방화시설',SAVED.note_pinan],['화기취급감독',SAVED.note_hwagi],['기타사항',SAVED.note_etc]];
     var html='<h2>확인내용 기본값</h2>';
     rows.forEach(function(r){html+='<div class="sum"><span class="sum__k">'+esc(r[0])+'</span><span class="sum__v">'+esc(r[1]||'검토요청 또는 미입력')+'</span></div>';});
-    html+='<div class="doneRow"><a class="btn btn--pri" href="/work_log.php">월별 기록으로 →</a><a class="btn" href="/building_manager.php">메인으로</a></div>';
+    html+='<div class="doneRow"><a class="btn btn--pri" href="/work_log.php">월별 기록으로 →</a><a class="btn" href="/FireDesk.php">메인으로</a></div>';
     var d=document.createElement('div');d.className='done';d.innerHTML=html;chat.appendChild(d);down();
   });
 }

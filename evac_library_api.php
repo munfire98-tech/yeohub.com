@@ -12,6 +12,9 @@
  * 저장 위치: data/evac_models/<id>.json  (evac_assign_api.php와 공용)
  */
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 /* admin_members.php와 동일한 세션 설정 (같은 세션을 봐야 함) */
 $SESSION_TTL = 60 * 60 * 24 * 30;
@@ -28,7 +31,7 @@ if (PHP_VERSION_ID >= 70300) {
     'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
   ]);
 }
-session_start();
+alp_session_start();
 
 require_once __DIR__ . '/evac_common.php';
 

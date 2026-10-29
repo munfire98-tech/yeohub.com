@@ -22,6 +22,8 @@
  *   require __DIR__ . '/_header.php';
  */
 
+if(is_file(__DIR__.'/visit_push_common.php')){require_once __DIR__.'/visit_push_common.php';if(session_status()===PHP_SESSION_ACTIVE){try{vp_observe();}catch(Throwable $e){error_log('Visit push binding check failed');}}}
+
 if (!function_exists('h')) {
   function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 }
@@ -30,13 +32,17 @@ $ACTIVE     = $ACTIVE ?? '';
 $NAV = [
   'faq'     => ['label' => 'FAQ',    'href' => '/faq.php'],
   'service' => ['label' => '서비스', 'href' => '/service.php'],
-  'PRO' => ['label' => 'PRO', 'href' => '/pro_mode.php'],
-  'ar'      => ['label' => '피난시뮬레이터',     'href' => '/ar.php'],
 ];
 ?>
 <!doctype html>
 <html lang="ko">
 <head>
+<!-- Home-screen icon -->
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/app-icons/sobang-180-v1.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/app-icons/sobang-32-v1.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="apple-mobile-web-app-title" content="소방계획서">
+
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= $PAGE_TITLE !== '' ? h($PAGE_TITLE) . ' — 소방계획서.com' : '소방계획서.com — 소방안전관리' ?></title>
@@ -145,6 +151,7 @@ footer a:hover{color:var(--fg)}
 .nw-pop__div{height:1px;background:var(--bd);margin:6px 2px}
 @media(max-width:680px){ .nw-pop{right:-8px} }
 </style>
+<script src="/visit_badge.js?v=20261021-1" defer></script>
 </head>
 <body>
 
@@ -165,6 +172,11 @@ footer a:hover{color:var(--fg)}
     $__isLoggedIn = $IS_LOGGED_IN ?? false;
     $__nick       = $ACCOUNT_NICK ?? ($_SESSION['nickname'] ?? '사용자');
     $__isAdmin    = $ACCOUNT_IS_ADMIN ?? false;
+    $__isPartner  = !$__isAdmin && (($_SESSION['role'] ?? '') === 'agency');
+    // The editing session displays the user's name, but account routes belong to the partner.
+    $__isPartnerEditing = ($_SESSION['_imp']['kind'] ?? '') === 'manager_edit' && !empty($_SESSION['_mge_actor']);
+    $__workUrl    = $__isAdmin ? '/admin_manager_payouts.php' : ($__isPartner ? '/partner_center.php' : '/FireDesk.php');
+    $__workLabel  = $__isAdmin ? '파트너 관리' : ($__isPartner ? '파트너 센터' : '건물 관리');
     $__cta        = $ACCOUNT_CTA_HTML ?? '';
     /* 안 읽은 알림 개수 — 페이지가 안 넘겨주면 여기서 직접 계산 */
     $__unread = $ACCOUNT_UNREAD ?? null;
@@ -195,9 +207,10 @@ footer a:hover{color:var(--fg)}
       <div class="nav__actions">
         <?php if ($__cta !== ''): ?><?=$__cta?><?php endif; ?>
         <div class="nw-icons">
-          <a class="nw-icobtn" href="/building_manager.php" title="건물 관리">
+          <a class="nw-icobtn" href="<?=h($__workUrl)?>" title="<?=h($__workLabel)?>">
             <svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h1M11 8h1M7 12h1M11 12h1M7 16h1M11 16h1M17 14h1M17 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           </a>
+          <?php if (!$__isAdmin): ?>
           <a class="nw-icobtn" href="/subscribe_page.php" title="결제·구독">
             <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h13a2 2 0 012 2v2H3V7z" stroke="currentColor" stroke-width="1.8"/><path d="M3 9v8a2 2 0 002 2h13a2 2 0 002-2V9" stroke="currentColor" stroke-width="1.8"/><path d="M16 14h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           </a>
@@ -205,6 +218,8 @@ footer a:hover{color:var(--fg)}
             <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 18a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             <?php if ($__unread > 0): ?><span class="nw-dot"></span><?php endif; ?>
           </a>
+          <?php endif; ?>
+          <?php if (!$__isPartnerEditing): ?>
           <div class="nw-profile" id="navProfile">
             <button type="button" class="nw-avatar<?= $__isAdmin ? ' admin' : '' ?>" id="navAvatarBtn"
               onclick="document.getElementById('navPop').classList.toggle('show')">
@@ -213,13 +228,18 @@ footer a:hover{color:var(--fg)}
             <div class="nw-pop" id="navPop">
               <div class="nw-pop__head">
                 <div class="nw-pop__name"><?=h($__nick)?>님</div>
-                <div class="nw-pop__sub"><?= $__isAdmin ? '관리자' : '건물 소방안전관리자' ?></div>
+                <div class="nw-pop__sub"><?= $__isAdmin ? '관리자' : ($__isPartner ? '파트너' : '건물 소방안전관리자') ?></div>
               </div>
               <div class="nw-pop__list">
-                <a class="nw-pop__item" href="/building_manager.php">
+                <a class="nw-pop__item" href="<?=h($__workUrl)?>">
                   <svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 10h5a1 1 0 011 1v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h1M11 8h1M7 12h1M11 12h1M7 16h1M11 16h1M17 14h1M17 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                  건물 관리
+                  <?=h($__workLabel)?>
                 </a>
+                <?php if ($__isAdmin): ?>
+                <a class="nw-pop__item" href="/admin_members.php">회원 관리</a>
+                <a class="nw-pop__item" href="/manager_client_intake.php">거래처 목록 접수</a>
+                <a class="nw-pop__item" href="/admin_accounts.php">관리자 계정 관리</a>
+                <?php else: ?>
                 <a class="nw-pop__item" href="/settings.php">
                   <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1-1.56 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34H9a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87V9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
                   내 정보
@@ -232,6 +252,7 @@ footer a:hover{color:var(--fg)}
                   <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                   알림
                 </a>
+                <?php endif; ?>
                 <div class="nw-pop__div"></div>
                 <a class="nw-pop__item nw-pop__item--danger" href="/?logout=1&csrf=<?=h($__csrf)?>"
                    onclick="return confirm('로그아웃할까요?');">
@@ -241,6 +262,7 @@ footer a:hover{color:var(--fg)}
               </div>
             </div>
           </div>
+          <?php endif; ?>
         </div>
       </div>
     <?php endif; ?>

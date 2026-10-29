@@ -1,13 +1,16 @@
 <?php
 // building_setup.php — 건물 기본정보 입력 (여러 서식이 공유)
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 
 
 /* MGE_APP_GUARD_V2 */ require_once __DIR__.'/manager_edit_guard.php';
 if (!ini_get('date.timezone')) { date_default_timezone_set('Asia/Seoul'); }
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 function is_admin(): bool {
@@ -17,7 +20,7 @@ function is_admin(): bool {
 function is_logged_in(): bool { return is_admin() || !empty($_SESSION['is_user']); }
 if (!is_logged_in()) { header('Location: /index.php'); exit; }
 $role = $_SESSION['role'] ?? 'agency';
-if (!is_admin() && $role !== 'building') { header('Location: /clients_mini.php'); exit; }
+if (!is_admin() && $role !== 'building') { header('Location: /partner_center.php'); exit; }
 
 require_once __DIR__ . '/building_info.php';
 
@@ -35,13 +38,14 @@ if (!app_has_user_key()) {
      . 'font-family:system-ui,\'Apple SD Gothic Neo\',sans-serif;line-height:1.7">'
      . '<h1 style="font-size:20px">기본정보를 불러오지 못했습니다</h1><p style="color:#56627a">'
      . h(app_user_key_notice()) . '</p>'
-     . '<p><a href="/building_manager.php" style="color:#1d4ed8">← 돌아가기</a></p></div>';
+     . '<p><a href="/FireDesk.php" style="color:#1d4ed8">← 돌아가기</a></p></div>';
   exit;
 }
 
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
 $CSRF = $_SESSION['csrf'];
 
+$locationOnly = ($_GET['setup_locations'] ?? '') === '1';
 $saved = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save') {
   if (!hash_equals($CSRF, $_POST['csrf'] ?? '')) { http_response_code(403); exit('CSRF'); }
@@ -56,14 +60,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
     ];
   }
   require_once __DIR__.'/building_location_rules.php';
-  $candidate=array_merge(bi_load(),$_POST,['mgrs'=>$mgrs]);
-  $locationError=bl_location_error($candidate,$_POST);
+  $savePatch=$locationOnly?bl_setup_patch($_POST):array_merge($_POST,['mgrs'=>$mgrs]);
+  $candidate=array_merge(bi_load(),$savePatch);
+  $locationError=$locationOnly?bl_setup_error($candidate):bl_location_error($candidate,$savePatch);
   $saved=false;
   if($locationError===''){
     try{
       require_once __DIR__.'/manager_help_complete.php';
       if(mg_uid()===app_user_key()){
-        $saved=mh_save_own_answers(app_user_key(),array_merge($_POST,['mgrs'=>$mgrs]),static function()use($candidate):bool{return bi_save($candidate);},static function():array{return bi_read_saved();});
+        $saved=mh_save_own_answers(app_user_key(),$savePatch,static function()use($candidate):bool{return bi_save($candidate);},static function():array{return bi_read_saved();});
       }else{$saved=bi_save($candidate);}
     }catch(Throwable $e){$locationError='저장 및 요청 상태 갱신을 완료하지 못했습니다. 다시 시도해 주세요.';error_log('Own answer save: '.$e->getMessage());}
   }
@@ -88,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reset
     } catch (Throwable $e) {
       $resetDone = false;
       $resetErr = true;
-      $resetMsg = '초기화를 완료하지 못했습니다. 기본정보와 요청 목록을 확인한 뒤 다시 시도해 주세요.';
+      $resetMsg = '초기화를 완료하지 못했습니다. 건물 업무자료를 확인한 뒤 다시 시도해 주세요.';
       error_log('Building setup reset: '.$e->getMessage());
     }
   } else {
@@ -289,7 +294,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 @media print{.pick-map-prompt{display:none!important}}
 </style>
 </head>
-<body>
+<body class="<?=$locationOnly?'location-onboarding':''?> <?=$saved?'location-saved':''?>">
 <?php if (($_GET['modal'] ?? '') === '1'): ?>
 <style media="screen">.nav,.head{display:none!important}.wrap{margin-top:0!important;padding-top:18px!important}</style>
 <?php endif; ?>
@@ -297,19 +302,22 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 <nav class="nav">
   <div class="nav__in">
     <a class="brand" href="/index.php">YEOHUB</a>
-    <a class="btn js-main-link" href="<?=h($url('/building_manager.php'))?>" target="_top">← 메인</a>
+    <a class="btn js-main-link" href="<?=h($url('/FireDesk.php'))?>" target="_top">← 메인</a>
   </div>
 </nav>
 
 <header class="head">
   <div class="head__in">
-    <div class="crumb"><a class="js-main-link" href="<?=h($url('/building_manager.php'))?>" target="_top">건물 소방안전관리</a> › 기본정보</div>
+    <div class="crumb"><a class="js-main-link" href="<?=h($url('/FireDesk.php'))?>" target="_top">건물 소방안전관리</a> › 기본정보</div>
     <h1>건물 기본정보</h1>
     <p>한 번만 입력하면 업무수행 기록표·훈련 기록부·소방계획서에 자동으로 채워집니다.</p>
   </div>
 </header>
 
 <main class="wrap">
+<?php if($locationOnly): ?>
+<section class="location-welcome no-print"><span>기본정보 · 안전 위치 설정</span><h1><?=h((string)($d['name']??'우리 건물'))?></h1><p>등록된 건물 정보는 그대로 두고, 현장을 아는 분이 두 위치만 표시해 주세요.</p><div class="location-steps"><b data-location-step="route">1 소방차 진입로</b><b data-location-step="assembly">2 화재 시 집결지</b></div><p id="locationSetupError" role="alert"></p></section>
+<?php endif; ?>
   <div class="print-head">
     <h1>건물 소방안전관리 기본정보</h1>
     <p><?=h((string)($d['name'] ?? ''))?> · 출력일 <?=h(date('Y.m.d'))?></p>
@@ -321,13 +329,13 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
         <b>건물 기본정보를 저장했습니다</b>
         <small>입력한 정보가 각 서식에 자동으로 반영됩니다.</small>
       </div>
-      <a class="savedone__btn js-main-link" href="<?=h($url('/building_manager.php'))?>" target="_top">메인으로 →</a>
+      <a class="savedone__btn js-main-link" href="<?=h($url('/FireDesk.php'))?>" target="_top">메인으로 →</a>
     </div>
   <?php elseif (!empty($saveErr)): ?>
     <div class="toast" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">
       ✕ <?=h($locationError ?? '저장하지 못했습니다. data 폴더 쓰기 권한을 확인하거나, 다시 로그인 후 시도해 주세요.')?></div>
   <?php elseif ($resetDone): ?>
-    <div class="toast">✓ 기본정보를 모두 비웠습니다. 처음 입력하는 상태가 되었습니다.</div>
+    <div class="toast">✓ 건물 업무자료와 전체 연도 소방계획서를 초기화했습니다. 새 건물을 등록할 수 있습니다.</div>
   <?php elseif (!empty($resetErr)): ?>
     <div class="toast" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">
       ✕ <?= h($resetMsg ?? '초기화하지 못했습니다. data 폴더 쓰기 권한을 확인해 주세요.') ?></div>
@@ -465,7 +473,8 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
       <?php require __DIR__.'/building_dong_tabs.php'; ?>
       <input type="hidden" name="bd_dongs" value="<?=$v('bd_dongs')?>">
       <input type="hidden" name="bd_dong_pick" value="<?=$v('bd_dong_pick')?>">
-      <input type="hidden" name="bd_dong_list" value="<?=h(json_encode($d['bd_dong_list'] ?? [], JSON_UNESCAPED_UNICODE))?>">
+      <input type="hidden" name="bd_floor_manual" value="<?=h(json_encode(bfl_array($d['bd_floor_manual']??[]),JSON_UNESCAPED_UNICODE))?>">
+      <input type="hidden" name="bd_dong_list" value="<?=h(is_string($d['bd_dong_list']??null)?$d['bd_dong_list']:json_encode($d['bd_dong_list'] ?? [], JSON_UNESCAPED_UNICODE))?>">
       <input type="hidden" name="bd_looked" value="<?=$v('bd_looked')?>">
     </section>
 
@@ -521,7 +530,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
     </section>
     <section class="sec location-sec location-route">
       <div class="sec__t"><span class="n">6</span> 소방차 진입로 <small>도로에서 건물 입구까지의 경로</small></div>
-      <p class="hint no-print">아래 지도에서 진입로 그리기를 누른 뒤, 도로에서 건물 입구 방향으로 두 지점 이상 찍어 주세요.</p>
+      <p class="hint no-print">아래 지도에서 진입로 그리기를 누른 뒤, 큰도로에서 건물 입구 방향으로 실제 길을 따라 두 지점 이상 찍어 주세요.</p>
       <div id="routeMap" class="location-map"><p class="location-map-fallback">지도를 불러오는 중입니다.</p></div>
       <input type="hidden" name="fire_engine_route" id="fireEngineRoute" value="<?=h((string)($d['fire_engine_route']??''))?>">
       <div class="location-actions no-print">
@@ -541,19 +550,18 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 
   <!-- 기본정보 초기화 -->
   <section class="sec reset-sec" style="border-color:#fecaca;background:#fffafa">
-    <div class="sec__t"><span class="n" style="background:#dc2626">↺</span> 기본정보 초기화
+    <div class="sec__t"><span class="n" style="background:#dc2626">↺</span> 건물 업무자료 전체 초기화
       <small>다른 건물로 새로 시작하거나, 처음 상태를 확인할 때</small></div>
 
     <div style="font-size:12.5px;color:#991b1b;line-height:1.8;background:#fef2f2;
                 border:1px solid #fecaca;border-radius:9px;padding:12px 14px;margin-bottom:12px">
-      위에 입력한 <b>대상물·규모·건축물대장·소방안전관리자·집결지</b>가 모두 비워집니다.<br>
-      <b>소방시설 현황의 시설 선택·포함 동과 관련 작성 도움 요청·완료 기록</b>도 함께 초기화됩니다.<br>
-      이 정보는 <b>업무수행 기록표·훈련 기록부·소방계획서</b>가 함께 쓰므로,
-      비우면 그 서식들에서도 불러올 값이 없어집니다.<br>
-      <b>되돌릴 수 없으니</b> 필요하면 먼저 내용을 따로 적어두세요.
+      이 건물의 <b>기본정보·소방시설 현황·피난계획·자위소방대 편성표</b>가 초기화됩니다.<br>
+      <b>전체 연도 소방계획서·매월 업무수행기록·교육훈련 기록·첨부사진·비화재보 기록·작성 문의</b>도 함께 초기화되며, 기존 계획서 공유 링크는 해제됩니다.<br>
+      <b>회원 계정·연결 업체·PRO 구독·결제 내역은 유지됩니다.</b><br>
+      화면에서는 복원할 수 없으므로 필요한 문서는 먼저 인쇄·PDF 저장해 주세요.
     </div>
 
-    <form method="post" onsubmit="return confirm('기본정보와 소방시설 현황, 관련 작성 도움 요청·완료 기록을 함께 초기화합니다.\n되돌릴 수 없습니다. 계속할까요?')">
+    <form method="post" onsubmit="return confirm('이 건물의 전체 연도 소방계획서, 기본정보·시설·피난계획·편성표·업무수행·교육훈련 기록과 작성 문의를 모두 초기화합니다. 회원 계정·업체 연결·구독·결제 내역은 유지됩니다.\n되돌릴 수 없습니다. 계속할까요?')">
       <input type="hidden" name="csrf" value="<?=h($CSRF)?>">
       <input type="hidden" name="action" value="reset">
       <div class="row">
@@ -574,7 +582,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 
 <div class="savebar">
   <a class="btn btn--success<?= $saved ? ' btn--nudge' : '' ?> js-main-link" target="_top"
-    href="<?=h($url('/building_manager.php'))?>">🏠 메인으로</a>
+    href="<?=h($url('/FireDesk.php'))?>">🏠 메인으로</a>
   <button class="btn" type="button" onclick="window.print()">인쇄 / PDF</button>
   <button class="btn btn--primary" onclick="document.getElementById('biForm').requestSubmit()">저장</button>
 </div>
@@ -596,7 +604,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
   (function(){
     var form = document.getElementById('biForm');
     var mask = document.getElementById('leaveMask');
-    var destination = <?=json_encode($url('/building_manager.php'))?>;
+    var destination = <?=json_encode($url('/FireDesk.php'))?>;
     window.buildingInfoDirty = false;
     var modal = new URLSearchParams(location.search).get('modal') === '1' && window.parent !== window;
     var saving = false;
@@ -683,7 +691,7 @@ table.mgr input:focus{outline:none;border-color:var(--brand)}
 <?php if ($saved && ($_GET['after_save'] ?? '') === 'main'): ?>
 <script>
 /* 팝업에서 '저장 후 이동'을 고른 경우 저장 성공을 확인한 뒤 iframe 밖 메인으로 이동합니다. */
-window.top.location.replace(<?=json_encode($url('/building_manager.php'))?>);
+window.top.location.replace(<?=json_encode($url('/FireDesk.php'))?>);
 </script>
 <?php endif; ?>
 <?php if (($_GET['print'] ?? '') === '1'): ?>
@@ -699,5 +707,30 @@ window.addEventListener('load', function(){
 try { if(window.parent!==window)window.parent.managerHelp?.refresh(); } catch(e) {}
 </script>
 <?php endif; ?>
+<?php if($locationOnly): ?>
+<style>
+.location-onboarding .head,.location-onboarding .info,.location-onboarding .reset-sec,.location-onboarding .savebar,.location-onboarding #biForm>.sec:not(.location-sec){display:none!important}
+.location-onboarding .wrap{max-width:800px;padding-bottom:35px}.location-welcome{background:#edf4ff;border:1px solid #cddffc;padding:20px 24px;border-radius:16px;margin-bottom:16px}.location-welcome>span{font-size:12px;color:#2563b9;font-weight:750}.location-welcome h1{font-size:22px;margin:9px 0}.location-welcome p{font-size:13px;line-height:1.7;color:#5d708b}.location-steps{display:flex;gap:8px}.location-steps b{padding:9px 12px;border-radius:8px;background:white;color:#687b92;font-size:12px}.location-steps .active{background:#2563c4;color:white}.location-steps .done{background:#dff3ea;color:#167552}#locationSetupError{color:#b42318;margin-bottom:0}.location-onboarding .location-map{height:clamp(240px,45vh,390px)}.location-onboarding .location-sec[hidden]{display:none!important}.location-onboarding .location-sec .sec__t .n,.location-onboarding .location-guide{display:none}.location-setup-nav [hidden]{display:none!important}.location-setup-nav{display:flex;justify-content:space-between;gap:10px;padding:12px 0}.location-saved #biForm,.location-saved .location-steps{display:none!important}@media(max-width:600px){.location-welcome{padding:16px}.location-welcome h1{font-size:19px}.location-steps b{font-size:11px;padding:9px}.location-onboarding .location-sec{padding:16px}.location-onboarding .location-map{height:300px}}
+</style>
+<script>
+(()=>{
+ const form=document.getElementById('biForm'),route=document.querySelector('.location-route'),assembly=document.querySelector('.location-assembly'),error=document.getElementById('locationSetupError');
+ if(document.body.classList.contains('location-saved'))return;
+ form.querySelectorAll('.sec:not(.location-sec) input,.sec:not(.location-sec) select,.sec:not(.location-sec) textarea').forEach(el=>el.disabled=true);
+ const nav=document.createElement('div');nav.className='location-setup-nav';nav.innerHTML='<button type="button" class="btn" data-back>이전</button><button type="button" class="btn btn--primary" data-next>다음 · 집결지 지정 →</button>';form.append(nav);
+ let step='route';const back=nav.querySelector('[data-back]'),next=nav.querySelector('[data-next]');
+ function validPoint(a,b){return String(a??'').trim()!==''&&String(b??'').trim()!==''&&Number.isFinite(Number(a))&&Number.isFinite(Number(b))&&Math.abs(Number(a))<=90&&Math.abs(Number(b))<=180;}
+ function routeOk(){try{const r=JSON.parse(document.getElementById('fireEngineRoute').value||'[]');return Array.isArray(r)&&r.length>=2&&r.every(p=>p&&validPoint(p.lat,p.lng));}catch{return false;}}
+ function assemblyOk(){return validPoint(document.getElementById('asmLat').value,document.getElementById('asmLng').value)&&document.getElementById('assemblyName').value.trim()!=='';}
+ function show(s){step=s;route.hidden=s!=='route';assembly.hidden=s!=='assembly';back.hidden=s==='route';next.textContent=s==='route'?'다음 · 집결지 지정 →':'두 위치 저장하기';document.querySelectorAll('[data-location-step]').forEach(el=>{el.classList.toggle('active',el.dataset.locationStep===s);el.classList.toggle('done',el.dataset.locationStep==='route'&&routeOk());});error.textContent='';window.scrollTo({top:0,behavior:'smooth'});window.dispatchEvent(new Event('resize'));}
+ function validate(){if(!routeOk()){show('route');error.textContent='진입로 그리기를 누르고 큰도로에서 건물 입구까지 두 지점 이상 찍어 주세요.';return false;}if(!assemblyOk()){show('assembly');error.textContent='지도에서 모일 장소를 누르고 집결지 이름을 입력해 주세요.';return false;}return true;}
+ back.onclick=()=>show('route');next.onclick=()=>{if(step==='route'){if(!routeOk()){error.textContent='진입로 그리기를 누르고 큰도로에서 건물 입구까지 두 지점 이상 찍어 주세요.';return;}show('assembly');}else if(validate())form.requestSubmit();};
+ form.addEventListener('submit',e=>{if(!validate()){e.preventDefault();e.stopImmediatePropagation();}},true);
+ form.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName!=='TEXTAREA'){e.preventDefault();next.click();}});
+ show(routeOk()&&!assemblyOk()?'assembly':'route');
+})();
+</script>
+<?php endif; ?>
+
 </body>
 </html>

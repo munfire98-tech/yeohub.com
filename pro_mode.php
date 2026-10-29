@@ -1,8 +1,11 @@
 <?php
 declare(strict_types=1);
+/* Shared login retention: partner/admin 30d, building 90d. */
+require_once __DIR__.'/login_persistence.php';
+
 ini_set('session.cookie_httponly', '1');
 if (PHP_VERSION_ID >= 70300) { session_set_cookie_params(['httponly'=>true, 'samesite'=>'Lax']); }
-session_start();
+alp_session_start();
 $isAdmin = !empty($_SESSION['is_admin']) || (!empty($_SESSION['ID_OK']) && $_SESSION['ID_OK'] == 1);
 if (!$isAdmin && empty($_SESSION['is_user'])) { header('Location: /index.php'); exit; }
 function h(string $value): string { return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
@@ -15,7 +18,7 @@ if ($isAdmin && isset($_GET['uid']) && is_string($_GET['uid']) && trim($_GET['ui
 $subscribeUrl = '/subscribe_page.php' . ($query ? '?' . http_build_query($query) : '');
 $mainQuery = $query;
 unset($mainQuery['embed']);
-$mainUrl = '/building_manager.php' . ($mainQuery ? '?' . http_build_query($mainQuery) : '');
+$mainUrl = '/FireDesk.php' . ($mainQuery ? '?' . http_build_query($mainQuery) : '');
 ?>
 <!doctype html>
 <html lang="ko">
